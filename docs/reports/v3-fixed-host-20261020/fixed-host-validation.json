@@ -1,0 +1,50 @@
+{
+  "schema": "wukongim/fixed-host-harness-local-validation/v1",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification",
+  "source_head": "cbd316b9cef51170c658f4e90f69f698b9a5a13a",
+  "changes_uncommitted": true,
+  "files": {
+    "test/e2e/message/conversation_qps/fixed_environment.go": "179c439f2bb6de58367b4b520cceecc9bf9fd1b4e49c3908e5b1f3429df1909c",
+    "test/e2e/message/conversation_qps/fixed_environment_test.go": "cee547ca0f244a174fe892ea4eb113f1d137f15826c8d46957b5ece7d9e12d4f",
+    "test/e2e/message/conversation_qps/fixed_environment_e2e_test.go": "a7c194208f3dfb983cea3ec9fd11a453848d2f75c39d547720f9b2b4e7017d0a",
+    "test/e2e/message/conversation_qps/mixed_attribution_test.go": "8914a3184a0f69e7e42703a72f3574c8ab44dbbdc01bc1f2854f9801c0d55a6b",
+    "test/e2e/message/conversation_qps/AGENTS.md": "f481fa9818909a39c1f13ffe0de22078749fe268fd9edc13c9c42594dd18ec0b"
+  },
+  "failure_design": "/tmp/wukongim-performance-followup-20261020/fixed-host-failure-design.md",
+  "initial_red_receipt": "/tmp/wukongim-performance-followup-20261020/fixed-host-red.json",
+  "additional_red_controls": [
+    {
+      "command": "GOWORK=off go test ./test/e2e/message/conversation_qps -run '^TestFixedHostConfiguration' -count=1",
+      "exit_code": 1,
+      "finding": "Generic key-token redaction incorrectly erased token_auth_on=false. Added schema-aware sensitivity after this failure."
+    },
+    {
+      "command": "GOWORK=off go test ./test/e2e/message/conversation_qps -run '^TestFixedHost' -count=1",
+      "exit_code": 1,
+      "finding": "validateFixedHostAffinity undefined before implementation; contract requires four distinct assigned CPUs."
+    }
+  ],
+  "validation": [
+    {
+      "command": "GOWORK=off go test ./test/e2e/message/conversation_qps -count=1",
+      "exit_code": 0,
+      "output": "ok github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps 0.546s"
+    },
+    {
+      "command": "GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run '^$' -count=1",
+      "exit_code": 0,
+      "output": "ok github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps 0.850s [no tests to run]"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "execution_limits": [
+    "No process workload, workflow dispatch, paid resources, commit or push performed by this subtask.",
+    "Linux fixed-host execution remains unverified locally."
+  ],
+  "receipt_schema": "wukongim/conversation-fixed-host/v1",
+  "metric_archive_limit": "Selected original GC/storage/compaction samples bound to the complete HTTP body SHA/time receipt; suite does not expose raw body.",
+  "resource_cut_scope": "Before original warmup and after measurement: includes warmup and observation overhead, not exact 60-second counter deltas."
+}

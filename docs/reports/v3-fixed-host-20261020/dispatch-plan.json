@@ -1,0 +1,90 @@
+{
+  "schema": "wukongim/fixed-host-investigation-plan/v1",
+  "declared_at": "2026-10-20T15:49:55.319694+00:00",
+  "source_start": "cbd316b9cef51170c658f4e90f69f698b9a5a13a",
+  "candidate": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "variants": {
+    "A": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "B": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "C": "ef798352c40a94e57f768f76b2f4713712f827fe"
+  },
+  "sequence": [
+    "B",
+    "B",
+    "A",
+    "B",
+    "B",
+    "A",
+    "C"
+  ],
+  "measurement_retries": 0,
+  "resources": {
+    "environment": "one ubuntu24.04 GitHub-hosted Linux AMD64 job",
+    "visible_cpus": 4,
+    "driver_gomaxprocs": 4,
+    "node_gomaxprocs": 2,
+    "placement": "all owned processes share same four-CPU affinity; no dedicated physical-host claim",
+    "max_job_minutes": 120,
+    "product_builds_per_variant": 1,
+    "driver_builds": 1,
+    "first_window_entry_minimum_product_age_seconds": 180,
+    "late_preparation": "reject control; do not extend age target",
+    "note": "original warmup/scrapes follow age release; actual first-window age retained",
+    "constraints": "Resolve current cgroup-v2 and all visible ancestor CPU/memory/cpuset controls; enforce unchanged identities/limits around blocks; distinguish root-not-applicable controls from missing non-root controls. No added quota/memory setting and no claim about invisible host parents."
+  },
+  "hypotheses": [
+    {
+      "rank": 1,
+      "hypothesis": "Shared host/product/driver CPU contention explains sustained original queue overload.",
+      "prediction": "Pressure and driver waiting co-vary; high contention persists without extra RPC/alloc work. Controlled variance tests can reject version-only attribution; absent a causal resource intervention, correlation does not confirm original root cause."
+    },
+    {
+      "rank": 2,
+      "hypothesis": "Different preparation age and sequential host evolution contribute to the observed version tail gap.",
+      "prediction": "Same-binary repetitions and ABBA with common age reduce/shift the gap. No same-host unstandardized arm means this alone cannot prove age is causal."
+    },
+    {
+      "rank": 3,
+      "hypothesis": "The changed Slot ReadIndex or other shared read path has added repeatable version-specific cost.",
+      "prediction": "After valid A/A, both B blocks in ABBA remain slower than both A blocks beyond observed B variation, with consistent server-stage/resource evidence and matching request work."
+    }
+  ],
+  "analysis_criteria": {
+    "validity": [
+      "exact unique product binary per variant and one driver",
+      "same profile/clean H and effective CPU/memory/affinity constraints",
+      "all planned blocks retained; unexpected errors or missing identity invalidate comparison",
+      "180-second control valid; record actual first-window time including warmup",
+      "no product process leakage between blocks"
+    ],
+    "aa_pairs": [
+      [
+        1,
+        2
+      ],
+      [
+        4,
+        5
+      ]
+    ],
+    "aa_cpu_per_completed_request_max_ratio": 1.1,
+    "aa_median_window_p99_max_ratio": 1.25,
+    "aa_rule": "Same per-window verdict category; unexpected errors or missing evidence invalidate comparison. Passing repeatability controls require zero drops; consistent rejected windows remain red evidence rather than a success. Inspect all four B blocks for drift.",
+    "version_attribution": "A/A must pass; ABBA differences must be consistent and exceed observed B variation. These thresholds are engineering diagnostic criteria, not significance claims or release limits.",
+    "cpu_denominator": "sum completed list+sync including drain per window; three-node shared CPU only once; driver separate",
+    "quantiles": "retain all window P99; median/mean of window P99 is not pooled P99",
+    "candidate_gate": "C three diagnostic windows pass followed by all unchanged 20 endpoint results and v2 validator. Cross-check gate binary hash against frozen C and source H.",
+    "qualification_limit": "Same-host Linux regression floor only; no formal release, no long soak, no migration candidate claim based on B.",
+    "relative_difference_formula": "abs(x-y)/min(x,y); equivalent max/min <=1.25 for P99, <=1.10 for CPU",
+    "aa_median_definition": "For each block and endpoint, median of three unprofiled window P99 values, not pooled P99",
+    "abba_main_comparison": "B blocks4/5 versus A blocks3/6; separately expose cross-time B1/2/4/5 range and A3/A6 difference"
+  },
+  "invariants": [
+    "unchanged profile.json and acceptance thresholds",
+    "fresh cluster and fixture for each block",
+    "no measured retries",
+    "no publication or paid cloud procurement"
+  ],
+  "next_if_unresolved": "Preserve all data and continue a predeclared one-variable experiment; do not declare historical root cause from a green run.",
+  "bound_at": "2026-10-20T16:00:01.898943+00:00"
+}

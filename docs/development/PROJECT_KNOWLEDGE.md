@@ -1871,4 +1871,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Same-binary repeats and balanced order must precede version attribution;
   retain rejected windows. A repaired candidate must separately pass the
   unchanged full release matrix with its own binary/source identity. See the
-  [fixed-host plan](../reports/2026-10-20-v3-fixed-host-performance.md).
+  [fixed-host qualification](../reports/2026-10-20-v3-fixed-host-performance.md).
+- Run 39453556254 qualified migration-repaired candidate `ef798352c` against
+  all 20 unchanged Linux conversation performance results, but its B4/B5
+  same-binary list/sync median-window-P99 differences were 31.18%/36.09%.
+  Fixed process age and visible cgroup controls therefore did not establish
+  repeatable version attribution. Historical RPC/request differences fit the
+  completed list/sync mix exactly; they do not independently prove extra fanout.
+  The original effective service cgroup was not sampled, so the new run's zero
+  visible throttling cannot retrospectively exclude a historical quota.

@@ -1,0 +1,48 @@
+File: wukongim-e2e
+Build ID: 9e6fc5a0113372c56322ae973debd2932a7253ef
+Type: cpu
+Time: 2026-10-21 00:27:12 CST
+Duration: 24.38s, Total samples = 19.37s (79.45%)
+Showing nodes accounting for 10.79s, 55.70% of 19.37s total
+Showing top 40 nodes out of 1342
+      flat  flat%   sum%        cum   cum%
+     2.47s 12.75% 12.75%      2.47s 12.75%  internal/runtime/syscall.Syscall6
+     0.88s  4.54% 17.29%      0.88s  4.54%  runtime.duffcopy
+     0.73s  3.77% 21.06%      1.54s  7.95%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.69s  3.56% 24.63%      0.69s  3.56%  cmpbody
+     0.54s  2.79% 27.41%      0.54s  2.79%  runtime.futex
+     0.54s  2.79% 30.20%      0.54s  2.79%  runtime.memmove
+     0.52s  2.68% 32.89%      1.06s  5.47%  runtime.scanobject
+     0.33s  1.70% 34.59%      0.33s  1.70%  runtime.nextFreeFast (inline)
+     0.31s  1.60% 36.19%      0.33s  1.70%  internal/sync.(*Mutex).Lock (inline)
+     0.23s  1.19% 37.38%      0.31s  1.60%  runtime.findObject
+     0.18s  0.93% 38.31%      0.18s  0.93%  internal/sync.(*Mutex).Unlock (inline)
+     0.17s  0.88% 39.18%      0.17s  0.88%  runtime.memclrNoHeapPointers
+     0.16s  0.83% 40.01%      0.16s  0.83%  github.com/WuKongIM/WuKongIM/pkg/db/message.hashPayload
+     0.16s  0.83% 40.84%      0.16s  0.83%  runtime.unlock2
+     0.16s  0.83% 41.66%      0.16s  0.83%  sync/atomic.(*Int32).Add
+     0.15s  0.77% 42.44%      0.15s  0.77%  internal/runtime/atomic.(*Uint32).CompareAndSwap
+     0.15s  0.77% 43.21%      0.15s  0.77%  runtime.duffzero
+     0.15s  0.77% 43.99%      0.16s  0.83%  runtime.lock2
+     0.15s  0.77% 44.76%      0.15s  0.77%  runtime.nanotime
+     0.15s  0.77% 45.53%      0.26s  1.34%  runtime.pcvalue
+     0.15s  0.77% 46.31%      0.15s  0.77%  runtime.typePointers.nextFast (inline)
+     0.12s  0.62% 46.93%      0.77s  3.98%  runtime.mallocgcSmallScanNoHeader
+     0.12s  0.62% 47.55%      0.34s  1.76%  runtime.selectgo
+     0.11s  0.57% 48.12%      0.64s  3.30%  encoding/json.structEncoder.encode
+     0.11s  0.57% 48.68%      0.11s  0.57%  internal/runtime/maps.ctrlGroup.matchH2
+     0.10s  0.52% 49.20%      0.10s  0.52%  encoding/base64.(*Encoding).Encode
+     0.10s  0.52% 49.72%      0.11s  0.57%  runtime.(*mspan).writeHeapBitsSmall
+     0.10s  0.52% 50.23%      1.97s 10.17%  runtime.mallocgc
+     0.10s  0.52% 50.75%      0.16s  0.83%  runtime.mallocgcTiny
+     0.10s  0.52% 51.26%      0.10s  0.52%  runtime.step
+     0.09s  0.46% 51.73%      0.09s  0.46%  aeshashbody
+     0.09s  0.46% 52.19%      0.31s  1.60%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.(*ObserverDrain).aggregate
+     0.09s  0.46% 52.66%      0.09s  0.46%  internal/runtime/maps.h2
+     0.09s  0.46% 53.12%      0.09s  0.46%  memeqbody
+     0.09s  0.46% 53.59%      0.20s  1.03%  runtime.(*unwinder).resolveInternal
+     0.09s  0.46% 54.05%      0.09s  0.46%  sync/atomic.(*Uint64).Add (inline)
+     0.08s  0.41% 54.47%      0.12s  0.62%  github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec.(*Scanner).readValue
+     0.08s  0.41% 54.88%      0.69s  3.56%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.(*ObserverDrain).ObserveTransport
+     0.08s  0.41% 55.29%      0.11s  0.57%  internal/runtime/maps.(*Iter).Next
+     0.08s  0.41% 55.70%      0.08s  0.41%  runtime.(*mspan).base (inline)

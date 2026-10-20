@@ -1,0 +1,48 @@
+File: wukongim-e2e
+Build ID: ea5add574985228162ed4be84a2f2c8670f5465b
+Type: cpu
+Time: 2026-10-21 00:20:57 CST
+Duration: 24.40s, Total samples = 21.23s (87.00%)
+Showing nodes accounting for 11.66s, 54.92% of 21.23s total
+Showing top 40 nodes out of 1467
+      flat  flat%   sum%        cum   cum%
+     2.34s 11.02% 11.02%      2.34s 11.02%  internal/runtime/syscall.Syscall6
+     0.91s  4.29% 15.31%      1.85s  8.71%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.87s  4.10% 19.41%      0.87s  4.10%  runtime.duffcopy
+     0.76s  3.58% 22.99%      0.76s  3.58%  cmpbody
+     0.65s  3.06% 26.05%      1.19s  5.61%  runtime.scanobject
+     0.51s  2.40% 28.45%      0.51s  2.40%  runtime.memmove
+     0.48s  2.26% 30.71%      0.48s  2.26%  runtime.nextFreeFast (inline)
+     0.35s  1.65% 32.36%      0.35s  1.65%  runtime.futex
+     0.29s  1.37% 33.73%      0.31s  1.46%  internal/sync.(*Mutex).Lock (inline)
+     0.28s  1.32% 35.04%      0.28s  1.32%  runtime.memclrNoHeapPointers
+     0.27s  1.27% 36.32%      0.28s  1.32%  internal/sync.(*Mutex).Unlock (inline)
+     0.22s  1.04% 37.35%      0.22s  1.04%  runtime.duffzero
+     0.22s  1.04% 38.39%      0.27s  1.27%  runtime.typePointers.next
+     0.20s  0.94% 39.33%      0.28s  1.32%  runtime.findObject
+     0.19s  0.89% 40.23%      0.19s  0.89%  sync/atomic.(*Int32).Add (inline)
+     0.18s  0.85% 41.07%      2.72s 12.81%  runtime.mallocgc
+     0.17s   0.8% 41.87%      0.17s   0.8%  aeshashbody
+     0.17s   0.8% 42.68%      0.17s   0.8%  github.com/WuKongIM/WuKongIM/pkg/db/message.hashPayload
+     0.16s  0.75% 43.43%      0.16s  0.75%  internal/runtime/maps.ctrlGroup.matchH2
+     0.16s  0.75% 44.18%      0.18s  0.85%  runtime.(*mspan).writeHeapBitsSmall
+     0.16s  0.75% 44.94%      0.16s  0.75%  sync/atomic.(*Uint64).Add
+     0.15s  0.71% 45.64%      0.15s  0.71%  runtime.nanotime
+     0.15s  0.71% 46.35%      0.15s  0.71%  runtime.step
+     0.14s  0.66% 47.01%      1.03s  4.85%  runtime.growslice
+     0.14s  0.66% 47.67%      0.35s  1.65%  runtime.selectgo
+     0.13s  0.61% 48.28%      0.13s  0.61%  runtime.(*mspan).base (inline)
+     0.13s  0.61% 48.89%      0.13s  0.61%  runtime.(*spanSet).push
+     0.12s  0.57% 49.46%      0.12s  0.57%  runtime.typePointers.nextFast (inline)
+     0.11s  0.52% 49.98%      0.40s  1.88%  github.com/cockroachdb/pebble/v2.(*Iterator).Close
+     0.11s  0.52% 50.49%      0.23s  1.08%  runtime.mallocgcTiny
+     0.11s  0.52% 51.01%      0.28s  1.32%  runtime.wbBufFlush1
+     0.10s  0.47% 51.48%      0.34s  1.60%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.(*ObserverDrain).aggregate
+     0.10s  0.47% 51.95%      0.10s  0.47%  time.runtimeNow
+     0.09s  0.42% 52.38%      0.62s  2.92%  encoding/json.structEncoder.encode
+     0.09s  0.42% 52.80%      0.09s  0.42%  internal/runtime/atomic.(*Uint32).CompareAndSwap
+     0.09s  0.42% 53.23%      0.09s  0.42%  memeqbody
+     0.09s  0.42% 53.65%      0.23s  1.08%  runtime.(*unwinder).resolveInternal
+     0.09s  0.42% 54.07%      0.63s  2.97%  runtime.mallocgcSmallNoscan
+     0.09s  0.42% 54.50%      0.99s  4.66%  runtime.mallocgcSmallScanNoHeader
+     0.09s  0.42% 54.92%      0.19s  0.89%  runtime.mapaccess1_fast32

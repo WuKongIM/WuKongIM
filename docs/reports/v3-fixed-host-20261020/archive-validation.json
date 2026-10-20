@@ -1,0 +1,23 @@
+{
+  "schema": "wukongim/fixed-host-archive-verification/v1",
+  "run_id": 39453556254,
+  "candidate": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "retained_entries_verified_against_original_byte_hashes": 137,
+  "retained_zip_sha256": "a25ffaaf02ef62d7117359ba776e9c0ddd92619aba87dbe3858478d1f10cd25f",
+  "omitted_entries": 4,
+  "descriptor_recalculation_equal": true,
+  "complete_download_independent_audit_equal": true,
+  "retained_zip_resource_blocks_and_summaries_equal": true,
+  "retained_gate_frozen_validator_exit": 0,
+  "retained_gate_frozen_validator_stdout": "true",
+  "all_aa_criteria_pass": false,
+  "candidate_regression_floor_pass": true,
+  "limits": [
+    "Four executable files are omitted only from repository archive, not from the complete-download identity audit.",
+    "Root cause is not fully confirmed; measurements were not rerun."
+  ],
+  "historical_recalculation_equal_excluding_input_paths": true,
+  "report_local_links_exist": true,
+  "retained_pprof_count": 70,
+  "profile_offline_validation_status": "pass"
+}

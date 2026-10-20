@@ -1,0 +1,48 @@
+File: wukongim-e2e
+Build ID: 9e6fc5a0113372c56322ae973debd2932a7253ef
+Type: cpu
+Time: 2026-10-21 00:33:27 CST
+Duration: 24.41s, Total samples = 20.88s (85.55%)
+Showing nodes accounting for 3.97s, 19.01% of 20.88s total
+Showing top 40 nodes out of 1425
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      8.61s 41.24%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0%     0%      8.60s 41.19%  runtime/pprof.Do
+         0     0%     0%      8.56s 41.00%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0%     0%      6.37s 30.51%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+     0.01s 0.048% 0.048%      6.31s 30.22%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+     0.01s 0.048% 0.096%      6.29s 30.12%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+     0.01s 0.048%  0.14%      6.03s 28.88%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+         0     0%  0.14%      5.66s 27.11%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%  0.14%      5.45s 26.10%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0%  0.14%      3.46s 16.57%  net/http.(*conn).serve
+         0     0%  0.14%      3.39s 16.24%  github.com/gin-gonic/gin.(*Engine).ServeHTTP
+         0     0%  0.14%      3.39s 16.24%  github.com/gin-gonic/gin.(*Engine).handleHTTPRequest
+         0     0%  0.14%      3.39s 16.24%  net/http.serverHandler.ServeHTTP
+         0     0%  0.14%      3.38s 16.19%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0%  0.14%      3.38s 16.19%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0%  0.14%      3.38s 16.19%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0%  0.14%      3.38s 16.19%  github.com/gin-gonic/gin.(*Context).Next
+         0     0%  0.14%      3.32s 15.90%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).messageContentEpochMiddleware.func4
+     0.01s 0.048%  0.19%      2.74s 13.12%  github.com/WuKongIM/WuKongIM/pkg/cluster.slotProxyRPCHandlerFunc.HandleRPC
+     2.68s 12.84% 13.03%      2.68s 12.84%  internal/runtime/syscall.Syscall6
+     0.01s 0.048% 13.07%      2.54s 12.16%  runtime.systemstack
+         0     0% 13.07%      2.47s 11.83%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readSelectedConversationHeads
+     0.01s 0.048% 13.12%      2.47s 11.83%  syscall.Syscall
+     0.01s 0.048% 13.17%      2.42s 11.59%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readStoredConversationHead
+         0     0% 13.17%      2.39s 11.45%  syscall.RawSyscall6
+     0.08s  0.38% 13.55%      2.35s 11.25%  runtime.mallocgc
+     0.02s 0.096% 13.65%      2.22s 10.63%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0% 13.65%      2.11s 10.11%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.RegisterServiceHandlersOn.func4
+     0.02s 0.096% 13.75%      2.06s  9.87%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).handleForwardConversationHeads
+         0     0% 13.75%      2.06s  9.87%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*ServiceGateway).handleForwardConversationHeads
+     0.06s  0.29% 14.03%      2.01s  9.63%  github.com/cockroachdb/pebble/v2.(*DB).getInternal
+     0.03s  0.14% 14.18%      1.97s  9.43%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch
+     0.04s  0.19% 14.37%      1.96s  9.39%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readMessageUpdatesLocal
+     0.06s  0.29% 14.66%      1.90s  9.10%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1
+     0.06s  0.29% 14.94%      1.82s  8.72%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Iterator).seekForBaseSplice
+     0.01s 0.048% 14.99%      1.76s  8.43%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleConversationList
+     0.83s  3.98% 18.97%      1.76s  8.43%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.01s 0.048% 19.01%      1.74s  8.33%  github.com/cockroachdb/pebble/v2.(*Iterator).First
+         0     0% 19.01%      1.73s  8.29%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).handleMessageUpdateReadRPC
+         0     0% 19.01%      1.71s  8.19%  github.com/cockroachdb/pebble/v2.(*Iterator).iterFirstWithinBounds

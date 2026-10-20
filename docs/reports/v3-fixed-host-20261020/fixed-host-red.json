@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./test/e2e/message/conversation_qps",
+    "-run",
+    "^TestFixedHost",
+    "-count=1"
+  ],
+  "exit_code": 1,
+  "expected_failure": "undefined fixed-host contracts before implementation"
+}

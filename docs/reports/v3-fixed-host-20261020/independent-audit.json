@@ -1,0 +1,210 @@
+{
+  "schema": "wukongim/fixed-host-offline-audit/v1",
+  "candidate": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "expected_run_id": 39453556254,
+  "issues": [],
+  "blocks": [
+    {
+      "ordinal": 1,
+      "role": "B",
+      "numeric_pass": true,
+      "report_sha256": "8a465c8b2718e02c2fa42e0d325315299d30ffa99d28234ed0883867a3dcb4b2",
+      "server_cpu_ms_per_completed": 10.941239316239315,
+      "window_p99_ms": {
+        "/conversation/list": [
+          32.706944,
+          31.004632,
+          196.196737
+        ],
+        "/conversation/sync": [
+          71.007116,
+          68.452384,
+          132.850619
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 32.706944,
+        "/conversation/sync": 71.007116
+      }
+    },
+    {
+      "ordinal": 2,
+      "role": "B",
+      "numeric_pass": true,
+      "report_sha256": "4fa4343edbcd6abbe726a1864992678ee90f42b0284dfc3c3b72f758156d0c3a",
+      "server_cpu_ms_per_completed": 10.858547008547008,
+      "window_p99_ms": {
+        "/conversation/list": [
+          29.293329,
+          29.285881,
+          30.322919
+        ],
+        "/conversation/sync": [
+          64.244985,
+          63.597249,
+          64.311929
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 29.293329,
+        "/conversation/sync": 64.244985
+      }
+    },
+    {
+      "ordinal": 3,
+      "role": "A",
+      "numeric_pass": true,
+      "report_sha256": "d233c16179d0ddfb4a3b8dcda0813bf80a1b1994688d46dfca418a080a7c8f27",
+      "server_cpu_ms_per_completed": 10.837606837606836,
+      "window_p99_ms": {
+        "/conversation/list": [
+          30.332834,
+          27.966409,
+          59.889643
+        ],
+        "/conversation/sync": [
+          64.12398,
+          62.787051,
+          116.760346
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 30.332834,
+        "/conversation/sync": 64.12398
+      }
+    },
+    {
+      "ordinal": 4,
+      "role": "B",
+      "numeric_pass": true,
+      "report_sha256": "85e16cfe76d387dd79ac3a17d735bdf2f9e0b680383467765f646bc6aa54fae0",
+      "server_cpu_ms_per_completed": 10.101709401709401,
+      "window_p99_ms": {
+        "/conversation/list": [
+          23.640195,
+          21.745698,
+          22.415028
+        ],
+        "/conversation/sync": [
+          50.849814,
+          46.379122,
+          48.108091
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 22.415028,
+        "/conversation/sync": 48.108091
+      }
+    },
+    {
+      "ordinal": 5,
+      "role": "B",
+      "numeric_pass": true,
+      "report_sha256": "b6f4e0802cbe0bac204505cddc928bb70b8d002e0025985ccb04d3565b396447",
+      "server_cpu_ms_per_completed": 10.566880341880344,
+      "window_p99_ms": {
+        "/conversation/list": [
+          28.071515,
+          29.404791,
+          29.642271
+        ],
+        "/conversation/sync": [
+          58.794952,
+          66.435536,
+          65.4717
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 29.404791,
+        "/conversation/sync": 65.4717
+      }
+    },
+    {
+      "ordinal": 6,
+      "role": "A",
+      "numeric_pass": true,
+      "report_sha256": "e044e8a29a3a0afbb472f48389dc098c4ae8e780bd898376457fe375527a8d9e",
+      "server_cpu_ms_per_completed": 10.628846153846153,
+      "window_p99_ms": {
+        "/conversation/list": [
+          27.577556,
+          28.785701,
+          30.874207
+        ],
+        "/conversation/sync": [
+          59.950789,
+          61.329619,
+          68.275005
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 28.785701,
+        "/conversation/sync": 61.329619
+      }
+    },
+    {
+      "ordinal": 7,
+      "role": "C",
+      "numeric_pass": true,
+      "report_sha256": "66f2c6852e4f9fc889756c855f724c8575b94dd59f6dc462592e415a1accfacd",
+      "server_cpu_ms_per_completed": 10.807264957264957,
+      "window_p99_ms": {
+        "/conversation/list": [
+          28.391364,
+          28.756377,
+          31.363955
+        ],
+        "/conversation/sync": [
+          61.921846,
+          61.307562,
+          70.007744
+        ]
+      },
+      "median_window_p99_ms": {
+        "/conversation/list": 28.756377,
+        "/conversation/sync": 61.921846
+      }
+    }
+  ],
+  "aa": [
+    {
+      "blocks": [
+        1,
+        2
+      ],
+      "cpu_relative_difference": 0.007615411861938616,
+      "p99_relative_differences": {
+        "/conversation/list": 0.11653216334681525,
+        "/conversation/sync": 0.10525539075151152
+      },
+      "pass": true
+    },
+    {
+      "blocks": [
+        4,
+        5
+      ],
+      "cpu_relative_difference": 0.0460487350875711,
+      "p99_relative_differences": {
+        "/conversation/list": 0.31183378401311834,
+        "/conversation/sync": 0.3609290794764647
+      },
+      "pass": false
+    }
+  ],
+  "candidate_mixed_pass": true,
+  "full_gate_pass": true,
+  "historical_root_cause_confirmed": false,
+  "limits": [
+    "Median of window P99 values is not pooled P99.",
+    "Resolved resource cuts include warmup and observation overhead.",
+    "Selected metrics plus a body hash do not archive the full response.",
+    "Invisible host constraints and historical causality remain unproved."
+  ],
+  "gate_validator_exit": 0,
+  "gate_status": "pass",
+  "evidence_valid": true,
+  "all_aa_criteria_pass": false,
+  "candidate_regression_floor_pass": true,
+  "checker_sha256": "c9c269bcd2d045807fce2634d01c11cc741141df5d4e35213c69bebcf54e0dfb"
+}

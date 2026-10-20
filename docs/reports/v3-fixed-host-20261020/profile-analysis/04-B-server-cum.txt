@@ -1,0 +1,48 @@
+File: wukongim-e2e
+Build ID: 9e6fc5a0113372c56322ae973debd2932a7253ef
+Type: cpu
+Time: 2026-10-21 00:27:12 CST
+Duration: 24.38s, Total samples = 19.37s (79.45%)
+Showing nodes accounting for 2.85s, 14.71% of 19.37s total
+Showing top 40 nodes out of 1342
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      7.56s 39.03%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+     0.01s 0.052% 0.052%      7.55s 38.98%  runtime/pprof.Do
+     0.01s 0.052%   0.1%      7.53s 38.87%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+     0.01s 0.052%  0.15%      6.02s 31.08%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+     0.01s 0.052%  0.21%      5.93s 30.61%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+         0     0%  0.21%      5.93s 30.61%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+         0     0%  0.21%      5.66s 29.22%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+     0.01s 0.052%  0.26%      5.19s 26.79%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%  0.26%      5.04s 26.02%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0%  0.26%      3.17s 16.37%  net/http.(*conn).serve
+         0     0%  0.26%      3.13s 16.16%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0%  0.26%      3.13s 16.16%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0%  0.26%      3.13s 16.16%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0%  0.26%      3.13s 16.16%  github.com/gin-gonic/gin.(*Context).Next
+         0     0%  0.26%      3.13s 16.16%  github.com/gin-gonic/gin.(*Engine).ServeHTTP
+         0     0%  0.26%      3.13s 16.16%  github.com/gin-gonic/gin.(*Engine).handleHTTPRequest
+         0     0%  0.26%      3.13s 16.16%  net/http.serverHandler.ServeHTTP
+         0     0%  0.26%      3.09s 15.95%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).messageContentEpochMiddleware.func4
+     2.47s 12.75% 13.01%      2.47s 12.75%  internal/runtime/syscall.Syscall6
+     0.01s 0.052% 13.06%      2.44s 12.60%  syscall.Syscall
+         0     0% 13.06%      2.42s 12.49%  github.com/WuKongIM/WuKongIM/pkg/cluster.slotProxyRPCHandlerFunc.HandleRPC
+     0.01s 0.052% 13.11%      2.41s 12.44%  runtime.systemstack
+     0.01s 0.052% 13.16%      2.28s 11.77%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readSelectedConversationHeads
+     0.02s   0.1% 13.27%      2.24s 11.56%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readStoredConversationHead
+         0     0% 13.27%      2.19s 11.31%  syscall.RawSyscall6
+     0.01s 0.052% 13.32%      2.12s 10.94%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0% 13.32%         2s 10.33%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.RegisterServiceHandlersOn.func4
+     0.10s  0.52% 13.84%      1.97s 10.17%  runtime.mallocgc
+         0     0% 13.84%      1.94s 10.02%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).handleForwardConversationHeads
+         0     0% 13.84%      1.94s 10.02%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*ServiceGateway).handleForwardConversationHeads
+     0.01s 0.052% 13.89%      1.91s  9.86%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch
+     0.05s  0.26% 14.15%      1.89s  9.76%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1
+     0.07s  0.36% 14.51%      1.82s  9.40%  github.com/cockroachdb/pebble/v2.(*DB).getInternal
+         0     0% 14.51%      1.81s  9.34%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readMessageUpdatesLocal
+     0.02s   0.1% 14.61%      1.66s  8.57%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+     0.01s 0.052% 14.66%      1.66s  8.57%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.WriteFramesInto
+         0     0% 14.66%      1.62s  8.36%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleConversationList
+     0.01s 0.052% 14.71%      1.62s  8.36%  net.(*Buffers).WriteTo
+         0     0% 14.71%      1.61s  8.31%  internal/poll.(*FD).Writev
+         0     0% 14.71%      1.61s  8.31%  net.(*conn).writeBuffers

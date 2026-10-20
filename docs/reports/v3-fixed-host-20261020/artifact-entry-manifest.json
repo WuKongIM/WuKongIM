@@ -1,0 +1,851 @@
+{
+  "source_archive_sha256": "1adc8cfd1fa800cd1372f68f872b3ee395712b1da97eece073d8c63a99cf1718",
+  "entries": [
+    {
+      "path": "conversation-fixed-host/binaries/A/binary.sha256",
+      "bytes": 79,
+      "sha256": "96f6297c8fd5cf248a7a8f49c14879266128983d6b54a212ce4f353b5380c3df",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/build.command.json",
+      "bytes": 457,
+      "sha256": "a0830cab6e70b306349af366acd7184383e0027c310678edfa24e2764b49f189",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/build.txt",
+      "bytes": 8959,
+      "sha256": "4900d060afe3f85492aad84d3335e1c689440c6d0a1bf84ad267d722c717a634",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/checkout.command.json",
+      "bytes": 396,
+      "sha256": "d3960b70bcb987f1fabed8bce34c5fd4eb4533a13ab9835238baf409d770f95f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/checkout.log",
+      "bytes": 599,
+      "sha256": "7b38ac44032e6fd27dabba9be0c7a6543bad3c0f6a49a9d36990ca62146afc7c",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/identity.json",
+      "bytes": 269,
+      "sha256": "88db41c3e8678b7ead8a2254619032f7274851b6e52f3423f738172c6dcd0d52",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/A/wukongim-e2e",
+      "bytes": 96500272,
+      "sha256": "48ca30ca7e73e6dc9975d0f080aa247c7cd21f20f4a5c7b0e4b498d08c243094",
+      "retained_in_repository": false
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/binary.sha256",
+      "bytes": 79,
+      "sha256": "01271aa8f2bd563e7b7e9c49709900e096ea8b5d2d75499c43f3028e47e914a1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/build.command.json",
+      "bytes": 458,
+      "sha256": "314c8e438b57ddfc49635e90d714e064b2056c94d2bd9fb7623807302a4b48d5",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/build.txt",
+      "bytes": 8959,
+      "sha256": "db3ac4060e86fa2ccbbdbe2f73a90724879bb042e654b358dbd8b9ace88b1961",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/checkout.command.json",
+      "bytes": 398,
+      "sha256": "e3b000919cd29665ce98a2f84a261c7f19fbf5856fbe1b760bfd0b888c380817",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/checkout.log",
+      "bytes": 192,
+      "sha256": "b721e5ce0274147b31c153ae912068a55dec6552a383d05f426ba3b50770bff1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/identity.json",
+      "bytes": 269,
+      "sha256": "05db737fa3f4715dcc894dd9817160f321483b3b03391355309dc16b6f0f0a45",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/B/wukongim-e2e",
+      "bytes": 96631320,
+      "sha256": "e64cf368464e1bb38907f9805b22178e21847eb2c540b2cb6c892db88901c1dc",
+      "retained_in_repository": false
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/binary.sha256",
+      "bytes": 79,
+      "sha256": "afd4ef35897fcb2b1ac7a0ecf7d0071f08e16b9c46889ef7b1e6445ef4b025bf",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/build.command.json",
+      "bytes": 457,
+      "sha256": "91a86aabe4063dcd599786573180c13be4525b79148f86a2f4e330da6f2d4479",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/build.txt",
+      "bytes": 8959,
+      "sha256": "a2ccd25067a338ad0c419094ee87266a3418ab89caf987c689f9c02ba7dd9bfe",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/checkout.command.json",
+      "bytes": 398,
+      "sha256": "13d4059394d897b3b4ff87748b078a390a8ef031bc39fcd959fcc2c8c70b020b",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/checkout.log",
+      "bytes": 205,
+      "sha256": "0d271b61e4dc6d53c4e2d7c35a3d266ce6bcebd8bf6b2d347c6d16a6c9a1f0a1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/identity.json",
+      "bytes": 269,
+      "sha256": "662bc6e76055cda9cee4aa5323dcf86cbb5d5f6737dcf26dda591a18e9084c74",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/binaries/C/wukongim-e2e",
+      "bytes": 96632136,
+      "sha256": "8c3c79f2853b76be7f83dbd606404bf6ab1fdf34ce9370e82c056b389d03c57d",
+      "retained_in_repository": false
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/driver-cpu.pprof",
+      "bytes": 20967,
+      "sha256": "29a5a926a0ff5c62676c4c462b827c19eeb419233c6eb03c688eb288618bb05b",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/fixed-environment.json",
+      "bytes": 1884708,
+      "sha256": "d0877a8ff0d5ba6b6903b572f59136250a7e033e445da4de31b080be71567e13",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node1-alloc-after.pprof",
+      "bytes": 117858,
+      "sha256": "606879cfd63b2589f3b9d409c09540ae5d3cfe5271010a4706ef7471622d1c4e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node1-alloc-before.pprof",
+      "bytes": 115930,
+      "sha256": "a1ffdd726db49984cfc9a495e87e95318257f35025daef30c773597eed096e39",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node1-cpu.pprof",
+      "bytes": 60265,
+      "sha256": "69b197121714a4c04129f1cb512ab6482f795d5e9a1809f2972b3f75e7af5d8c",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node2-alloc-after.pprof",
+      "bytes": 117466,
+      "sha256": "ba7f274603aeab296373128cff148a730fc24c6bfee96104039561ec18911150",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node2-alloc-before.pprof",
+      "bytes": 115366,
+      "sha256": "d2630e95e1fcd825aa7ac0098d121ac2977c7977c8d19ba0b44f7ce42bb5cbb0",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node2-cpu.pprof",
+      "bytes": 62422,
+      "sha256": "9be129105ec8b0c75aac0df293d7f5772664245eea948b404ff8eff4e3431676",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node3-alloc-after.pprof",
+      "bytes": 120919,
+      "sha256": "ecaa1119dbaddacaafbcb6e6d4bef112f5be1f9e3fe5d1e07a2c53dd7bf24b38",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node3-alloc-before.pprof",
+      "bytes": 118779,
+      "sha256": "813da1364921539c2e0ca601e3ea834256e66c61366ceddbe66855f710611879",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/node3-cpu.pprof",
+      "bytes": 63590,
+      "sha256": "a9bed95b48b3a5fe9c1667f66dc166818b73aeefc7fa1b1998c2d95558f61197",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/report.json",
+      "bytes": 3782694,
+      "sha256": "8a465c8b2718e02c2fa42e0d325315299d30ffa99d28234ed0883867a3dcb4b2",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/test.command.json",
+      "bytes": 562,
+      "sha256": "6134edf1a0457812f6d4fca65a030a54c0453302c24fe71c8b60c13643969ed2",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/01-B/test.log",
+      "bytes": 1526,
+      "sha256": "eac02fa9031372af33ceeffa62ff0fe79f999a7070897b6be77179950e0513a3",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/driver-cpu.pprof",
+      "bytes": 20683,
+      "sha256": "8c9f27383170d374081e0219777173d3ae12e968368f9c3b341d31ce9ff067b8",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/fixed-environment.json",
+      "bytes": 1885069,
+      "sha256": "492f35313339d377a37e12ecbe4194964151d4695f5b826e6efb63e0b273a7ab",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node1-alloc-after.pprof",
+      "bytes": 121901,
+      "sha256": "4fb66e81cc6001ac1f0c740fb059b47f3c0823dab5ed692df19333c787b23f5e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node1-alloc-before.pprof",
+      "bytes": 119947,
+      "sha256": "cd375db24c70b51da3c32a5e1c4341d11d03f03172cf27d0d0279a3e5018b6d9",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node1-cpu.pprof",
+      "bytes": 59897,
+      "sha256": "61ffd7cf83e3fc2883e36fcccdb5351ec8231851b5b04603467302ba42bb6ae7",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node2-alloc-after.pprof",
+      "bytes": 119322,
+      "sha256": "c2e6cd4bb60e776836e3021063de842b96bba8628ea36aaa3e94a8a90fbff401",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node2-alloc-before.pprof",
+      "bytes": 117480,
+      "sha256": "694cc76ecf98b8042ae188e6973d7d04dd6a6dc28944fbc2a2a26f22cf25cf48",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node2-cpu.pprof",
+      "bytes": 59590,
+      "sha256": "c450bdb5ba03f93278e139ee9d4178a62951baec3c35823ba90201132ed365a4",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node3-alloc-after.pprof",
+      "bytes": 118478,
+      "sha256": "b3d1306680cc4530cd5d792a5c840de041cfc9237482948a16f28be38fe29e87",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node3-alloc-before.pprof",
+      "bytes": 116351,
+      "sha256": "2c85dadfe969064660df0a1f55d6e9273f41c387ee353dcde9a14af1cead487d",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/node3-cpu.pprof",
+      "bytes": 63087,
+      "sha256": "a3122d9bdd6db212d9519fd2acf22a792937379f0c402dbbd9168119dc98def4",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/report.json",
+      "bytes": 3780351,
+      "sha256": "4fa4343edbcd6abbe726a1864992678ee90f42b0284dfc3c3b72f758156d0c3a",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/test.command.json",
+      "bytes": 562,
+      "sha256": "e006bb29a7e09744163a919c2e678587a20f8005e0274ccb71f6ee772a89668e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/02-B/test.log",
+      "bytes": 1524,
+      "sha256": "b96ceb4fe6865e3f3df4b84ee80fb1816448d727b437778202e52665d717ab51",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/driver-cpu.pprof",
+      "bytes": 20673,
+      "sha256": "3c71d3b61169b2b885d1be3a1998b88113778c3f1f0dacdb1282efc7195e010a",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/fixed-environment.json",
+      "bytes": 1885313,
+      "sha256": "41c27d2edf7dce6341bd2dfa3993b596c1ee529387f3f7b26a2f78bbb017502d",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node1-alloc-after.pprof",
+      "bytes": 119921,
+      "sha256": "552317b1f665eb43666277a08ec644d6f0c059f64388846c5853ff7f786f2d2a",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node1-alloc-before.pprof",
+      "bytes": 118199,
+      "sha256": "20bd2e35b471d1a48ef7f7f959d7b25c3f3ccad399bafff62157754fe6322783",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node1-cpu.pprof",
+      "bytes": 62410,
+      "sha256": "c7eb2b2f1fe88d1a81b3499de0229dbb616075d169ca6a28fa039436a5115b09",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node2-alloc-after.pprof",
+      "bytes": 118205,
+      "sha256": "9aab86d46355d257ef7b4f2adb19de9d7cc3a8dd2d1c4163fbbd0cf2279d2f7f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node2-alloc-before.pprof",
+      "bytes": 116393,
+      "sha256": "e3809efb385b5c7a3ff571a6b8eb89c43d9c991feb45932e188e280dbc3d01fe",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node3-alloc-after.pprof",
+      "bytes": 115784,
+      "sha256": "b9b21df4e439dec6192709f4e7326203a33d2300f258bea1ce2cb06d2d4f9f95",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node2-cpu.pprof",
+      "bytes": 60976,
+      "sha256": "50bec22b60ac8d59b679ac1316577fecd33a3d42a7173007bd58a2adb94e49ef",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node3-alloc-before.pprof",
+      "bytes": 114062,
+      "sha256": "75c7a34beb26c4f836c17111363770556476c3c7f3ab6d39a33bed7e56083d17",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/node3-cpu.pprof",
+      "bytes": 65055,
+      "sha256": "ed01f33a598b59028b39e48835a785f3602a69fb80dc085f0474f67c9e5a754c",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/report.json",
+      "bytes": 3795967,
+      "sha256": "d233c16179d0ddfb4a3b8dcda0813bf80a1b1994688d46dfca418a080a7c8f27",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/test.command.json",
+      "bytes": 563,
+      "sha256": "3f497ee68e999d471077d61473964512c3f50b61052f3cc8d9eff2bad74b0500",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/03-A/test.log",
+      "bytes": 1525,
+      "sha256": "a2e4e617af3e8048aa8a6a2bba1856fd2db840fe9829b03c29000ca797b3eeb8",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/driver-cpu.pprof",
+      "bytes": 19454,
+      "sha256": "a3f87a23250c0315fd1db1832671737cf1fde0501c091e8f681ee90fcf35a1b4",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/fixed-environment.json",
+      "bytes": 1885392,
+      "sha256": "b3e8186892d8890ab5773661e8c572da778a4d4d1a2dbfba4c88e3f8017f8d2f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node1-alloc-after.pprof",
+      "bytes": 120940,
+      "sha256": "9388ee4802d33a7730f10f210b398a480f1e2934feb9207550ba9ddc9f00748e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node1-alloc-before.pprof",
+      "bytes": 119291,
+      "sha256": "91b329f1e23bc211302c42ef1cf434c0a5b9445cf2fb7da12872c84f0bc3f134",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node1-cpu.pprof",
+      "bytes": 58887,
+      "sha256": "7f1f88a99c087dd21c47ff41083735f3a6675957fa739d11620fb15dea18c067",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node2-alloc-after.pprof",
+      "bytes": 118437,
+      "sha256": "8f3e8101d07f89bc40e933483fbb2730f1b9d01b738b31e908d9e40aa849ffdc",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node2-alloc-before.pprof",
+      "bytes": 116370,
+      "sha256": "c2efb815bc1efa76c455758be89eb7fe1bf1c7ed5fdae4022d944fcf4c50456f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node2-cpu.pprof",
+      "bytes": 53993,
+      "sha256": "bfefdca5adfd584dd2bfac43f865281755d7af57731ae279739c01029d85463f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node3-alloc-after.pprof",
+      "bytes": 119821,
+      "sha256": "4c0b58e241cf6bc1418bbf558c751ed31cd8b2be1819a52958522c892582192e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node3-alloc-before.pprof",
+      "bytes": 117475,
+      "sha256": "4da4d3696d57768ae36231e44385705ff8b7f781900dfa36acdbf904801bc405",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/report.json",
+      "bytes": 3781099,
+      "sha256": "85e16cfe76d387dd79ac3a17d735bdf2f9e0b680383467765f646bc6aa54fae0",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/node3-cpu.pprof",
+      "bytes": 58145,
+      "sha256": "4e2d48aef81b60b0c1f8c07d79f2978604e0feabee3cf61365bf07dca0164154",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/test.command.json",
+      "bytes": 564,
+      "sha256": "ca91be6c2a8852419753ebd2a41cb003893bc852a85569bfb0f95719fb8ddcdf",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/04-B/test.log",
+      "bytes": 1524,
+      "sha256": "351c59fbd53ae065de7b66c24e19ad7813774ccadc811d112bdcad9976ba0c4a",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/driver-cpu.pprof",
+      "bytes": 21763,
+      "sha256": "89c7de662b57b72a861c81f9dfbb5fba9b8022d4329bc9329d7f2411488a1529",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/fixed-environment.json",
+      "bytes": 1885479,
+      "sha256": "b1ca0133f8aac354ecc38fc528194a671ac884134da2b1a8702293d0daebd279",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node1-alloc-before.pprof",
+      "bytes": 117573,
+      "sha256": "cecefedf23e02cd2755e34a60949393b9f51abaa36d6b34cd0a7cfe470aef860",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node1-alloc-after.pprof",
+      "bytes": 119671,
+      "sha256": "37fc986dc0bf0aa54e518cec14e2eba515895b5f4c4270e4bcb4b7d5505a9c69",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node1-cpu.pprof",
+      "bytes": 61476,
+      "sha256": "5d42da19cfd90c3ea98b1156c03b7aeaf91f1b7f4e8cc075190b4c7955112e9e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node2-alloc-after.pprof",
+      "bytes": 121031,
+      "sha256": "4c820cd52919ebd6df62119b86309f0051a718f904fcc5d4ef97b8a8040082b2",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node2-alloc-before.pprof",
+      "bytes": 118475,
+      "sha256": "766f3e0274a7e907d20e5386aedaff1af3430547740753f069b86e00c279cca1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node2-cpu.pprof",
+      "bytes": 58690,
+      "sha256": "ee274d8c286dd5ab909fd113712147d2100f04251038507d88f0eea01134cc87",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node3-alloc-after.pprof",
+      "bytes": 118419,
+      "sha256": "2305274606162fb22c323c55fa5820b7cb0760b456453f947447871ab142dd87",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node3-alloc-before.pprof",
+      "bytes": 116817,
+      "sha256": "90f66ceedfdb3dd66efb6fd5f42af887200cdb7a20567db5a1deb6649e6fc48c",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/node3-cpu.pprof",
+      "bytes": 60710,
+      "sha256": "0d482ebb311525228c49d922b582f31089f120e88f177d7dc3b82f7d42c150b1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/report.json",
+      "bytes": 3790853,
+      "sha256": "b6f4e0802cbe0bac204505cddc928bb70b8d002e0025985ccb04d3565b396447",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/test.command.json",
+      "bytes": 564,
+      "sha256": "78dd1995554325f77a92568df74ad1164f26861b48d33950bbd20ebb89aebdd0",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/05-B/test.log",
+      "bytes": 1524,
+      "sha256": "ece635f3baaaa2e2613f087aa870c0821700f5a4daf2d74c0453e3593e757f0b",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/driver-cpu.pprof",
+      "bytes": 21768,
+      "sha256": "2e11c51b480368d0dbb4d134743eb19b58f8bd7cbb34df98b3e7d74dd4429930",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/fixed-environment.json",
+      "bytes": 1885536,
+      "sha256": "5ef166ed6f5002b6d0bc5a64271e439d343f0e4f5b3f9bd0c23b44e972ee10e9",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node1-alloc-after.pprof",
+      "bytes": 118621,
+      "sha256": "5051fb63fded7b9c52e2c2f13863cea2ca35864a4310660830ffedc561376330",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node1-alloc-before.pprof",
+      "bytes": 116618,
+      "sha256": "0c871758123160f93868ae74850c988b1e1b02459c7c2116c9e94488d96fa4f1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node1-cpu.pprof",
+      "bytes": 62778,
+      "sha256": "1646206e3a7614f9d749489a7b8f5766f45fa006ebf7c1adce713539b4ae238c",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node2-alloc-before.pprof",
+      "bytes": 115426,
+      "sha256": "a52d5d051f22089e2ba8186912aefc5241e0aefeebd584fbe67fa0446f0edc67",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node2-alloc-after.pprof",
+      "bytes": 117421,
+      "sha256": "04768f1fb3f060edda0f3edafd416f720bb76b6814bc22be4eb42671bb8bb77b",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node2-cpu.pprof",
+      "bytes": 60945,
+      "sha256": "3b3362ae88b7cf76909d96dd48d23c04abc07d49288c2a62ba22d50b4aaff8b3",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node3-alloc-after.pprof",
+      "bytes": 117431,
+      "sha256": "6b44141a6fc647ce4d85e8a92086e7dcfc55b112365e244f6a23729a53f1eff9",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node3-alloc-before.pprof",
+      "bytes": 115363,
+      "sha256": "5b0b4ea33713f7cec0710c08e939dc64999071bfb7e9c8d5ff3d2cf6e82979df",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/node3-cpu.pprof",
+      "bytes": 59827,
+      "sha256": "09c4aa2f7993ff111c37f596fce88df91151d015187335a47e212e8f593ae111",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/report.json",
+      "bytes": 3781592,
+      "sha256": "e044e8a29a3a0afbb472f48389dc098c4ae8e780bd898376457fe375527a8d9e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/test.log",
+      "bytes": 1524,
+      "sha256": "f2f6691bd1947bf382ec69f3e85e06843a0ff31c21c4b84815f7c9c4578ce583",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/fixed-environment.json",
+      "bytes": 1885619,
+      "sha256": "c90abbcee0b18ae011f91c9530ef02e097c18bfe9e189c0e4f05378d70b4fef8",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/driver-cpu.pprof",
+      "bytes": 22204,
+      "sha256": "b207f7890645cc59366fb6364b721769e8c4601bec4cbc8cc99ec64ec01a93fa",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/06-A/test.command.json",
+      "bytes": 563,
+      "sha256": "c522a84f93cc0d35deafecacca95d681c716a2aab2eada167d5ef477e65baa8e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node1-alloc-after.pprof",
+      "bytes": 120633,
+      "sha256": "a55d52fd7e4c4fbcf6e6a9bbcdfc28a54112fb590b29f950257ea6106c6ad8be",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node1-cpu.pprof",
+      "bytes": 60463,
+      "sha256": "95515a99cc69c4afbf14d60bdbb0b3bea9bc096e39ea1ebcaa8025bb93584ac8",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node2-alloc-after.pprof",
+      "bytes": 117402,
+      "sha256": "9e5f8eafb28240c59d018109771ff765fefbd8444c6ea7244e208723b95e7fde",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node1-alloc-before.pprof",
+      "bytes": 119055,
+      "sha256": "48970389b77ce29ef1662cb7355f7cec759512768b29362ddcd7d1e70e57e63a",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node2-alloc-before.pprof",
+      "bytes": 114928,
+      "sha256": "dd4447de4a1d863d0d2138cbb90c3fc26dddf5b7053dd63c2ea62ccca9f1f72c",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node2-cpu.pprof",
+      "bytes": 59935,
+      "sha256": "8220baad7c77eb57d37c476462a38f3b5124735f7c1be90272b1f8c2bf7920c8",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node3-alloc-after.pprof",
+      "bytes": 119229,
+      "sha256": "a2537611adf95aedb6392c5cc7547091737258d8a9bebc73672c02a421a4cfc1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node3-alloc-before.pprof",
+      "bytes": 117316,
+      "sha256": "fdc92c336b46bbe2c06bfe1617102611044f09621b61e40a1dc72f39d7e2ac45",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/node3-cpu.pprof",
+      "bytes": 62588,
+      "sha256": "8be860a754b3af621eb05b81d9c098fbb15358202cec7e4e07477c20d995d76e",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/report.json",
+      "bytes": 3783275,
+      "sha256": "66f2c6852e4f9fc889756c855f724c8575b94dd59f6dc462592e415a1accfacd",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/test.command.json",
+      "bytes": 562,
+      "sha256": "cfe747aa4d250acdb9caf7b1973abae0e8cf29ad561194ceda145ea64ac48de7",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/blocks/07-C/test.log",
+      "bytes": 1526,
+      "sha256": "f88577fa50c5cac24da69d60a4d4fa29db630aea8c6fe4fb5850bd09ccf5cce4",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/build-clone.command.json",
+      "bytes": 460,
+      "sha256": "9bfee2bcdc7e7abaf898c4549cda799d87608cd63de4a48195a6d39e879c7763",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/build-clone.log",
+      "bytes": 78,
+      "sha256": "762eaae65e70b85f5456b6d4f0149ba370fe3ad34cd49359f313168e9e17c555",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/events.jsonl",
+      "bytes": 29603,
+      "sha256": "23d0e79377bd20e0b863e10571efce4c63e5303a82012edbdbb27f3a714be75f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/gate/report.json",
+      "bytes": 3156579,
+      "sha256": "aa7b09c22bff870bbe2c3d45b2304d721f2d74e84c0879f46c34ce8608eab8eb",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/gate/test.command.json",
+      "bytes": 559,
+      "sha256": "1aa201d6816c40b5e82331eaac2274d8800e739afa061d3c5348732e73b52f81",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/gate/test.log",
+      "bytes": 10679,
+      "sha256": "7c4fe24c2c38e97d5a93f6ac74362767b895b5aeab7066bb7ebda88e4bfd62b2",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/gate/validation.command.json",
+      "bytes": 777,
+      "sha256": "d016b32e0a597086d446bd273cda61a84163af264d1c881a73e0e1454e9f4679",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/gate/validation.log",
+      "bytes": 5,
+      "sha256": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/harness/build.command.json",
+      "bytes": 475,
+      "sha256": "2f77262d5397a77a22590fd03b3601dfdc5c9e3acfd0a2560276bfb38ff1a33a",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/harness/build.log",
+      "bytes": 52,
+      "sha256": "97b608a5882939d88ddb6ed36cef02ad10e0fff55e0f035e3fc87a39a37dcb9d",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/harness/build.txt",
+      "bytes": 423,
+      "sha256": "f2b7da1fa72a4ef4c7a918af0b36335225990d4e223475fa1adfbbe305f50208",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/harness/conversation_qps.test",
+      "bytes": 45523448,
+      "sha256": "7e370a1fe7fa0cd1b28dfeff06fdb3807d0ac38bf56f9a753002387eeeea5c50",
+      "retained_in_repository": false
+    },
+    {
+      "path": "conversation-fixed-host/harness/identity.json",
+      "bytes": 336,
+      "sha256": "f7e34ce71845f7efda12070c3927f6b84be9f75cb9650c4c920022affbc1b3ee",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/harness/profile.json",
+      "bytes": 2087,
+      "sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/host.json",
+      "bytes": 9239,
+      "sha256": "41207e0f622e27752054bc3df3218b2f9eb19223dc338f951080d8adf8ddd78f",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/plan/sequence.json",
+      "bytes": 974,
+      "sha256": "77f83f96fdeb5c010deb627ac33291f4bd76811516dadfad03c46f1464282607",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host/summary.json",
+      "bytes": 25241,
+      "sha256": "6ece2223883cb01a883697b7b2d0661f228ef629b710563aa6ff21c84f4d09a7",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host-preflight.jsonl",
+      "bytes": 2265,
+      "sha256": "304dc0434bd5f153678b1738d5ba63d6bf053a0ae5b9c2578702eab1073566f3",
+      "retained_in_repository": true
+    },
+    {
+      "path": "conversation-fixed-host-preflight.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retained_in_repository": true
+    }
+  ]
+}

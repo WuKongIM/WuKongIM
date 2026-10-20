@@ -1,0 +1,9 @@
+{
+  "artifact_id": 12282956979,
+  "archive_bytes": 165242098,
+  "archive_sha256": "1adc8cfd1fa800cd1372f68f872b3ee395712b1da97eece073d8c63a99cf1718",
+  "matches_github_digest": true,
+  "zip_crc_verified": true,
+  "entries": 141,
+  "download_directory": "/tmp/wukongim-performance-fixed-20261020/download"
+}

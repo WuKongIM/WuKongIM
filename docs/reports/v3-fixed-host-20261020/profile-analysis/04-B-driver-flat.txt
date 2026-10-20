@@ -1,0 +1,48 @@
+File: conversation_qps.test
+Build ID: 918d3792e11d3cdf0c7baa60ab0fd42814e30329
+Type: cpu
+Time: 2026-10-21 00:27:12 CST
+Duration: 10.85s, Total samples = 3.94s (36.30%)
+Showing nodes accounting for 3.18s, 80.71% of 3.94s total
+Showing top 40 nodes out of 338
+      flat  flat%   sum%        cum   cum%
+     0.48s 12.18% 12.18%      0.83s 21.07%  encoding/json.checkValid
+     0.37s  9.39% 21.57%      0.37s  9.39%  encoding/json.unquoteBytes
+     0.29s  7.36% 28.93%      0.35s  8.88%  encoding/json.(*decodeState).rescanLiteral
+     0.26s  6.60% 35.53%      0.26s  6.60%  encoding/json.stateInString
+     0.15s  3.81% 39.34%      0.29s  7.36%  runtime.scanobject
+     0.13s  3.30% 42.64%      0.15s  3.81%  encoding/json.stateEndValue
+     0.12s  3.05% 45.69%      1.77s 44.92%  encoding/json.(*decodeState).object
+     0.11s  2.79% 48.48%      0.11s  2.79%  runtime.memmove
+     0.09s  2.28% 50.76%      0.09s  2.28%  internal/runtime/syscall.Syscall6
+     0.09s  2.28% 53.05%      0.09s  2.28%  runtime.memclrNoHeapPointers
+     0.08s  2.03% 55.08%      0.08s  2.03%  aeshashbody
+     0.08s  2.03% 57.11%      0.19s  4.82%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+     0.07s  1.78% 58.88%      0.09s  2.28%  encoding/json.(*decodeState).scanWhile
+     0.07s  1.78% 60.66%      0.08s  2.03%  reflect.(*rtype).Name
+     0.07s  1.78% 62.44%      0.07s  1.78%  runtime.futex
+     0.06s  1.52% 63.96%      0.06s  1.52%  encoding/json.appendFoldedName
+     0.05s  1.27% 65.23%      0.18s  4.57%  encoding/json.indirect
+     0.05s  1.27% 66.50%      0.06s  1.52%  fmt.(*fmt).fmtInteger
+     0.05s  1.27% 67.77%      0.05s  1.27%  runtime.nextFreeFast (inline)
+     0.04s  1.02% 68.78%      1.76s 44.67%  encoding/json.(*decodeState).array
+     0.04s  1.02% 69.80%      0.08s  2.03%  encoding/json.(*decodeState).skip
+     0.03s  0.76% 70.56%      0.03s  0.76%  cmpbody
+     0.03s  0.76% 71.32%      1.77s 44.92%  encoding/json.(*decodeState).value
+     0.03s  0.76% 72.08%      0.03s  0.76%  encoding/json.stateBeginValue
+     0.03s  0.76% 72.84%      0.03s  0.76%  runtime.spanOf (inline)
+     0.03s  0.76% 73.60%      0.04s  1.02%  sync.(*Pool).Put
+     0.02s  0.51% 74.11%      0.03s  0.76%  encoding/json.state1
+     0.02s  0.51% 74.62%      0.10s  2.54%  fmt.(*pp).doPrintf
+     0.02s  0.51% 75.13%      0.04s  1.02%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.request.func1
+     0.02s  0.51% 75.63%      0.02s  0.51%  internal/runtime/maps.ctrlGroup.matchH2
+     0.02s  0.51% 76.14%      0.02s  0.51%  memeqbody
+     0.02s  0.51% 76.65%      0.02s  0.51%  reflect.flag.kind (inline)
+     0.02s  0.51% 77.16%      0.02s  0.51%  runtime.(*mspan).base (inline)
+     0.02s  0.51% 77.66%      0.02s  0.51%  runtime.(*mspan).heapBitsSmallForAddr
+     0.02s  0.51% 78.17%      0.02s  0.51%  runtime.(*mspan).markBitsForIndex (inline)
+     0.02s  0.51% 78.68%      0.02s  0.51%  runtime.(*spanSet).push
+     0.02s  0.51% 79.19%      0.02s  0.51%  runtime.acquirem (inline)
+     0.02s  0.51% 79.70%      0.05s  1.27%  runtime.findObject
+     0.02s  0.51% 80.20%      0.02s  0.51%  runtime.lock2
+     0.02s  0.51% 80.71%      0.04s  1.02%  runtime.mallocgcTiny

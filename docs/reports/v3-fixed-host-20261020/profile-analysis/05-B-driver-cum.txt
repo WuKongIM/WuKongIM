@@ -1,0 +1,48 @@
+File: conversation_qps.test
+Build ID: 918d3792e11d3cdf0c7baa60ab0fd42814e30329
+Type: cpu
+Time: 2026-10-21 00:33:27 CST
+Duration: 10.86s, Total samples = 4.53s (41.71%)
+Showing nodes accounting for 2.42s, 53.42% of 4.53s total
+Showing top 40 nodes out of 368
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      3.51s 77.48%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.request
+         0     0%     0%      3.45s 76.16%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.measureMixed.func1.1
+         0     0%     0%      3.45s 76.16%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.measureRequests.func1
+         0     0%     0%      2.79s 61.59%  encoding/json.Unmarshal
+         0     0%     0%      1.64s 36.20%  encoding/json.(*decodeState).unmarshal
+     0.03s  0.66%  0.66%      1.64s 36.20%  encoding/json.(*decodeState).value
+         0     0%  0.66%      1.63s 35.98%  encoding/json.(*decodeState).array
+     0.12s  2.65%  3.31%      1.61s 35.54%  encoding/json.(*decodeState).object
+     0.55s 12.14% 15.45%      1.15s 25.39%  encoding/json.checkValid
+     0.03s  0.66% 16.11%      0.49s 10.82%  encoding/json.(*decodeState).literalStore
+         0     0% 16.11%      0.48s 10.60%  runtime.systemstack
+     0.41s  9.05% 25.17%      0.42s  9.27%  encoding/json.stateInString
+         0     0% 25.17%      0.42s  9.27%  runtime.gcBgMarkWorker
+         0     0% 25.17%      0.41s  9.05%  runtime.gcBgMarkWorker.func2
+     0.01s  0.22% 25.39%      0.41s  9.05%  runtime.gcDrain
+     0.39s  8.61% 34.00%      0.39s  8.61%  encoding/json.unquoteBytes
+     0.10s  2.21% 36.20%      0.34s  7.51%  runtime.scanobject
+     0.23s  5.08% 41.28%      0.28s  6.18%  encoding/json.(*decodeState).rescanLiteral
+         0     0% 41.28%      0.26s  5.74%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.conversationResponse
+         0     0% 41.28%      0.23s  5.08%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.TestConversationQPSMixedAttribution
+         0     0% 41.28%      0.23s  5.08%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.measureMixed
+         0     0% 41.28%      0.23s  5.08%  testing.tRunner
+         0     0% 41.28%      0.22s  4.86%  runtime.gcDrainMarkWorkerIdle (inline)
+         0     0% 41.28%      0.20s  4.42%  io.ReadAll
+         0     0% 41.28%      0.19s  4.19%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.cohortChannels
+         0     0% 41.28%      0.19s  4.19%  runtime.gcDrainMarkWorkerDedicated (inline)
+         0     0% 41.28%      0.19s  4.19%  runtime.growslice
+     0.04s  0.88% 42.16%      0.19s  4.19%  runtime.mapaccess1_faststr
+         0     0% 42.16%      0.17s  3.75%  github.com/WuKongIM/WuKongIM/test/e2e/suite.FetchMetricSamples (inline)
+         0     0% 42.16%      0.17s  3.75%  github.com/WuKongIM/WuKongIM/test/e2e/suite.FetchMetricSamplesWithReceipt
+     0.01s  0.22% 42.38%      0.16s  3.53%  runtime.mallocgc
+     0.04s  0.88% 43.27%      0.15s  3.31%  encoding/json.indirect
+     0.11s  2.43% 45.70%      0.15s  3.31%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+         0     0% 45.70%      0.14s  3.09%  runtime.mcall
+     0.14s  3.09% 48.79%      0.14s  3.09%  runtime.memmove
+         0     0% 48.79%      0.13s  2.87%  github.com/WuKongIM/WuKongIM/test/e2e/suite.parseMetricSample
+     0.13s  2.87% 51.66%      0.13s  2.87%  internal/runtime/syscall.Syscall6
+         0     0% 51.66%      0.13s  2.87%  net/http.(*persistConn).readLoop
+     0.02s  0.44% 52.10%      0.12s  2.65%  runtime.mapassign_faststr
+     0.06s  1.32% 53.42%      0.11s  2.43%  encoding/json.(*decodeState).scanWhile

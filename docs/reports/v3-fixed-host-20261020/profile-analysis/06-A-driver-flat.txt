@@ -1,0 +1,48 @@
+File: conversation_qps.test
+Build ID: 918d3792e11d3cdf0c7baa60ab0fd42814e30329
+Type: cpu
+Time: 2026-10-21 00:39:43 CST
+Duration: 10.87s, Total samples = 4.65s (42.79%)
+Showing nodes accounting for 3.65s, 78.49% of 4.65s total
+Showing top 40 nodes out of 368
+      flat  flat%   sum%        cum   cum%
+     0.54s 11.61% 11.61%      1.04s 22.37%  encoding/json.checkValid
+     0.37s  7.96% 19.57%      0.37s  7.96%  encoding/json.stateInString
+     0.34s  7.31% 26.88%      0.34s  7.31%  encoding/json.unquoteBytes
+     0.33s  7.10% 33.98%      0.37s  7.96%  encoding/json.(*decodeState).rescanLiteral
+     0.17s  3.66% 37.63%      1.91s 41.08%  encoding/json.(*decodeState).object
+     0.14s  3.01% 40.65%      0.14s  3.01%  internal/runtime/syscall.Syscall6
+     0.13s  2.80% 43.44%      0.13s  2.80%  runtime.memmove
+     0.11s  2.37% 45.81%      0.36s  7.74%  runtime.scanobject
+     0.10s  2.15% 47.96%      0.10s  2.15%  encoding/json.appendFoldedName
+     0.10s  2.15% 50.11%      0.17s  3.66%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+     0.08s  1.72% 51.83%      0.13s  2.80%  encoding/json.(*decodeState).scanWhile
+     0.08s  1.72% 53.55%      0.09s  1.94%  encoding/json.stateEndValue
+     0.08s  1.72% 55.27%      0.08s  1.72%  memeqbody
+     0.08s  1.72% 56.99%      0.13s  2.80%  runtime.findObject
+     0.06s  1.29% 58.28%      1.92s 41.29%  encoding/json.(*decodeState).value
+     0.06s  1.29% 59.57%      0.06s  1.29%  runtime.futex
+     0.05s  1.08% 60.65%      0.05s  1.08%  aeshashbody
+     0.05s  1.08% 61.72%      0.05s  1.08%  cmpbody
+     0.05s  1.08% 62.80%      0.10s  2.15%  encoding/json.stateBeginValue
+     0.05s  1.08% 63.87%      0.05s  1.08%  github.com/WuKongIM/WuKongIM/test/e2e/suite.metricSampleValueSeparator
+     0.05s  1.08% 64.95%      0.05s  1.08%  runtime.(*mspan).base (inline)
+     0.05s  1.08% 66.02%      0.22s  4.73%  runtime.mapaccess1_faststr
+     0.04s  0.86% 66.88%      0.08s  1.72%  reflect.(*rtype).Name
+     0.04s  0.86% 67.74%      0.04s  0.86%  runtime.madvise
+     0.04s  0.86% 68.60%      0.04s  0.86%  runtime.memclrNoHeapPointers
+     0.04s  0.86% 69.46%      0.04s  0.86%  runtime.nextFreeFast (inline)
+     0.04s  0.86% 70.32%      0.04s  0.86%  runtime.resolveTypeOff
+     0.04s  0.86% 71.18%      0.04s  0.86%  runtime.unlock2
+     0.03s  0.65% 71.83%      0.04s  0.86%  encoding/json.(*scanner).pushParseState
+     0.03s  0.65% 72.47%      0.25s  5.38%  encoding/json.indirect
+     0.03s  0.65% 73.12%      0.06s  1.29%  encoding/json.state1
+     0.03s  0.65% 73.76%      0.03s  0.65%  internal/sync.(*HashTrieMap[go.shape.interface {},go.shape.interface {}]).Load
+     0.03s  0.65% 74.41%      0.03s  0.65%  runtime.cmpstring
+     0.03s  0.65% 75.05%      0.11s  2.37%  runtime.greyobject
+     0.03s  0.65% 75.70%      0.03s  0.65%  runtime.pageIndexOf (inline)
+     0.03s  0.65% 76.34%      0.05s  1.08%  runtime.spanOf (inline)
+     0.03s  0.65% 76.99%      0.03s  0.65%  runtime.typePointers.next
+     0.03s  0.65% 77.63%      0.08s  1.72%  runtime.wbBufFlush1
+     0.02s  0.43% 78.06%      0.06s  1.29%  encoding/json.(*decodeState).skip
+     0.02s  0.43% 78.49%      0.02s  0.43%  fmt.(*fmt).fmtInteger

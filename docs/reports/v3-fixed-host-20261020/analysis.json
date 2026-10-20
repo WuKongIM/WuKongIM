@@ -1,0 +1,1410 @@
+{
+  "schema": "wukongim/fixed-host-independent-analysis/v1",
+  "blocks": [
+    {
+      "index": 1,
+      "variant": "B",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/01-B/report.json",
+      "report_sha256": "8a465c8b2718e02c2fa42e0d325315299d30ffa99d28234ed0883867a3dcb4b2",
+      "identity": {
+        "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "binary_sha256": "e64cf368464e1bb38907f9805b22178e21847eb2c540b2cb6c892db88901c1dc",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.941239316239315,
+      "allocated_bytes_per_completed": 2352604.1535042734,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 32.706944,
+          "p99_window_mean_ms": 86.63610433333334,
+          "qps_window_median": 199.98333333333332,
+          "window_p99_ms": [
+            32.706944,
+            31.004632,
+            196.196737
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 71.007116,
+          "p99_window_mean_ms": 90.77003966666666,
+          "qps_window_median": 59.983333333333334,
+          "window_p99_ms": [
+            71.007116,
+            68.452384,
+            132.850619
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:05:24.339683342Z",
+          "end": "2026-10-20T16:06:24.339683342Z",
+          "cpu_seconds": 172.16999999999996,
+          "allocated_bytes": 36696496976,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 32.706944,
+              "request_p99_ms": 31.954341,
+              "driver_wait_p99_ms": 2.780494,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 71.007116,
+              "request_p99_ms": 70.386128,
+              "driver_wait_p99_ms": 2.815954,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:06:25.244095704Z",
+          "end": "2026-10-20T16:07:25.244095704Z",
+          "cpu_seconds": 170.39000000000004,
+          "allocated_bytes": 36704463080,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 31.004632,
+              "request_p99_ms": 30.309092,
+              "driver_wait_p99_ms": 2.794534,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 68.452384,
+              "request_p99_ms": 67.518108,
+              "driver_wait_p99_ms": 2.81939,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:07:26.169646359Z",
+          "end": "2026-10-20T16:08:26.169646359Z",
+          "cpu_seconds": 169.49,
+          "allocated_bytes": 36700914328,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11967,
+              "actual_qps": 199.45,
+              "p99_ms": 196.196737,
+              "request_p99_ms": 53.140272,
+              "driver_wait_p99_ms": 153.259691,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3596,
+              "actual_qps": 59.93333333333333,
+              "p99_ms": 132.850619,
+              "request_p99_ms": 129.385996,
+              "driver_wait_p99_ms": 4.232039,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "variant": "B",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/02-B/report.json",
+      "report_sha256": "4fa4343edbcd6abbe726a1864992678ee90f42b0284dfc3c3b72f758156d0c3a",
+      "identity": {
+        "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "binary_sha256": "e64cf368464e1bb38907f9805b22178e21847eb2c540b2cb6c892db88901c1dc",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.858547008547008,
+      "allocated_bytes_per_completed": 2352875.5733333332,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 29.293329,
+          "p99_window_mean_ms": 29.634043,
+          "qps_window_median": 199.98333333333332,
+          "window_p99_ms": [
+            29.293329,
+            29.285881,
+            30.322919
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 64.244985,
+          "p99_window_mean_ms": 64.05138766666667,
+          "qps_window_median": 59.983333333333334,
+          "window_p99_ms": [
+            64.244985,
+            63.597249,
+            64.311929
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:11:39.746908386Z",
+          "end": "2026-10-20T16:12:39.746908386Z",
+          "cpu_seconds": 169.01999999999998,
+          "allocated_bytes": 36699540784,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 29.293329,
+              "request_p99_ms": 28.370135,
+              "driver_wait_p99_ms": 2.582785,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 64.244985,
+              "request_p99_ms": 63.09603,
+              "driver_wait_p99_ms": 2.633914,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:12:40.628509492Z",
+          "end": "2026-10-20T16:13:40.628509492Z",
+          "cpu_seconds": 168.53000000000003,
+          "allocated_bytes": 36706744928,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 29.285881,
+              "request_p99_ms": 28.639852,
+              "driver_wait_p99_ms": 2.377529,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 63.597249,
+              "request_p99_ms": 63.073112,
+              "driver_wait_p99_ms": 2.560881,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:13:41.539225774Z",
+          "end": "2026-10-20T16:14:41.539225774Z",
+          "cpu_seconds": 170.63,
+          "allocated_bytes": 36708291120,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 30.322919,
+              "request_p99_ms": 29.283051,
+              "driver_wait_p99_ms": 2.617756,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 64.311929,
+              "request_p99_ms": 63.674394,
+              "driver_wait_p99_ms": 2.553405,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "variant": "A",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/03-A/report.json",
+      "report_sha256": "d233c16179d0ddfb4a3b8dcda0813bf80a1b1994688d46dfca418a080a7c8f27",
+      "identity": {
+        "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+        "binary_sha256": "48ca30ca7e73e6dc9975d0f080aa247c7cd21f20f4a5c7b0e4b498d08c243094",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.837606837606836,
+      "allocated_bytes_per_completed": 2352824.9517948716,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 30.332834,
+          "p99_window_mean_ms": 39.396295333333335,
+          "qps_window_median": 199.96666666666667,
+          "window_p99_ms": [
+            30.332834,
+            27.966409,
+            59.889643
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 64.12398,
+          "p99_window_mean_ms": 81.22379233333334,
+          "qps_window_median": 59.983333333333334,
+          "window_p99_ms": [
+            64.12398,
+            62.787051,
+            116.760346
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:17:55.194129165Z",
+          "end": "2026-10-20T16:18:55.194129165Z",
+          "cpu_seconds": 171.42,
+          "allocated_bytes": 36704241560,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11997,
+              "actual_qps": 199.95,
+              "p99_ms": 30.332834,
+              "request_p99_ms": 29.235223,
+              "driver_wait_p99_ms": 2.809123,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 64.12398,
+              "request_p99_ms": 62.645827,
+              "driver_wait_p99_ms": 2.759627,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:18:56.090732062Z",
+          "end": "2026-10-20T16:19:56.090732062Z",
+          "cpu_seconds": 167.73,
+          "allocated_bytes": 36706316344,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 27.966409,
+              "request_p99_ms": 27.290949,
+              "driver_wait_p99_ms": 2.563071,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 62.787051,
+              "request_p99_ms": 61.771981,
+              "driver_wait_p99_ms": 2.557332,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:19:57.011478664Z",
+          "end": "2026-10-20T16:20:57.011478664Z",
+          "cpu_seconds": 168.04999999999995,
+          "allocated_bytes": 36701649840,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 59.889643,
+              "request_p99_ms": 48.449336,
+              "driver_wait_p99_ms": 18.149439,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 116.760346,
+              "request_p99_ms": 115.874484,
+              "driver_wait_p99_ms": 3.063406,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "variant": "B",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/04-B/report.json",
+      "report_sha256": "85e16cfe76d387dd79ac3a17d735bdf2f9e0b680383467765f646bc6aa54fae0",
+      "identity": {
+        "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "binary_sha256": "e64cf368464e1bb38907f9805b22178e21847eb2c540b2cb6c892db88901c1dc",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.101709401709401,
+      "allocated_bytes_per_completed": 2353197.114871795,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 22.415028,
+          "p99_window_mean_ms": 22.600307,
+          "qps_window_median": 199.98333333333332,
+          "window_p99_ms": [
+            23.640195,
+            21.745698,
+            22.415028
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 48.108091,
+          "p99_window_mean_ms": 48.445675666666666,
+          "qps_window_median": 60,
+          "window_p99_ms": [
+            50.849814,
+            46.379122,
+            48.108091
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:24:10.553056516Z",
+          "end": "2026-10-20T16:25:10.553056516Z",
+          "cpu_seconds": 161.11999999999998,
+          "allocated_bytes": 36705955776,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 23.640195,
+              "request_p99_ms": 22.966307,
+              "driver_wait_p99_ms": 2.058429,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 50.849814,
+              "request_p99_ms": 49.963115,
+              "driver_wait_p99_ms": 2.213135,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:25:11.37088371Z",
+          "end": "2026-10-20T16:26:11.37088371Z",
+          "cpu_seconds": 155.70999999999998,
+          "allocated_bytes": 36713982384,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 21.745698,
+              "request_p99_ms": 21.177369,
+              "driver_wait_p99_ms": 2.001021,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 46.379122,
+              "request_p99_ms": 45.070659,
+              "driver_wait_p99_ms": 1.887706,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:26:12.215899598Z",
+          "end": "2026-10-20T16:27:12.215899598Z",
+          "cpu_seconds": 155.93,
+          "allocated_bytes": 36709686816,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "actual_qps": 200,
+              "p99_ms": 22.415028,
+              "request_p99_ms": 21.546954,
+              "driver_wait_p99_ms": 1.980425,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 48.108091,
+              "request_p99_ms": 47.564921,
+              "driver_wait_p99_ms": 1.843585,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "variant": "B",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/05-B/report.json",
+      "report_sha256": "b6f4e0802cbe0bac204505cddc928bb70b8d002e0025985ccb04d3565b396447",
+      "identity": {
+        "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "binary_sha256": "e64cf368464e1bb38907f9805b22178e21847eb2c540b2cb6c892db88901c1dc",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.566880341880344,
+      "allocated_bytes_per_completed": 2353227.0124786324,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 29.404791,
+          "p99_window_mean_ms": 29.039525666666666,
+          "qps_window_median": 199.96666666666667,
+          "window_p99_ms": [
+            28.071515,
+            29.404791,
+            29.642271
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 65.4717,
+          "p99_window_mean_ms": 63.567396,
+          "qps_window_median": 59.983333333333334,
+          "window_p99_ms": [
+            58.794952,
+            66.435536,
+            65.4717
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:30:25.621081041Z",
+          "end": "2026-10-20T16:31:25.621081041Z",
+          "cpu_seconds": 163.85000000000002,
+          "allocated_bytes": 36711642272,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11997,
+              "actual_qps": 199.95,
+              "p99_ms": 28.071515,
+              "request_p99_ms": 27.240153,
+              "driver_wait_p99_ms": 2.459308,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 58.794952,
+              "request_p99_ms": 58.011668,
+              "driver_wait_p99_ms": 2.26483,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:31:26.468412523Z",
+          "end": "2026-10-20T16:32:26.468412523Z",
+          "cpu_seconds": 165.56,
+          "allocated_bytes": 36708895632,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 29.404791,
+              "request_p99_ms": 28.7104,
+              "driver_wait_p99_ms": 2.462925,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 66.435536,
+              "request_p99_ms": 65.924754,
+              "driver_wait_p99_ms": 2.218286,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:32:27.374987178Z",
+          "end": "2026-10-20T16:33:27.374987178Z",
+          "cpu_seconds": 165.12000000000006,
+          "allocated_bytes": 36710486280,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 29.642271,
+              "request_p99_ms": 28.507683,
+              "driver_wait_p99_ms": 2.35059,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3598,
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 65.4717,
+              "request_p99_ms": 64.849279,
+              "driver_wait_p99_ms": 2.43363,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "variant": "A",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/06-A/report.json",
+      "report_sha256": "e044e8a29a3a0afbb472f48389dc098c4ae8e780bd898376457fe375527a8d9e",
+      "identity": {
+        "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+        "binary_sha256": "48ca30ca7e73e6dc9975d0f080aa247c7cd21f20f4a5c7b0e4b498d08c243094",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.628846153846153,
+      "allocated_bytes_per_completed": 2352617.2941880343,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 28.785701,
+          "p99_window_mean_ms": 29.079154666666668,
+          "qps_window_median": 199.98333333333332,
+          "window_p99_ms": [
+            27.577556,
+            28.785701,
+            30.874207
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 61.329619,
+          "p99_window_mean_ms": 63.18513766666666,
+          "qps_window_median": 60,
+          "window_p99_ms": [
+            59.950789,
+            61.329619,
+            68.275005
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:36:40.955608174Z",
+          "end": "2026-10-20T16:37:40.955608174Z",
+          "cpu_seconds": 165.86,
+          "allocated_bytes": 36701720080,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 27.577556,
+              "request_p99_ms": 26.809858,
+              "driver_wait_p99_ms": 2.35864,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 59.950789,
+              "request_p99_ms": 59.310343,
+              "driver_wait_p99_ms": 2.236483,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:37:41.853751633Z",
+          "end": "2026-10-20T16:38:41.853751633Z",
+          "cpu_seconds": 165.21999999999997,
+          "allocated_bytes": 36701065216,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 28.785701,
+              "request_p99_ms": 28.067443,
+              "driver_wait_p99_ms": 2.257708,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "actual_qps": 60,
+              "p99_ms": 61.329619,
+              "request_p99_ms": 60.814067,
+              "driver_wait_p99_ms": 2.316394,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:38:42.747386013Z",
+          "end": "2026-10-20T16:39:42.747386013Z",
+          "cpu_seconds": 166.34999999999997,
+          "allocated_bytes": 36699704072,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 30.874207,
+              "request_p99_ms": 29.9252,
+              "driver_wait_p99_ms": 2.656336,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3598,
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 68.275005,
+              "request_p99_ms": 67.427362,
+              "driver_wait_p99_ms": 2.603562,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "variant": "C",
+      "report_path": "/tmp/wukongim-performance-fixed-20261020/download/conversation-fixed-host/blocks/07-C/report.json",
+      "report_sha256": "66f2c6852e4f9fc889756c855f724c8575b94dd59f6dc462592e415a1accfacd",
+      "identity": {
+        "product_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "binary_sha256": "8c3c79f2853b76be7f83dbd606404bf6ab1fdf34ce9370e82c056b389d03c57d",
+        "harness_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+        "harness_dirty": false,
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "healthy_windows": true,
+      "completed": 46800,
+      "server_cpu_ms_per_completed": 10.807264957264957,
+      "allocated_bytes_per_completed": 2352891.670769231,
+      "summary": {
+        "/conversation/list": {
+          "p99_window_median_ms": 28.756377,
+          "p99_window_mean_ms": 29.503898666666668,
+          "qps_window_median": 199.96666666666667,
+          "window_p99_ms": [
+            28.391364,
+            28.756377,
+            31.363955
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "/conversation/sync": {
+          "p99_window_median_ms": 61.921846,
+          "p99_window_mean_ms": 64.412384,
+          "qps_window_median": 59.983333333333334,
+          "window_p99_ms": [
+            61.921846,
+            61.307562,
+            70.007744
+          ],
+          "window_verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T16:42:56.300336126Z",
+          "end": "2026-10-20T16:43:56.300336126Z",
+          "cpu_seconds": 167.26,
+          "allocated_bytes": 36700244960,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 28.391364,
+              "request_p99_ms": 27.336108,
+              "driver_wait_p99_ms": 2.538444,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 61.921846,
+              "request_p99_ms": 61.513444,
+              "driver_wait_p99_ms": 2.500395,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T16:43:57.205061364Z",
+          "end": "2026-10-20T16:44:57.205061364Z",
+          "cpu_seconds": 168.61,
+          "allocated_bytes": 36707528760,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 28.756377,
+              "request_p99_ms": 28.018641,
+              "driver_wait_p99_ms": 2.62274,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 61.307562,
+              "request_p99_ms": 60.596372,
+              "driver_wait_p99_ms": 2.458039,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T16:44:58.131829664Z",
+          "end": "2026-10-20T16:45:58.131829664Z",
+          "cpu_seconds": 169.90999999999997,
+          "allocated_bytes": 36707556472,
+          "completed": 15600,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 31.363955,
+              "request_p99_ms": 30.510992,
+              "driver_wait_p99_ms": 2.534528,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 70.007744,
+              "request_p99_ms": 69.409926,
+              "driver_wait_p99_ms": 2.632786,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "aa": [
+    {
+      "blocks": [
+        1,
+        2
+      ],
+      "server_cpu_per_request_relative_difference": 0.007615411861938616,
+      "endpoint_median_p99_relative_differences": {
+        "/conversation/list": 0.11653216334681525,
+        "/conversation/sync": 0.10525539075151152
+      },
+      "diagnostic_repeatability_pass": true
+    },
+    {
+      "blocks": [
+        4,
+        5
+      ],
+      "server_cpu_per_request_relative_difference": 0.0460487350875711,
+      "endpoint_median_p99_relative_differences": {
+        "/conversation/list": 0.31183378401311834,
+        "/conversation/sync": 0.3609290794764647
+      },
+      "diagnostic_repeatability_pass": false
+    }
+  ],
+  "cross_time_and_abba": {
+    "/conversation/list": {
+      "B_all_four_block_medians_ms": [
+        32.706944,
+        29.293329,
+        22.415028,
+        29.404791
+      ],
+      "B_max_over_min": 1.4591524935859996,
+      "A_both_block_medians_ms": [
+        30.332834,
+        28.785701
+      ],
+      "A_max_over_min": 1.0537465806373796,
+      "ABBA_B_median_of_block_medians_ms": 25.909909499999998,
+      "ABBA_A_median_of_block_medians_ms": 29.559267499999997,
+      "ABBA_B_relative_difference_from_A": -0.12345901331959597,
+      "limits": "Descriptive block/window summaries only, not pooled P99 or statistical significance. Context/prepare/route validity still needs independent review."
+    },
+    "/conversation/sync": {
+      "B_all_four_block_medians_ms": [
+        71.007116,
+        64.244985,
+        48.108091,
+        65.4717
+      ],
+      "B_max_over_min": 1.4759911383721294,
+      "A_both_block_medians_ms": [
+        64.12398,
+        61.329619
+      ],
+      "A_max_over_min": 1.045562992980602,
+      "ABBA_B_median_of_block_medians_ms": 56.7898955,
+      "ABBA_A_median_of_block_medians_ms": 62.7267995,
+      "ABBA_B_relative_difference_from_A": -0.09464700968841877,
+      "limits": "Descriptive block/window summaries only, not pooled P99 or statistical significance. Context/prepare/route validity still needs independent review."
+    }
+  },
+  "all_aa_criteria_pass": false,
+  "C_mixed_all_pass": true,
+  "full_release_matrix_verified_here": false,
+  "historical_root_cause_confirmed_here": false
+}

@@ -1,0 +1,258 @@
+{
+  "B5_vs_B4_percent": {
+    "server_sampled_cpu_cores": 7.6768621950354055,
+    "window_cpu_ms_per_completed_request": 7.984644913627803,
+    "window_alloc_bytes_per_completed_request": 0.011073429002572688,
+    "server_sampled_alloc_delta_bytes": -0.8850357585294844,
+    "driver_cpu_cores": 14.890230048199182,
+    "list_profile_p99": 39.35818269902094,
+    "sync_profile_p99": 33.589782319143644
+  },
+  "C_vs_comparator_mean_percent": {
+    "A": {
+      "server_sampled_cpu_cores": -4.412340953513228,
+      "window_cpu_ms_per_completed_request": -3.706305989812486,
+      "window_alloc_bytes_per_completed_request": -0.10912953750457088,
+      "server_sampled_alloc_delta_bytes": -1.1604437396419587,
+      "driver_cpu_cores": 5.519267961924723
+    },
+    "B": {
+      "server_sampled_cpu_cores": 0.2657973103274536,
+      "window_cpu_ms_per_completed_request": 1.1812476928751536,
+      "window_alloc_bytes_per_completed_request": -0.1437090663049978,
+      "server_sampled_alloc_delta_bytes": -2.5060108183561636,
+      "driver_cpu_cores": 15.280106432946795
+    }
+  },
+  "server_selected_cumulative_core_rates": {
+    "runtime.mallocgc": {
+      "03-A": 0.3343052947540934,
+      "04-B": 0.24240204944050714,
+      "05-B": 0.2888313363924475,
+      "06-A": 0.3318361501097229,
+      "07-C": 0.3158648102262545
+    },
+    "runtime.gcBgMarkWorker": {
+      "03-A": 0.15120399693260966,
+      "04-B": 0.16119307361486002,
+      "05-B": 0.1524220403538276,
+      "06-A": 0.14257305544280902,
+      "07-C": 0.15670947418318606
+    },
+    "encoding/json.Marshal": {
+      "03-A": 0.0872374193727845,
+      "04-B": 0.09474835278167115,
+      "05-B": 0.09345308882983351,
+      "06-A": 0.08851608076089432,
+      "07-C": 0.0795798563927121
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle": {
+      "03-A": 0.8236724522967845,
+      "04-B": 0.6964358728408463,
+      "05-B": 0.7412007827420445,
+      "06-A": 0.8050060651161115,
+      "07-C": 0.8104419648143844
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readSelectedConversationHeads": {
+      "03-A": 0.3356918900018196,
+      "04-B": 0.2805547445541616,
+      "05-B": 0.3035785172467858,
+      "06-A": 0.3108951659988138,
+      "07-C": 0.3244166323410285
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readStoredConversationHead": {
+      "03-A": 0.3332287133089852,
+      "04-B": 0.27563156581321663,
+      "05-B": 0.29743205807185324,
+      "06-A": 0.30843925684718976,
+      "07-C": 0.30972987311777245
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).acquire": {
+      "03-A": 0.028273022266940562,
+      "04-B": 0.023380485741584342,
+      "05-B": 0.03687770766628435,
+      "06-A": 0.02456131987987154,
+      "07-C": 0.026932063884526285
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).retainWarmLocked": {
+      "03-A": 0.014745690552141501,
+      "04-B": 0.017225061536784683,
+      "05-B": 0.007376078469205644,
+      "06-A": 0.013524566382172896,
+      "07-C": 0.01469212156608296
+    }
+  },
+  "candidate_only_functions_at_least_0_01_sampled_cpu_cores": [],
+  "coverage": {
+    "03-A": [
+      {
+        "node": 1,
+        "capture_seconds": 8.164098503,
+        "warmup_lead_seconds": 0.636662,
+        "overlap_profile_window_seconds": 7.527437,
+        "alloc_snapshot_seconds": 10.905564612
+      },
+      {
+        "node": 2,
+        "capture_seconds": 8.118296123,
+        "warmup_lead_seconds": 0.636586,
+        "overlap_profile_window_seconds": 7.48171,
+        "alloc_snapshot_seconds": 10.915947935
+      },
+      {
+        "node": 3,
+        "capture_seconds": 8.1208966,
+        "warmup_lead_seconds": 0.63613,
+        "overlap_profile_window_seconds": 7.484767,
+        "alloc_snapshot_seconds": 10.917595141
+      }
+    ],
+    "04-B": [
+      {
+        "node": 1,
+        "capture_seconds": 8.132263678,
+        "warmup_lead_seconds": 0.605731,
+        "overlap_profile_window_seconds": 7.526533,
+        "alloc_snapshot_seconds": 10.889966327
+      },
+      {
+        "node": 2,
+        "capture_seconds": 8.119562549,
+        "warmup_lead_seconds": 0.60574,
+        "overlap_profile_window_seconds": 7.513822,
+        "alloc_snapshot_seconds": 10.891028801
+      },
+      {
+        "node": 3,
+        "capture_seconds": 8.127953911,
+        "warmup_lead_seconds": 0.605741,
+        "overlap_profile_window_seconds": 7.522213,
+        "alloc_snapshot_seconds": 10.892975546
+      }
+    ],
+    "05-B": [
+      {
+        "node": 1,
+        "capture_seconds": 8.149087542,
+        "warmup_lead_seconds": 0.622651,
+        "overlap_profile_window_seconds": 7.526437,
+        "alloc_snapshot_seconds": 10.899077234
+      },
+      {
+        "node": 2,
+        "capture_seconds": 8.14083466,
+        "warmup_lead_seconds": 0.622698,
+        "overlap_profile_window_seconds": 7.518137,
+        "alloc_snapshot_seconds": 10.898521854
+      },
+      {
+        "node": 3,
+        "capture_seconds": 8.117471511,
+        "warmup_lead_seconds": 0.622243,
+        "overlap_profile_window_seconds": 7.495229,
+        "alloc_snapshot_seconds": 10.899601012
+      }
+    ],
+    "06-A": [
+      {
+        "node": 1,
+        "capture_seconds": 8.165049161,
+        "warmup_lead_seconds": 0.641806,
+        "overlap_profile_window_seconds": 7.523243,
+        "alloc_snapshot_seconds": 10.904986785
+      },
+      {
+        "node": 2,
+        "capture_seconds": 8.120210818,
+        "warmup_lead_seconds": 0.641319,
+        "overlap_profile_window_seconds": 7.478892,
+        "alloc_snapshot_seconds": 10.905476611
+      },
+      {
+        "node": 3,
+        "capture_seconds": 8.12231041,
+        "warmup_lead_seconds": 0.641795,
+        "overlap_profile_window_seconds": 7.480516,
+        "alloc_snapshot_seconds": 10.906151373
+      }
+    ],
+    "07-C": [
+      {
+        "node": 1,
+        "capture_seconds": 8.171906428,
+        "warmup_lead_seconds": 0.640498,
+        "overlap_profile_window_seconds": 7.531409,
+        "alloc_snapshot_seconds": 10.939404798
+      },
+      {
+        "node": 2,
+        "capture_seconds": 8.162470374,
+        "warmup_lead_seconds": 0.641103,
+        "overlap_profile_window_seconds": 7.521367,
+        "alloc_snapshot_seconds": 10.93932143
+      },
+      {
+        "node": 3,
+        "capture_seconds": 8.169928812,
+        "warmup_lead_seconds": 0.64052,
+        "overlap_profile_window_seconds": 7.529408,
+        "alloc_snapshot_seconds": 10.939133706
+      }
+    ]
+  },
+  "original_window_median_p99_ms": {
+    "03-A": [
+      30.332834,
+      64.12398
+    ],
+    "04-B": [
+      22.415028,
+      48.108091
+    ],
+    "05-B": [
+      29.404791,
+      65.4717
+    ],
+    "06-A": [
+      28.785701,
+      61.329619
+    ],
+    "07-C": [
+      28.756377,
+      61.921846
+    ]
+  },
+  "B5_vs_B4_original_window_median_p99_percent": [
+    31.183378401311845,
+    36.09290794764648
+  ],
+  "profile_start_after_original_window_seconds": {
+    "03-A": 0.288769,
+    "04-B": 0.250179,
+    "05-B": 0.279635,
+    "06-A": 0.297598,
+    "07-C": 0.311385
+  },
+  "driver_json_unmarshal": {
+    "03-A": {
+      "sampled_cpu_cores": 0.2568091774754748,
+      "share_of_driver_cpu_percent": 60.52060737527114
+    },
+    "04-B": {
+      "sampled_cpu_cores": 0.23956278662915176,
+      "share_of_driver_cpu_percent": 65.98984771573603
+    },
+    "05-B": {
+      "sampled_cpu_cores": 0.25688061385616023,
+      "share_of_driver_cpu_percent": 61.58940397350994
+    },
+    "06-A": {
+      "sampled_cpu_cores": 0.27241229583451815,
+      "share_of_driver_cpu_percent": 63.65591397849462
+    },
+    "07-C": {
+      "sampled_cpu_cores": 0.2615363473111013,
+      "share_of_driver_cpu_percent": 58.16326530612245
+    }
+  }
+}

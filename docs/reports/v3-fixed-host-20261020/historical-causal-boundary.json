@@ -1,0 +1,1573 @@
+{
+  "schema": "wukongim/historical-causal-boundary/v1",
+  "scope": "Only reads archived raw report files; no product, network or workflow execution.",
+  "notes": [
+    "RPC weights are an exactly fitting completed-request mix model, not per-request tracing.",
+    "Zero residual does not prove identical per-node routing, placement or CPU work.",
+    "Root cgroup counters do not establish actual service or ancestor quota.",
+    "Stages measure overlapping wall time with different populations, not additive CPU cost.",
+    "Queue service estimates describe a full queue at observed throughput, not measured mean waits."
+  ],
+  "reports": {
+    "original_b469_39368295521": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-rc-20261020/qps/report.json.gz",
+      "archive_sha256": "7b569706d3783d486448b7058eb79f184f6a97afbd1e05b2bf84b98cab741767",
+      "raw_sha256": "eca951e9fc455f1ec803c3656d33eacd7654218a998bad1c64e42ebb91306487",
+      "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "binary_sha256": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T04:14:57.422761586Z",
+          "end": "2026-10-20T04:15:57.422761586Z",
+          "list_completed": 10559,
+          "sync_completed": 3594,
+          "timing": {
+            "/conversation/list": {
+              "completed": 10559,
+              "completed_in_window": 10455,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 1441,
+              "errors": 0,
+              "actual_qps": 174.25,
+              "driver_wait_p99_ms": 750.026114,
+              "request_p99_ms": 82.844415,
+              "p50_ms": 595.760242,
+              "p99_ms": 813.440441,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 573.8880918220947
+            },
+            "/conversation/sync": {
+              "completed": 3594,
+              "completed_in_window": 3586,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 6,
+              "errors": 0,
+              "actual_qps": 59.766666666666666,
+              "driver_wait_p99_ms": 515.754212,
+              "request_p99_ms": 178.948992,
+              "p50_ms": 123.806798,
+              "p99_ms": 654.878107,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 501.952035694367
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 170728,
+              "mix_model": 170728,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 141976,
+              "mix_model": 141976,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28752,
+              "mix_model": 28752,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7188,
+              "mix_model": 7188,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 28306,
+              "mix_model": 28306,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 256092,
+              "mix_model": 256092,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 10559,
+              "sum_seconds": 427.4761619430007,
+              "mean_ms": 40.484530916090606
+            },
+            "list/response": {
+              "count": 10559,
+              "sum_seconds": 5.874596906999997,
+              "mean_ms": 0.5563592108154178
+            },
+            "sync/handler": {
+              "count": 3594,
+              "sum_seconds": 390.14024639400014,
+              "mean_ms": 108.55321268614361
+            },
+            "sync/response": {
+              "count": 3594,
+              "sum_seconds": 5.928210161999997,
+              "mean_ms": 1.6494741686143566
+            },
+            "persisted_heads/metadata": {
+              "count": 14153,
+              "sum_seconds": 132.2147649700001,
+              "mean_ms": 9.341819046845197
+            },
+            "persisted_heads/heads": {
+              "count": 14153,
+              "sum_seconds": 156.68324958300022,
+              "mean_ms": 11.070674032572615
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 14153,
+              "sum_seconds": 241.1344674179999,
+              "mean_ms": 17.037692886172536
+            },
+            "edit_slot/barrier": {
+              "count": 256092,
+              "sum_seconds": 1018.101204671999,
+              "mean_ms": 3.9755291249707096
+            },
+            "edit_slot/storage": {
+              "count": 256092,
+              "sum_seconds": 21.268912299999897,
+              "mean_ms": 0.08305184191618598
+            }
+          },
+          "server_cpu_seconds": 187.21999999999997,
+          "server_allocated_bytes": 34278219512,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 428,
+          "gc_pause_sum_seconds": 0.361801084,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:14:56.430462468Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 324861000\nuser_usec 263325000\nsystem_usec 61536000\nnice_usec 18000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:15:57.912786666Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 555789000\nuser_usec 461377000\nsystem_usec 94412000\nnice_usec 18000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T04:15:58.676450637Z",
+          "end": "2026-10-20T04:16:58.676450637Z",
+          "list_completed": 10858,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 10858,
+              "completed_in_window": 10752,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 1142,
+              "errors": 0,
+              "actual_qps": 179.2,
+              "driver_wait_p99_ms": 619.832787,
+              "request_p99_ms": 77.37341,
+              "p50_ms": 587.042409,
+              "p99_ms": 671.008459,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 558.0357142857143
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3592,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 59.86666666666667,
+              "driver_wait_p99_ms": 27.206035,
+              "request_p99_ms": 164.821727,
+              "p50_ms": 117.371883,
+              "p99_ms": 169.412097,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 501.11358574610244
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 173264,
+              "mix_model": 173264,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 144464,
+              "mix_model": 144464,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 28916,
+              "mix_model": 28916,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 259896,
+              "mix_model": 259896,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 10858,
+              "sum_seconds": 426.99239666199963,
+              "mean_ms": 39.32514244446488
+            },
+            "list/response": {
+              "count": 10858,
+              "sum_seconds": 5.895289946999997,
+              "mean_ms": 0.5429443679314788
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 376.7960050820011,
+              "mean_ms": 104.66555696722253
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 5.6423362279999925,
+              "mean_ms": 1.5673156188888868
+            },
+            "persisted_heads/metadata": {
+              "count": 14458,
+              "sum_seconds": 130.7419945219994,
+              "mean_ms": 9.042882454142994
+            },
+            "persisted_heads/heads": {
+              "count": 14458,
+              "sum_seconds": 156.17543152000025,
+              "mean_ms": 10.802007990040133
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 14458,
+              "sum_seconds": 238.1607690669992,
+              "mean_ms": 16.47259434686673
+            },
+            "edit_slot/barrier": {
+              "count": 259896,
+              "sum_seconds": 1000.6186270329979,
+              "mean_ms": 3.8500732101802178
+            },
+            "edit_slot/storage": {
+              "count": 259896,
+              "sum_seconds": 20.725508543999034,
+              "mean_ms": 0.07974539255701908
+            }
+          },
+          "server_cpu_seconds": 190.65,
+          "server_allocated_bytes": 34780477808,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 434,
+          "gc_pause_sum_seconds": 0.350581071,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:15:57.918203061Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 555796000\nuser_usec 461382000\nsystem_usec 94414000\nnice_usec 18000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:16:59.170188815Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 786384000\nuser_usec 658906000\nsystem_usec 127478000\nnice_usec 18000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T04:16:59.905488313Z",
+          "end": "2026-10-20T04:17:59.905488313Z",
+          "list_completed": 10968,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 10968,
+              "completed_in_window": 10863,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 1032,
+              "errors": 0,
+              "actual_qps": 181.05,
+              "driver_wait_p99_ms": 607.65009,
+              "request_p99_ms": 78.979439,
+              "p50_ms": 578.751628,
+              "p99_ms": 656.809981,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 552.3336095001381
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3594,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 59.9,
+              "driver_wait_p99_ms": 238.873167,
+              "request_p99_ms": 174.374365,
+              "p50_ms": 116.695978,
+              "p99_ms": 372.061907,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.8347245409015
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 174144,
+              "mix_model": 174144,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 145344,
+              "mix_model": 145344,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 29136,
+              "mix_model": 29136,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 261216,
+              "mix_model": 261216,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 10968,
+              "sum_seconds": 429.0680875349996,
+              "mean_ms": 39.11999339305248
+            },
+            "list/response": {
+              "count": 10968,
+              "sum_seconds": 5.952705651000008,
+              "mean_ms": 0.5427339214989066
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 377.5467589390006,
+              "mean_ms": 104.87409970527794
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 5.624767473000029,
+              "mean_ms": 1.5624354091666748
+            },
+            "persisted_heads/metadata": {
+              "count": 14568,
+              "sum_seconds": 132.10356588200028,
+              "mean_ms": 9.06806465417355
+            },
+            "persisted_heads/heads": {
+              "count": 14568,
+              "sum_seconds": 156.1651053620015,
+              "mean_ms": 10.71973540376177
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 14568,
+              "sum_seconds": 238.49804996600108,
+              "mean_ms": 16.37136531891825
+            },
+            "edit_slot/barrier": {
+              "count": 261216,
+              "sum_seconds": 993.9857574709847,
+              "mean_ms": 3.805225397644037
+            },
+            "edit_slot/storage": {
+              "count": 261216,
+              "sum_seconds": 20.331925447999957,
+              "mean_ms": 0.07783568176528222
+            }
+          },
+          "server_cpu_seconds": 190.04000000000008,
+          "server_allocated_bytes": 34954719808,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 436,
+          "gc_pause_sum_seconds": 0.392758872,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:16:59.182264289Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 786406000\nuser_usec 658925000\nsystem_usec 127481000\nnice_usec 18000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:18:00.39346664Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 1016690000\nuser_usec 855998000\nsystem_usec 160692000\nnice_usec 18000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        }
+      ],
+      "all_mix_residuals_exactly_zero": true,
+      "profile_window": {
+        "start": "2026-10-20T04:18:01.231359262Z",
+        "end": "2026-10-20T04:18:11.231359262Z",
+        "endpoint_outcomes": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "dropped": 67,
+            "p99_ms": 616.254998,
+            "errors": 0
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "dropped": 0,
+            "p99_ms": 177.43079,
+            "errors": 0
+          }
+        ]
+      }
+    },
+    "matched_beta24_39369947381": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-rc-20261020/qps-comparison/comparison/report.json.gz",
+      "archive_sha256": "d0c1533d4972850cc47cb6392e0883ba1a756a91186ac25522ef58defc5d6700",
+      "raw_sha256": "a5b60534be93ed733487006a7402dbc48bdd10d59c96c710f0edb3596f006213",
+      "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+      "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "binary_sha256": "2aba832435ad303bd70e47a79b618114d5522aca70109b6a0d7f45affc652853",
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T04:34:35.20240239Z",
+          "end": "2026-10-20T04:35:35.20240239Z",
+          "list_completed": 12000,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 200,
+              "driver_wait_p99_ms": 1.544889,
+              "request_p99_ms": 14.777833,
+              "p50_ms": 4.869623,
+              "p99_ms": 15.449169,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 60,
+              "driver_wait_p99_ms": 1.466673,
+              "request_p99_ms": 31.29616,
+              "p50_ms": 11.947151,
+              "p99_ms": 32.140023,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 182400,
+              "mix_model": 182400,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 153600,
+              "mix_model": 153600,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 31200,
+              "mix_model": 31200,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 273600,
+              "mix_model": 273600,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 12000,
+              "sum_seconds": 51.663262973000045,
+              "mean_ms": 4.305271914416671
+            },
+            "list/response": {
+              "count": 12000,
+              "sum_seconds": 1.6728921630000002,
+              "mean_ms": 0.13940768025000003
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 39.876487114,
+              "mean_ms": 11.076801976111112
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 1.5825644299999992,
+              "mean_ms": 0.43960123055555533
+            },
+            "persisted_heads/metadata": {
+              "count": 15600,
+              "sum_seconds": 11.821472051999994,
+              "mean_ms": 0.7577866699999996
+            },
+            "persisted_heads/heads": {
+              "count": 15600,
+              "sum_seconds": 23.278512941000002,
+              "mean_ms": 1.4922123680128205
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 15600,
+              "sum_seconds": 21.88713693699996,
+              "mean_ms": 1.4030215985256385
+            },
+            "edit_slot/barrier": {
+              "count": 273600,
+              "sum_seconds": 88.16562816499967,
+              "mean_ms": 0.3222427930007298
+            },
+            "edit_slot/storage": {
+              "count": 273600,
+              "sum_seconds": 9.112930014000032,
+              "mean_ms": 0.03330749274122819
+            }
+          },
+          "server_cpu_seconds": 130.22,
+          "server_allocated_bytes": 36696403352,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 496,
+          "gc_pause_sum_seconds": 0.058388945,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:34:34.555132488Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 289052000\nuser_usec 237957000\nsystem_usec 51095000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:35:35.293644388Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 438785000\nuser_usec 353246000\nsystem_usec 85539000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T04:35:35.783648408Z",
+          "end": "2026-10-20T04:36:35.783648408Z",
+          "list_completed": 12000,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 200,
+              "driver_wait_p99_ms": 1.443963,
+              "request_p99_ms": 15.44825,
+              "p50_ms": 4.885429,
+              "p99_ms": 16.29845,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 60,
+              "driver_wait_p99_ms": 1.543599,
+              "request_p99_ms": 32.07811,
+              "p50_ms": 12.072589,
+              "p99_ms": 32.751756,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 182400,
+              "mix_model": 182400,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 153600,
+              "mix_model": 153600,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 31200,
+              "mix_model": 31200,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 273600,
+              "mix_model": 273600,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 12000,
+              "sum_seconds": 52.5898225710001,
+              "mean_ms": 4.382485214250008
+            },
+            "list/response": {
+              "count": 12000,
+              "sum_seconds": 1.7046895789999876,
+              "mean_ms": 0.14205746491666563
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 40.03336087099992,
+              "mean_ms": 11.120378019722201
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 1.581515595999998,
+              "mean_ms": 0.4393098877777772
+            },
+            "persisted_heads/metadata": {
+              "count": 15600,
+              "sum_seconds": 12.020833031000016,
+              "mean_ms": 0.7705662199358985
+            },
+            "persisted_heads/heads": {
+              "count": 15600,
+              "sum_seconds": 23.799417851000022,
+              "mean_ms": 1.5256037083974374
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 15600,
+              "sum_seconds": 21.912291699999997,
+              "mean_ms": 1.4046340833333333
+            },
+            "edit_slot/barrier": {
+              "count": 273600,
+              "sum_seconds": 88.60016859199831,
+              "mean_ms": 0.3238310255555494
+            },
+            "edit_slot/storage": {
+              "count": 273600,
+              "sum_seconds": 9.344567811000122,
+              "mean_ms": 0.03415412211622852
+            }
+          },
+          "server_cpu_seconds": 132.07999999999998,
+          "server_allocated_bytes": 36694821160,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 495,
+          "gc_pause_sum_seconds": 0.062641953,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:35:35.297965034Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 438790000\nuser_usec 353250000\nsystem_usec 85540000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:36:35.871286516Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 589973000\nuser_usec 470469000\nsystem_usec 119504000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T04:36:36.373552996Z",
+          "end": "2026-10-20T04:37:36.373552996Z",
+          "list_completed": 12000,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 199.98333333333332,
+              "driver_wait_p99_ms": 1.725781,
+              "request_p99_ms": 15.634069,
+              "p50_ms": 5.096795,
+              "p99_ms": 16.431697,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.04167013917834
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 59.983333333333334,
+              "driver_wait_p99_ms": 1.615751,
+              "request_p99_ms": 35.040491,
+              "p50_ms": 12.703135,
+              "p99_ms": 35.589577,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.13892747985557
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 182400,
+              "mix_model": 182400,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 153600,
+              "mix_model": 153600,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 31200,
+              "mix_model": 31200,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 273600,
+              "mix_model": 273600,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 12000,
+              "sum_seconds": 55.70218143499991,
+              "mean_ms": 4.641848452916658
+            },
+            "list/response": {
+              "count": 12000,
+              "sum_seconds": 1.7695536860000056,
+              "mean_ms": 0.14746280716666713
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 42.51599974499997,
+              "mean_ms": 11.809999929166656
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 1.629986956000006,
+              "mean_ms": 0.4527741544444461
+            },
+            "persisted_heads/metadata": {
+              "count": 15600,
+              "sum_seconds": 13.21911225200001,
+              "mean_ms": 0.8473789905128212
+            },
+            "persisted_heads/heads": {
+              "count": 15600,
+              "sum_seconds": 25.00960369399995,
+              "mean_ms": 1.6031797239743557
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 15600,
+              "sum_seconds": 23.301285055000186,
+              "mean_ms": 1.4936721189102684
+            },
+            "edit_slot/barrier": {
+              "count": 273600,
+              "sum_seconds": 92.23834183400024,
+              "mean_ms": 0.33712844237573186
+            },
+            "edit_slot/storage": {
+              "count": 273600,
+              "sum_seconds": 9.764185541999863,
+              "mean_ms": 0.03568781265350827
+            }
+          },
+          "server_cpu_seconds": 134.14000000000004,
+          "server_allocated_bytes": 36705633648,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 495,
+          "gc_pause_sum_seconds": 0.057169861,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:36:35.878846636Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 589983000\nuser_usec 470477000\nsystem_usec 119506000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:37:36.46175142Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 742442000\nuser_usec 589265000\nsystem_usec 153177000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        }
+      ],
+      "all_mix_residuals_exactly_zero": true,
+      "profile_window": {
+        "start": "2026-10-20T04:37:37.004796469Z",
+        "end": "2026-10-20T04:37:47.004796469Z",
+        "endpoint_outcomes": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "dropped": 0,
+            "p99_ms": 40.749539,
+            "errors": 0
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "dropped": 0,
+            "p99_ms": 78.574309,
+            "errors": 0
+          }
+        ]
+      }
+    },
+    "matched_b469_39369947381": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-rc-20261020/qps-comparison/report.json.gz",
+      "archive_sha256": "c97321608fa7a7459b235f251ce93bd7493282da5cc406be264ec77b695c2dd5",
+      "raw_sha256": "4463ad20c0eadf56b23f95d15544d2ee3779df68734a11b1cc34f2e9cbf1534b",
+      "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "binary_sha256": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T04:38:21.581258699Z",
+          "end": "2026-10-20T04:39:21.581258699Z",
+          "list_completed": 12000,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 200,
+              "driver_wait_p99_ms": 2.285564,
+              "request_p99_ms": 23.783337,
+              "p50_ms": 5.400212,
+              "p99_ms": 24.957711,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 60,
+              "driver_wait_p99_ms": 2.222484,
+              "request_p99_ms": 54.584392,
+              "p50_ms": 13.076474,
+              "p99_ms": 55.945837,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 182400,
+              "mix_model": 182400,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 153600,
+              "mix_model": 153600,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 31200,
+              "mix_model": 31200,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 273600,
+              "mix_model": 273600,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 12000,
+              "sum_seconds": 63.67391742400001,
+              "mean_ms": 5.3061597853333335
+            },
+            "list/response": {
+              "count": 12000,
+              "sum_seconds": 1.9572289389999988,
+              "mean_ms": 0.16310241158333325
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 48.647525993000016,
+              "mean_ms": 13.513201664722228
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 1.6895854119999978,
+              "mean_ms": 0.4693292811111105
+            },
+            "persisted_heads/metadata": {
+              "count": 15600,
+              "sum_seconds": 15.845727325999974,
+              "mean_ms": 1.015751751666665
+            },
+            "persisted_heads/heads": {
+              "count": 15600,
+              "sum_seconds": 28.085070397000006,
+              "mean_ms": 1.8003250254487184
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 15600,
+              "sum_seconds": 27.32703175399996,
+              "mean_ms": 1.7517328047435872
+            },
+            "edit_slot/barrier": {
+              "count": 273600,
+              "sum_seconds": 106.67609362099972,
+              "mean_ms": 0.38989800300072996
+            },
+            "edit_slot/storage": {
+              "count": 273600,
+              "sum_seconds": 10.523609981000055,
+              "mean_ms": 0.03846348677266102
+            }
+          },
+          "server_cpu_seconds": 133.98000000000002,
+          "server_allocated_bytes": 36698805344,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 494,
+          "gc_pause_sum_seconds": 0.06427028,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:38:20.785393673Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 789524000\nuser_usec 624494000\nsystem_usec 165030000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:39:21.675855198Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 946209000\nuser_usec 748621000\nsystem_usec 197588000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T04:39:22.253050158Z",
+          "end": "2026-10-20T04:40:22.253050158Z",
+          "list_completed": 12000,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 200,
+              "driver_wait_p99_ms": 2.346685,
+              "request_p99_ms": 22.337328,
+              "p50_ms": 5.683253,
+              "p99_ms": 23.13055,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 60,
+              "driver_wait_p99_ms": 1.920249,
+              "request_p99_ms": 47.973944,
+              "p50_ms": 13.962439,
+              "p99_ms": 48.538836,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 182400,
+              "mix_model": 182400,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 153600,
+              "mix_model": 153600,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 31200,
+              "mix_model": 31200,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 273600,
+              "mix_model": 273600,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 12000,
+              "sum_seconds": 66.92100010100005,
+              "mean_ms": 5.57675000841667
+            },
+            "list/response": {
+              "count": 12000,
+              "sum_seconds": 2.018983420000004,
+              "mean_ms": 0.16824861833333368
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 50.41888609500003,
+              "mean_ms": 14.00524613750001
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 1.7795117520000043,
+              "mean_ms": 0.49430882000000126
+            },
+            "persisted_heads/metadata": {
+              "count": 15600,
+              "sum_seconds": 16.657092382000013,
+              "mean_ms": 1.067762332179488
+            },
+            "persisted_heads/heads": {
+              "count": 15600,
+              "sum_seconds": 29.438886835999938,
+              "mean_ms": 1.8871081305128166
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 15600,
+              "sum_seconds": 28.657406343999895,
+              "mean_ms": 1.8370132271794803
+            },
+            "edit_slot/barrier": {
+              "count": 273600,
+              "sum_seconds": 110.75443828100073,
+              "mean_ms": 0.40480423348318983
+            },
+            "edit_slot/storage": {
+              "count": 273600,
+              "sum_seconds": 11.452875944000102,
+              "mean_ms": 0.0418599266959068
+            }
+          },
+          "server_cpu_seconds": 138.40999999999997,
+          "server_allocated_bytes": 36702336928,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 492,
+          "gc_pause_sum_seconds": 0.088995481,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:39:21.679939252Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 946215000\nuser_usec 748625000\nsystem_usec 197590000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:40:22.340050668Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 1104722000\nuser_usec 875235000\nsystem_usec 229487000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T04:40:22.814846072Z",
+          "end": "2026-10-20T04:41:22.814846072Z",
+          "list_completed": 12000,
+          "sync_completed": 3600,
+          "timing": {
+            "/conversation/list": {
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "scheduled": 12000,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 200,
+              "driver_wait_p99_ms": 2.099888,
+              "request_p99_ms": 22.570845,
+              "p50_ms": 5.356747,
+              "p99_ms": 24.00444,
+              "worker_occupancy_budget_ms_at_offered_rate": 40.0,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            },
+            "/conversation/sync": {
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "scheduled": 3600,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "dropped": 0,
+              "errors": 0,
+              "actual_qps": 60,
+              "driver_wait_p99_ms": 2.022261,
+              "request_p99_ms": 51.657668,
+              "p50_ms": 13.229913,
+              "p99_ms": 53.446671,
+              "worker_occupancy_budget_ms_at_offered_rate": 133.33333333333334,
+              "full_queue_service_estimate_ms_at_actual_rate": 500.0
+            }
+          },
+          "mix_model_checks": {
+            "slot message updates": {
+              "list_weight": 8,
+              "sync_weight": 24,
+              "observed": 182400,
+              "mix_model": 182400,
+              "residual": 0
+            },
+            "slot permission metadata batch": {
+              "list_weight": 8,
+              "sync_weight": 16,
+              "observed": 153600,
+              "mix_model": 153600,
+              "residual": 0
+            },
+            "slot runtime metadata": {
+              "list_weight": 0,
+              "sync_weight": 8,
+              "observed": 28800,
+              "mix_model": 28800,
+              "residual": 0
+            },
+            "channel committed reads": {
+              "list_weight": 0,
+              "sync_weight": 2,
+              "observed": 7200,
+              "mix_model": 7200,
+              "residual": 0
+            },
+            "channel conversation heads": {
+              "list_weight": 2,
+              "sync_weight": 2,
+              "observed": 31200,
+              "mix_model": 31200,
+              "residual": 0
+            },
+            "edit_slot barrier count": {
+              "list_weight": 12,
+              "sync_weight": 36,
+              "observed": 273600,
+              "mix_model": 273600,
+              "residual": 0
+            }
+          },
+          "stages": {
+            "list/handler": {
+              "count": 12000,
+              "sum_seconds": 63.22119973899989,
+              "mean_ms": 5.268433311583324
+            },
+            "list/response": {
+              "count": 12000,
+              "sum_seconds": 1.903571173000004,
+              "mean_ms": 0.15863093108333365
+            },
+            "sync/handler": {
+              "count": 3600,
+              "sum_seconds": 47.56471078399978,
+              "mean_ms": 13.21241966222216
+            },
+            "sync/response": {
+              "count": 3600,
+              "sum_seconds": 1.6539875269999988,
+              "mean_ms": 0.4594409797222219
+            },
+            "persisted_heads/metadata": {
+              "count": 15600,
+              "sum_seconds": 15.905582816999983,
+              "mean_ms": 1.0195886421153835
+            },
+            "persisted_heads/heads": {
+              "count": 15600,
+              "sum_seconds": 27.762917542999794,
+              "mean_ms": 1.7796742014743459
+            },
+            "persisted_heads/edit_overlay": {
+              "count": 15600,
+              "sum_seconds": 27.049176649000028,
+              "mean_ms": 1.7339215800641044
+            },
+            "edit_slot/barrier": {
+              "count": 273600,
+              "sum_seconds": 104.05329123999974,
+              "mean_ms": 0.3803117369883032
+            },
+            "edit_slot/storage": {
+              "count": 273600,
+              "sum_seconds": 10.5811622100002,
+              "mean_ms": 0.03867383848684283
+            }
+          },
+          "server_cpu_seconds": 135.26,
+          "server_allocated_bytes": 36707794936,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "gc_count": 494,
+          "gc_pause_sum_seconds": 0.07044681700000001,
+          "contains_storage_metrics": false,
+          "resource_cuts": [
+            {
+              "time": "2026-10-20T04:40:22.347988556Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 1104734000\nuser_usec 875246000\nsystem_usec 229488000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            },
+            {
+              "time": "2026-10-20T04:41:22.899561534Z",
+              "actual_driver_membership": "0::/system.slice/hosted-compute-agent.service\n",
+              "observed_cpu_stat_path": "/sys/fs/cgroup/cpu.stat",
+              "observed_cpu_stat": "usage_usec 1258332000\nuser_usec 996931000\nsystem_usec 261401000\nnice_usec 8000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+              "observed_cpu_max_path": "/sys/fs/cgroup/cpu.max",
+              "observed_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+              "has_process_mountinfo": false,
+              "has_resolved_service_controls": false
+            }
+          ]
+        }
+      ],
+      "all_mix_residuals_exactly_zero": true,
+      "profile_window": {
+        "start": "2026-10-20T04:41:23.436081041Z",
+        "end": "2026-10-20T04:41:33.436081041Z",
+        "endpoint_outcomes": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "dropped": 0,
+            "p99_ms": 31.85425,
+            "errors": 0
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "dropped": 0,
+            "p99_ms": 58.775404,
+            "errors": 0
+          }
+        ]
+      }
+    }
+  }
+}

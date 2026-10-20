@@ -405,7 +405,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     signal.signal(signal.SIGALRM, interrupted)
-    # Leave six minutes inside the job limit for bounded cleanup and artifact upload.
+    # Bound script work below the hard job limit; setup also consumes job time.
     signal.alarm(114 * 60)
     execute(args.candidate_sha, args.output_dir.resolve())
 

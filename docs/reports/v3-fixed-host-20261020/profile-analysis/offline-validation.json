@@ -1,0 +1,19 @@
+{
+  "status": "pass",
+  "network_disabled": {
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local"
+  },
+  "executed_artifact_binaries": false,
+  "repo_mutated": false,
+  "commands": [
+    "python3 profile-analysis/analyze.py --artifact-root download/conversation-fixed-host --repo <frozen-H-checkout> --go <installed-Go-1.25-executable> --output-dir <new-directory>",
+    "python3 profile-analysis/summarize.py --analysis-dir <new-directory>"
+  ],
+  "decoder_toolchain": "go version go1.25.0 darwin/arm64",
+  "independent_B5_vs_B4_original_window_median_p99_percent": [
+    31.183378401311845,
+    36.09290794764648
+  ]
+}

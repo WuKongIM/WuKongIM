@@ -1,0 +1,37 @@
+File: wukongim-e2e
+Build ID: 9e6fc5a0113372c56322ae973debd2932a7253ef
+Type: alloc_space
+Time: 2026-10-21 00:33:27 CST
+Showing nodes accounting for 154219712B, 7.40% of 2083942262B total
+Showing top 30 nodes out of 618
+      flat  flat%   sum%        cum   cum%
+         0     0%     0% 972730161B 46.68%  net/http.(*conn).serve
+         0     0%     0% 971681489B 46.63%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0%     0% 971681489B 46.63%  github.com/gin-gonic/gin.(*Context).Next
+         0     0%     0% 971681489B 46.63%  github.com/gin-gonic/gin.(*Engine).ServeHTTP
+         0     0%     0% 971681489B 46.63%  github.com/gin-gonic/gin.(*Engine).handleHTTPRequest
+         0     0%     0% 971681489B 46.63%  net/http.serverHandler.ServeHTTP
+         0     0%     0% 971157025B 46.60%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0%     0% 971157025B 46.60%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0%     0% 959462436B 46.04%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).messageContentEpochMiddleware.func4
+         0     0%     0% 719804650B 34.54%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+         0     0%     0% 719804650B 34.54%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+         0     0%     0% 719804650B 34.54%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+         0     0%     0% 718756050B 34.49%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+         0     0%     0% 692539314B 33.23%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%     0% 678381321B 32.55%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+ 19960675B  0.96%  0.96% 494831058B 23.74%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleConversationSyncLegacy
+ 20159448B  0.97%  1.93% 463019977B 22.22%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).hydrateMembershipDirectory
+         0     0%  1.93% 462533298B 22.20%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleConversationList
+ 10574135B  0.51%  2.43% 407079433B 19.53%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).SyncLegacy
+         0     0%  2.43% 401958161B 19.29%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ConversationStore).HydratePersistedConversationHeads
+ 25260093B  1.21%  3.64% 401958161B 19.29%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ConversationStore).hydrateHeads
+         0     0%  3.64% 398325792B 19.11%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).List
+  8466673B  0.41%  4.05% 398325792B 19.11%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).listMembershipDirectory
+         0     0%  4.05% 384618403B 18.46%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0%  4.05% 383569763B 18.41%  runtime/pprof.Do
+         0     0%  4.05% 381472539B 18.31%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0%  4.05% 356770260B 17.12%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).ReadChannelPersistedConversationHeads
+ 42336879B  2.03%  6.08% 356770260B 17.12%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).readChannelConversationHeads
+   524300B 0.025%  6.11% 345045818B 16.56%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.RegisterServiceHandlersOn.func4
+ 26937509B  1.29%  7.40% 322853325B 15.49%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).handleForwardConversationHeads

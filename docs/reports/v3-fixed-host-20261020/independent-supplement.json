@@ -1,0 +1,2980 @@
+{
+  "schema": "wukongim/fixed-host-independent-supplement/v1",
+  "run_id": 39453556254,
+  "candidate": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "gate_report_sha256": "aa7b09c22bff870bbe2c3d45b2304d721f2d74e84c0879f46c34ce8608eab8eb",
+  "zip_sha256": "1adc8cfd1fa800cd1372f68f872b3ee395712b1da97eece073d8c63a99cf1718",
+  "gate_endpoint_results": [
+    {
+      "nodes": 1,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 550000,
+          "3": 800000
+        },
+        "endpoint": "/conversation/list",
+        "page_size": 25,
+        "offered_qps": 400
+      },
+      "duration_seconds": 15,
+      "scheduled": 6000,
+      "completed": 6000,
+      "completed_in_window": 6000,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 400,
+      "p99_ms": 3.773386,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 283691.65866666666,
+      "allocation_limit": 550000,
+      "allocation_ratio_of_limit": 0.5158030157575757,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 1,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 2000000,
+          "3": 3000000
+        },
+        "endpoint": "/conversation/list",
+        "page_size": 100,
+        "offered_qps": 200
+      },
+      "duration_seconds": 15,
+      "scheduled": 3000,
+      "completed": 3000,
+      "completed_in_window": 3000,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 200,
+      "p99_ms": 10.515495,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 1052637.6373333333,
+      "allocation_limit": 2000000,
+      "allocation_ratio_of_limit": 0.5263188186666666,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 1,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 4000000,
+          "3": 6000000
+        },
+        "endpoint": "/conversation/list",
+        "page_size": 200,
+        "offered_qps": 100
+      },
+      "duration_seconds": 15,
+      "scheduled": 1500,
+      "completed": 1500,
+      "completed_in_window": 1500,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 100,
+      "p99_ms": 13.621739,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 2100062.506666667,
+      "allocation_limit": 4000000,
+      "allocation_ratio_of_limit": 0.5250156266666667,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 1,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 4800000,
+          "3": 7300000
+        },
+        "endpoint": "/conversation/sync",
+        "page_size": 25,
+        "offered_qps": 80
+      },
+      "duration_seconds": 15,
+      "scheduled": 1200,
+      "completed": 1200,
+      "completed_in_window": 1200,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 80,
+      "p99_ms": 7.004792,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 1108951.7533333334,
+      "allocation_limit": 4800000,
+      "allocation_ratio_of_limit": 0.2310316152777778,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 1,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 7200000,
+          "3": 11500000
+        },
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 60
+      },
+      "duration_seconds": 15,
+      "scheduled": 900,
+      "completed": 900,
+      "completed_in_window": 900,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 60,
+      "p99_ms": 16.046017,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 3307947.68,
+      "allocation_limit": 7200000,
+      "allocation_ratio_of_limit": 0.4594371777777778,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 1,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 11200000,
+          "3": 16500000
+        },
+        "endpoint": "/conversation/sync",
+        "page_size": 200,
+        "offered_qps": 40
+      },
+      "duration_seconds": 15,
+      "scheduled": 600,
+      "completed": 600,
+      "completed_in_window": 600,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 40,
+      "p99_ms": 26.792769,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 6256227.72,
+      "allocation_limit": 11200000,
+      "allocation_ratio_of_limit": 0.5585917607142857,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 550000,
+          "3": 800000
+        },
+        "endpoint": "/conversation/list",
+        "page_size": 25,
+        "offered_qps": 400
+      },
+      "duration_seconds": 15,
+      "scheduled": 6000,
+      "completed": 6000,
+      "completed_in_window": 5999,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 399.93333333333334,
+      "p99_ms": 8.427286,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 0.9998333333333334,
+      "allocated_bytes_per_request": 542693.668,
+      "allocation_limit": 800000,
+      "allocation_ratio_of_limit": 0.678367085,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 2000000,
+          "3": 3000000
+        },
+        "endpoint": "/conversation/list",
+        "page_size": 100,
+        "offered_qps": 200
+      },
+      "duration_seconds": 15,
+      "scheduled": 3000,
+      "completed": 3000,
+      "completed_in_window": 2999,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 199.93333333333334,
+      "p99_ms": 12.996822,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 0.9996666666666667,
+      "allocated_bytes_per_request": 1646683.7626666666,
+      "allocation_limit": 3000000,
+      "allocation_ratio_of_limit": 0.5488945875555555,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 4000000,
+          "3": 6000000
+        },
+        "endpoint": "/conversation/list",
+        "page_size": 200,
+        "offered_qps": 100
+      },
+      "duration_seconds": 15,
+      "scheduled": 1500,
+      "completed": 1500,
+      "completed_in_window": 1500,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 100,
+      "p99_ms": 17.673588,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 3146051.4506666665,
+      "allocation_limit": 6000000,
+      "allocation_ratio_of_limit": 0.5243419084444444,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 4800000,
+          "3": 7300000
+        },
+        "endpoint": "/conversation/sync",
+        "page_size": 25,
+        "offered_qps": 80
+      },
+      "duration_seconds": 15,
+      "scheduled": 1200,
+      "completed": 1200,
+      "completed_in_window": 1200,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 80,
+      "p99_ms": 12.809111,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 1830335.9866666666,
+      "allocation_limit": 7300000,
+      "allocation_ratio_of_limit": 0.25073095707762555,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 7200000,
+          "3": 11500000
+        },
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 60
+      },
+      "duration_seconds": 15,
+      "scheduled": 900,
+      "completed": 900,
+      "completed_in_window": 900,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 60,
+      "p99_ms": 23.944195,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 4912561.386666667,
+      "allocation_limit": 11500000,
+      "allocation_ratio_of_limit": 0.4271792510144928,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "max_allocated_bytes_per_request": {
+          "1": 11200000,
+          "3": 16500000
+        },
+        "endpoint": "/conversation/sync",
+        "page_size": 200,
+        "offered_qps": 40
+      },
+      "duration_seconds": 15,
+      "scheduled": 600,
+      "completed": 600,
+      "completed_in_window": 600,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 40,
+      "p99_ms": 34.018264,
+      "verdict": "pass",
+      "name": "base",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 9027757.706666667,
+      "allocation_limit": 16500000,
+      "allocation_ratio_of_limit": 0.5471368307070708,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/list",
+        "page_size": 100,
+        "offered_qps": 200
+      },
+      "duration_seconds": 60,
+      "scheduled": 12000,
+      "completed": 12000,
+      "completed_in_window": 11999,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 199.98333333333332,
+      "p99_ms": 28.21734,
+      "verdict": "pass",
+      "name": "mixed",
+      "completion_ratio": 0.9999166666666666,
+      "allocated_bytes_per_request": 2353065.38,
+      "allocation_limit": 5000000,
+      "allocation_ratio_of_limit": 0.47061307599999996,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 60
+      },
+      "duration_seconds": 60,
+      "scheduled": 3600,
+      "completed": 3600,
+      "completed_in_window": 3600,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 60,
+      "p99_ms": 60.819206,
+      "verdict": "pass",
+      "name": "mixed",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 2353065.38,
+      "allocation_limit": 5000000,
+      "allocation_ratio_of_limit": 0.47061307599999996,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 20
+      },
+      "duration_seconds": 15,
+      "scheduled": 300,
+      "completed": 300,
+      "completed_in_window": 300,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 20,
+      "p99_ms": 34.507045,
+      "verdict": "pass",
+      "name": "hidden_50_percent",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 6890119.28,
+      "allocation_limit": 12000000,
+      "allocation_ratio_of_limit": 0.5741766066666667,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 50,
+        "offered_qps": 20
+      },
+      "duration_seconds": 15,
+      "scheduled": 300,
+      "completed": 300,
+      "completed_in_window": 300,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 20,
+      "p99_ms": 29.903839,
+      "verdict": "pass",
+      "name": "hidden_50_percent",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 5394177.413333333,
+      "allocation_limit": 12000000,
+      "allocation_ratio_of_limit": 0.4495147844444444,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 20
+      },
+      "duration_seconds": 15,
+      "scheduled": 300,
+      "completed": 300,
+      "completed_in_window": 300,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 20,
+      "p99_ms": 23.257055,
+      "verdict": "pass",
+      "name": "hidden_90_percent",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 4236101.8133333335,
+      "allocation_limit": 7500000,
+      "allocation_ratio_of_limit": 0.5648135751111111,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 50,
+        "offered_qps": 20
+      },
+      "duration_seconds": 15,
+      "scheduled": 300,
+      "completed": 300,
+      "completed_in_window": 300,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 20,
+      "p99_ms": 17.58167,
+      "verdict": "pass",
+      "name": "hidden_90_percent",
+      "completion_ratio": 1.0,
+      "allocated_bytes_per_request": 3514904.4266666668,
+      "allocation_limit": 7500000,
+      "allocation_ratio_of_limit": 0.4686539235555556,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 20
+      },
+      "duration_seconds": 15,
+      "scheduled": 300,
+      "completed": 300,
+      "completed_in_window": 299,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 19.933333333333334,
+      "p99_ms": 75.80928,
+      "verdict": "pass",
+      "name": "hidden_after_99_visible",
+      "completion_ratio": 0.9966666666666667,
+      "allocated_bytes_per_request": 8017397.92,
+      "allocation_limit": 12000000,
+      "allocation_ratio_of_limit": 0.6681164933333333,
+      "zero_runtime_invariants": true
+    },
+    {
+      "nodes": 3,
+      "case": {
+        "endpoint": "/conversation/sync",
+        "page_size": 50,
+        "offered_qps": 20
+      },
+      "duration_seconds": 15,
+      "scheduled": 300,
+      "completed": 300,
+      "completed_in_window": 299,
+      "errors": 0,
+      "dropped": 0,
+      "unexpected_errors": 0,
+      "actual_qps": 19.933333333333334,
+      "p99_ms": 69.438406,
+      "verdict": "pass",
+      "name": "hidden_after_99_visible",
+      "completion_ratio": 0.9966666666666667,
+      "allocated_bytes_per_request": 6552689.626666667,
+      "allocation_limit": 12000000,
+      "allocation_ratio_of_limit": 0.546057468888889,
+      "zero_runtime_invariants": true
+    }
+  ],
+  "gate_totals": {
+    "endpoint_results": 20,
+    "scheduled": 43800,
+    "completed": 43800,
+    "completed_in_window": 43795,
+    "errors": 0,
+    "dropped": 0,
+    "min_completion_ratio": 0.9966666666666667,
+    "max_p99_ms": 75.80928,
+    "max_allocation_ratio_of_limit": 0.678367085
+  },
+  "blocks": [
+    {
+      "block": "01-B",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46760,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 33.960207092,
+      "release_age_seconds": 180.01717009,
+      "window_start_age_seconds": [
+        181.055101087,
+        241.959513449,
+        302.885064104
+      ],
+      "start_estimate_uncertainty_ns": 20007366,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 61.06062,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 198301000,
+                "user_usec": 171866000,
+                "system_usec": 26435000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28462047.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 202164.0,
+                "full_total_delta_us": 74956.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 201492193,
+                "user_usec": 174747186,
+                "system_usec": 26745008,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28431034.0,
+                "full_total_delta_us": 362056.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 147895.0,
+                "full_total_delta_us": 50159.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 201413771,
+                "user_usec": 174718880,
+                "system_usec": 26694891,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28421950.0,
+                "full_total_delta_us": 377839.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 147972.0,
+                "full_total_delta_us": 50470.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.849097,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 195851000,
+                "user_usec": 169604000,
+                "system_usec": 26247000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28260086.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 70872.0,
+                "full_total_delta_us": 27066.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 199210455,
+                "user_usec": 172583949,
+                "system_usec": 26626507,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28231732.0,
+                "full_total_delta_us": 379211.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 51193.0,
+                "full_total_delta_us": 21109.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 199122955,
+                "user_usec": 172532990,
+                "system_usec": 26589965,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28222444.0,
+                "full_total_delta_us": 395308.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 51138.0,
+                "full_total_delta_us": 21074.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.961358,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 198798000,
+                "user_usec": 172761000,
+                "system_usec": 26037000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28614850.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 72410.0,
+                "full_total_delta_us": 23126.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 202017143,
+                "user_usec": 175640607,
+                "system_usec": 26376537,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28582341.0,
+                "full_total_delta_us": 360017.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 51936.0,
+                "full_total_delta_us": 17854.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 201940538,
+                "user_usec": 175598609,
+                "system_usec": 26341929,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28569012.0,
+                "full_total_delta_us": 375068.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 51962.0,
+                "full_total_delta_us": 17888.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "block": "02-B",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46795,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 31.873855623,
+      "release_age_seconds": 180.015511835,
+      "window_start_age_seconds": [
+        181.016608546,
+        241.898209652,
+        302.808925934
+      ],
+      "start_estimate_uncertainty_ns": 20010713,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 61.026048,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 192663000,
+                "user_usec": 165689000,
+                "system_usec": 26974000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27412287.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 108288.0,
+                "full_total_delta_us": 57656.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 197248847,
+                "user_usec": 169726527,
+                "system_usec": 27522320,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27379858.0,
+                "full_total_delta_us": 396907.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 74773.0,
+                "full_total_delta_us": 36995.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 197172887,
+                "user_usec": 169687023,
+                "system_usec": 27485865,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27372024.0,
+                "full_total_delta_us": 411051.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 74189.0,
+                "full_total_delta_us": 36440.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.83112,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 192355000,
+                "user_usec": 165198000,
+                "system_usec": 27157000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27321403.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 128140.0,
+                "full_total_delta_us": 41088.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 196735309,
+                "user_usec": 169042847,
+                "system_usec": 27692462,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27294327.0,
+                "full_total_delta_us": 404429.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 103973.0,
+                "full_total_delta_us": 34185.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 196652334,
+                "user_usec": 168990706,
+                "system_usec": 27661629,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27285494.0,
+                "full_total_delta_us": 419623.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 103997.0,
+                "full_total_delta_us": 34200.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.85712,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 195279000,
+                "user_usec": 168192000,
+                "system_usec": 27087000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28041700.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 84364.0,
+                "full_total_delta_us": 31715.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 199242500,
+                "user_usec": 171655815,
+                "system_usec": 27586685,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28011606.0,
+                "full_total_delta_us": 384033.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 64317.0,
+                "full_total_delta_us": 25106.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 199147683,
+                "user_usec": 171609283,
+                "system_usec": 27538400,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27998941.0,
+                "full_total_delta_us": 401095.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 56830.0,
+                "full_total_delta_us": 23051.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "block": "03-A",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46792,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 103.31090343,
+      "release_age_seconds": 180.017179716,
+      "window_start_age_seconds": [
+        181.064517274,
+        241.961120171,
+        302.881866773
+      ],
+      "start_estimate_uncertainty_ns": 20018939,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 61.072861,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 196970000,
+                "user_usec": 170550000,
+                "system_usec": 26420000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28719300.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 110897.0,
+                "full_total_delta_us": 62237.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 200735560,
+                "user_usec": 173899542,
+                "system_usec": 26836017,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28691206.0,
+                "full_total_delta_us": 369287.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 71149.0,
+                "full_total_delta_us": 38618.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 200656354,
+                "user_usec": 173852309,
+                "system_usec": 26804045,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28678287.0,
+                "full_total_delta_us": 385065.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 70554.0,
+                "full_total_delta_us": 38167.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.839685,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 191916000,
+                "user_usec": 165627000,
+                "system_usec": 26289000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27616192.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 79471.0,
+                "full_total_delta_us": 28249.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 195683776,
+                "user_usec": 168950275,
+                "system_usec": 26733501,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27582327.0,
+                "full_total_delta_us": 413469.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 55198.0,
+                "full_total_delta_us": 20599.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 195599189,
+                "user_usec": 168893269,
+                "system_usec": 26705921,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27572482.0,
+                "full_total_delta_us": 428741.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 55077.0,
+                "full_total_delta_us": 20529.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.874954,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 196198000,
+                "user_usec": 170160000,
+                "system_usec": 26038000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28232826.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 1.0,
+                "full_total_delta_us": 1.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 85377.0,
+                "full_total_delta_us": 31490.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 199875908,
+                "user_usec": 173423336,
+                "system_usec": 26452572,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28208059.0,
+                "full_total_delta_us": 377966.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 62605.0,
+                "full_total_delta_us": 24442.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 199790089,
+                "user_usec": 173383144,
+                "system_usec": 26406946,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 28197655.0,
+                "full_total_delta_us": 393596.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 62555.0,
+                "full_total_delta_us": 24448.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "block": "04-B",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46797,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 31.851557537,
+      "release_age_seconds": 180.016734568,
+      "window_start_age_seconds": [
+        181.016030838,
+        241.833858032,
+        302.67887392
+      ],
+      "start_estimate_uncertainty_ns": 20010945,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 60.994781,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 182553000,
+                "user_usec": 155941000,
+                "system_usec": 26612000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 24971950.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 101804.0,
+                "full_total_delta_us": 56999.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 187136140,
+                "user_usec": 159955770,
+                "system_usec": 27180369,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 24942418.0,
+                "full_total_delta_us": 494138.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 65207.0,
+                "full_total_delta_us": 35601.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 187055551,
+                "user_usec": 159909880,
+                "system_usec": 27145670,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 24930638.0,
+                "full_total_delta_us": 508045.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 65226.0,
+                "full_total_delta_us": 35640.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.775261,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 175662000,
+                "user_usec": 149061000,
+                "system_usec": 26601000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 23184334.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 67262.0,
+                "full_total_delta_us": 26829.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 180050895,
+                "user_usec": 152856692,
+                "system_usec": 27194203,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 23159129.0,
+                "full_total_delta_us": 548063.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 49985.0,
+                "full_total_delta_us": 21101.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 179969995,
+                "user_usec": 152805838,
+                "system_usec": 27164158,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 23145245.0,
+                "full_total_delta_us": 560861.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 49462.0,
+                "full_total_delta_us": 20568.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.783354,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 175469000,
+                "user_usec": 148922000,
+                "system_usec": 26547000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 22935014.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 66752.0,
+                "full_total_delta_us": 24769.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 180301709,
+                "user_usec": 153097994,
+                "system_usec": 27203715,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 22908673.0,
+                "full_total_delta_us": 549660.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 48222.0,
+                "full_total_delta_us": 19479.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 180233022,
+                "user_usec": 153062859,
+                "system_usec": 27170163,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 22897046.0,
+                "full_total_delta_us": 561243.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 48222.0,
+                "full_total_delta_us": 19492.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "block": "05-B",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46790,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 33.374028056,
+      "release_age_seconds": 180.014435734,
+      "window_start_age_seconds": [
+        181.010116102,
+        241.857447584,
+        302.764022239
+      ],
+      "start_estimate_uncertainty_ns": 20008898,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 61.017186,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 187105000,
+                "user_usec": 161965000,
+                "system_usec": 25140000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26901173.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 106964.0,
+                "full_total_delta_us": 60803.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 190990058,
+                "user_usec": 165420852,
+                "system_usec": 25569206,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26871190.0,
+                "full_total_delta_us": 451027.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 70475.0,
+                "full_total_delta_us": 38187.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 190907494,
+                "user_usec": 165371864,
+                "system_usec": 25535630,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26863547.0,
+                "full_total_delta_us": 465601.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 70460.0,
+                "full_total_delta_us": 38197.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.805652,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 189531000,
+                "user_usec": 164075000,
+                "system_usec": 25456000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26528281.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 78851.0,
+                "full_total_delta_us": 29194.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 192790977,
+                "user_usec": 166977576,
+                "system_usec": 25813402,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26493751.0,
+                "full_total_delta_us": 438380.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 55967.0,
+                "full_total_delta_us": 22236.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 192714911,
+                "user_usec": 166932702,
+                "system_usec": 25782209,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26483362.0,
+                "full_total_delta_us": 452033.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 55987.0,
+                "full_total_delta_us": 22256.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.854135,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 188941000,
+                "user_usec": 163724000,
+                "system_usec": 25217000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26614989.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 79252.0,
+                "full_total_delta_us": 31762.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 192567064,
+                "user_usec": 166927954,
+                "system_usec": 25639110,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26582507.0,
+                "full_total_delta_us": 435313.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 56599.0,
+                "full_total_delta_us": 24374.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 192482986,
+                "user_usec": 166870257,
+                "system_usec": 25612728,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26572013.0,
+                "full_total_delta_us": 450264.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 56673.0,
+                "full_total_delta_us": 24411.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "block": "06-A",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46794,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 100.850642604,
+      "release_age_seconds": 180.016254843,
+      "window_start_age_seconds": [
+        181.018461037,
+        241.916604496,
+        302.810238876
+      ],
+      "start_estimate_uncertainty_ns": 20006184,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 61.021971,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 189780000,
+                "user_usec": 162639000,
+                "system_usec": 27141000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27076749.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 128493.0,
+                "full_total_delta_us": 62231.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 193492491,
+                "user_usec": 165913249,
+                "system_usec": 27579243,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27049415.0,
+                "full_total_delta_us": 436227.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 91532.0,
+                "full_total_delta_us": 40519.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 193407800,
+                "user_usec": 165868972,
+                "system_usec": 27538827,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27040904.0,
+                "full_total_delta_us": 451468.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 91987.0,
+                "full_total_delta_us": 40715.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.843122,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 189001000,
+                "user_usec": 161983000,
+                "system_usec": 27018000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26479942.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 79499.0,
+                "full_total_delta_us": 25656.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 192555709,
+                "user_usec": 165094119,
+                "system_usec": 27461591,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26454363.0,
+                "full_total_delta_us": 446036.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 58917.0,
+                "full_total_delta_us": 20308.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 192479428,
+                "user_usec": 165061801,
+                "system_usec": 27417627,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26443644.0,
+                "full_total_delta_us": 459949.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 58765.0,
+                "full_total_delta_us": 20192.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.85361,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 190712000,
+                "user_usec": 163978000,
+                "system_usec": 26734000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27575878.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 80697.0,
+                "full_total_delta_us": 32834.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 194421932,
+                "user_usec": 167249195,
+                "system_usec": 27172737,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27546088.0,
+                "full_total_delta_us": 426480.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 56856.0,
+                "full_total_delta_us": 23691.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 194130087,
+                "user_usec": 167101193,
+                "system_usec": 27028894,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27534083.0,
+                "full_total_delta_us": 452414.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 56652.0,
+                "full_total_delta_us": 23619.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "block": "07-C",
+      "scheduled": 46800,
+      "completed": 46800,
+      "completed_in_window": 46792,
+      "errors": 0,
+      "drops": 0,
+      "preparation_age_seconds": 31.056386967,
+      "release_age_seconds": 180.016757103,
+      "window_start_age_seconds": [
+        181.008287933,
+        241.913013171,
+        302.839781471
+      ],
+      "start_estimate_uncertainty_ns": 20008719,
+      "resource_cuts": [
+        {
+          "window": 1,
+          "cut_outer_span_seconds": 61.017473,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 191221000,
+                "user_usec": 163907000,
+                "system_usec": 27314000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26886455.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 108442.0,
+                "full_total_delta_us": 60733.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 195380556,
+                "user_usec": 167555321,
+                "system_usec": 27825235,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26855243.0,
+                "full_total_delta_us": 417018.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 69877.0,
+                "full_total_delta_us": 36700.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 195294843,
+                "user_usec": 167500791,
+                "system_usec": 27794052,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 26845405.0,
+                "full_total_delta_us": 432297.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 69870.0,
+                "full_total_delta_us": 36658.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 2,
+          "cut_outer_span_seconds": 60.853831,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 192564000,
+                "user_usec": 165752000,
+                "system_usec": 26812000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27535347.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 92960.0,
+                "full_total_delta_us": 30455.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 196865256,
+                "user_usec": 169517646,
+                "system_usec": 27347611,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27505696.0,
+                "full_total_delta_us": 408396.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 72694.0,
+                "full_total_delta_us": 24801.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 196790390,
+                "user_usec": 169478156,
+                "system_usec": 27312234,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27496904.0,
+                "full_total_delta_us": 422864.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 72740.0,
+                "full_total_delta_us": 24934.0
+              }
+            }
+          ]
+        },
+        {
+          "window": 3,
+          "cut_outer_span_seconds": 60.894995,
+          "cgroup_ancestry_deltas": [
+            {
+              "directory": "/sys/fs/cgroup",
+              "cpu.stat": {
+                "usage_usec": 194441000,
+                "user_usec": 167395000,
+                "system_usec": 27046000,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "not_available": true
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27873981.0,
+                "full_total_delta_us": 0.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 81353.0,
+                "full_total_delta_us": 28644.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice",
+              "cpu.stat": {
+                "usage_usec": 198594472,
+                "user_usec": 171035660,
+                "system_usec": 27558813,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27842218.0,
+                "full_total_delta_us": 390018.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 60385.0,
+                "full_total_delta_us": 22163.0
+              }
+            },
+            {
+              "directory": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service",
+              "cpu.stat": {
+                "usage_usec": 198496706,
+                "user_usec": 170983012,
+                "system_usec": 27513694,
+                "nice_usec": 0,
+                "core_sched.force_idle_usec": 0,
+                "nr_periods": 0,
+                "nr_throttled": 0,
+                "throttled_usec": 0,
+                "nr_bursts": 0,
+                "burst_usec": 0
+              },
+              "memory.events": {
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+                "oom_group_kill": 0,
+                "sock_throttled": 0
+              },
+              "cpu.pressure": {
+                "some_total_delta_us": 27834442.0,
+                "full_total_delta_us": 408277.0
+              },
+              "memory.pressure": {
+                "some_total_delta_us": 0.0,
+                "full_total_delta_us": 0.0
+              },
+              "io.pressure": {
+                "some_total_delta_us": 60220.0,
+                "full_total_delta_us": 22120.0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "spread": {
+    "/conversation/list": {
+      "B_all_four_block_medians_ms": [
+        32.706944,
+        29.293329,
+        22.415028,
+        29.404791
+      ],
+      "B_range_relative_to_min": 0.45915249358599963,
+      "A_both_medians_ms": [
+        30.332834,
+        28.785701
+      ],
+      "A_relative_difference": 0.05374658063737958
+    },
+    "/conversation/sync": {
+      "B_all_four_block_medians_ms": [
+        71.007116,
+        64.244985,
+        48.108091,
+        65.4717
+      ],
+      "B_range_relative_to_min": 0.47599113837212936,
+      "A_both_medians_ms": [
+        64.12398,
+        61.329619
+      ],
+      "A_relative_difference": 0.04556299298060207
+    }
+  },
+  "limits": [
+    "P99 summaries are median of three window P99s; never pooled P99.",
+    "Resource cuts include original warmup and receipt overhead, so deltas are not exact sixty-second measurement deltas.",
+    "All four processes share a cgroup; its counters include the entire job and must not be summed per-process.",
+    "Visible ancestor throttling/memory evidence cannot exclude hidden host limits or prove historical causality."
+  ]
+}

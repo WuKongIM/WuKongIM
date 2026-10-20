@@ -1,0 +1,24 @@
+{
+  "scope": "Offline independent review only; no network, server, benchmark, or repository mutation.",
+  "candidate": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "run_id": 39453556254,
+  "failure_inventory_before_implementation": [
+    "Seven reports agree with each other but reference the wrong source or product.",
+    "Declared binary/driver/profile digests differ from retained bytes or frozen source.",
+    "A passing verdict conceals changed load, invalid counts, high P99, activation, errors, drops, or excessive allocation.",
+    "An invalid/missing fixed environment, changed affinity/cgroup membership, incomplete stages or missing resource cuts is ignored.",
+    "A test skips, leaks a process session, times out, or overlaps another block.",
+    "Preparation age is interpreted as exact first-request age; resource cuts are misrepresented as exact 60-second deltas.",
+    "A/A formulas pool percentiles or count shared CPU twice.",
+    "A candidate mixed result is mistaken for a complete 20-result gate.",
+    "Partial evidence aborts the reader without retaining a bounded invalidity inventory."
+  ],
+  "planned_offline_checks": [
+    "Frozen git object profile and jq validator; explicit expected candidate/run identity.",
+    "Actual retained executable SHA-256 plus build provenance and command receipts.",
+    "Original 12+8 gate validator; separately recomputed mixed numerical verdicts.",
+    "Fixed environment companion, stages, timing, affinity, cgroup cuts, scrape receipts, and cleanup.",
+    "Independent per-block CPU/request and median-of-three P99; all-pass A/A at 10%/25%.",
+    "Pure phase-check self-test includes correct pass, valid red, forged pass, changed queue and impossible counts."
+  ]
+}

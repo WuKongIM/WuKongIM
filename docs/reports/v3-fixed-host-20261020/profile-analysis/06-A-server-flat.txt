@@ -1,0 +1,48 @@
+File: wukongim-e2e
+Build ID: ea5add574985228162ed4be84a2f2c8670f5465b
+Type: cpu
+Time: 2026-10-21 00:39:43 CST
+Duration: 24.41s, Total samples = 21.01s (86.08%)
+Showing nodes accounting for 11.57s, 55.07% of 21.01s total
+Showing top 40 nodes out of 1439
+      flat  flat%   sum%        cum   cum%
+     2.68s 12.76% 12.76%      2.68s 12.76%  internal/runtime/syscall.Syscall6
+     0.83s  3.95% 16.71%      1.83s  8.71%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.77s  3.66% 20.37%      0.77s  3.66%  runtime.duffcopy
+     0.69s  3.28% 23.66%      0.69s  3.28%  cmpbody
+     0.64s  3.05% 26.70%      1.18s  5.62%  runtime.scanobject
+     0.44s  2.09% 28.80%      0.44s  2.09%  runtime.memmove
+     0.39s  1.86% 30.65%      0.39s  1.86%  runtime.memclrNoHeapPointers
+     0.33s  1.57% 32.22%      0.33s  1.57%  runtime.nextFreeFast (inline)
+     0.32s  1.52% 33.75%      0.32s  1.52%  runtime.futex
+     0.26s  1.24% 34.98%      0.27s  1.29%  internal/sync.(*Mutex).Unlock (inline)
+     0.23s  1.09% 36.08%      0.26s  1.24%  internal/sync.(*Mutex).Lock (inline)
+     0.21s     1% 37.08%      0.25s  1.19%  runtime.findObject
+     0.20s  0.95% 38.03%      0.21s     1%  runtime.(*mspan).writeHeapBitsSmall
+     0.18s  0.86% 38.89%      0.18s  0.86%  runtime.duffzero
+     0.18s  0.86% 39.74%      0.20s  0.95%  runtime.lock2
+     0.18s  0.86% 40.60%      0.18s  0.86%  runtime.nanotime
+     0.18s  0.86% 41.46%      0.18s  0.86%  sync/atomic.(*Int32).Add
+     0.17s  0.81% 42.27%      0.17s  0.81%  aeshashbody
+     0.16s  0.76% 43.03%      0.16s  0.76%  internal/runtime/maps.ctrlGroup.matchH2
+     0.16s  0.76% 43.79%      0.16s  0.76%  runtime.typePointers.nextFast (inline)
+     0.15s  0.71% 44.50%      0.15s  0.71%  internal/runtime/atomic.(*Uint32).CompareAndSwap
+     0.15s  0.71% 45.22%      0.15s  0.71%  runtime.(*mspan).base (inline)
+     0.14s  0.67% 45.88%      0.65s  3.09%  encoding/json.structEncoder.encode
+     0.14s  0.67% 46.55%      0.14s  0.67%  github.com/WuKongIM/WuKongIM/pkg/db/message.hashPayload
+     0.14s  0.67% 47.22%      2.70s 12.85%  runtime.mallocgc
+     0.14s  0.67% 47.88%      0.39s  1.86%  runtime.selectgo
+     0.13s  0.62% 48.50%      0.13s  0.62%  memeqbody
+     0.13s  0.62% 49.12%      0.13s  0.62%  runtime.acquirem (inline)
+     0.12s  0.57% 49.69%      0.12s  0.57%  runtime.(*mspan).init
+     0.12s  0.57% 50.26%      0.12s  0.57%  time.runtimeNow
+     0.11s  0.52% 50.79%      0.11s  0.52%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Arena).getPointer (inline)
+     0.11s  0.52% 51.31%      0.11s  0.52%  runtime.(*spanSet).push
+     0.11s  0.52% 51.83%      0.12s  0.57%  runtime.step
+     0.11s  0.52% 52.36%      0.13s  0.62%  runtime.typePointers.next
+     0.10s  0.48% 52.83%      0.10s  0.48%  encoding/base64.(*Encoding).Encode
+     0.10s  0.48% 53.31%      0.21s     1%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).getNext (inline)
+     0.10s  0.48% 53.78%      0.21s     1%  runtime.(*unwinder).resolveInternal
+     0.09s  0.43% 54.21%      0.18s  0.86%  encoding/json.checkValid
+     0.09s  0.43% 54.64%      0.34s  1.62%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.(*ObserverDrain).aggregate
+     0.09s  0.43% 55.07%      0.11s  0.52%  internal/runtime/maps.(*Iter).Next
