@@ -26,6 +26,7 @@ func TestForwardedReadPreservesUnavailableTransport(t *testing.T) {
 		io.EOF, context.DeadlineExceeded,
 		transport.RemoteError{Code: transport.RemoteErrorCodeTimeout, Message: "service queue budget expired"},
 		transport.RemoteError{Code: transport.RemoteErrorCodeBusy, Message: "retained memory admission full"},
+		errors.Join(ch.ErrNotReady, errors.New("recovery proof pending")),
 	} {
 		t.Run(cause.Error(), func(t *testing.T) {
 			network := clusternet.NewLocalNetwork()

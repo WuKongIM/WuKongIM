@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -126,34 +126,46 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
 		}
 	}
 	require.Len(t, expected, 3)
-	check := func(node *suite.StartedNode) {
+	check := func(node *suite.StartedNode, phase string) {
 		t.Helper()
 		var response struct {
 			Messages []messageRow `json:"messages"`
 		}
 		readCtx, readCancel := context.WithTimeout(ctx, 20*time.Second)
 		defer readCancel()
+		temporaryRetries := 0
 		// HTTP readiness precedes per-Channel recovery. Retry only the explicit
-		// route-not-ready response; a successful but incorrect page fails below.
+		// public unavailable envelope; a successful but incorrect page fails below.
 		for {
 			_, err := suite.PostJSON(readCtx, "http://"+node.APIAddr()+"/channel/messagesync", map[string]any{"login_uid": "migrationbob", "channel_id": "migrationgroup", "channel_type": 2, "start_message_seq": 0, "end_message_seq": 0, "pull_mode": 1, "limit": 100}, &response)
 			if err == nil {
 				break
 			}
 			var statusErr *suite.HTTPStatusError
-			if !errors.As(err, &statusErr) || statusErr.StatusCode != 400 || !strings.Contains(statusErr.Body, "internal/message: route not ready:") {
-				require.NoError(t, err, cluster.DumpDiagnostics())
+			var body map[string]json.RawMessage
+			var code string
+			var status int
+			unavailable := errors.As(err, &statusErr) &&
+				statusErr.StatusCode == http.StatusServiceUnavailable &&
+				json.Unmarshal([]byte(statusErr.Body), &body) == nil &&
+				json.Unmarshal(body["code"], &code) == nil &&
+				json.Unmarshal(body["status"], &status) == nil &&
+				code == "unavailable" && status == http.StatusServiceUnavailable
+			if !unavailable {
+				require.NoError(t, err, "history phase=%s node=%d temporary_retries=%d\n%s", phase, node.Spec.ID, temporaryRetries, cluster.DumpDiagnostics())
 			}
+			temporaryRetries++
 			select {
 			case <-readCtx.Done():
-				require.NoError(t, readCtx.Err(), "history recovery: %v\n%s", err, cluster.DumpDiagnostics())
+				require.NoError(t, readCtx.Err(), "history recovery phase=%s node=%d temporary_retries=%d: %v\n%s", phase, node.Spec.ID, temporaryRetries, err, cluster.DumpDiagnostics())
 			case <-time.After(100 * time.Millisecond):
 			}
 		}
-		require.Equal(t, expected, response.Messages, "retained original history or appended history differs")
+		require.Equal(t, expected, response.Messages, "retained original history or appended history differs: phase=%s node=%d", phase, node.Spec.ID)
+		t.Logf("history verified: phase=%s node=%d rows=%d temporary_retries=%d", phase, node.Spec.ID, len(response.Messages), temporaryRetries)
 	}
 	for i := range cluster.Nodes {
-		check(&cluster.Nodes[i])
+		check(&cluster.Nodes[i], "after-import")
 	}
 	// Authenticate through the real protocol using the token retained from v2.
 	client, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(1).GatewayAddr(), OperationTimeout: 5 * time.Second})
@@ -168,7 +180,7 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
 	row := messageRow{MessageID: strconv.FormatUint(uint64(ack.MessageID), 10), Seq: 4, ClientMsgNo: "after-original-migration", FromUID: "migrationalice", Payload: []byte("protocol append")}
 	expected = append(expected, row)
 	for i := range cluster.Nodes {
-		check(&cluster.Nodes[i])
+		check(&cluster.Nodes[i], "after-protocol-append")
 	}
 	appendHTTP := func(node *suite.StartedNode, key string) {
 		t.Helper()
@@ -195,7 +207,7 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
 	}
 	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 	for i := range cluster.Nodes {
-		check(&cluster.Nodes[i])
+		check(&cluster.Nodes[i], "after-full-restart")
 	}
 	appendHTTP(cluster.MustNode(uint64(targetCount)), "after-full-restart")
 	if targetCount > 1 {
@@ -207,12 +219,12 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
 		}
 		require.NoError(t, cluster.MustNode(leader).Stop())
 		appendHTTP(survivor, "after-leader-stop")
-		check(survivor)
+		check(survivor, "after-leader-stop")
 		require.NoError(t, cluster.StartStoppedNode(leader))
 		require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 	}
 	for i := range cluster.Nodes {
-		check(&cluster.Nodes[i])
+		check(&cluster.Nodes[i], "final")
 	}
 	t.Logf("original %d-node source -> %d-node cluster: history, credentials, appends, idempotency, full restart and applicable leader failover passed", sourceCount, targetCount)
 }

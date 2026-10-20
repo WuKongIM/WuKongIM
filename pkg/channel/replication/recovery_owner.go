@@ -177,6 +177,9 @@ func (d *batchingRecoveryProbeDispatcher) loadLocalRecoveryProbe(query recoveryP
 		}
 		return ProbeResult{}, err
 	}
+	if loaded.Items[0].Err != nil {
+		return ProbeResult{}, loaded.Items[0].Err
+	}
 	request := ProbeRequest{
 		ChannelKey: query.ChannelKey, ChannelID: query.ChannelID,
 		Leader: query.Leader, Follower: query.Voter, Indexes: query.Indexes,
@@ -553,6 +556,12 @@ func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest
 			localPending = false
 		}
 		if completion.err != nil {
+			// The installing leader must observe its own store successfully.
+			// Remote unavailability is missing quorum evidence; a local storage
+			// failure must retain its cause instead of becoming a pending proof.
+			if completion.voter == request.Leader {
+				return nil, completion.err
+			}
 			continue
 		}
 		if !validRecoveryProbeResult(completion.result) || !sameRecoveryProbeIndexes(indexes, completion.result.Entries) {
