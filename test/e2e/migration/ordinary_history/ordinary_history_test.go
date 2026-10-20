@@ -175,9 +175,10 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
 	ack, err := client.Send(ctx, wkclient.Message{ClientSeq: 1, ClientMsgNo: "after-original-migration", ChannelID: "migrationgroup", ChannelType: 2, Payload: []byte("protocol append")})
 	require.NoError(t, err)
 	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
-	require.EqualValues(t, 4, ack.MessageSeq)
+	// Startup recovery can consume positions before the first business append.
+	require.Greater(t, ack.MessageSeq, expected[len(expected)-1].Seq, cluster.DumpDiagnostics())
 	require.NoError(t, client.Close())
-	row := messageRow{MessageID: strconv.FormatUint(uint64(ack.MessageID), 10), Seq: 4, ClientMsgNo: "after-original-migration", FromUID: "migrationalice", Payload: []byte("protocol append")}
+	row := messageRow{MessageID: strconv.FormatUint(uint64(ack.MessageID), 10), Seq: ack.MessageSeq, ClientMsgNo: "after-original-migration", FromUID: "migrationalice", Payload: []byte("protocol append")}
 	expected = append(expected, row)
 	for i := range cluster.Nodes {
 		check(&cluster.Nodes[i], "after-protocol-append")
