@@ -165,6 +165,40 @@ remain evidence, unexpected failures or runtime/membership mutations abort, and
 collection completion never qualifies publication. The read-only
 `conversation-qps-diagnose.yml` verifies the optional exact prior binary digest.
 
+Add `WK_E2E_CONVERSATION_FIXED_HOST=1` only to MixedAttribution to control
+preparation age on the fixed Linux AMD64 host. Reuse one precompiled driver with
+GOMAXPROCS=4 and a prebuilt product for each fresh three-node cluster; all four
+processes must share the same four-CPU affinity, with node GOMAXPROCS=2.
+The preparation release point is 180 seconds after the earliest product process
+start, estimated from a single bounded `getconf CLK_TCK`, `/proc/uptime` read
+bracket and each PID's kernel starttime. Preserve the estimate uncertainty and
+monotonic timing. Refuse the control if preparation exceeds that age; do not
+extend the target, restart processes, reuse data directories across versions,
+or alter the original 12-minute deadline. Existing warmup and observation
+work follows release, so measured windows must record their actual start ages
+rather than claiming to begin at exactly 180 seconds.
+
+Retain `fixed_environment` in the report and its atomic `fixed-environment.json`
+checkpoint, including incomplete stages after a timeout. Record startup (which
+includes harness readiness), explicit readiness, prepare, eviction and age-wait
+times; exact driver/product identities; actual PID, affinity and starttime;
+config paths/hashes and schema-redacted TOML; and each process's actual
+cgroup-v2 membership/mount resolution. Save every visible ancestor's CPU,
+cpuset, memory and pressure controls, preserving missing/error separately from
+zero or unlimited. Visibility does not prove inaccessible host-ancestor limits.
+Window resource cuts recheck identity, affinity and membership before/after the
+unchanged helper, including its warmup and observation overhead; these deltas
+are not exact 60-second CPU or throttling measurements. No sampling occurs
+inside the load window.
+
+Preparation boundary scrapes preserve original GC/storage/compaction samples
+and the same HTTP body's SHA/time receipt. The shared suite parser does not
+expose the full body, so do not claim these selected samples are a raw-body
+archive or perform a second scrape to reconstruct that body. Four fixed
+preparation cuts are sufficient; do not add continuous scraping. The original
+three 60-second windows, independent profile phase, response checks and gate
+thresholds remain unchanged. Fixed-host collection is diagnostic only.
+
 Message-update same-host Linux diagnosis is opt-in:
 `WK_E2E_MESSAGE_UPDATE_SOAK=1 WK_E2E_MESSAGE_UPDATE_REPORT=/tmp/message-update/report.json WK_E2E_BINARY=/absolute/product GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestMessageUpdateThreeNodeSoak$' -count=1 -timeout=12m -p=1 -v`.
 Use the unchanged 600-group fixture, three real processes, 256 Hash Slots,

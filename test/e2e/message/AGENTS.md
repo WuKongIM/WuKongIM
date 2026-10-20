@@ -43,6 +43,12 @@ counters around stress windows and per-second arrival/drop timing with at most
 16 slow samples per endpoint. Workload and acceptance remain unchanged; no
 profiles run in release windows.
 
+The opt-in fixed-host comparison uses one frozen driver and product binaries,
+the same four-CPU Linux VM, and a 180-second process-age preparation release.
+It retains same-binary repeats, all A/B/B/A windows and actual cgroup resource
+cuts; the candidate's separate full release matrix stays unchanged. See
+`conversation_qps/AGENTS.md` and the `fixed_host_validation` Workflow input.
+
 ## Maintenance Rules
 
 The `message_updates` recovery scenario registers bounded process diagnostics

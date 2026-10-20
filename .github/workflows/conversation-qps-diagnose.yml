@@ -3,6 +3,10 @@ name: Agent Tool - Diagnose Conversation QPS
 on:
   workflow_dispatch:
     inputs:
+      fixed_host_validation:
+        description: Fixed B/B + A/B/B/A comparison followed by candidate and full release matrix
+        type: boolean
+        default: false
       product_sha:
         description: Exact repository commit for the product binary
         type: string
@@ -25,6 +29,7 @@ permissions:
 
 jobs:
   diagnose:
+    if: ${{ !inputs.fixed_host_validation }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -144,5 +149,62 @@ jobs:
         with:
           name: conversation-mixed-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/conversation-mixed/
+          if-no-files-found: error
+          retention-days: 90
+
+  fixed-host:
+    if: ${{ inputs.fixed_host_validation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GOWORK: "off"
+      FIXED_HOST_WORKFLOW_SHA: ${{ github.sha }}
+      PRODUCT_SHA: ${{ inputs.product_sha }}
+      COMPARISON_SHA: ${{ inputs.comparison_sha }}
+      EXPECTED_BINARY_SHA256: ${{ inputs.expected_binary_sha256 }}
+    steps:
+      - name: Checkout exact candidate harness without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject incompatible comparison and binary override inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PRODUCT_SHA" == "$FIXED_HOST_WORKFLOW_SHA" ]]
+          [[ -z "$COMPARISON_SHA" && -z "$EXPECTED_BINARY_SHA256" ]]
+      - name: Set up exact fixed-host Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+      - name: Verify Linux process-session cleanup before measurement
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          GOWORK=off go test -tags=integration ./scripts \
+            -run '^TestConversationFixedHostTimeoutCleansChildProcessGroups$' \
+            -count=1 -timeout=2m -v -json \
+            2> "$RUNNER_TEMP/conversation-fixed-host-preflight.stderr.log" | tee "$RUNNER_TEMP/conversation-fixed-host-preflight.jsonl"
+          jq -se --arg test TestConversationFixedHostTimeoutCleansChildProcessGroups \
+            '([.[] | select(.Test == $test and .Action == "pass")] | length) == 1 and (any(.[]; .Test == $test and .Action == "skip") | not)' \
+            "$RUNNER_TEMP/conversation-fixed-host-preflight.jsonl"
+      - name: Run the predeclared fixed-host sequence and candidate matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/run-conversation-fixed-host.py \
+            --candidate-sha "$PRODUCT_SHA" \
+            --output-dir "$RUNNER_TEMP/conversation-fixed-host"
+      - name: Retain all fixed-host evidence including failed and cancelled blocks
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conversation-fixed-host-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/conversation-fixed-host/
+            ${{ runner.temp }}/conversation-fixed-host-preflight.*
           if-no-files-found: error
           retention-days: 90

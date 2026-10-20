@@ -1864,3 +1864,11 @@ specification, runbook, report, or module documentation; link to them when neede
   canonical unpadded base64url; HTTP payloads use ordinary Base64 of the same
   raw IM bytes. Pages retain default-off development-preview and incomplete
   Linux/fault/load qualification boundaries; configuration stays in one reference.
+
+- Conversation performance comparisons require frozen product bytes and one
+  driver on the same Linux VM, with actual affinity and visible ancestor cgroup
+  controls. Fresh fixtures do not imply equal process age or GC/compaction state.
+  Same-binary repeats and balanced order must precede version attribution;
+  retain rejected windows. A repaired candidate must separately pass the
+  unchanged full release matrix with its own binary/source identity. See the
+  [fixed-host plan](../reports/2026-10-20-v3-fixed-host-performance.md).

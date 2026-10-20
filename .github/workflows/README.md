@@ -393,6 +393,75 @@ authority. The job deadline is 40 minutes; each diagnostic and gate test keeps
 its original 12/18-minute deadline. Actual publishers still require their own
 exact-tag gate.
 
+### Fixed-host comparison and candidate validation
+
+`fixed_host_validation=true` selects one separate job; the default diagnosis
+above remains unchanged. The exact `product_sha` must equal the Workflow/harness
+commit (`github.sha`), with a clean checkout descending from `origin/main`.
+Leave `comparison_sha` and `expected_binary_sha256` empty: the fixed plan owns
+these identities. This mode always attempts the full candidate matrix after
+its three mixed windows pass; `run_release_matrix` does not disable that check.
+It is an authorized, single bounded diagnosis/validation, with no purchase,
+publication, secret, protected Environment or production access.
+
+The frozen products are A = beta.24
+`4d44b39dda6fdaa7dafb637ca6cfb718e9530f77`, B = prior candidate
+`b469c6e5e2b4ff65611a8fe3389fb5034de3f152`, and C = the exact new candidate and
+harness commit. A single clean canonical product checkout builds each product
+once with Go 1.25.11. Their bytes and build identities are retained and reused.
+The candidate harness compiles once; every invocation runs from its clean
+scenario directory, keeping the profile, driver and harness identity fixed.
+
+The predeclared order is **B, B, A, B, B, A, C**: B/B estimates repeat variation,
+then A/B/B/A checks order effects, followed by candidate validation. Each block
+starts fresh three-node cluster processes, prepares the identical fixture, and
+uses the explicit fixed-host control to wait until the earliest product
+process reaches 180 seconds of age. Preparation exceeding that age rejects the
+control instead of shortening or extending the target. The existing warmup
+then precedes three 60-second windows and separate short profiles. Raw process
+start ticks, clock-tick frequency, timing uncertainty, phase cuts and actual
+window ages stay in the receipt; a fresh fixture alone is not an age control.
+Do not infer stable GC/compaction state merely from equal age.
+
+All products and the driver share the same four allowed logical CPUs, fixed
+with affinity; driver `GOMAXPROCS=4`, node `GOMAXPROCS=2`. CPU topology, kernel,
+actual cgroup-v2 membership/mount and all visible ancestor CPU/memory controls
+are recorded and checked unchanged between blocks. Missing non-root CPU/memory
+limits or unresolvable cgroups reject the run. Missing root controls are
+explicitly unknown, not zero or an inferred hidden limit. This fixes the same
+VM and visible resource constraints, not an exclusive physical host. It does
+not isolate driver/server CPUs or add a new memory limit to the release gate.
+
+Every numeric rejection remains in its original block; comparison rejections
+do not select another order or trigger retries. Unexpected request errors,
+identity/control mismatches, incomplete receipts and leaked processes abort.
+The orchestrator reclaims only its command's process session, including node
+process groups, before another block can start. Candidate C must pass all three
+mixed windows and allocation ceilings before its unchanged full 20-endpoint
+release matrix runs with the existing v2 receipt validator. A/B results cannot
+qualify C; completion and `numeric_pass` are separate fields. All versions and
+windows must be reported, including rejected and aborted evidence.
+
+Before building or measuring products, the Linux job runs the process-session
+cleanup integration test and requires its explicit pass event (a skipped test
+is rejected). Its JSON event log and stderr remain outside the new evidence
+directory and are included in the always-run upload.
+
+The job hard limit is 120 minutes. Each diagnostic keeps its 12-minute test
+limit; the gate keeps 18 minutes (7 × 12 + 18 = 102 minutes before build and
+cleanup). The orchestration also has a 114-minute deadline; setup and preflight
+consume the total job budget, so six minutes of cleanup/upload are not guaranteed;
+reaching any deadline fails without a retry. Build commands also have fixed
+four-minute limits. Evidence is checkpointed under `plan/sequence.json`,
+`events.jsonl`, `summary.json`, `host.json`, `binaries/{A,B,C}/`, `harness/`,
+`blocks/01-B` through `blocks/07-C` (`report.json`, `test.log`, command receipt),
+and `gate/`. The always-run upload retains available evidence for 90 days;
+host loss or forced termination can still interrupt upload and cannot produce
+a passing receipt. Inspect current evidence before proposing a new experiment.
+The entry supports `--plan --candidate-sha <exact SHA>` without starting any
+process or changing files. Actual publishers still require their exact-tag
+release gate and signed native package publication/client checks.
+
 ## Conversation QPS release gate
 
 Both Docker and binary publication require `conversation-qps-gate.yml` to pass

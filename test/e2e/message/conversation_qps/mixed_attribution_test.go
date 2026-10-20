@@ -30,9 +30,12 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 	if os.Getenv("WK_E2E_CONVERSATION_MIXED_ATTRIBUTION") != "1" {
 		t.Skip("explicit four-CPU Linux AMD64 mixed attribution")
 	}
-	require.Equal(t, "linux", runtime.GOOS)
-	require.Equal(t, "amd64", runtime.GOARCH)
-	require.Equal(t, 4, runtime.NumCPU())
+	fixedHost := os.Getenv("WK_E2E_CONVERSATION_FIXED_HOST") == "1"
+	if !fixedHost {
+		require.Equal(t, "linux", runtime.GOOS)
+		require.Equal(t, "amd64", runtime.GOARCH)
+		require.Equal(t, 4, runtime.NumCPU())
+	}
 	output := os.Getenv("WK_E2E_CONVERSATION_MIXED_REPORT")
 	require.NotEmpty(t, output)
 	dir := filepath.Dir(output)
@@ -58,35 +61,88 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 		Windows          []stressWindow      `json:"windows"`
 		Host             []map[string]string `json:"host_snapshots"`
 		ProfileWindow    *stressWindow       `json:"profile_window,omitempty"`
+		FixedEnvironment *fixedHostReceipt   `json:"fixed_environment,omitempty"`
 		Complete         bool                `json:"complete"`
 	}{Schema: "wukongim/conversation-mixed-attribution/v1", HarnessSHA: strings.TrimSpace(string(sha)), HarnessDirty: len(dirty) > 0, ProductSHA: os.Getenv("WK_E2E_PRODUCT_SHA"), ProfileSHA: hex.EncodeToString(digest[:]), DriverGOMAXPROCS: runtime.GOMAXPROCS(0), NodeGOMAXPROCS: 2, Config: p.StressGate}
+	if fixedHost {
+		r.FixedEnvironment = &fixedHostReceipt{
+			Schema: "wukongim/conversation-fixed-host/v1", TargetAgeSeconds: 180,
+			WindowAgeClock:   "Window UTC start minus estimated UTC process start; preparation wait and release use the monotonic clock.",
+			ResourceCutScope: "Cuts surround the original measurement helper, including its warmup and metrics/snapshot overhead; they are not exact 60-second counter deltas.",
+		}
+	}
 	require.Regexp(t, `^[0-9a-f]{40}$`, r.ProductSHA)
 	save := func() {
 		data, e := json.MarshalIndent(r, "", "  ")
 		require.NoError(t, e)
 		require.NoError(t, os.WriteFile(output, append(data, '\n'), 0644))
+		require.NoError(t, saveFixedHostReceipt(filepath.Join(dir, "fixed-environment.json"), r.FixedEnvironment))
 	}
-	defer save()
+	if r.FixedEnvironment != nil {
+		r.FixedEnvironment.checkpoint = save
+	}
+	defer func() {
+		if r.FixedEnvironment != nil && t.Failed() {
+			r.FixedEnvironment.Valid = false
+			if r.FixedEnvironment.Failure == "" {
+				r.FixedEnvironment.Failure = "fixed-host diagnostic aborted; inspect retained stages and test failure"
+			}
+		}
+		save()
+	}()
+	runFixedHostStage(t, r.FixedEnvironment, "resource_preflight", func() {
+		initializeFixedHost(t, r.FixedEnvironment)
+	})
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for i := 1; i <= 3; i++ {
 		opts = append(opts, suite.WithNodeConfigOverrides(uint64(i), map[string]string{"WK_DEBUG_API_ENABLE": "true", "WK_BENCH_API_ENABLE": "true", "WK_BENCH_API_TOKEN": "conversation-qps-fixture", "WK_BENCH_API_MAX_BATCH_SIZE": "600", "WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_CLUSTER_CHANNEL_REPLICA_N": "3"}), suite.WithNodeEnv(uint64(i), "GOMAXPROCS=2"))
 	}
-	c := suite.New(t).StartStaticCluster(3, opts...)
+	var c *suite.StartedCluster
+	runFixedHostStage(t, r.FixedEnvironment, "startup", func() {
+		c = suite.New(t).StartStaticCluster(3, opts...)
+	})
+	runFixedHostStage(t, r.FixedEnvironment, "process_identity", func() {
+		bindFixedHostProducts(t, r.FixedEnvironment, c)
+	})
 	binary, err := os.ReadFile(c.Nodes[0].Process.BinaryPath)
 	require.NoError(t, err)
 	digest = sha256.Sum256(binary)
 	r.BinarySHA = hex.EncodeToString(digest[:])
+	if r.FixedEnvironment != nil {
+		for i := range r.FixedEnvironment.Nodes {
+			r.FixedEnvironment.Nodes[i].BinarySHA256 = r.BinarySHA
+		}
+	}
 	save()
-	ready(t, c)
-	expected := prepare(t, c, p)
+	runFixedHostStage(t, r.FixedEnvironment, "readiness", func() { ready(t, c) })
+	captureFixedHostBoundary(t, r.FixedEnvironment, c, "after_readiness_before_prepare")
+	var expected expectedMessages
+	runFixedHostStage(t, r.FixedEnvironment, "prepare", func() { expected = prepare(t, c, p) })
+	captureFixedHostBoundary(t, r.FixedEnvironment, c, "after_prepare_before_eviction")
 	client := &http.Client{Transport: &http.Transport{MaxIdleConns: 64, MaxIdleConnsPerHost: 16, MaxConnsPerHost: 16}, Timeout: 5 * time.Second}
 	defer client.CloseIdleConnections()
-	initial := evictFixtureRuntimes(t, c, client, p)
+	var initial metricsSnapshot
+	runFixedHostStage(t, r.FixedEnvironment, "eviction", func() {
+		initial = evictFixtureRuntimes(t, c, client, p)
+	})
+	captureFixedHostBoundary(t, r.FixedEnvironment, c, "after_eviction_before_age_wait")
+	runFixedHostStage(t, r.FixedEnvironment, "preparation_age_wait", func() {
+		releaseFixedHostPreparation(t, r.FixedEnvironment)
+	})
+	captureFixedHostBoundary(t, r.FixedEnvironment, c, "after_age_wait_before_original_warmup")
+	if r.FixedEnvironment != nil {
+		save()
+	}
 	for i := 0; i < 3; i++ {
 		r.Host = append(r.Host, mixedHostSnapshot(t))
+		captureFixedHostResources(t, r.FixedEnvironment, fmt.Sprintf("window_%d_before_warmup", i+1))
 		w := measureMixed(t, c, client, p, p.StressGate, expected, initial)
+		if r.FixedEnvironment != nil {
+			r.FixedEnvironment.WindowStartAgeSeconds = append(r.FixedEnvironment.WindowStartAgeSeconds, w.Start.Sub(r.FixedEnvironment.EstimatedFirstProductStart).Seconds())
+		}
 		r.Windows = append(r.Windows, w)
 		r.Host = append(r.Host, mixedHostSnapshot(t))
+		captureFixedHostResources(t, r.FixedEnvironment, fmt.Sprintf("window_%d_after_measurement", i+1))
 		save()
 		checkStressWindow(t, w, false)
 	}

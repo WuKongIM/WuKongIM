@@ -6,6 +6,14 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Add a bounded Linux conversation-performance comparison that reuses frozen
+  binaries and one driver on the same host, records preparation and CPU limits,
+  and checks the unchanged full matrix for the selected candidate. /
+  新增有界的 Linux 会话性能同机对照，复用冻结二进制与同一驱动，记录准备阶段和
+  CPU 限制，并对选定候选执行原有完整性能矩阵。
+
 ### 📚 Documentation / 文档
 
 - Add a prominent online Demo home entry to both project READMEs, alongside
