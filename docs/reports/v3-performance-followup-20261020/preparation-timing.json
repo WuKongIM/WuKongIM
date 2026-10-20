@@ -1,0 +1,59 @@
+{
+  "note": "Step start/end are second-granularity GitHub metadata. Step-to-first includes go test compilation/dependencies and, for product step, separate default unit test; not pure prepare or process age. Test-duration-derived bounds rely on first/profile timestamps and exclude compile but still contain startup/readiness/fixture/eviction/warmup/observation; allow about 1 second timestamp rounding. No background GC/compaction state inferred.",
+  "rows": [
+    {
+      "label": "original b469 / 7763",
+      "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "run_json": "/tmp/wukongim-v3-rc-20261020/qps/run.json",
+      "report_json": "/tmp/wukongim-v3-rc-20261020/qps/report.json",
+      "test_log": "/tmp/wukongim-v3-rc-20261020/qps/test.log",
+      "step_start": "2026-10-20T04:12:55Z",
+      "step_end": "2026-10-20T04:18:12Z",
+      "first_window_start": "2026-10-20T04:14:57.422761586Z",
+      "profile_window_end": "2026-10-20T04:18:11.231359262Z",
+      "step_to_first_window_seconds_upper_bound": 122.422761,
+      "step_total_seconds": 317.0,
+      "test_duration_seconds": 231.11,
+      "first_window_to_profile_end_seconds": 193.808598,
+      "test_pre_first_window_seconds_upper_bound": 37.301402000000024,
+      "test_pre_first_window_seconds_lower_bound_using_rounded_step_end": 36.53276100000002,
+      "step_total_minus_test_duration_seconds": 85.88999999999999
+    },
+    {
+      "label": "matched beta24 first / 9V45",
+      "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+      "run_json": "/tmp/wukongim-v3-rc-20261020/qps-comparison/run.json",
+      "report_json": "/tmp/wukongim-v3-rc-20261020/qps-comparison/comparison/report.json",
+      "test_log": "/tmp/wukongim-v3-rc-20261020/qps-comparison/comparison/test.log",
+      "step_start": "2026-10-20T04:31:53Z",
+      "step_end": "2026-10-20T04:37:48Z",
+      "first_window_start": "2026-10-20T04:34:35.20240239Z",
+      "profile_window_end": "2026-10-20T04:37:47.004796469Z",
+      "step_to_first_window_seconds_upper_bound": 162.202402,
+      "step_total_seconds": 355.0,
+      "test_duration_seconds": 294.22,
+      "first_window_to_profile_end_seconds": 191.802394,
+      "test_pre_first_window_seconds_upper_bound": 102.41760600000003,
+      "test_pre_first_window_seconds_lower_bound_using_rounded_step_end": 101.42240200000003,
+      "step_total_minus_test_duration_seconds": 60.77999999999997
+    },
+    {
+      "label": "matched b469 second / 9V45",
+      "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "run_json": "/tmp/wukongim-v3-rc-20261020/qps-comparison/run.json",
+      "report_json": "/tmp/wukongim-v3-rc-20261020/qps-comparison/report.json",
+      "test_log": "/tmp/wukongim-v3-rc-20261020/qps-comparison/test.log",
+      "step_start": "2026-10-20T04:37:48Z",
+      "step_end": "2026-10-20T04:41:34Z",
+      "first_window_start": "2026-10-20T04:38:21.581258699Z",
+      "profile_window_end": "2026-10-20T04:41:33.436081041Z",
+      "step_to_first_window_seconds_upper_bound": 33.581258,
+      "step_total_seconds": 226.0,
+      "test_duration_seconds": 224.28,
+      "first_window_to_profile_end_seconds": 191.854823,
+      "test_pre_first_window_seconds_upper_bound": 32.42517699999999,
+      "test_pre_first_window_seconds_lower_bound_using_rounded_step_end": 31.861257999999992,
+      "step_total_minus_test_duration_seconds": 1.7199999999999989
+    }
+  ]
+}

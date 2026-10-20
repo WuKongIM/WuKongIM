@@ -1,0 +1,2441 @@
+{
+  "inputs": {
+    "forward_beta_first": {
+      "path": "/tmp/wukongim-v3-rc-20261020/qps-comparison/comparison/report.json",
+      "sha256": "a5b60534be93ed733487006a7402dbc48bdd10d59c96c710f0edb3596f006213",
+      "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+      "binary_sha256_receipt": "2aba832435ad303bd70e47a79b618114d5522aca70109b6a0d7f45affc652853",
+      "identity_consistent": true,
+      "all_three_windows_independently_pass": true,
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T04:34:35.20240239Z",
+          "end": "2026-10-20T04:35:35.20240239Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 200,
+              "p50_ms": 4.869623,
+              "p95_ms": 10.857702,
+              "p99_ms": 15.449169,
+              "driver_wait_p99_ms": 1.544889,
+              "request_p99_ms": 14.777833,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 11.947151,
+              "p95_ms": 23.157334,
+              "p99_ms": 32.140023,
+              "driver_wait_p99_ms": 1.466673,
+              "request_p99_ms": 31.29616,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 130.22,
+          "cpu_ms_per_request": 8.347435897435897,
+          "allocated_bytes": 36696403352,
+          "allocated_bytes_per_request": 2352333.5482051284,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.738512,
+            "cgroup_usage_seconds": 149.733,
+            "cgroup_visible_four_cpu_utilization": 0.6163017296176106,
+            "host_nonidle_fraction": 0.6450695730840478,
+            "host_iowait_fraction": 0.0008185068711497867,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.3252738394381476,
+            "driver_cpu_ticks": 2344,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 88.16562816499967,
+              "mean": 0.0003222427930007298
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 9.112930014000032,
+              "mean": 3.330749274122819e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 51.663262973000045,
+              "mean": 0.00430527191441667
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 1.6728921630000002,
+              "mean": 0.00013940768025000002
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 21.88713693699996,
+              "mean": 0.0014030215985256383
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 23.278512941000002,
+              "mean": 0.0014922123680128207
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 11.821472051999994,
+              "mean": 0.0007577866699999996
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 39.876487114,
+              "mean": 0.011076801976111111
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 1.5825644299999992,
+              "mean": 0.00043960123055555535
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T04:35:35.783648408Z",
+          "end": "2026-10-20T04:36:35.783648408Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 200,
+              "p50_ms": 4.885429,
+              "p95_ms": 11.066424,
+              "p99_ms": 16.29845,
+              "driver_wait_p99_ms": 1.443963,
+              "request_p99_ms": 15.44825,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 12.072589,
+              "p95_ms": 23.934922,
+              "p99_ms": 32.751756,
+              "driver_wait_p99_ms": 1.543599,
+              "request_p99_ms": 32.07811,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 132.07999999999998,
+          "cpu_ms_per_request": 8.466666666666665,
+          "allocated_bytes": 36694821160,
+          "allocated_bytes_per_request": 2352232.1256410256,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.573321,
+            "cgroup_usage_seconds": 151.183,
+            "cgroup_visible_four_cpu_utilization": 0.6239669441271017,
+            "host_nonidle_fraction": 0.653158213082174,
+            "host_iowait_fraction": 0.00043204009332066014,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.32229563573045633,
+            "driver_cpu_ticks": 2333,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 88.60016859199831,
+              "mean": 0.0003238310255555494
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 9.344567811000122,
+              "mean": 3.415412211622852e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 52.5898225710001,
+              "mean": 0.0043824852142500086
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 1.7046895789999876,
+              "mean": 0.00014205746491666564
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 21.912291699999997,
+              "mean": 0.0014046340833333332
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 23.799417851000022,
+              "mean": 0.0015256037083974374
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 12.020833031000016,
+              "mean": 0.0007705662199358985
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 40.03336087099992,
+              "mean": 0.0111203780197222
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 1.581515595999998,
+              "mean": 0.0004393098877777772
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T04:36:36.373552996Z",
+          "end": "2026-10-20T04:37:36.373552996Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 5.096795,
+              "p95_ms": 11.652179,
+              "p99_ms": 16.431697,
+              "driver_wait_p99_ms": 1.725781,
+              "request_p99_ms": 15.634069,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 12.703135,
+              "p95_ms": 25.35824,
+              "p99_ms": 35.589577,
+              "driver_wait_p99_ms": 1.615751,
+              "request_p99_ms": 35.040491,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 134.14000000000004,
+          "cpu_ms_per_request": 8.598717948717951,
+          "allocated_bytes": 36705633648,
+          "allocated_bytes_per_request": 2352925.233846154,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.582905,
+            "cgroup_usage_seconds": 152.459,
+            "cgroup_visible_four_cpu_utilization": 0.629133746557713,
+            "host_nonidle_fraction": 0.6605433040162905,
+            "host_iowait_fraction": 0.0003466054330401629,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.3453779741991574,
+            "driver_cpu_ticks": 2340,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 92.23834183400024,
+              "mean": 0.0003371284423757319
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 9.764185541999863,
+              "mean": 3.5687812653508274e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 55.70218143499991,
+              "mean": 0.004641848452916659
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 1.7695536860000056,
+              "mean": 0.00014746280716666714
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 23.301285055000186,
+              "mean": 0.0014936721189102683
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 25.00960369399995,
+              "mean": 0.0016031797239743557
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 13.21911225200001,
+              "mean": 0.0008473789905128212
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 42.51599974499997,
+              "mean": 0.011809999929166657
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 1.629986956000006,
+              "mean": 0.0004527741544444461
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        }
+      ],
+      "median_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 200,
+          "p50_ms": 4.885429,
+          "p95_ms": 11.066424,
+          "p99_ms": 16.29845,
+          "driver_wait_p99_ms": 1.544889,
+          "request_p99_ms": 15.44825
+        },
+        "/conversation/sync": {
+          "actual_qps": 60,
+          "p50_ms": 12.072589,
+          "p95_ms": 23.934922,
+          "p99_ms": 32.751756,
+          "driver_wait_p99_ms": 1.543599,
+          "request_p99_ms": 32.07811
+        }
+      },
+      "mean_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 199.99444444444444,
+          "p50_ms": 4.950615666666667,
+          "p95_ms": 11.192101666666666,
+          "p99_ms": 16.059772,
+          "driver_wait_p99_ms": 1.5715443333333334,
+          "request_p99_ms": 15.286717333333334
+        },
+        "/conversation/sync": {
+          "actual_qps": 59.99444444444445,
+          "p50_ms": 12.240958333333333,
+          "p95_ms": 24.150165333333334,
+          "p99_ms": 33.493785333333335,
+          "driver_wait_p99_ms": 1.5420076666666667,
+          "request_p99_ms": 32.804920333333335
+        }
+      },
+      "aggregate": {
+        "completed": 46800,
+        "cpu_seconds": 396.44000000000005,
+        "cpu_ms_per_request": 8.470940170940173,
+        "allocated_bytes_per_request": 2352496.969230769,
+        "driver_ticks_per_request": 0.14993589743589744,
+        "stages": {
+          "result=ok,scope=edit_slot,stage=barrier": {
+            "count": 820800.0,
+            "sum": 269.0041385909982,
+            "mean": 0.000327734086977337
+          },
+          "result=ok,scope=edit_slot,stage=storage": {
+            "count": 820800.0,
+            "sum": 28.22168336700002,
+            "mean": 3.4383142503654994e-05
+          },
+          "result=ok,scope=list,stage=handler": {
+            "count": 36000.0,
+            "sum": 159.95526697900004,
+            "mean": 0.004443201860527779
+          },
+          "result=ok,scope=list,stage=response": {
+            "count": 36000.0,
+            "sum": 5.147135427999993,
+            "mean": 0.00014297598411111093
+          },
+          "result=ok,scope=persisted_heads,stage=edit_overlay": {
+            "count": 46800.0,
+            "sum": 67.10071369200014,
+            "mean": 0.0014337759335897465
+          },
+          "result=ok,scope=persisted_heads,stage=heads": {
+            "count": 46800.0,
+            "sum": 72.08753448599998,
+            "mean": 0.0015403319334615381
+          },
+          "result=ok,scope=persisted_heads,stage=metadata": {
+            "count": 46800.0,
+            "sum": 37.061417335000016,
+            "mean": 0.0007919106268162397
+          },
+          "result=ok,scope=sync,stage=handler": {
+            "count": 10800.0,
+            "sum": 122.42584772999987,
+            "mean": 0.011335726641666655
+          },
+          "result=ok,scope=sync,stage=response": {
+            "count": 10800.0,
+            "sum": 4.794066982000003,
+            "mean": 0.0004438950909259262
+          }
+        },
+        "rpc_calls": {
+          "result=ok,service=channel committed reads": 21600.0,
+          "result=ok,service=channel conversation heads": 93600.0,
+          "result=ok,service=channel quorum exchange": 0.0,
+          "result=ok,service=node send permissions": 0.0,
+          "result=ok,service=presence authority": 0.0,
+          "result=ok,service=presence owner action": 0.0,
+          "result=ok,service=send authority": 0.0,
+          "result=ok,service=slot channel metadata": 0.0,
+          "result=ok,service=slot message updates": 547200.0,
+          "result=ok,service=slot permission metadata batch": 460800.0,
+          "result=ok,service=slot propose": 0.0,
+          "result=ok,service=slot runtime metadata": 86400.0,
+          "result=ok,service=slot status": 0.0,
+          "result=ok,service=slot user membership": 38400.0,
+          "result=ok,service=controller task result": 0.0,
+          "result=ok,service=controller write": 72.0
+        }
+      },
+      "preparation": {
+        "step_start": "2026-10-20T04:31:53Z",
+        "first_window_start": "2026-10-20T04:34:35.20240239Z",
+        "step_to_first_seconds": 162.202402,
+        "test_duration_seconds": 294.22,
+        "test_pre_first_upper_bound_seconds": 102.41760600000003,
+        "test_pre_first_lower_bound_seconds_rounded_step_end": 101.42240200000003
+      },
+      "profile_window": {
+        "start": "2026-10-20T04:37:37.004796469Z",
+        "end": "2026-10-20T04:37:47.004796469Z",
+        "cpu_seconds": 23.139999999999986,
+        "allocated_bytes": 6135799336
+      }
+    },
+    "forward_candidate_second": {
+      "path": "/tmp/wukongim-v3-rc-20261020/qps-comparison/report.json",
+      "sha256": "4463ad20c0eadf56b23f95d15544d2ee3779df68734a11b1cc34f2e9cbf1534b",
+      "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "binary_sha256_receipt": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+      "identity_consistent": true,
+      "all_three_windows_independently_pass": true,
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T04:38:21.581258699Z",
+          "end": "2026-10-20T04:39:21.581258699Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 200,
+              "p50_ms": 5.400212,
+              "p95_ms": 14.741202,
+              "p99_ms": 24.957711,
+              "driver_wait_p99_ms": 2.285564,
+              "request_p99_ms": 23.783337,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 13.076474,
+              "p95_ms": 32.369486,
+              "p99_ms": 55.945837,
+              "driver_wait_p99_ms": 2.222484,
+              "request_p99_ms": 54.584392,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 133.98000000000002,
+          "cpu_ms_per_request": 8.58846153846154,
+          "allocated_bytes": 36698805344,
+          "allocated_bytes_per_request": 2352487.522051282,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.890462,
+            "cgroup_usage_seconds": 156.685,
+            "cgroup_visible_four_cpu_utilization": 0.6433068285801478,
+            "host_nonidle_fraction": 0.673834508859453,
+            "host_iowait_fraction": 0.002021331498365732,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.3638559188465346,
+            "driver_cpu_ticks": 2486,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 106.67609362099972,
+              "mean": 0.00038989800300073
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 10.523609981000055,
+              "mean": 3.846348677266102e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 63.67391742400001,
+              "mean": 0.005306159785333334
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 1.9572289389999988,
+              "mean": 0.00016310241158333324
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 27.32703175399996,
+              "mean": 0.0017517328047435873
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 28.085070397000006,
+              "mean": 0.0018003250254487184
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 15.845727325999974,
+              "mean": 0.001015751751666665
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 48.647525993000016,
+              "mean": 0.013513201664722226
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 1.6895854119999978,
+              "mean": 0.0004693292811111105
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T04:39:22.253050158Z",
+          "end": "2026-10-20T04:40:22.253050158Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 200,
+              "p50_ms": 5.683253,
+              "p95_ms": 15.219426,
+              "p99_ms": 23.13055,
+              "driver_wait_p99_ms": 2.346685,
+              "request_p99_ms": 22.337328,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 13.962439,
+              "p95_ms": 34.23759,
+              "p99_ms": 48.538836,
+              "driver_wait_p99_ms": 1.920249,
+              "request_p99_ms": 47.973944,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 138.40999999999997,
+          "cpu_ms_per_request": 8.872435897435896,
+          "allocated_bytes": 36702336928,
+          "allocated_bytes_per_request": 2352713.905641026,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.660111,
+            "cgroup_usage_seconds": 158.507,
+            "cgroup_visible_four_cpu_utilization": 0.6532587782439105,
+            "host_nonidle_fraction": 0.6839561577630102,
+            "host_iowait_fraction": 0.00043151808060757745,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.37872021038669057,
+            "driver_cpu_ticks": 2497,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 110.75443828100073,
+              "mean": 0.0004048042334831898
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 11.452875944000102,
+              "mean": 4.1859926695906806e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 66.92100010100005,
+              "mean": 0.00557675000841667
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.018983420000004,
+              "mean": 0.00016824861833333366
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 28.657406343999895,
+              "mean": 0.0018370132271794805
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 29.438886835999938,
+              "mean": 0.0018871081305128165
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 16.657092382000013,
+              "mean": 0.001067762332179488
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 50.41888609500003,
+              "mean": 0.014005246137500009
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 1.7795117520000043,
+              "mean": 0.0004943088200000012
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T04:40:22.814846072Z",
+          "end": "2026-10-20T04:41:22.814846072Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 200,
+              "p50_ms": 5.356747,
+              "p95_ms": 14.133684,
+              "p99_ms": 24.00444,
+              "driver_wait_p99_ms": 2.099888,
+              "request_p99_ms": 22.570845,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 12000,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 13.229913,
+              "p95_ms": 30.325104,
+              "p99_ms": 53.446671,
+              "driver_wait_p99_ms": 2.022261,
+              "request_p99_ms": 51.657668,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 135.26,
+          "cpu_ms_per_request": 8.67051282051282,
+          "allocated_bytes": 36707794936,
+          "allocated_bytes_per_request": 2353063.777948718,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.551573,
+            "cgroup_usage_seconds": 153.598,
+            "cgroup_visible_four_cpu_utilization": 0.6341618903938302,
+            "host_nonidle_fraction": 0.6650502251472117,
+            "host_iowait_fraction": 0.0004329754069968826,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.3645447988609644,
+            "driver_cpu_ticks": 2361,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 104.05329123999974,
+              "mean": 0.0003803117369883031
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 10.5811622100002,
+              "mean": 3.867383848684283e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 63.22119973899989,
+              "mean": 0.0052684333115833246
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 1.903571173000004,
+              "mean": 0.00015863093108333366
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 27.049176649000028,
+              "mean": 0.0017339215800641044
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 27.762917542999794,
+              "mean": 0.0017796742014743459
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 15.905582816999983,
+              "mean": 0.0010195886421153835
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 47.56471078399978,
+              "mean": 0.01321241966222216
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 1.6539875269999988,
+              "mean": 0.0004594409797222219
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        }
+      ],
+      "median_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 200,
+          "p50_ms": 5.400212,
+          "p95_ms": 14.741202,
+          "p99_ms": 24.00444,
+          "driver_wait_p99_ms": 2.285564,
+          "request_p99_ms": 22.570845
+        },
+        "/conversation/sync": {
+          "actual_qps": 60,
+          "p50_ms": 13.229913,
+          "p95_ms": 32.369486,
+          "p99_ms": 53.446671,
+          "driver_wait_p99_ms": 2.022261,
+          "request_p99_ms": 51.657668
+        }
+      },
+      "mean_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 200,
+          "p50_ms": 5.480070666666666,
+          "p95_ms": 14.698104,
+          "p99_ms": 24.03090033333333,
+          "driver_wait_p99_ms": 2.2440456666666666,
+          "request_p99_ms": 22.89717
+        },
+        "/conversation/sync": {
+          "actual_qps": 60,
+          "p50_ms": 13.422941999999999,
+          "p95_ms": 32.31072666666667,
+          "p99_ms": 52.64378133333334,
+          "driver_wait_p99_ms": 2.054998,
+          "request_p99_ms": 51.40533466666667
+        }
+      },
+      "aggregate": {
+        "completed": 46800,
+        "cpu_seconds": 407.65,
+        "cpu_ms_per_request": 8.710470085470085,
+        "allocated_bytes_per_request": 2352755.0685470086,
+        "driver_ticks_per_request": 0.15692307692307692,
+        "stages": {
+          "result=ok,scope=edit_slot,stage=barrier": {
+            "count": 820800.0,
+            "sum": 321.4838231420002,
+            "mean": 0.00039167132449074093
+          },
+          "result=ok,scope=edit_slot,stage=storage": {
+            "count": 820800.0,
+            "sum": 32.557648135000356,
+            "mean": 3.9665750651803554e-05
+          },
+          "result=ok,scope=list,stage=handler": {
+            "count": 36000.0,
+            "sum": 193.81611726399996,
+            "mean": 0.00538378103511111
+          },
+          "result=ok,scope=list,stage=response": {
+            "count": 36000.0,
+            "sum": 5.8797835320000065,
+            "mean": 0.0001633273203333335
+          },
+          "result=ok,scope=persisted_heads,stage=edit_overlay": {
+            "count": 46800.0,
+            "sum": 83.03361474699989,
+            "mean": 0.0017742225373290573
+          },
+          "result=ok,scope=persisted_heads,stage=heads": {
+            "count": 46800.0,
+            "sum": 85.28687477599973,
+            "mean": 0.0018223691191452936
+          },
+          "result=ok,scope=persisted_heads,stage=metadata": {
+            "count": 46800.0,
+            "sum": 48.40840252499997,
+            "mean": 0.0010343675753205122
+          },
+          "result=ok,scope=sync,stage=handler": {
+            "count": 10800.0,
+            "sum": 146.63112287199982,
+            "mean": 0.013576955821481464
+          },
+          "result=ok,scope=sync,stage=response": {
+            "count": 10800.0,
+            "sum": 5.123084691000001,
+            "mean": 0.0004743596936111112
+          }
+        },
+        "rpc_calls": {
+          "result=ok,service=channel committed reads": 21600.0,
+          "result=ok,service=channel conversation heads": 93600.0,
+          "result=ok,service=channel quorum exchange": 0.0,
+          "result=ok,service=node send permissions": 0.0,
+          "result=ok,service=presence authority": 0.0,
+          "result=ok,service=presence owner action": 0.0,
+          "result=ok,service=send authority": 0.0,
+          "result=ok,service=slot channel metadata": 0.0,
+          "result=ok,service=slot message updates": 547200.0,
+          "result=ok,service=slot permission metadata batch": 460800.0,
+          "result=ok,service=slot propose": 0.0,
+          "result=ok,service=slot runtime metadata": 86400.0,
+          "result=ok,service=slot status": 0.0,
+          "result=ok,service=slot user membership": 38400.0,
+          "result=ok,service=controller task result": 0.0,
+          "result=ok,service=controller write": 72.0
+        }
+      },
+      "preparation": {
+        "step_start": "2026-10-20T04:37:48Z",
+        "first_window_start": "2026-10-20T04:38:21.581258699Z",
+        "step_to_first_seconds": 33.581258,
+        "test_duration_seconds": 224.28,
+        "test_pre_first_upper_bound_seconds": 32.42517699999999,
+        "test_pre_first_lower_bound_seconds_rounded_step_end": 31.861257999999992
+      },
+      "profile_window": {
+        "start": "2026-10-20T04:41:23.436081041Z",
+        "end": "2026-10-20T04:41:33.436081041Z",
+        "cpu_seconds": 22.760000000000048,
+        "allocated_bytes": 6134814056
+      }
+    },
+    "reverse_candidate_first": {
+      "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/report.json",
+      "sha256": "89d5f2fcd2be8c06300799da96d47e3206f9a8df14a70196f4bdc80b4b4d5aa8",
+      "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "binary_sha256_receipt": "0d25039bfc518b166eded2871a365231a041d710c52636a2154eda27179a3825",
+      "identity_consistent": true,
+      "all_three_windows_independently_pass": true,
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T10:24:29.928887087Z",
+          "end": "2026-10-20T10:25:29.928887087Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 7.754669,
+              "p95_ms": 25.6388,
+              "p99_ms": 49.986007,
+              "driver_wait_p99_ms": 8.355045,
+              "request_p99_ms": 41.19732,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 18.327869,
+              "p95_ms": 60.246792,
+              "p99_ms": 99.11391,
+              "driver_wait_p99_ms": 2.746558,
+              "request_p99_ms": 98.530221,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 158.89999999999998,
+          "cpu_ms_per_request": 10.185897435897434,
+          "allocated_bytes": 36694177336,
+          "allocated_bytes_per_request": 2352190.854871795,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.936927,
+            "cgroup_usage_seconds": 189.515,
+            "cgroup_visible_four_cpu_utilization": 0.7775047468343784,
+            "host_nonidle_fraction": 0.7972319212485802,
+            "host_iowait_fraction": 0.000967565521012999,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4366096767564272,
+            "driver_cpu_ticks": 2948,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 180.8758456059993,
+              "mean": 0.000661095926922512
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 13.642415758000023,
+              "mean": 4.986263069444453e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 103.12629302600001,
+              "mean": 0.008593857752166667
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.863919218,
+              "mean": 0.00023865993483333334
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 46.278993358999976,
+              "mean": 0.002966602138397434
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 43.404450766000025,
+              "mean": 0.002782336587564104
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 27.51035577799998,
+              "mean": 0.0017634843447435883
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 79.01927654900011,
+              "mean": 0.02194979904138892
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 2.5104512070000036,
+              "mean": 0.000697347557500001
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T10:25:30.647914156Z",
+          "end": "2026-10-20T10:26:30.647914156Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 7.773781,
+              "p95_ms": 19.140629,
+              "p99_ms": 26.150226,
+              "driver_wait_p99_ms": 2.389631,
+              "request_p99_ms": 25.48716,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 18.323079,
+              "p95_ms": 43.943566,
+              "p99_ms": 57.505298,
+              "driver_wait_p99_ms": 2.398295,
+              "request_p99_ms": 57.199601,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 160.32999999999996,
+          "cpu_ms_per_request": 10.2775641025641,
+          "allocated_bytes": 36704126376,
+          "allocated_bytes_per_request": 2352828.613846154,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.719369,
+            "cgroup_usage_seconds": 187.9,
+            "cgroup_visible_four_cpu_utilization": 0.7736411094785915,
+            "host_nonidle_fraction": 0.7942009383321358,
+            "host_iowait_fraction": 0.0005494737731941333,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4627024862527804,
+            "driver_cpu_ticks": 2922,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 151.64341676499578,
+              "mean": 0.0005542522542580255
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 13.407879272999805,
+              "mean": 4.900540669956069e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 91.15031388999972,
+              "mean": 0.007595859490833311
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.779528683000003,
+              "mean": 0.00023162739025000027
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 39.213577434000015,
+              "mean": 0.0025136908611538473
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 39.752995813,
+              "mean": 0.002548268962371795
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 23.49307120999996,
+              "mean": 0.0015059661032051257
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 68.9220398579998,
+              "mean": 0.019145011071666614
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 2.4115770139999992,
+              "mean": 0.0006698825038888886
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T10:26:31.365020066Z",
+          "end": "2026-10-20T10:27:31.365020066Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 7.641643,
+              "p95_ms": 18.65693,
+              "p99_ms": 25.538292,
+              "driver_wait_p99_ms": 2.298318,
+              "request_p99_ms": 24.855458,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 18.151483,
+              "p95_ms": 43.553926,
+              "p99_ms": 56.093419,
+              "driver_wait_p99_ms": 2.176653,
+              "request_p99_ms": 55.6275,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 160.26999999999998,
+          "cpu_ms_per_request": 10.273717948717946,
+          "allocated_bytes": 36708797944,
+          "allocated_bytes_per_request": 2353128.0733333332,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.700723,
+            "cgroup_usage_seconds": 186.713,
+            "cgroup_visible_four_cpu_utilization": 0.7689900168075428,
+            "host_nonidle_fraction": 0.7896050071893767,
+            "host_iowait_fraction": 0.0005497758606106742,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4338900049015891,
+            "driver_cpu_ticks": 2889,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 150.1004086920002,
+              "mean": 0.0005486126048684218
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 13.428729334999593,
+              "mean": 4.908161306651898e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 90.23325973699924,
+              "mean": 0.007519438311416603
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.7027060769999993,
+              "mean": 0.00022522550641666662
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 38.877110328999734,
+              "mean": 0.0024921224569871623
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 39.317843040000014,
+              "mean": 0.002520374553846155
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 23.148647391999898,
+              "mean": 0.0014838876533333268
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 68.23731011500004,
+              "mean": 0.01895480836527779
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 2.3918950769999885,
+              "mean": 0.0006644152991666635
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        }
+      ],
+      "median_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 199.98333333333332,
+          "p50_ms": 7.754669,
+          "p95_ms": 19.140629,
+          "p99_ms": 26.150226,
+          "driver_wait_p99_ms": 2.389631,
+          "request_p99_ms": 25.48716
+        },
+        "/conversation/sync": {
+          "actual_qps": 59.983333333333334,
+          "p50_ms": 18.323079,
+          "p95_ms": 43.943566,
+          "p99_ms": 57.505298,
+          "driver_wait_p99_ms": 2.398295,
+          "request_p99_ms": 57.199601
+        }
+      },
+      "mean_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 199.98333333333332,
+          "p50_ms": 7.7233643333333335,
+          "p95_ms": 21.145453,
+          "p99_ms": 33.891508333333334,
+          "driver_wait_p99_ms": 4.347664666666667,
+          "request_p99_ms": 30.513312666666664
+        },
+        "/conversation/sync": {
+          "actual_qps": 59.98888888888889,
+          "p50_ms": 18.267477,
+          "p95_ms": 49.24809466666667,
+          "p99_ms": 70.90420900000001,
+          "driver_wait_p99_ms": 2.440502,
+          "request_p99_ms": 70.45244066666666
+        }
+      },
+      "aggregate": {
+        "completed": 46800,
+        "cpu_seconds": 479.4999999999999,
+        "cpu_ms_per_request": 10.245726495726494,
+        "allocated_bytes_per_request": 2352715.8473504274,
+        "driver_ticks_per_request": 0.18715811965811965,
+        "stages": {
+          "result=ok,scope=edit_slot,stage=barrier": {
+            "count": 820800.0,
+            "sum": 482.6196710629953,
+            "mean": 0.0005879869286829865
+          },
+          "result=ok,scope=edit_slot,stage=storage": {
+            "count": 820800.0,
+            "sum": 40.47902436599942,
+            "mean": 4.931655015350807e-05
+          },
+          "result=ok,scope=list,stage=handler": {
+            "count": 36000.0,
+            "sum": 284.509866652999,
+            "mean": 0.007903051851472194
+          },
+          "result=ok,scope=list,stage=response": {
+            "count": 36000.0,
+            "sum": 8.346153978000004,
+            "mean": 0.00023183761050000012
+          },
+          "result=ok,scope=persisted_heads,stage=edit_overlay": {
+            "count": 46800.0,
+            "sum": 124.36968112199973,
+            "mean": 0.0026574718188461482
+          },
+          "result=ok,scope=persisted_heads,stage=heads": {
+            "count": 46800.0,
+            "sum": 122.47528961900004,
+            "mean": 0.002616993367927351
+          },
+          "result=ok,scope=persisted_heads,stage=metadata": {
+            "count": 46800.0,
+            "sum": 74.15207437999985,
+            "mean": 0.0015844460337606804
+          },
+          "result=ok,scope=sync,stage=handler": {
+            "count": 10800.0,
+            "sum": 216.17862652199997,
+            "mean": 0.020016539492777777
+          },
+          "result=ok,scope=sync,stage=response": {
+            "count": 10800.0,
+            "sum": 7.313923297999992,
+            "mean": 0.0006772151201851844
+          }
+        },
+        "rpc_calls": {
+          "result=ok,service=channel committed reads": 21600.0,
+          "result=ok,service=channel conversation heads": 93600.0,
+          "result=ok,service=channel quorum exchange": 0.0,
+          "result=ok,service=node send permissions": 0.0,
+          "result=ok,service=presence authority": 0.0,
+          "result=ok,service=presence owner action": 0.0,
+          "result=ok,service=send authority": 0.0,
+          "result=ok,service=slot channel metadata": 0.0,
+          "result=ok,service=slot message updates": 547200.0,
+          "result=ok,service=slot permission metadata batch": 460800.0,
+          "result=ok,service=slot propose": 0.0,
+          "result=ok,service=slot runtime metadata": 86400.0,
+          "result=ok,service=slot status": 0.0,
+          "result=ok,service=slot user membership": 38400.0,
+          "result=ok,service=controller task result": 0.0,
+          "result=ok,service=controller write": 72.0
+        }
+      },
+      "preparation": {
+        "step_start": "2026-10-20T10:22:42Z",
+        "first_window_start": "2026-10-20T10:24:29.928887087Z",
+        "step_to_first_seconds": 107.928887,
+        "test_duration_seconds": 226.17,
+        "test_pre_first_upper_bound_seconds": 33.954578999999995,
+        "test_pre_first_lower_bound_seconds_rounded_step_end": 33.09888699999999
+      },
+      "profile_window": {
+        "start": "2026-10-20T10:27:32.144308288Z",
+        "end": "2026-10-20T10:27:42.144308288Z",
+        "cpu_seconds": 27.089999999999918,
+        "allocated_bytes": 6138850688
+      }
+    },
+    "reverse_beta_second": {
+      "path": "/tmp/wukongim-performance-followup-20261020/reverse/report.json",
+      "sha256": "79abab04edeca8b96ee198d2c9630d700a31cecd884ab25acdba602af1816ad1",
+      "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+      "binary_sha256_receipt": "e327d0252e814b47efdc06ff9c6b80d847af29e30c20a1b22ba1dee98cd45a9a",
+      "identity_consistent": true,
+      "all_three_windows_independently_pass": true,
+      "windows": [
+        {
+          "window": 1,
+          "start": "2026-10-20T10:29:28.313097913Z",
+          "end": "2026-10-20T10:30:28.313097913Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 7.393783,
+              "p95_ms": 18.736201,
+              "p99_ms": 24.94138,
+              "driver_wait_p99_ms": 2.170887,
+              "request_p99_ms": 24.024701,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 17.343575,
+              "p95_ms": 42.619184,
+              "p99_ms": 52.260341,
+              "driver_wait_p99_ms": 2.087448,
+              "request_p99_ms": 51.497523,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 159.45,
+          "cpu_ms_per_request": 10.221153846153847,
+          "allocated_bytes": 36692034904,
+          "allocated_bytes_per_request": 2352053.5194871794,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.951706,
+            "cgroup_usage_seconds": 186.789,
+            "cgroup_visible_four_cpu_utilization": 0.7661352415632139,
+            "host_nonidle_fraction": 0.7857323126104148,
+            "host_iowait_fraction": 0.0009253806679565912,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4264136429585745,
+            "driver_cpu_ticks": 2926,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 146.27875529499843,
+              "mean": 0.0005346445734466317
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 13.388568498000051,
+              "mean": 4.8934826381579136e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 87.31824535399997,
+              "mean": 0.007276520446166664
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.6782440669999996,
+              "mean": 0.0002231870055833333
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 37.73601686300008,
+              "mean": 0.0024189754399359027
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 38.28699741300001,
+              "mean": 0.002454294705961539
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 22.20113398000002,
+              "mean": 0.0014231496141025653
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 66.58773004400004,
+              "mean": 0.0184965916788889
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 2.3707688000000005,
+              "mean": 0.000658546888888889
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 26.0
+          }
+        },
+        {
+          "window": 2,
+          "start": "2026-10-20T10:30:29.035685307Z",
+          "end": "2026-10-20T10:31:29.035685307Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 7.418983,
+              "p95_ms": 24.588862,
+              "p99_ms": 42.022077,
+              "driver_wait_p99_ms": 3.664524,
+              "request_p99_ms": 38.988002,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 17.568884,
+              "p95_ms": 56.95346,
+              "p99_ms": 95.306415,
+              "driver_wait_p99_ms": 2.955056,
+              "request_p99_ms": 94.799554,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 158.00999999999996,
+          "cpu_ms_per_request": 10.128846153846151,
+          "allocated_bytes": 36695320720,
+          "allocated_bytes_per_request": 2352264.1487179487,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.71128,
+            "cgroup_usage_seconds": 187.34,
+            "cgroup_visible_four_cpu_utilization": 0.7714381907283128,
+            "host_nonidle_fraction": 0.7925039130250857,
+            "host_iowait_fraction": 0.00038072676509158597,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.43069543254564885,
+            "driver_cpu_ticks": 2874,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 171.73937771899995,
+              "mean": 0.0006277024039437133
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 13.51371542800008,
+              "mean": 4.939223475146228e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 99.59961676599998,
+              "mean": 0.008299968063833332
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.7094864269999994,
+              "mean": 0.0002257905355833333
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 44.36492704300005,
+              "mean": 0.0028439055796794905
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 42.124935601999965,
+              "mean": 0.0027003163847435876
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 26.529903981,
+              "mean": 0.0017006348705769232
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 76.10740057999988,
+              "mean": 0.02114094460555552
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 2.3945867820000006,
+              "mean": 0.0006651629950000002
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        },
+        {
+          "window": 3,
+          "start": "2026-10-20T10:31:29.765042603Z",
+          "end": "2026-10-20T10:32:29.765042603Z",
+          "phases": [
+            {
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 8.177598,
+              "p95_ms": 21.651453,
+              "p99_ms": 32.183527,
+              "driver_wait_p99_ms": 2.743336,
+              "request_p99_ms": 31.289682,
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            },
+            {
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "actual_qps": 60,
+              "p50_ms": 19.444456,
+              "p95_ms": 50.708372,
+              "p99_ms": 71.147388,
+              "driver_wait_p99_ms": 2.681476,
+              "request_p99_ms": 70.976908,
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3600,
+              "errors": 0,
+              "unexpected_errors": 0,
+              "dropped": 0,
+              "verdict": "pass",
+              "independent_checks": {
+                "shape": true,
+                "duration": true,
+                "completion": true,
+                "latency": true,
+                "zero_failures_and_side_effects": true,
+                "reported_pass": true
+              },
+              "pass": true
+            }
+          ],
+          "cpu_seconds": 158.65000000000003,
+          "cpu_ms_per_request": 10.169871794871797,
+          "allocated_bytes": 36698925424,
+          "allocated_bytes_per_request": 2352495.2194871795,
+          "allocation_within_limit": true,
+          "host": {
+            "bracket_seconds": 60.72366,
+            "cgroup_usage_seconds": 184.738,
+            "cgroup_visible_four_cpu_utilization": 0.760568450584171,
+            "host_nonidle_fraction": 0.7805712836981323,
+            "host_iowait_fraction": 0.0004648018254035325,
+            "host_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4482384131654778,
+            "driver_cpu_ticks": 2850,
+            "throttled_usec_delta": 0.0,
+            "nr_throttled_delta": 0.0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory"
+          },
+          "stages": {
+            "result=ok,scope=edit_slot,stage=barrier": {
+              "count": 273600.0,
+              "sum": 166.3604188710013,
+              "mean": 0.0006080424666337766
+            },
+            "result=ok,scope=edit_slot,stage=storage": {
+              "count": 273600.0,
+              "sum": 13.68412799700019,
+              "mean": 5.0015087708334026e-05
+            },
+            "result=ok,scope=list,stage=handler": {
+              "count": 12000.0,
+              "sum": 99.46459430399979,
+              "mean": 0.008288716191999982
+            },
+            "result=ok,scope=list,stage=response": {
+              "count": 12000.0,
+              "sum": 2.849153177999996,
+              "mean": 0.00023742943149999965
+            },
+            "result=ok,scope=persisted_heads,stage=edit_overlay": {
+              "count": 15600.0,
+              "sum": 43.76729512499982,
+              "mean": 0.002805595841346142
+            },
+            "result=ok,scope=persisted_heads,stage=heads": {
+              "count": 15600.0,
+              "sum": 42.119496501000135,
+              "mean": 0.0026999677244230855
+            },
+            "result=ok,scope=persisted_heads,stage=metadata": {
+              "count": 15600.0,
+              "sum": 26.652717175999946,
+              "mean": 0.001708507511282048
+            },
+            "result=ok,scope=sync,stage=handler": {
+              "count": 3600.0,
+              "sum": 75.34438249600016,
+              "mean": 0.020928995137777823
+            },
+            "result=ok,scope=sync,stage=response": {
+              "count": 3600.0,
+              "sum": 2.4666268790000068,
+              "mean": 0.0006851741330555574
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_calls": {
+            "result=ok,service=channel committed reads": 7200.0,
+            "result=ok,service=channel conversation heads": 31200.0,
+            "result=ok,service=channel quorum exchange": 0.0,
+            "result=ok,service=node send permissions": 0.0,
+            "result=ok,service=presence authority": 0.0,
+            "result=ok,service=presence owner action": 0.0,
+            "result=ok,service=send authority": 0.0,
+            "result=ok,service=slot channel metadata": 0.0,
+            "result=ok,service=slot message updates": 182400.0,
+            "result=ok,service=slot permission metadata batch": 153600.0,
+            "result=ok,service=slot propose": 0.0,
+            "result=ok,service=slot runtime metadata": 28800.0,
+            "result=ok,service=slot status": 0.0,
+            "result=ok,service=slot user membership": 12800.0,
+            "result=ok,service=controller task result": 0.0,
+            "result=ok,service=controller write": 24.0
+          }
+        }
+      ],
+      "median_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 199.98333333333332,
+          "p50_ms": 7.418983,
+          "p95_ms": 21.651453,
+          "p99_ms": 32.183527,
+          "driver_wait_p99_ms": 2.743336,
+          "request_p99_ms": 31.289682
+        },
+        "/conversation/sync": {
+          "actual_qps": 60,
+          "p50_ms": 17.568884,
+          "p95_ms": 50.708372,
+          "p99_ms": 71.147388,
+          "driver_wait_p99_ms": 2.681476,
+          "request_p99_ms": 70.976908
+        }
+      },
+      "mean_window_percentiles": {
+        "/conversation/list": {
+          "actual_qps": 199.98333333333332,
+          "p50_ms": 7.6634546666666665,
+          "p95_ms": 21.658838666666668,
+          "p99_ms": 33.048994666666665,
+          "driver_wait_p99_ms": 2.8595823333333334,
+          "request_p99_ms": 31.434128333333334
+        },
+        "/conversation/sync": {
+          "actual_qps": 60,
+          "p50_ms": 18.118971666666667,
+          "p95_ms": 50.093672,
+          "p99_ms": 72.90471466666666,
+          "driver_wait_p99_ms": 2.57466,
+          "request_p99_ms": 72.42466166666667
+        }
+      },
+      "aggregate": {
+        "completed": 46800,
+        "cpu_seconds": 476.11,
+        "cpu_ms_per_request": 10.173290598290599,
+        "allocated_bytes_per_request": 2352270.9625641024,
+        "driver_ticks_per_request": 0.18482905982905984,
+        "stages": {
+          "result=ok,scope=edit_slot,stage=barrier": {
+            "count": 820800.0,
+            "sum": 484.3785518849997,
+            "mean": 0.0005901298146747073
+          },
+          "result=ok,scope=edit_slot,stage=storage": {
+            "count": 820800.0,
+            "sum": 40.58641192300032,
+            "mean": 4.9447382947125144e-05
+          },
+          "result=ok,scope=list,stage=handler": {
+            "count": 36000.0,
+            "sum": 286.3824564239997,
+            "mean": 0.007955068233999992
+          },
+          "result=ok,scope=list,stage=response": {
+            "count": 36000.0,
+            "sum": 8.236883671999996,
+            "mean": 0.0002288023242222221
+          },
+          "result=ok,scope=persisted_heads,stage=edit_overlay": {
+            "count": 46800.0,
+            "sum": 125.86823903099996,
+            "mean": 0.0026894922869871787
+          },
+          "result=ok,scope=persisted_heads,stage=heads": {
+            "count": 46800.0,
+            "sum": 122.53142951600012,
+            "mean": 0.002618192938376071
+          },
+          "result=ok,scope=persisted_heads,stage=metadata": {
+            "count": 46800.0,
+            "sum": 75.38375513699997,
+            "mean": 0.0016107639986538455
+          },
+          "result=ok,scope=sync,stage=handler": {
+            "count": 10800.0,
+            "sum": 218.0395131200001,
+            "mean": 0.020188843807407417
+          },
+          "result=ok,scope=sync,stage=response": {
+            "count": 10800.0,
+            "sum": 7.231982461000008,
+            "mean": 0.000669628005648149
+          }
+        },
+        "rpc_calls": {
+          "result=ok,service=channel committed reads": 21600.0,
+          "result=ok,service=channel conversation heads": 93600.0,
+          "result=ok,service=channel quorum exchange": 0.0,
+          "result=ok,service=node send permissions": 0.0,
+          "result=ok,service=presence authority": 0.0,
+          "result=ok,service=presence owner action": 0.0,
+          "result=ok,service=send authority": 0.0,
+          "result=ok,service=slot channel metadata": 0.0,
+          "result=ok,service=slot message updates": 547200.0,
+          "result=ok,service=slot permission metadata batch": 460800.0,
+          "result=ok,service=slot propose": 0.0,
+          "result=ok,service=slot runtime metadata": 86400.0,
+          "result=ok,service=slot status": 0.0,
+          "result=ok,service=slot user membership": 38400.0,
+          "result=ok,service=controller task result": 0.0,
+          "result=ok,service=controller write": 74.0
+        }
+      },
+      "preparation": {
+        "step_start": "2026-10-20T10:27:43Z",
+        "first_window_start": "2026-10-20T10:29:28.313097913Z",
+        "step_to_first_seconds": 105.313097,
+        "test_duration_seconds": 296.4,
+        "test_pre_first_upper_bound_seconds": 104.18762499999997,
+        "test_pre_first_lower_bound_seconds_rounded_step_end": 103.71309699999998
+      },
+      "profile_window": {
+        "start": "2026-10-20T10:32:30.52547247Z",
+        "end": "2026-10-20T10:32:40.52547247Z",
+        "cpu_seconds": 26.720000000000027,
+        "allocated_bytes": 6139440296
+      }
+    }
+  },
+  "source_reports_only": true,
+  "limitations": [
+    "Median of three window percentiles is not a pooled P99 and has no confidence interval.",
+    "Request time includes driver decode/validation and scheduling; stage sums overlap and are wall time, not CPU.",
+    "Driver ticks not converted to seconds; remote CLK_TCK missing. Host brackets include warmup.",
+    "Original 7763 failure retained; no new migration candidate or 20-endpoint publication gate qualified."
+  ],
+  "candidate_minus_beta_percent": {
+    "forward": {
+      "cpu_ms_per_request": 2.8276662294420163,
+      "allocated_bytes_per_request": 0.010971292189321247,
+      "driver_ticks_per_request": 4.660111158614777,
+      "median_p99": {
+        "/conversation/list": 47.28050826919124,
+        "/conversation/sync": 63.18719216154396
+      },
+      "mean_p99": {
+        "/conversation/list": 49.634131377041555,
+        "/conversation/sync": 57.17477379584726
+      },
+      "same_rpc_exact_call_totals": true
+    },
+    "reverse": {
+      "cpu_ms_per_request": 0.7120203314359808,
+      "allocated_bytes_per_request": 0.01891299061227425,
+      "driver_ticks_per_request": 1.2601156069364183,
+      "median_p99": {
+        "/conversation/list": -18.746550059600363,
+        "/conversation/sync": -19.174407358426148
+      },
+      "mean_p99": {
+        "/conversation/list": 2.5492868244988642,
+        "/conversation/sync": -2.744000406302005
+      },
+      "same_rpc_exact_call_totals": false
+    }
+  }
+}

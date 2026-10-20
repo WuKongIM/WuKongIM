@@ -1,0 +1,2756 @@
+{
+  "original": {
+    "path": "/tmp/wukongim-v3-rc-20261020/qps/report.json",
+    "sha256": "eca951e9fc455f1ec803c3656d33eacd7654218a998bad1c64e42ebb91306487",
+    "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "binary_sha256": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+    "windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T04:14:57.422761586Z",
+        "end": "2026-10-20T04:15:57.422761586Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10559,
+            "completed_in_window": 10455,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1441,
+            "actual_qps": 174.25,
+            "driver_wait_p99_ms": 750.026114,
+            "request_p99_ms": 82.844415,
+            "p50_ms": 595.760242,
+            "p95_ms": 756.013232,
+            "p99_ms": 813.440441,
+            "verdict": "incomplete or failed requests",
+            "late_completions": 104,
+            "dropped_fraction": 0.12008333333333333,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "over_500ms_seconds_zero_indexed": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "over_200ms_seconds_zero_indexed": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "max_wait_ms": 782.711547,
+              "max_request_ms": 113.816164,
+              "max_latency_ms": 857.829832
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 1889,
+                "dropped": 111,
+                "median_max_wait_ms": 560.164534,
+                "median_max_request_ms": 79.819513,
+                "median_max_latency_ms": 613.40332
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 1716,
+                "dropped": 284,
+                "median_max_wait_ms": 592.563698,
+                "median_max_request_ms": 83.715164,
+                "median_max_latency_ms": 652.0113465
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 1613,
+                "dropped": 387,
+                "median_max_wait_ms": 626.0713765,
+                "median_max_request_ms": 96.7541655,
+                "median_max_latency_ms": 681.950033
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 1803,
+                "dropped": 197,
+                "median_max_wait_ms": 566.124093,
+                "median_max_request_ms": 79.552062,
+                "median_max_latency_ms": 617.501512
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 1783,
+                "dropped": 217,
+                "median_max_wait_ms": 582.5540765000001,
+                "median_max_request_ms": 80.293259,
+                "median_max_latency_ms": 636.2932315
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 1755,
+                "dropped": 245,
+                "median_max_wait_ms": 596.2773975,
+                "median_max_request_ms": 81.198447,
+                "median_max_latency_ms": 650.8156325
+              }
+            ],
+            "slow_arrivals": [
+              {
+                "index": 198,
+                "wait_ms": 146.613392,
+                "request_ms": 55.405986
+              },
+              {
+                "index": 203,
+                "wait_ms": 158.214404,
+                "request_ms": 50.471189
+              },
+              {
+                "index": 201,
+                "wait_ms": 147.069743,
+                "request_ms": 71.71425
+              },
+              {
+                "index": 205,
+                "wait_ms": 159.240947,
+                "request_ms": 41.354721
+              },
+              {
+                "index": 204,
+                "wait_ms": 157.530066,
+                "request_ms": 51.760988
+              },
+              {
+                "index": 206,
+                "wait_ms": 158.167292,
+                "request_ms": 43.057878
+              },
+              {
+                "index": 208,
+                "wait_ms": 159.734941,
+                "request_ms": 43.379035
+              },
+              {
+                "index": 207,
+                "wait_ms": 157.022183,
+                "request_ms": 57.986991
+              },
+              {
+                "index": 209,
+                "wait_ms": 157.48978,
+                "request_ms": 53.503483
+              },
+              {
+                "index": 210,
+                "wait_ms": 173.688909,
+                "request_ms": 35.262114
+              },
+              {
+                "index": 218,
+                "wait_ms": 165.995417,
+                "request_ms": 37.713923
+              },
+              {
+                "index": 217,
+                "wait_ms": 169.740879,
+                "request_ms": 40.982597
+              },
+              {
+                "index": 216,
+                "wait_ms": 170.01209,
+                "request_ms": 52.070529
+              },
+              {
+                "index": 219,
+                "wait_ms": 162.664869,
+                "request_ms": 45.167385
+              },
+              {
+                "index": 220,
+                "wait_ms": 158.952626,
+                "request_ms": 47.036867
+              },
+              {
+                "index": 224,
+                "wait_ms": 173.713327,
+                "request_ms": 32.400089
+              }
+            ],
+            "slow_sample_summary": {
+              "count": 16,
+              "min_index": 198,
+              "max_index": 224,
+              "average_individual_wait_fraction": 0.772880701609464
+            }
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3594,
+            "completed_in_window": 3586,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 6,
+            "actual_qps": 59.766666666666666,
+            "driver_wait_p99_ms": 515.754212,
+            "request_p99_ms": 178.948992,
+            "p50_ms": 123.806798,
+            "p95_ms": 502.981204,
+            "p99_ms": 654.878107,
+            "verdict": "incomplete or failed requests",
+            "late_completions": 8,
+            "dropped_fraction": 0.0016666666666666668,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [
+                22
+              ],
+              "over_500ms_seconds_zero_indexed": [
+                20,
+                21,
+                22,
+                23,
+                24
+              ],
+              "over_200ms_seconds_zero_indexed": [
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                59
+              ],
+              "max_wait_ms": 564.623844,
+              "max_request_ms": 206.409692,
+              "max_latency_ms": 731.287485
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 19.431406000000003,
+                "median_max_request_ms": 158.534067,
+                "median_max_latency_ms": 159.433783
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 27.137213,
+                "median_max_request_ms": 165.148908,
+                "median_max_latency_ms": 166.050298
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 594,
+                "dropped": 6,
+                "median_max_wait_ms": 344.59475150000003,
+                "median_max_request_ms": 172.731279,
+                "median_max_latency_ms": 474.8450975
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 26.437109,
+                "median_max_request_ms": 174.577415,
+                "median_max_latency_ms": 175.32351549999998
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 20.770506500000003,
+                "median_max_request_ms": 157.79022750000001,
+                "median_max_latency_ms": 158.6685935
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 26.221992,
+                "median_max_request_ms": 165.4391005,
+                "median_max_latency_ms": 167.181174
+              }
+            ],
+            "slow_arrivals": [
+              {
+                "index": 1074,
+                "wait_ms": 23.015244,
+                "request_ms": 195.768401
+              },
+              {
+                "index": 1082,
+                "wait_ms": 71.080504,
+                "request_ms": 145.117281
+              },
+              {
+                "index": 1083,
+                "wait_ms": 65.210496,
+                "request_ms": 139.248379
+              },
+              {
+                "index": 1088,
+                "wait_ms": 42.952844,
+                "request_ms": 192.090226
+              },
+              {
+                "index": 1090,
+                "wait_ms": 82.866165,
+                "request_ms": 145.692584
+              },
+              {
+                "index": 1092,
+                "wait_ms": 54.46112,
+                "request_ms": 166.576717
+              },
+              {
+                "index": 1093,
+                "wait_ms": 50.552497,
+                "request_ms": 154.035001
+              },
+              {
+                "index": 1091,
+                "wait_ms": 67.055818,
+                "request_ms": 173.388618
+              },
+              {
+                "index": 1094,
+                "wait_ms": 49.872303,
+                "request_ms": 170.04808
+              },
+              {
+                "index": 1096,
+                "wait_ms": 81.33143,
+                "request_ms": 135.327614
+              },
+              {
+                "index": 1098,
+                "wait_ms": 95.22803,
+                "request_ms": 158.774613
+              },
+              {
+                "index": 1099,
+                "wait_ms": 104.373716,
+                "request_ms": 141.925915
+              },
+              {
+                "index": 1100,
+                "wait_ms": 87.922944,
+                "request_ms": 148.444343
+              },
+              {
+                "index": 1102,
+                "wait_ms": 64.556236,
+                "request_ms": 148.788712
+              },
+              {
+                "index": 1101,
+                "wait_ms": 73.780003,
+                "request_ms": 170.731128
+              },
+              {
+                "index": 1103,
+                "wait_ms": 69.923659,
+                "request_ms": 146.941673
+              }
+            ],
+            "slow_sample_summary": {
+              "count": 16,
+              "min_index": 1074,
+              "max_index": 1103,
+              "average_individual_wait_fraction": 0.29813528054101
+            }
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T04:15:58.676450637Z",
+        "end": "2026-10-20T04:16:58.676450637Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10858,
+            "completed_in_window": 10752,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1142,
+            "actual_qps": 179.2,
+            "driver_wait_p99_ms": 619.832787,
+            "request_p99_ms": 77.37341,
+            "p50_ms": 587.042409,
+            "p95_ms": 643.356227,
+            "p99_ms": 671.008459,
+            "verdict": "incomplete or failed requests",
+            "late_completions": 106,
+            "dropped_fraction": 0.09516666666666666,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "over_500ms_seconds_zero_indexed": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "over_200ms_seconds_zero_indexed": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "max_wait_ms": 655.763194,
+              "max_request_ms": 102.696032,
+              "max_latency_ms": 715.124774
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 1886,
+                "dropped": 114,
+                "median_max_wait_ms": 569.603055,
+                "median_max_request_ms": 77.62056799999999,
+                "median_max_latency_ms": 622.4279885000001
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 1829,
+                "dropped": 171,
+                "median_max_wait_ms": 576.974646,
+                "median_max_request_ms": 81.5867805,
+                "median_max_latency_ms": 623.9149805
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 1808,
+                "dropped": 192,
+                "median_max_wait_ms": 577.205374,
+                "median_max_request_ms": 79.1096045,
+                "median_max_latency_ms": 634.252
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 1797,
+                "dropped": 203,
+                "median_max_wait_ms": 576.434518,
+                "median_max_request_ms": 86.56587250000001,
+                "median_max_latency_ms": 646.1764165
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 1814,
+                "dropped": 186,
+                "median_max_wait_ms": 586.9309585,
+                "median_max_request_ms": 82.31067350000001,
+                "median_max_latency_ms": 638.8329265
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 1724,
+                "dropped": 276,
+                "median_max_wait_ms": 616.3393464999999,
+                "median_max_request_ms": 86.536048,
+                "median_max_latency_ms": 676.4997515
+              }
+            ],
+            "slow_arrivals": [
+              {
+                "index": 270,
+                "wait_ms": 149.737813,
+                "request_ms": 62.315257
+              },
+              {
+                "index": 273,
+                "wait_ms": 138.7673,
+                "request_ms": 64.327339
+              },
+              {
+                "index": 274,
+                "wait_ms": 144.147272,
+                "request_ms": 67.062763
+              },
+              {
+                "index": 277,
+                "wait_ms": 143.875507,
+                "request_ms": 58.810304
+              },
+              {
+                "index": 279,
+                "wait_ms": 144.161747,
+                "request_ms": 56.961018
+              },
+              {
+                "index": 282,
+                "wait_ms": 161.351562,
+                "request_ms": 43.836704
+              },
+              {
+                "index": 281,
+                "wait_ms": 163.097314,
+                "request_ms": 50.771934
+              },
+              {
+                "index": 284,
+                "wait_ms": 160.164757,
+                "request_ms": 50.884945
+              },
+              {
+                "index": 286,
+                "wait_ms": 157.688396,
+                "request_ms": 46.89036
+              },
+              {
+                "index": 287,
+                "wait_ms": 156.701452,
+                "request_ms": 44.681727
+              },
+              {
+                "index": 288,
+                "wait_ms": 156.126221,
+                "request_ms": 53.703019
+              },
+              {
+                "index": 289,
+                "wait_ms": 159.059106,
+                "request_ms": 54.02821
+              },
+              {
+                "index": 292,
+                "wait_ms": 158.871523,
+                "request_ms": 48.851269
+              },
+              {
+                "index": 291,
+                "wait_ms": 161.831762,
+                "request_ms": 52.956599
+              },
+              {
+                "index": 290,
+                "wait_ms": 165.190931,
+                "request_ms": 71.135686
+              },
+              {
+                "index": 293,
+                "wait_ms": 166.052257,
+                "request_ms": 56.523796
+              }
+            ],
+            "slow_sample_summary": {
+              "count": 16,
+              "min_index": 270,
+              "max_index": 293,
+              "average_individual_wait_fraction": 0.7380698069741792
+            }
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3592,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 59.86666666666667,
+            "driver_wait_p99_ms": 27.206035,
+            "request_p99_ms": 164.821727,
+            "p50_ms": 117.371883,
+            "p95_ms": 153.467391,
+            "p99_ms": 169.412097,
+            "verdict": "pass",
+            "late_completions": 8,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 42.338062,
+              "max_request_ms": 198.40464,
+              "max_latency_ms": 199.336821
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 25.7638405,
+                "median_max_request_ms": 166.67405250000002,
+                "median_max_latency_ms": 167.0672245
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 21.2595655,
+                "median_max_request_ms": 162.685754,
+                "median_max_latency_ms": 164.19065849999998
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 18.812396,
+                "median_max_request_ms": 154.536496,
+                "median_max_latency_ms": 158.58399200000002
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 24.6824955,
+                "median_max_request_ms": 163.06739950000002,
+                "median_max_latency_ms": 163.93913
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 23.64454,
+                "median_max_request_ms": 166.009817,
+                "median_max_latency_ms": 169.206558
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 26.868713,
+                "median_max_request_ms": 165.09190999999998,
+                "median_max_latency_ms": 169.28639950000002
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T04:16:59.905488313Z",
+        "end": "2026-10-20T04:17:59.905488313Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10968,
+            "completed_in_window": 10863,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1032,
+            "actual_qps": 181.05,
+            "driver_wait_p99_ms": 607.65009,
+            "request_p99_ms": 78.979439,
+            "p50_ms": 578.751628,
+            "p95_ms": 628.413499,
+            "p99_ms": 656.809981,
+            "verdict": "incomplete or failed requests",
+            "late_completions": 105,
+            "dropped_fraction": 0.086,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "over_500ms_seconds_zero_indexed": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "over_200ms_seconds_zero_indexed": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59
+              ],
+              "max_wait_ms": 636.16932,
+              "max_request_ms": 117.858016,
+              "max_latency_ms": 686.484464
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 1826,
+                "dropped": 174,
+                "median_max_wait_ms": 601.6751395,
+                "median_max_request_ms": 90.4524515,
+                "median_max_latency_ms": 653.089213
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 1820,
+                "dropped": 180,
+                "median_max_wait_ms": 569.0348415,
+                "median_max_request_ms": 80.44734,
+                "median_max_latency_ms": 624.2226035000001
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 1848,
+                "dropped": 152,
+                "median_max_wait_ms": 570.049123,
+                "median_max_request_ms": 80.2859005,
+                "median_max_latency_ms": 623.6946295
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 1836,
+                "dropped": 164,
+                "median_max_wait_ms": 565.5343754999999,
+                "median_max_request_ms": 83.096729,
+                "median_max_latency_ms": 622.2596275000001
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 1820,
+                "dropped": 180,
+                "median_max_wait_ms": 569.5198665,
+                "median_max_request_ms": 80.231915,
+                "median_max_latency_ms": 619.655049
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 1818,
+                "dropped": 182,
+                "median_max_wait_ms": 573.379027,
+                "median_max_request_ms": 80.7676645,
+                "median_max_latency_ms": 631.8096465
+              }
+            ],
+            "slow_arrivals": [
+              {
+                "index": 124,
+                "wait_ms": 136.578062,
+                "request_ms": 67.543924
+              },
+              {
+                "index": 133,
+                "wait_ms": 155.264502,
+                "request_ms": 44.88893
+              },
+              {
+                "index": 132,
+                "wait_ms": 151.772043,
+                "request_ms": 68.820153
+              },
+              {
+                "index": 139,
+                "wait_ms": 150.952746,
+                "request_ms": 54.038718
+              },
+              {
+                "index": 135,
+                "wait_ms": 150.401529,
+                "request_ms": 75.219151
+              },
+              {
+                "index": 136,
+                "wait_ms": 147.120908,
+                "request_ms": 74.011839
+              },
+              {
+                "index": 137,
+                "wait_ms": 153.467689,
+                "request_ms": 64.047479
+              },
+              {
+                "index": 140,
+                "wait_ms": 165.156428,
+                "request_ms": 37.948493
+              },
+              {
+                "index": 141,
+                "wait_ms": 161.470315,
+                "request_ms": 42.037816
+              },
+              {
+                "index": 146,
+                "wait_ms": 171.135783,
+                "request_ms": 75.469585
+              },
+              {
+                "index": 148,
+                "wait_ms": 163.107596,
+                "request_ms": 82.946406
+              },
+              {
+                "index": 145,
+                "wait_ms": 175.623586,
+                "request_ms": 86.053867
+              },
+              {
+                "index": 142,
+                "wait_ms": 171.407737,
+                "request_ms": 107.741398
+              },
+              {
+                "index": 144,
+                "wait_ms": 179.995331,
+                "request_ms": 90.369447
+              },
+              {
+                "index": 147,
+                "wait_ms": 167.518324,
+                "request_ms": 91.387944
+              },
+              {
+                "index": 149,
+                "wait_ms": 163.509814,
+                "request_ms": 85.76677
+              }
+            ],
+            "slow_sample_summary": {
+              "count": 16,
+              "min_index": 124,
+              "max_index": 149,
+              "average_individual_wait_fraction": 0.6952528522311071
+            }
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3594,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 59.9,
+            "driver_wait_p99_ms": 238.873167,
+            "request_p99_ms": 174.374365,
+            "p50_ms": 116.695978,
+            "p95_ms": 239.589398,
+            "p99_ms": 372.061907,
+            "verdict": "pass",
+            "late_completions": 6,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ],
+              "max_wait_ms": 305.517252,
+              "max_request_ms": 220.790204,
+              "max_latency_ms": 445.605069
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 82.495649,
+                "median_max_request_ms": 178.958452,
+                "median_max_latency_ms": 216.2120225
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 23.639745,
+                "median_max_request_ms": 164.4772655,
+                "median_max_latency_ms": 168.358847
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 17.9749455,
+                "median_max_request_ms": 164.557669,
+                "median_max_latency_ms": 165.980928
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 23.544434,
+                "median_max_request_ms": 168.15052300000002,
+                "median_max_latency_ms": 169.980626
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 12.454815499999999,
+                "median_max_request_ms": 155.426128,
+                "median_max_latency_ms": 156.69041800000002
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 14.0455185,
+                "median_max_request_ms": 156.9632215,
+                "median_max_latency_ms": 158.022398
+              }
+            ],
+            "slow_arrivals": [
+              {
+                "index": 26,
+                "wait_ms": 0.798718,
+                "request_ms": 220.790204
+              },
+              {
+                "index": 33,
+                "wait_ms": 63.350294,
+                "request_ms": 151.16817
+              },
+              {
+                "index": 34,
+                "wait_ms": 70.643243,
+                "request_ms": 182.38287
+              },
+              {
+                "index": 35,
+                "wait_ms": 56.005747,
+                "request_ms": 193.448542
+              },
+              {
+                "index": 41,
+                "wait_ms": 81.189129,
+                "request_ms": 141.4461
+              },
+              {
+                "index": 42,
+                "wait_ms": 85.693295,
+                "request_ms": 122.049308
+              },
+              {
+                "index": 44,
+                "wait_ms": 86.362271,
+                "request_ms": 153.227127
+              },
+              {
+                "index": 45,
+                "wait_ms": 77.508115,
+                "request_ms": 155.977253
+              },
+              {
+                "index": 46,
+                "wait_ms": 62.401741,
+                "request_ms": 179.290932
+              },
+              {
+                "index": 48,
+                "wait_ms": 59.830816,
+                "request_ms": 151.608988
+              },
+              {
+                "index": 47,
+                "wait_ms": 49.457194,
+                "request_ms": 187.734631
+              },
+              {
+                "index": 51,
+                "wait_ms": 59.407507,
+                "request_ms": 199.157045
+              },
+              {
+                "index": 49,
+                "wait_ms": 89.304952,
+                "request_ms": 209.313806
+              },
+              {
+                "index": 50,
+                "wait_ms": 74.411535,
+                "request_ms": 213.294683
+              },
+              {
+                "index": 53,
+                "wait_ms": 100.155462,
+                "request_ms": 191.495181
+              },
+              {
+                "index": 52,
+                "wait_ms": 106.259501,
+                "request_ms": 205.794988
+              }
+            ],
+            "slow_sample_summary": {
+              "count": 16,
+              "min_index": 26,
+              "max_index": 53,
+              "average_individual_wait_fraction": 0.2808289957030932
+            }
+          }
+        ]
+      }
+    ],
+    "profile_window_start": "2026-10-20T04:18:01.231359262Z",
+    "profile_window_end": "2026-10-20T04:18:11.231359262Z"
+  },
+  "baseline": {
+    "path": "/tmp/wukongim-v3-rc-20261020/qps-comparison/comparison/report.json",
+    "sha256": "a5b60534be93ed733487006a7402dbc48bdd10d59c96c710f0edb3596f006213",
+    "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "binary_sha256": "2aba832435ad303bd70e47a79b618114d5522aca70109b6a0d7f45affc652853",
+    "windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T04:34:35.20240239Z",
+        "end": "2026-10-20T04:35:35.20240239Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 12000,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 200,
+            "driver_wait_p99_ms": 1.544889,
+            "request_p99_ms": 14.777833,
+            "p50_ms": 4.869623,
+            "p95_ms": 10.857702,
+            "p99_ms": 15.449169,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 6.204985,
+              "max_request_ms": 39.840088,
+              "max_latency_ms": 40.666849
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.2370275,
+                "median_max_request_ms": 16.370026000000003,
+                "median_max_latency_ms": 17.1734675
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.062205,
+                "median_max_request_ms": 13.59284,
+                "median_max_latency_ms": 13.9901995
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.162509,
+                "median_max_request_ms": 13.8871725,
+                "median_max_latency_ms": 14.070980500000001
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.345533,
+                "median_max_request_ms": 16.769895499999997,
+                "median_max_latency_ms": 16.823692
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.7517075,
+                "median_max_request_ms": 15.5014365,
+                "median_max_latency_ms": 15.77504
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.0835025,
+                "median_max_request_ms": 15.235693999999999,
+                "median_max_latency_ms": 15.852971499999999
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 1.466673,
+            "request_p99_ms": 31.29616,
+            "p50_ms": 11.947151,
+            "p95_ms": 23.157334,
+            "p99_ms": 32.140023,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 4.497887,
+              "max_request_ms": 69.940631,
+              "max_latency_ms": 70.479521
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.4226345,
+                "median_max_request_ms": 28.337679,
+                "median_max_latency_ms": 28.520061
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.279194,
+                "median_max_request_ms": 26.653219,
+                "median_max_latency_ms": 27.127736
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.392382,
+                "median_max_request_ms": 26.4163915,
+                "median_max_latency_ms": 27.0467575
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.3608185,
+                "median_max_request_ms": 30.8220025,
+                "median_max_latency_ms": 31.6886265
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.3881865,
+                "median_max_request_ms": 27.688716,
+                "median_max_latency_ms": 27.776217000000003
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.308173,
+                "median_max_request_ms": 27.704677500000003,
+                "median_max_latency_ms": 28.2699085
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T04:35:35.783648408Z",
+        "end": "2026-10-20T04:36:35.783648408Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 12000,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 200,
+            "driver_wait_p99_ms": 1.443963,
+            "request_p99_ms": 15.44825,
+            "p50_ms": 4.885429,
+            "p95_ms": 11.066424,
+            "p99_ms": 16.29845,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 5.670049,
+              "max_request_ms": 56.901324,
+              "max_latency_ms": 57.543752
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.092677,
+                "median_max_request_ms": 14.150808,
+                "median_max_latency_ms": 14.5573905
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 1.912918,
+                "median_max_request_ms": 18.8207235,
+                "median_max_latency_ms": 19.812778
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.7786925,
+                "median_max_request_ms": 16.2502915,
+                "median_max_latency_ms": 16.4983495
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 1.7697479999999999,
+                "median_max_request_ms": 17.705727000000003,
+                "median_max_latency_ms": 17.7677595
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 1.9282075,
+                "median_max_request_ms": 13.1858045,
+                "median_max_latency_ms": 13.7115865
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 1.8950585,
+                "median_max_request_ms": 17.117096,
+                "median_max_latency_ms": 17.360675999999998
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 1.543599,
+            "request_p99_ms": 32.07811,
+            "p50_ms": 12.072589,
+            "p95_ms": 23.934922,
+            "p99_ms": 32.751756,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 4.447205,
+              "max_request_ms": 87.408757,
+              "max_latency_ms": 88.412306
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.2841895,
+                "median_max_request_ms": 26.755623,
+                "median_max_latency_ms": 27.44605
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.687973,
+                "median_max_request_ms": 28.359852500000002,
+                "median_max_latency_ms": 28.848789
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.140263,
+                "median_max_request_ms": 31.39614,
+                "median_max_latency_ms": 31.938979500000002
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.498006,
+                "median_max_request_ms": 28.697098,
+                "median_max_latency_ms": 29.223159
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.389969,
+                "median_max_request_ms": 26.2840625,
+                "median_max_latency_ms": 27.180801000000002
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.4838405,
+                "median_max_request_ms": 26.183949499999997,
+                "median_max_latency_ms": 26.285024999999997
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T04:36:36.373552996Z",
+        "end": "2026-10-20T04:37:36.373552996Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 1.725781,
+            "request_p99_ms": 15.634069,
+            "p50_ms": 5.096795,
+            "p95_ms": 11.652179,
+            "p99_ms": 16.431697,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 6.58505,
+              "max_request_ms": 31.034544,
+              "max_latency_ms": 31.064097
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.171866,
+                "median_max_request_ms": 16.8631765,
+                "median_max_latency_ms": 17.4251085
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.0747935,
+                "median_max_request_ms": 13.8877505,
+                "median_max_latency_ms": 14.4050955
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.0529895,
+                "median_max_request_ms": 17.938907,
+                "median_max_latency_ms": 18.487462999999998
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.3906145,
+                "median_max_request_ms": 16.866786,
+                "median_max_latency_ms": 17.519924500000002
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.2311104999999998,
+                "median_max_request_ms": 14.919006,
+                "median_max_latency_ms": 15.4602
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.245912,
+                "median_max_request_ms": 18.2303785,
+                "median_max_latency_ms": 19.1191785
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3599,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 59.983333333333334,
+            "driver_wait_p99_ms": 1.615751,
+            "request_p99_ms": 35.040491,
+            "p50_ms": 12.703135,
+            "p95_ms": 25.35824,
+            "p99_ms": 35.589577,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 4.944528,
+              "max_request_ms": 52.225799,
+              "max_latency_ms": 52.29762
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.4396740000000001,
+                "median_max_request_ms": 31.399226,
+                "median_max_latency_ms": 31.7655925
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.5184305,
+                "median_max_request_ms": 25.269942,
+                "median_max_latency_ms": 26.1254445
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.4485295,
+                "median_max_request_ms": 34.556317,
+                "median_max_latency_ms": 34.854522
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.766227,
+                "median_max_request_ms": 32.927994,
+                "median_max_latency_ms": 33.2509205
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.590919,
+                "median_max_request_ms": 27.704906,
+                "median_max_latency_ms": 28.5079375
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.6297485,
+                "median_max_request_ms": 34.237050499999995,
+                "median_max_latency_ms": 35.2185275
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      }
+    ],
+    "profile_window_start": "2026-10-20T04:37:37.004796469Z",
+    "profile_window_end": "2026-10-20T04:37:47.004796469Z"
+  },
+  "candidate": {
+    "path": "/tmp/wukongim-v3-rc-20261020/qps-comparison/report.json",
+    "sha256": "4463ad20c0eadf56b23f95d15544d2ee3779df68734a11b1cc34f2e9cbf1534b",
+    "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "binary_sha256": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+    "windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T04:38:21.581258699Z",
+        "end": "2026-10-20T04:39:21.581258699Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 12000,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 200,
+            "driver_wait_p99_ms": 2.285564,
+            "request_p99_ms": 23.783337,
+            "p50_ms": 5.400212,
+            "p95_ms": 14.741202,
+            "p99_ms": 24.957711,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 27.064885,
+              "max_request_ms": 71.794261,
+              "max_latency_ms": 72.061871
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.102559,
+                "median_max_request_ms": 16.170461,
+                "median_max_latency_ms": 17.228014
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.5282125,
+                "median_max_request_ms": 18.088168000000003,
+                "median_max_latency_ms": 19.2111595
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.3252555,
+                "median_max_request_ms": 18.434452,
+                "median_max_latency_ms": 18.7668805
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.5549910000000002,
+                "median_max_request_ms": 14.8566065,
+                "median_max_latency_ms": 15.978489
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.880982,
+                "median_max_request_ms": 21.25029,
+                "median_max_latency_ms": 21.953185
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.3073924999999997,
+                "median_max_request_ms": 16.620583,
+                "median_max_latency_ms": 17.462045000000003
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 2.222484,
+            "request_p99_ms": 54.584392,
+            "p50_ms": 13.076474,
+            "p95_ms": 32.369486,
+            "p99_ms": 55.945837,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 7.813227,
+              "max_request_ms": 105.830236,
+              "max_latency_ms": 106.117835
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.5949300000000002,
+                "median_max_request_ms": 30.5616945,
+                "median_max_latency_ms": 31.316969
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.1901015,
+                "median_max_request_ms": 36.52742550000001,
+                "median_max_latency_ms": 37.162117
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.5566925,
+                "median_max_request_ms": 32.8584475,
+                "median_max_latency_ms": 33.198531
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.163922,
+                "median_max_request_ms": 29.564684999999997,
+                "median_max_latency_ms": 29.984495000000003
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.7172825,
+                "median_max_request_ms": 38.377972,
+                "median_max_latency_ms": 38.758303999999995
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.180279,
+                "median_max_request_ms": 28.4371765,
+                "median_max_latency_ms": 29.5568395
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T04:39:22.253050158Z",
+        "end": "2026-10-20T04:40:22.253050158Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 12000,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 200,
+            "driver_wait_p99_ms": 2.346685,
+            "request_p99_ms": 22.337328,
+            "p50_ms": 5.683253,
+            "p95_ms": 15.219426,
+            "p99_ms": 23.13055,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 21.392836,
+              "max_request_ms": 62.954908,
+              "max_latency_ms": 63.976246
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.0127565,
+                "median_max_request_ms": 24.668960499999997,
+                "median_max_latency_ms": 25.20315
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.2980115,
+                "median_max_request_ms": 24.200361,
+                "median_max_latency_ms": 25.215714499999997
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 1.7770755,
+                "median_max_request_ms": 15.2623525,
+                "median_max_latency_ms": 15.639133999999999
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.3527385,
+                "median_max_request_ms": 21.494567,
+                "median_max_latency_ms": 21.5962125
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.596109,
+                "median_max_request_ms": 18.356672500000002,
+                "median_max_latency_ms": 20.093429999999998
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.5171225,
+                "median_max_request_ms": 20.167601,
+                "median_max_latency_ms": 20.6613735
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 1.920249,
+            "request_p99_ms": 47.973944,
+            "p50_ms": 13.962439,
+            "p95_ms": 34.23759,
+            "p99_ms": 48.538836,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 6.711988,
+              "max_request_ms": 115.624233,
+              "max_latency_ms": 117.690106
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.2984245,
+                "median_max_request_ms": 52.167375,
+                "median_max_latency_ms": 52.734745000000004
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.3301355,
+                "median_max_request_ms": 45.491226499999996,
+                "median_max_latency_ms": 46.355563000000004
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.1631345,
+                "median_max_request_ms": 27.98479,
+                "median_max_latency_ms": 28.3322055
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.8378475,
+                "median_max_request_ms": 39.3946045,
+                "median_max_latency_ms": 39.5281095
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.9785415,
+                "median_max_request_ms": 32.754753,
+                "median_max_latency_ms": 33.6705115
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.5150964999999998,
+                "median_max_request_ms": 34.084051,
+                "median_max_latency_ms": 34.5058245
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T04:40:22.814846072Z",
+        "end": "2026-10-20T04:41:22.814846072Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 12000,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 200,
+            "driver_wait_p99_ms": 2.099888,
+            "request_p99_ms": 22.570845,
+            "p50_ms": 5.356747,
+            "p95_ms": 14.133684,
+            "p99_ms": 24.00444,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 7.71697,
+              "max_request_ms": 49.846084,
+              "max_latency_ms": 50.398353
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.7226445000000004,
+                "median_max_request_ms": 17.8205615,
+                "median_max_latency_ms": 18.504067499999998
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.6926905000000003,
+                "median_max_request_ms": 17.677285,
+                "median_max_latency_ms": 18.3576215
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.4322524999999997,
+                "median_max_request_ms": 17.984567,
+                "median_max_latency_ms": 19.46897
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 4.8082685000000005,
+                "median_max_request_ms": 22.071127,
+                "median_max_latency_ms": 23.068233499999998
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.8505580000000004,
+                "median_max_request_ms": 20.432842,
+                "median_max_latency_ms": 21.392434
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.8498105000000002,
+                "median_max_request_ms": 18.2248545,
+                "median_max_latency_ms": 19.040134000000002
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 2.022261,
+            "request_p99_ms": 51.657668,
+            "p50_ms": 13.229913,
+            "p95_ms": 30.325104,
+            "p99_ms": 53.446671,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 5.355728,
+              "max_request_ms": 102.715784,
+              "max_latency_ms": 106.875201
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.876379,
+                "median_max_request_ms": 32.504344,
+                "median_max_latency_ms": 32.944761
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.7009875,
+                "median_max_request_ms": 31.5109065,
+                "median_max_latency_ms": 32.202749
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.587168,
+                "median_max_request_ms": 32.543681,
+                "median_max_latency_ms": 33.0858895
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.762133,
+                "median_max_request_ms": 35.578826,
+                "median_max_latency_ms": 35.8757645
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.7722990000000003,
+                "median_max_request_ms": 36.133209,
+                "median_max_latency_ms": 38.128036
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.5896465,
+                "median_max_request_ms": 34.290699000000004,
+                "median_max_latency_ms": 34.431043
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      }
+    ],
+    "profile_window_start": "2026-10-20T04:41:23.436081041Z",
+    "profile_window_end": "2026-10-20T04:41:33.436081041Z"
+  },
+  "matched_medians": {
+    "/conversation/list": {
+      "baseline": {
+        "driver_wait_p99_ms": 1.544889,
+        "request_p99_ms": 15.44825,
+        "p50_ms": 4.885429,
+        "p95_ms": 11.066424,
+        "p99_ms": 16.29845
+      },
+      "candidate": {
+        "driver_wait_p99_ms": 2.285564,
+        "request_p99_ms": 22.570845,
+        "p50_ms": 5.400212,
+        "p95_ms": 14.741202,
+        "p99_ms": 24.00444
+      },
+      "candidate_minus_baseline": {
+        "driver_wait_p99_ms": 0.740675,
+        "request_p99_ms": 7.122594999999999,
+        "p50_ms": 0.5147829999999995,
+        "p95_ms": 3.674778,
+        "p99_ms": 7.70599
+      },
+      "candidate_percent_difference": {
+        "driver_wait_p99_ms": 47.94357393961637,
+        "request_p99_ms": 46.10616089201041,
+        "p50_ms": 10.537109432968927,
+        "p95_ms": 33.20655344490686,
+        "p99_ms": 47.28050826919124
+      }
+    },
+    "/conversation/sync": {
+      "baseline": {
+        "driver_wait_p99_ms": 1.543599,
+        "request_p99_ms": 32.07811,
+        "p50_ms": 12.072589,
+        "p95_ms": 23.934922,
+        "p99_ms": 32.751756
+      },
+      "candidate": {
+        "driver_wait_p99_ms": 2.022261,
+        "request_p99_ms": 51.657668,
+        "p50_ms": 13.229913,
+        "p95_ms": 32.369486,
+        "p99_ms": 53.446671
+      },
+      "candidate_minus_baseline": {
+        "driver_wait_p99_ms": 0.4786619999999999,
+        "request_p99_ms": 19.579558,
+        "p50_ms": 1.1573239999999991,
+        "p95_ms": 8.434564000000002,
+        "p99_ms": 20.694915
+      },
+      "candidate_percent_difference": {
+        "driver_wait_p99_ms": 31.00947849797777,
+        "request_p99_ms": 61.03713092822487,
+        "p50_ms": 9.586377868077832,
+        "p95_ms": 35.23957170196754,
+        "p99_ms": 63.18719216154396
+      }
+    }
+  }
+}

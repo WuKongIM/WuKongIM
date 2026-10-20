@@ -1,0 +1,24 @@
+{
+  "time": "2026-10-20T10:16:34.386271+00:00",
+  "command": [
+    "gh",
+    "workflow",
+    "run",
+    "conversation-qps-diagnose.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "-f",
+    "product_sha=4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "-f",
+    "comparison_sha=b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "-f",
+    "expected_binary_sha256=2aba832435ad303bd70e47a79b618114d5522aca70109b6a0d7f45affc652853",
+    "-f",
+    "run_release_matrix=false"
+  ],
+  "exit_code": 0,
+  "output": "https://github.com/WuKongIM/WuKongIM/actions/runs/39406775641\n",
+  "experiment": "reverse-order; once only; no release qualification"
+}

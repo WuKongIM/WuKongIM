@@ -1,0 +1,38 @@
+[
+  {
+    "file": "/tmp/wukongim-v3-rc-20261020/qps/driver-cpu.pprof",
+    "headers": [
+      "PeriodType: cpu nanoseconds",
+      "Period: 10000000",
+      "Time: 2026-10-20 12:18:00.452355545 +0800 CST",
+      "Duration: 11.4"
+    ]
+  },
+  {
+    "file": "/tmp/wukongim-v3-rc-20261020/qps/node1-cpu.pprof",
+    "headers": [
+      "PeriodType: cpu nanoseconds",
+      "Period: 10000000",
+      "Time: 2026-10-20 12:18:00.452622521 +0800 CST",
+      "Duration: 8.15"
+    ]
+  },
+  {
+    "file": "/tmp/wukongim-v3-rc-20261020/qps/node2-cpu.pprof",
+    "headers": [
+      "PeriodType: cpu nanoseconds",
+      "Period: 10000000",
+      "Time: 2026-10-20 12:18:00.453115565 +0800 CST",
+      "Duration: 8.14"
+    ]
+  },
+  {
+    "file": "/tmp/wukongim-v3-rc-20261020/qps/node3-cpu.pprof",
+    "headers": [
+      "PeriodType: cpu nanoseconds",
+      "Period: 10000000",
+      "Time: 2026-10-20 12:18:00.453233746 +0800 CST",
+      "Duration: 8.14"
+    ]
+  }
+]

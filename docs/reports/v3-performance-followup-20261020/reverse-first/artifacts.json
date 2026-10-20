@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12257057524,
+      "node_id": "MDg6QXJ0aWZhY3QxMjI1NzA1NzUyNA==",
+      "name": "conversation-mixed-39406775641-1",
+      "size_in_bytes": 44839708,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12257057524",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12257057524/zip",
+      "expired": false,
+      "digest": "sha256:9f9631ce49f168e2910ef65d52fd798b804499251e8ce46be103a3f8af318160",
+      "created_at": "2026-10-20T10:17:19Z",
+      "updated_at": "2026-10-20T10:17:19Z",
+      "expires_at": "2027-01-18T10:16:35Z",
+      "workflow_run": {
+        "id": 39406775641,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "main",
+        "head_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+      }
+    }
+  ]
+}

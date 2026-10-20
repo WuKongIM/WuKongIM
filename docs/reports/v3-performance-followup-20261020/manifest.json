@@ -1,0 +1,718 @@
+{
+  "schema": "wukongim/performance-followup-evidence/v1",
+  "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "baseline_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "diagnostic_runs": [
+    39406775641,
+    39407349500
+  ],
+  "old_runs": [
+    39368295521,
+    39369947381
+  ],
+  "scope": "Evidence for diagnosis only; no release matrix or migration-repaired product qualification",
+  "files": [
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/cost-analyze.py",
+      "stored_path": "cost-analyze.py",
+      "encoding": "identity",
+      "original_bytes": 8578,
+      "original_sha256": "1a0b1a6b84047ccc8ef9ae9019c3b4ed8ac646cbb634025f85cb44623d9a64fe",
+      "stored_bytes": 8578,
+      "stored_sha256": "1a0b1a6b84047ccc8ef9ae9019c3b4ed8ac646cbb634025f85cb44623d9a64fe"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/cost-data.json",
+      "stored_path": "cost-data.json",
+      "encoding": "identity",
+      "original_bytes": 86127,
+      "original_sha256": "0d8f40026bc2286ffd1c708d91c3bdea96df876469ddf39c31cdba0e7af349ea",
+      "stored_bytes": 86127,
+      "stored_sha256": "0d8f40026bc2286ffd1c708d91c3bdea96df876469ddf39c31cdba0e7af349ea"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/cost-findings.md",
+      "stored_path": "cost-findings.md",
+      "encoding": "identity",
+      "original_bytes": 10524,
+      "original_sha256": "1c40af85192bc56781734d1af096d302aa9fa5331744361d9e58d359dbd095cd",
+      "stored_bytes": 10524,
+      "stored_sha256": "1c40af85192bc56781734d1af096d302aa9fa5331744361d9e58d359dbd095cd"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/dispatch-corrected.json",
+      "stored_path": "dispatch-corrected.json",
+      "encoding": "identity",
+      "original_bytes": 730,
+      "original_sha256": "1b1ca40334c11274bf6e500a9c4d21ac62d72a0afffc9cf451c5a1b9cfeaf3f1",
+      "stored_bytes": 730,
+      "stored_sha256": "1b1ca40334c11274bf6e500a9c4d21ac62d72a0afffc9cf451c5a1b9cfeaf3f1"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/dispatch.json",
+      "stored_path": "dispatch.json",
+      "encoding": "identity",
+      "original_bytes": 663,
+      "original_sha256": "1a316607946038e3ff516b8cfd5bb0ff0e5a4aa2c078d34ba27fdec56c3e4d12",
+      "stored_bytes": 663,
+      "stored_sha256": "1a316607946038e3ff516b8cfd5bb0ff0e5a4aa2c078d34ba27fdec56c3e4d12"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/existing-evidence-summary.json",
+      "stored_path": "existing-evidence-summary.json",
+      "encoding": "identity",
+      "original_bytes": 3725,
+      "original_sha256": "c8b67a4db3d703434b65864039a7097233eff2e24d588ed7125df5241facba5b",
+      "stored_bytes": 3725,
+      "stored_sha256": "c8b67a4db3d703434b65864039a7097233eff2e24d588ed7125df5241facba5b"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/latency-analyze.py",
+      "stored_path": "latency-analyze.py",
+      "encoding": "identity",
+      "original_bytes": 3113,
+      "original_sha256": "f4ea005a163a8d6375b64888630df3b8fed2ebce152c7560d78916d4151fd96a",
+      "stored_bytes": 3113,
+      "stored_sha256": "f4ea005a163a8d6375b64888630df3b8fed2ebce152c7560d78916d4151fd96a"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/latency-data.json",
+      "stored_path": "latency-data.json",
+      "encoding": "identity",
+      "original_bytes": 85554,
+      "original_sha256": "e28696177f5d67361e068e3deeadfde9d94b7987b36ff70875a1fec079265957",
+      "stored_bytes": 85554,
+      "stored_sha256": "e28696177f5d67361e068e3deeadfde9d94b7987b36ff70875a1fec079265957"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/latency-findings.md",
+      "stored_path": "latency-findings.md",
+      "encoding": "identity",
+      "original_bytes": 9287,
+      "original_sha256": "c58b45faec3838582a4dd48d7baf53c499dd57d66bdeb20d9368ead593c3cb5a",
+      "stored_bytes": 9287,
+      "stored_sha256": "c58b45faec3838582a4dd48d7baf53c499dd57d66bdeb20d9368ead593c3cb5a"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/preparation-timing.json",
+      "stored_path": "preparation-timing.json",
+      "encoding": "identity",
+      "original_bytes": 3403,
+      "original_sha256": "f61a8edfb999cc97ce38c9b9320d983759160959c83e34d67faf7ca6a92cd34f",
+      "stored_bytes": 3403,
+      "stored_sha256": "f61a8edfb999cc97ce38c9b9320d983759160959c83e34d67faf7ca6a92cd34f"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/preparation-timing.md",
+      "stored_path": "preparation-timing.md",
+      "encoding": "identity",
+      "original_bytes": 3940,
+      "original_sha256": "d5da26bb180b23ed07f9f9de8c8e394e3e3abb2082316fddbddb13b401fcb13e",
+      "stored_bytes": 3940,
+      "stored_sha256": "d5da26bb180b23ed07f9f9de8c8e394e3e3abb2082316fddbddb13b401fcb13e"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/profile-headers.json",
+      "stored_path": "profile-headers.json",
+      "encoding": "identity",
+      "original_bytes": 952,
+      "original_sha256": "9a37515174805174041c868e3de9a70e1ca28137a8e658580382197b23432e7a",
+      "stored_bytes": 952,
+      "stored_sha256": "9a37515174805174041c868e3de9a70e1ca28137a8e658580382197b23432e7a"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/profile-inputs.json",
+      "stored_path": "profile-inputs.json",
+      "encoding": "identity",
+      "original_bytes": 1154,
+      "original_sha256": "69995a94b0f5a3699ccc548f361b6ff072fa3344b8054665d96731665f8bdd34",
+      "stored_bytes": 1154,
+      "stored_sha256": "69995a94b0f5a3699ccc548f361b6ff072fa3344b8054665d96731665f8bdd34"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/artifacts.json",
+      "stored_path": "reverse/artifacts.json",
+      "encoding": "identity",
+      "original_bytes": 902,
+      "original_sha256": "84f011e156a235b1004fbf24a47f87a8c671c8615b08326da521692e7ab98688",
+      "stored_bytes": 902,
+      "stored_sha256": "84f011e156a235b1004fbf24a47f87a8c671c8615b08326da521692e7ab98688"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/binary.sha256",
+      "stored_path": "reverse/binary.sha256",
+      "encoding": "identity",
+      "original_bytes": 122,
+      "original_sha256": "10a0ff976fd81787825ae68f7d53fa72229637f454c668fb55278926730a3c1c",
+      "stored_bytes": 122,
+      "stored_sha256": "10a0ff976fd81787825ae68f7d53fa72229637f454c668fb55278926730a3c1c"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/build.txt",
+      "stored_path": "reverse/build.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 8943,
+      "original_sha256": "686b1c72438ced6d4875fcfe15f9ef6a57123bfe1856c4ebc913fba9b420d5c0",
+      "stored_bytes": 5034,
+      "stored_sha256": "460b39b6078e545f6f92e8c337bf2814373f834f991c01ab1d1f7be2a73a9096"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/binary.sha256",
+      "stored_path": "reverse/comparison/binary.sha256",
+      "encoding": "identity",
+      "original_bytes": 133,
+      "original_sha256": "9cb28b83f92b0b90b0ad9e73c30f940cfd54d3b461ba6fc000b6273d395b5cf0",
+      "stored_bytes": 133,
+      "stored_sha256": "9cb28b83f92b0b90b0ad9e73c30f940cfd54d3b461ba6fc000b6273d395b5cf0"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/build.txt",
+      "stored_path": "reverse/comparison/build.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 8954,
+      "original_sha256": "dd16de159f862c2b93ed2bcf4b92b7403943acfcd685b5bfc27c3cd33d30f2f1",
+      "stored_bytes": 5042,
+      "stored_sha256": "5467e068fc467a41c5066b1a12d2733fe609a053445e4a9d1e4d8649b96c1ebf"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/driver-cpu.pprof",
+      "stored_path": "reverse/comparison/driver-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 23015,
+      "original_sha256": "d8f613d93423f66d4a6bddf1209935f436ad9cd46f1038c2983b496946aa36f6",
+      "stored_bytes": 23015,
+      "stored_sha256": "d8f613d93423f66d4a6bddf1209935f436ad9cd46f1038c2983b496946aa36f6"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node1-cpu.pprof",
+      "stored_path": "reverse/comparison/node1-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 56990,
+      "original_sha256": "39d8a59db9401d1c9cefc7ec31133ecb51dd0bc0276d09ac3f9b25d3c202d251",
+      "stored_bytes": 56990,
+      "stored_sha256": "39d8a59db9401d1c9cefc7ec31133ecb51dd0bc0276d09ac3f9b25d3c202d251"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node2-cpu.pprof",
+      "stored_path": "reverse/comparison/node2-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 57612,
+      "original_sha256": "357030ab7b05181c3ac64b751af947597915995e432b95b5e8164cc7af4eca8d",
+      "stored_bytes": 57612,
+      "stored_sha256": "357030ab7b05181c3ac64b751af947597915995e432b95b5e8164cc7af4eca8d"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node3-cpu.pprof",
+      "stored_path": "reverse/comparison/node3-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 62264,
+      "original_sha256": "5d19bc9972397295d015dd58da9cd7b6adad4b0b189f1856e4a701cb52a64634",
+      "stored_bytes": 62264,
+      "stored_sha256": "5d19bc9972397295d015dd58da9cd7b6adad4b0b189f1856e4a701cb52a64634"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/report.json",
+      "stored_path": "reverse/comparison/report.json.gz",
+      "encoding": "gzip",
+      "original_bytes": 1789335,
+      "original_sha256": "89d5f2fcd2be8c06300799da96d47e3206f9a8df14a70196f4bdc80b4b4d5aa8",
+      "stored_bytes": 104184,
+      "stored_sha256": "ec996d862132e903b17bbd8bef8fe447a0875638b1698af51c7320fcf96e8ae0"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/test.log",
+      "stored_path": "reverse/comparison/test.log.gz",
+      "encoding": "gzip",
+      "original_bytes": 1645,
+      "original_sha256": "a889d32851e3b370e822c7018fbb014d467643488f60eeda825a216b41e942b9",
+      "stored_bytes": 445,
+      "stored_sha256": "dc484461acfe27e5ade0df373405d24b1b1ac82640a8a10c8e8178edd74c15f0"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/driver-cpu.pprof",
+      "stored_path": "reverse/driver-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 22203,
+      "original_sha256": "5d8b09f819761d729ec226d5851bfa8638186a0d4c1839fc3461a63b9ff21225",
+      "stored_bytes": 22203,
+      "stored_sha256": "5d8b09f819761d729ec226d5851bfa8638186a0d4c1839fc3461a63b9ff21225"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/fetch_selected_artifact.py",
+      "stored_path": "reverse/fetch_selected_artifact.py",
+      "encoding": "identity",
+      "original_bytes": 4257,
+      "original_sha256": "2baf3fc53a858548090983e5c5bbe4e670101449eb312576fa4169f427030dbb",
+      "stored_bytes": 4257,
+      "stored_sha256": "2baf3fc53a858548090983e5c5bbe4e670101449eb312576fa4169f427030dbb"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/host.json",
+      "stored_path": "reverse/host.json",
+      "encoding": "identity",
+      "original_bytes": 4832,
+      "original_sha256": "605bd58cace4401b78297f843e9fb775eaf79dfc77e540387cfd81145f076b15",
+      "stored_bytes": 4832,
+      "stored_sha256": "605bd58cace4401b78297f843e9fb775eaf79dfc77e540387cfd81145f076b15"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/kernel.txt",
+      "stored_path": "reverse/kernel.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 128,
+      "original_sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f",
+      "stored_bytes": 131,
+      "stored_sha256": "4f264e138c000c2b32ba034eeca21b56b8873382f7f9a13327e40242ef358221"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/node1-cpu.pprof",
+      "stored_path": "reverse/node1-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 60126,
+      "original_sha256": "869cab89a232cced6433766671dc1b401611f4499640e5550dbdd08a2ce00762",
+      "stored_bytes": 60126,
+      "stored_sha256": "869cab89a232cced6433766671dc1b401611f4499640e5550dbdd08a2ce00762"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/node2-cpu.pprof",
+      "stored_path": "reverse/node2-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 56919,
+      "original_sha256": "34482065b2ce1b83a4b5797652d7a8ba31872612c97b4c6e510b714c47a211f7",
+      "stored_bytes": 56919,
+      "stored_sha256": "34482065b2ce1b83a4b5797652d7a8ba31872612c97b4c6e510b714c47a211f7"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/node3-cpu.pprof",
+      "stored_path": "reverse/node3-cpu.pprof",
+      "encoding": "identity",
+      "original_bytes": 59619,
+      "original_sha256": "cc85c5969c9f9fe4768ca7512d536c827f8402e88815293b1dff75c2ef38e9b3",
+      "stored_bytes": 59619,
+      "stored_sha256": "cc85c5969c9f9fe4768ca7512d536c827f8402e88815293b1dff75c2ef38e9b3"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/report.json",
+      "stored_path": "reverse/report.json.gz",
+      "encoding": "gzip",
+      "original_bytes": 1789879,
+      "original_sha256": "79abab04edeca8b96ee198d2c9630d700a31cecd884ab25acdba602af1816ad1",
+      "stored_bytes": 104160,
+      "stored_sha256": "29355f258f9970378da7e1a2088c39e92021b04c7aa600d1d08cfc433a150277"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/run.json",
+      "stored_path": "reverse/run.json",
+      "encoding": "identity",
+      "original_bytes": 3607,
+      "original_sha256": "35c639ea9510735bd9b1787154681f962281a9f1a5b5405f6ff0ea938c9aa87a",
+      "stored_bytes": 3607,
+      "stored_sha256": "35c639ea9510735bd9b1787154681f962281a9f1a5b5405f6ff0ea938c9aa87a"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/selective-download.json",
+      "stored_path": "reverse/selective-download.json",
+      "encoding": "identity",
+      "original_bytes": 2183,
+      "original_sha256": "c6b3831267309c9fe443717bdcef026b04de13bc7224c68f0408ea70d2bb2311",
+      "stored_bytes": 2183,
+      "stored_sha256": "c6b3831267309c9fe443717bdcef026b04de13bc7224c68f0408ea70d2bb2311"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse/test.log",
+      "stored_path": "reverse/test.log.gz",
+      "encoding": "gzip",
+      "original_bytes": 1593,
+      "original_sha256": "bb42d8f9fc404f3c18a2a3bbf0eb05f520f3029101f5ffd8953c31dd061e7aeb",
+      "stored_bytes": 417,
+      "stored_sha256": "34b7510448b7ae1e01ee97fca5dcf164043aa23a85678fe84a7f70b22c13d312"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-b469_first-driver-cpu-cum.txt",
+      "stored_path": "reverse-b469_first-driver-cpu-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 3979,
+      "original_sha256": "50aef7682988dd8f7d4d6f5abb3ecfcd0c542b8c99cd2605e7aa421bf5f2a86a",
+      "stored_bytes": 1208,
+      "stored_sha256": "0970b524f40aa34a7ff2d32dd1bc0bf395a1731fb4dc7d8dc1fb97dd17773cea"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-b469_first-server-cpu-cum.txt",
+      "stored_path": "reverse-b469_first-server-cpu-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 5378,
+      "original_sha256": "fba47961612e2089e69c86e3acaa461899611156b97ddc2e7e5d261d5537e682",
+      "stored_bytes": 1400,
+      "stored_sha256": "cef6a59cb271495a64b47a171cceb1983919f74724be1082d96ec2bb273d4c0f"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-b469_first-server-tags.txt",
+      "stored_path": "reverse-b469_first-server-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 867,
+      "original_sha256": "92709a62670d8de24be8eda5939ec6b8204967d0cd533c80253668c6bbc0660f",
+      "stored_bytes": 381,
+      "stored_sha256": "687c90a3230cd2d07c3967506d2e379891cca460eb6d6f9aed108dc143eff4ee"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24-driver-cum.txt",
+      "stored_path": "reverse-beta24-driver-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 3117,
+      "original_sha256": "fbe0f5814a7b3d45cb4bae242a56aa0d8d9996dfdedf62163e449ae32068d2a6",
+      "stored_bytes": 1026,
+      "stored_sha256": "f193b817a1b46aa89c0cf03931404c8729c7c90302501f41929e169c3f2efe3e"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24-driver-tags.txt",
+      "stored_path": "reverse-beta24-driver-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 20,
+      "stored_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24-profile-derivation.json",
+      "stored_path": "reverse-beta24-profile-derivation.json",
+      "encoding": "identity",
+      "original_bytes": 3019,
+      "original_sha256": "515ccd5a13f8e20ab86c1a828143aed08bcbdbd9c7fe8a9f8d99be7da47e55c2",
+      "stored_bytes": 3019,
+      "stored_sha256": "515ccd5a13f8e20ab86c1a828143aed08bcbdbd9c7fe8a9f8d99be7da47e55c2"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24-servers-cum.txt",
+      "stored_path": "reverse-beta24-servers-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 4132,
+      "original_sha256": "6ed23c1b2b8d2ee8067b5a38e4b62fc81248feca3a277911a930fb3ee15c378c",
+      "stored_bytes": 1164,
+      "stored_sha256": "8b65773b1a119bc13b4db1822c5b79ad79084af080c0e17ab79e6823d095ccc0"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24-servers-tags.txt",
+      "stored_path": "reverse-beta24-servers-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 1071,
+      "original_sha256": "a2d6aa558051b987473ffe44c7f682dc949510c92f2c0b9522d4c0e12070b72e",
+      "stored_bytes": 423,
+      "stored_sha256": "470dfa181400f14b50c55dd3dcd019a2bb0f214436141308bfd428373f6dce69"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24_second-driver-cpu-cum.txt",
+      "stored_path": "reverse-beta24_second-driver-cpu-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 3971,
+      "original_sha256": "578b7fa539ab6c9adc08216e609bb7e9f9065c906b37ae6b6bb0968ba6d56a91",
+      "stored_bytes": 1207,
+      "stored_sha256": "a6eaa7fec1dd181b4069e9bb67aa8f37dfc0088697df68cdb9a6c094ec17ffd9"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24_second-server-cpu-cum.txt",
+      "stored_path": "reverse-beta24_second-server-cpu-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 5184,
+      "original_sha256": "2f1ae4678369893433ae0363518881c59f20fae7d44bdde4aa65c33d4cbbe1d9",
+      "stored_bytes": 1434,
+      "stored_sha256": "8e947b775519a1e2d243474d3c654110da0496c803216f49cdeb96b080b4d6f9"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-beta24_second-server-tags.txt",
+      "stored_path": "reverse-beta24_second-server-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 1071,
+      "original_sha256": "a2d6aa558051b987473ffe44c7f682dc949510c92f2c0b9522d4c0e12070b72e",
+      "stored_bytes": 423,
+      "stored_sha256": "470dfa181400f14b50c55dd3dcd019a2bb0f214436141308bfd428373f6dce69"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-candidate-driver-cum.txt",
+      "stored_path": "reverse-candidate-driver-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 3184,
+      "original_sha256": "0cfb76e79d0b57bba3d3cc1e944a935e0125d4c6cee93eb4484b9ddd90ee6e5e",
+      "stored_bytes": 1002,
+      "stored_sha256": "fe0791ff3832fa825b260ec83e147f97b12bb0450d9f0d9c6efe2215e42ff414"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-candidate-driver-tags.txt",
+      "stored_path": "reverse-candidate-driver-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 20,
+      "stored_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-candidate-profile-derivation.json",
+      "stored_path": "reverse-candidate-profile-derivation.json",
+      "encoding": "identity",
+      "original_bytes": 3207,
+      "original_sha256": "ebc676a212e592b500c639fe27f4f417cc46ad9be749f573bd8a20d7b5c72065",
+      "stored_bytes": 3207,
+      "stored_sha256": "ebc676a212e592b500c639fe27f4f417cc46ad9be749f573bd8a20d7b5c72065"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-candidate-servers-cum.txt",
+      "stored_path": "reverse-candidate-servers-cum.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 4120,
+      "original_sha256": "224abc0c6ae97d5e037cfda1f291795de1df6ff920287000bed9767ad44106cc",
+      "stored_bytes": 1168,
+      "stored_sha256": "58aa6a79d0955407172e397edac3cc7422b8d0d66fbe0bb2e926c4b5a1b4c205"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-candidate-servers-tags.txt",
+      "stored_path": "reverse-candidate-servers-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 867,
+      "original_sha256": "92709a62670d8de24be8eda5939ec6b8204967d0cd533c80253668c6bbc0660f",
+      "stored_bytes": 381,
+      "stored_sha256": "687c90a3230cd2d07c3967506d2e379891cca460eb6d6f9aed108dc143eff4ee"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-cost-analyze.py",
+      "stored_path": "reverse-cost-analyze.py",
+      "encoding": "identity",
+      "original_bytes": 8493,
+      "original_sha256": "0ecb7a495c327e97fe3ec94c30fae4d5eff657ff8649d5fe4580c4f0592b859d",
+      "stored_bytes": 8493,
+      "stored_sha256": "0ecb7a495c327e97fe3ec94c30fae4d5eff657ff8649d5fe4580c4f0592b859d"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-cost-data.json",
+      "stored_path": "reverse-cost-data.json",
+      "encoding": "identity",
+      "original_bytes": 57367,
+      "original_sha256": "f4ab18d257b97c32042747250983bb22b5202a93946869aa7b3ccbe6e482816f",
+      "stored_bytes": 57367,
+      "stored_sha256": "f4ab18d257b97c32042747250983bb22b5202a93946869aa7b3ccbe6e482816f"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-findings.md",
+      "stored_path": "reverse-findings.md",
+      "encoding": "identity",
+      "original_bytes": 8443,
+      "original_sha256": "55090733b73f9cfbb8ed29736cb832e0a8bc4a9b4091c17b0093c33cf91eb3b5",
+      "stored_bytes": 8443,
+      "stored_sha256": "55090733b73f9cfbb8ed29736cb832e0a8bc4a9b4091c17b0093c33cf91eb3b5"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/artifacts.json",
+      "stored_path": "reverse-first/artifacts.json",
+      "encoding": "identity",
+      "original_bytes": 902,
+      "original_sha256": "ace4b8620d155dc3b215a42044a6b3f80ada703cd5cf5a066375c7a0760f3b4c",
+      "stored_bytes": 902,
+      "stored_sha256": "ace4b8620d155dc3b215a42044a6b3f80ada703cd5cf5a066375c7a0760f3b4c"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/binary.sha256",
+      "stored_path": "reverse-first/binary.sha256",
+      "encoding": "identity",
+      "original_bytes": 122,
+      "original_sha256": "10a0ff976fd81787825ae68f7d53fa72229637f454c668fb55278926730a3c1c",
+      "stored_bytes": 122,
+      "stored_sha256": "10a0ff976fd81787825ae68f7d53fa72229637f454c668fb55278926730a3c1c"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/build.txt",
+      "stored_path": "reverse-first/build.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 8943,
+      "original_sha256": "686b1c72438ced6d4875fcfe15f9ef6a57123bfe1856c4ebc913fba9b420d5c0",
+      "stored_bytes": 5034,
+      "stored_sha256": "460b39b6078e545f6f92e8c337bf2814373f834f991c01ab1d1f7be2a73a9096"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/fetch_selected_artifact.py",
+      "stored_path": "reverse-first/fetch_selected_artifact.py",
+      "encoding": "identity",
+      "original_bytes": 4112,
+      "original_sha256": "5eb4c74a5dd3644e6165f8d04248519e2b69778642e2fbe0ebf3a007a23273b5",
+      "stored_bytes": 4112,
+      "stored_sha256": "5eb4c74a5dd3644e6165f8d04248519e2b69778642e2fbe0ebf3a007a23273b5"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/host.json",
+      "stored_path": "reverse-first/host.json",
+      "encoding": "identity",
+      "original_bytes": 4483,
+      "original_sha256": "2f72fd2c0ca26676f75a405427ca1c18f553daa5e73c5d7af534a4dae94c22c4",
+      "stored_bytes": 4483,
+      "stored_sha256": "2f72fd2c0ca26676f75a405427ca1c18f553daa5e73c5d7af534a4dae94c22c4"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/kernel.txt",
+      "stored_path": "reverse-first/kernel.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 113,
+      "original_sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5",
+      "stored_bytes": 116,
+      "stored_sha256": "2de7cf89ae868bee64884828c9b4cab31700f642393ae7db754d4b6bc320b3b9"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first/selective-download.json",
+      "stored_path": "reverse-first/selective-download.json",
+      "encoding": "identity",
+      "original_bytes": 750,
+      "original_sha256": "930fd85c37de9b57d0c6392e1902fe91e0525a90bd813e9758402a3f1e857c31",
+      "stored_bytes": 750,
+      "stored_sha256": "930fd85c37de9b57d0c6392e1902fe91e0525a90bd813e9758402a3f1e857c31"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first-failure.log",
+      "stored_path": "reverse-first-failure.log.gz",
+      "encoding": "gzip",
+      "original_bytes": 2425,
+      "original_sha256": "9af600bdce3bdc216b582d3e259dbafca198eff635d86e2933bc4ff5f95340e6",
+      "stored_bytes": 644,
+      "stored_sha256": "a9b79c93bc5770b7c5ffdc952c4c9275388f2501632836bded4b2dc0843ca7a5"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-first-run.json",
+      "stored_path": "reverse-first-run.json",
+      "encoding": "identity",
+      "original_bytes": 3223,
+      "original_sha256": "257f3cccfd9d38ee046fa46287271d24901145b9c20a79edd7b463d5ccea6f2d",
+      "stored_bytes": 3223,
+      "stored_sha256": "257f3cccfd9d38ee046fa46287271d24901145b9c20a79edd7b463d5ccea6f2d"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-independent-check.json",
+      "stored_path": "reverse-independent-check.json",
+      "encoding": "identity",
+      "original_bytes": 94442,
+      "original_sha256": "fdaeba3e3e25a823e22d7984d3564ee571437d7fb70bb2c11e9cf7ab64d74795",
+      "stored_bytes": 94442,
+      "stored_sha256": "fdaeba3e3e25a823e22d7984d3564ee571437d7fb70bb2c11e9cf7ab64d74795"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-independent-check.log",
+      "stored_path": "reverse-independent-check.log.gz",
+      "encoding": "gzip",
+      "original_bytes": 15151,
+      "original_sha256": "4c34ed173760a4ac1136ea2c0fcb3752358b0ea6d91a916d6b25002a6e23d2f6",
+      "stored_bytes": 2871,
+      "stored_sha256": "8121fd83de1cd0caf44b085c04763d6964aec0b646cd965da00f74d75db37b41"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-independent-check.py",
+      "stored_path": "reverse-independent-check.py",
+      "encoding": "identity",
+      "original_bytes": 11143,
+      "original_sha256": "d6a85fb9ad15418f49d20b35d2d25d5aa83880af244dd4b1a5dec79359944126",
+      "stored_bytes": 11143,
+      "stored_sha256": "d6a85fb9ad15418f49d20b35d2d25d5aa83880af244dd4b1a5dec79359944126"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-latency-analyze.py",
+      "stored_path": "reverse-latency-analyze.py",
+      "encoding": "identity",
+      "original_bytes": 2981,
+      "original_sha256": "251fba63318855de731c7dc7795d2b288b72dd2f32657089c0db8322c6822e82",
+      "stored_bytes": 2981,
+      "stored_sha256": "251fba63318855de731c7dc7795d2b288b72dd2f32657089c0db8322c6822e82"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-latency-data.json",
+      "stored_path": "reverse-latency-data.json",
+      "encoding": "identity",
+      "original_bytes": 41995,
+      "original_sha256": "8fe88ebb11f20c110b20576203a89602d2ec4aef1bad901dfc7830fbb74ed413",
+      "stored_bytes": 41995,
+      "stored_sha256": "8fe88ebb11f20c110b20576203a89602d2ec4aef1bad901dfc7830fbb74ed413"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-order-plan-corrected.json",
+      "stored_path": "reverse-order-plan-corrected.json",
+      "encoding": "identity",
+      "original_bytes": 4395,
+      "original_sha256": "80866356760461056679a61e44aed993bf59ef4f3ea039b995309bd387556511",
+      "stored_bytes": 4395,
+      "stored_sha256": "80866356760461056679a61e44aed993bf59ef4f3ea039b995309bd387556511"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-order-plan.json",
+      "stored_path": "reverse-order-plan.json",
+      "encoding": "identity",
+      "original_bytes": 3421,
+      "original_sha256": "cc5727b1bcb514324131c1becc60851cc385d3e00d7bcf3cc0100e3578965016",
+      "stored_bytes": 3421,
+      "stored_sha256": "cc5727b1bcb514324131c1becc60851cc385d3e00d7bcf3cc0100e3578965016"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-provenance-review.json",
+      "stored_path": "reverse-provenance-review.json",
+      "encoding": "identity",
+      "original_bytes": 80766,
+      "original_sha256": "06f388715a502d24174c103c808ec09cac28b9cf4e4b3fc49b0dbe1202ad5087",
+      "stored_bytes": 80766,
+      "stored_sha256": "06f388715a502d24174c103c808ec09cac28b9cf4e4b3fc49b0dbe1202ad5087"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/reverse-provenance-review.md",
+      "stored_path": "reverse-provenance-review.md",
+      "encoding": "identity",
+      "original_bytes": 6401,
+      "original_sha256": "f66d0f54f35c5b22f77ee63ae62bc52513b4a4e378e8f3f92e5e77adde99f36a",
+      "stored_bytes": 6401,
+      "stored_sha256": "f66d0f54f35c5b22f77ee63ae62bc52513b4a4e378e8f3f92e5e77adde99f36a"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/review_reverse_provenance.py",
+      "stored_path": "review_reverse_provenance.py",
+      "encoding": "identity",
+      "original_bytes": 10771,
+      "original_sha256": "4502362b9e580155ec629f99cb621c2e4a4114b2dcdad267aa7679d7c0ab2c0c",
+      "stored_bytes": 10771,
+      "stored_sha256": "4502362b9e580155ec629f99cb621c2e4a4114b2dcdad267aa7679d7c0ab2c0c"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/server-profile-tags.txt",
+      "stored_path": "server-profile-tags.txt.gz",
+      "encoding": "gzip",
+      "original_bytes": 866,
+      "original_sha256": "8f1fd711c296359c5aa7d9906b63cf559e833beb99ecd502eb2fe616258d2c5b",
+      "stored_bytes": 392,
+      "stored_sha256": "f8d5f7e202fd853967ab5659024a46218e5df5d5b17e963b5257ac92dfd53f5c"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/source-context.json",
+      "stored_path": "source-context.json",
+      "encoding": "identity",
+      "original_bytes": 18600,
+      "original_sha256": "8c55a8bbacf4a720cd7927a79d568b939bcfe9807226658da23f21986cb54471",
+      "stored_bytes": 18600,
+      "stored_sha256": "8c55a8bbacf4a720cd7927a79d568b939bcfe9807226658da23f21986cb54471"
+    },
+    {
+      "original_path": "/tmp/wukongim-performance-followup-20261020/source-delta-audit.md",
+      "stored_path": "source-delta-audit.md",
+      "encoding": "identity",
+      "original_bytes": 8878,
+      "original_sha256": "f3809b1f80897d201cff3e522a25629f7d4e8b79b09f99da92afa21155353d30",
+      "stored_bytes": 8878,
+      "stored_sha256": "f3809b1f80897d201cff3e522a25629f7d4e8b79b09f99da92afa21155353d30"
+    },
+    {
+      "original_path": "README.md",
+      "stored_path": "README.md",
+      "encoding": "identity",
+      "original_bytes": 2953,
+      "original_sha256": "c959a123940ed16cd816ff23395dd52d37ae872fdf399b4e6345c98a88281e32",
+      "stored_bytes": 2953,
+      "stored_sha256": "c959a123940ed16cd816ff23395dd52d37ae872fdf399b4e6345c98a88281e32"
+    },
+    {
+      "original_path": "verify_and_recompute.py",
+      "stored_path": "verify_and_recompute.py",
+      "encoding": "identity",
+      "original_bytes": 3148,
+      "original_sha256": "31730a6381a42d88a22b2d633b8433c44f28ec194200c41cf9c7ee0280e892af",
+      "stored_bytes": 3148,
+      "stored_sha256": "31730a6381a42d88a22b2d633b8433c44f28ec194200c41cf9c7ee0280e892af"
+    }
+  ]
+}

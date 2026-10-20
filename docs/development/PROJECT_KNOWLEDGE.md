@@ -1154,6 +1154,12 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Conversation diagnostic comparisons must retain CPU model/core topology,
+  execution order and fixture preparation history. Root/comparison checkout roles
+  can produce different Go binary digests without `-trimpath`; bind each actual
+  artifact to its clean source and build metadata, and never reuse a prior-role
+  digest as proof of byte identity. Per-window P99 medians are not pooled P99;
+  see the [2026-10-20 follow-up](../reports/2026-10-20-v3-performance-followup.md).
 - Fixed-arrival diagnostics must retain every planned ordinal, including driver
   queue residence, rejected dispatch and incomplete work. Bounded queues keep
   transient connection occupancy from silently changing the offered population;

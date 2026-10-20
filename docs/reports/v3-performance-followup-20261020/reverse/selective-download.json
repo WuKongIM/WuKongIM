@@ -1,0 +1,103 @@
+{
+  "run_id": 39407349500,
+  "artifact_id": 12258285866,
+  "artifact_name": "conversation-mixed-39407349500-1",
+  "artifact_archive_digest": "sha256:8c134806958cdc25bfbb0a4f8fe13e0605799cecfd73036f77a9d74feac59cb6",
+  "archive_bytes": 91754103,
+  "downloaded_bytes": 637914,
+  "range_requests": 58,
+  "files": [
+    {
+      "path": "build.txt",
+      "bytes": 8943,
+      "zip_crc32": "c3d20d9b"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 122,
+      "zip_crc32": "11d1dd1f"
+    },
+    {
+      "path": "comparison/binary.sha256",
+      "bytes": 133,
+      "zip_crc32": "7e504df1"
+    },
+    {
+      "path": "comparison/build.txt",
+      "bytes": 8954,
+      "zip_crc32": "2a1a14c8"
+    },
+    {
+      "path": "comparison/driver-cpu.pprof",
+      "bytes": 23015,
+      "zip_crc32": "06c8693d"
+    },
+    {
+      "path": "comparison/node1-cpu.pprof",
+      "bytes": 56990,
+      "zip_crc32": "d47d3887"
+    },
+    {
+      "path": "comparison/node2-cpu.pprof",
+      "bytes": 57612,
+      "zip_crc32": "71671188"
+    },
+    {
+      "path": "comparison/node3-cpu.pprof",
+      "bytes": 62264,
+      "zip_crc32": "b954a3de"
+    },
+    {
+      "path": "comparison/report.json",
+      "bytes": 1789335,
+      "zip_crc32": "5e68ca4f"
+    },
+    {
+      "path": "comparison/test.log",
+      "bytes": 1645,
+      "zip_crc32": "6819f856"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4832,
+      "zip_crc32": "2aad20c7"
+    },
+    {
+      "path": "driver-cpu.pprof",
+      "bytes": 22203,
+      "zip_crc32": "6b1c633d"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 128,
+      "zip_crc32": "911946ec"
+    },
+    {
+      "path": "node1-cpu.pprof",
+      "bytes": 60126,
+      "zip_crc32": "7695405e"
+    },
+    {
+      "path": "node2-cpu.pprof",
+      "bytes": 56919,
+      "zip_crc32": "2b65c403"
+    },
+    {
+      "path": "node3-cpu.pprof",
+      "bytes": 59619,
+      "zip_crc32": "490dc368"
+    },
+    {
+      "path": "report.json",
+      "bytes": 1789879,
+      "zip_crc32": "7143f930"
+    },
+    {
+      "path": "test.log",
+      "bytes": 1593,
+      "zip_crc32": "78037cc4"
+    }
+  ],
+  "archive_digest_recomputed": false,
+  "binary_downloaded": false
+}

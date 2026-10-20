@@ -1,0 +1,98 @@
+[
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-top",
+      "-cum",
+      "-nodecount=35",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/driver-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-candidate-driver-cum.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/driver-cpu.pprof",
+        "sha256": "d8f613d93423f66d4a6bddf1209935f436ad9cd46f1038c2983b496946aa36f6"
+      }
+    ]
+  },
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-tags",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/driver-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-candidate-driver-tags.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/driver-cpu.pprof",
+        "sha256": "d8f613d93423f66d4a6bddf1209935f436ad9cd46f1038c2983b496946aa36f6"
+      }
+    ]
+  },
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-top",
+      "-cum",
+      "-nodecount=35",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node1-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node2-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node3-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-candidate-servers-cum.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node1-cpu.pprof",
+        "sha256": "39d8a59db9401d1c9cefc7ec31133ecb51dd0bc0276d09ac3f9b25d3c202d251"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node2-cpu.pprof",
+        "sha256": "357030ab7b05181c3ac64b751af947597915995e432b95b5e8164cc7af4eca8d"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node3-cpu.pprof",
+        "sha256": "5d19bc9972397295d015dd58da9cd7b6adad4b0b189f1856e4a701cb52a64634"
+      }
+    ]
+  },
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-tags",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node1-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node2-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node3-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-candidate-servers-tags.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node1-cpu.pprof",
+        "sha256": "39d8a59db9401d1c9cefc7ec31133ecb51dd0bc0276d09ac3f9b25d3c202d251"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node2-cpu.pprof",
+        "sha256": "357030ab7b05181c3ac64b751af947597915995e432b95b5e8164cc7af4eca8d"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/node3-cpu.pprof",
+        "sha256": "5d19bc9972397295d015dd58da9cd7b6adad4b0b189f1856e4a701cb52a64634"
+      }
+    ]
+  }
+]

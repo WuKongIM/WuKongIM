@@ -1,0 +1,30 @@
+{
+  "/tmp/wukongim-v3-rc-20261020/qps/node1-cpu.pprof": {
+    "bytes": 65019,
+    "sha256": "6af7b295059394acba73914b6a515457efa80b798c71ca1864a7f02afafebb4e"
+  },
+  "/tmp/wukongim-v3-rc-20261020/qps/node2-cpu.pprof": {
+    "bytes": 62170,
+    "sha256": "0a163bfe31eccd8deafce6dcda75cd1fd946e166d5f4f67a85e6ca052a4f008c"
+  },
+  "/tmp/wukongim-v3-rc-20261020/qps/node3-cpu.pprof": {
+    "bytes": 63570,
+    "sha256": "0789a1a02bfc96776c7abf2cdc5d30cb386fee53162b0798ccdc52e6737c0004"
+  },
+  "/tmp/wukongim-v3-rc-20261020/qps/driver-cpu.pprof": {
+    "bytes": 25685,
+    "sha256": "e3f838a0577df9c3b5f7d8a930ed111b0496355e36c70211e4d99d2b632d92a2"
+  },
+  "/tmp/wukongim-v3-rc-20261020/qps/driver-cpu-cum.txt": {
+    "bytes": 1863,
+    "sha256": "11ab4041a9f2651c67b24907be518a6e68c9d0326ba4c4de165451a62e915ab1"
+  },
+  "/tmp/wukongim-v3-rc-20261020/qps/server-cpu-cum.txt": {
+    "bytes": 2987,
+    "sha256": "8189f0f1aacc1fba71277c062bd2116bb8a98482e090765eb8f8278ab13befa3"
+  },
+  "/tmp/wukongim-v3-rc-20261020/qps/server-cpu-cum-expanded.txt": {
+    "bytes": 17083,
+    "sha256": "032d2667372800f968cd101cef577538ea62f3e876e667c9f9b64bc203446ce7"
+  }
+}

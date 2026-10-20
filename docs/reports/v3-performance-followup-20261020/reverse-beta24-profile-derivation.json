@@ -1,0 +1,98 @@
+[
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-top",
+      "-cum",
+      "-nodecount=35",
+      "/tmp/wukongim-performance-followup-20261020/reverse/driver-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-beta24-driver-cum.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/driver-cpu.pprof",
+        "sha256": "5d8b09f819761d729ec226d5851bfa8638186a0d4c1839fc3461a63b9ff21225"
+      }
+    ]
+  },
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-tags",
+      "/tmp/wukongim-performance-followup-20261020/reverse/driver-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-beta24-driver-tags.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/driver-cpu.pprof",
+        "sha256": "5d8b09f819761d729ec226d5851bfa8638186a0d4c1839fc3461a63b9ff21225"
+      }
+    ]
+  },
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-top",
+      "-cum",
+      "-nodecount=35",
+      "/tmp/wukongim-performance-followup-20261020/reverse/node1-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/node2-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/node3-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-beta24-servers-cum.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/node1-cpu.pprof",
+        "sha256": "869cab89a232cced6433766671dc1b401611f4499640e5550dbdd08a2ce00762"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/node2-cpu.pprof",
+        "sha256": "34482065b2ce1b83a4b5797652d7a8ba31872612c97b4c6e510b714c47a211f7"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/node3-cpu.pprof",
+        "sha256": "cc85c5969c9f9fe4768ca7512d536c827f8402e88815293b1dff75c2ef38e9b3"
+      }
+    ]
+  },
+  {
+    "command": [
+      "go",
+      "tool",
+      "pprof",
+      "-symbolize=none",
+      "-tags",
+      "/tmp/wukongim-performance-followup-20261020/reverse/node1-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/node2-cpu.pprof",
+      "/tmp/wukongim-performance-followup-20261020/reverse/node3-cpu.pprof"
+    ],
+    "returncode": 0,
+    "output": "reverse-beta24-servers-tags.txt",
+    "inputs": [
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/node1-cpu.pprof",
+        "sha256": "869cab89a232cced6433766671dc1b401611f4499640e5550dbdd08a2ce00762"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/node2-cpu.pprof",
+        "sha256": "34482065b2ce1b83a4b5797652d7a8ba31872612c97b4c6e510b714c47a211f7"
+      },
+      {
+        "path": "/tmp/wukongim-performance-followup-20261020/reverse/node3-cpu.pprof",
+        "sha256": "cc85c5969c9f9fe4768ca7512d536c827f8402e88815293b1dff75c2ef38e9b3"
+      }
+    ]
+  }
+]

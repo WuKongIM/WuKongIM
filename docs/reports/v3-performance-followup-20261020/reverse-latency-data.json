@@ -1,0 +1,1196 @@
+{
+  "baseline": {
+    "path": "/tmp/wukongim-performance-followup-20261020/reverse/report.json",
+    "sha256": "79abab04edeca8b96ee198d2c9630d700a31cecd884ab25acdba602af1816ad1",
+    "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "binary_sha256": "e327d0252e814b47efdc06ff9c6b80d847af29e30c20a1b22ba1dee98cd45a9a",
+    "windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T10:29:28.313097913Z",
+        "end": "2026-10-20T10:30:28.313097913Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 2.170887,
+            "request_p99_ms": 24.024701,
+            "p50_ms": 7.393783,
+            "p95_ms": 18.736201,
+            "p99_ms": 24.94138,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 7.86129,
+              "max_request_ms": 36.212102,
+              "max_latency_ms": 36.508451
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.680262,
+                "median_max_request_ms": 26.8950235,
+                "median_max_latency_ms": 27.9422365
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.586317,
+                "median_max_request_ms": 24.2328215,
+                "median_max_latency_ms": 25.759718999999997
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.5871675,
+                "median_max_request_ms": 23.18211,
+                "median_max_latency_ms": 23.8775875
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.831516,
+                "median_max_request_ms": 25.967951499999998,
+                "median_max_latency_ms": 26.5578925
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.9623615,
+                "median_max_request_ms": 25.082074,
+                "median_max_latency_ms": 25.5598325
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.6603095,
+                "median_max_request_ms": 24.1862115,
+                "median_max_latency_ms": 25.0968905
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 2.087448,
+            "request_p99_ms": 51.497523,
+            "p50_ms": 17.343575,
+            "p95_ms": 42.619184,
+            "p99_ms": 52.260341,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 6.408139,
+              "max_request_ms": 68.283068,
+              "max_latency_ms": 68.793009
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.068435,
+                "median_max_request_ms": 53.160405,
+                "median_max_latency_ms": 53.7724525
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.5272065,
+                "median_max_request_ms": 50.403506,
+                "median_max_latency_ms": 50.717850999999996
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.7982810000000002,
+                "median_max_request_ms": 46.843485,
+                "median_max_latency_ms": 47.165302
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.7945505000000002,
+                "median_max_request_ms": 46.860642999999996,
+                "median_max_latency_ms": 47.241339499999995
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.6290925,
+                "median_max_request_ms": 47.500954,
+                "median_max_latency_ms": 47.8614685
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.1741219999999997,
+                "median_max_request_ms": 50.0088905,
+                "median_max_latency_ms": 50.240944
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T10:30:29.035685307Z",
+        "end": "2026-10-20T10:31:29.035685307Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 3.664524,
+            "request_p99_ms": 38.988002,
+            "p50_ms": 7.418983,
+            "p95_ms": 24.588862,
+            "p99_ms": 42.022077,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 24.238836,
+              "max_request_ms": 64.986962,
+              "max_latency_ms": 71.387177
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.3742535,
+                "median_max_request_ms": 25.2876,
+                "median_max_latency_ms": 25.937583
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.2808754999999996,
+                "median_max_request_ms": 23.092759,
+                "median_max_latency_ms": 24.531316
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.871722,
+                "median_max_request_ms": 29.177013000000002,
+                "median_max_latency_ms": 29.928283999999998
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.4532435,
+                "median_max_request_ms": 23.9644585,
+                "median_max_latency_ms": 24.753321
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.6389265,
+                "median_max_request_ms": 26.552607000000002,
+                "median_max_latency_ms": 27.134601
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.7207109999999997,
+                "median_max_request_ms": 30.815262,
+                "median_max_latency_ms": 31.6305425
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 2.955056,
+            "request_p99_ms": 94.799554,
+            "p50_ms": 17.568884,
+            "p95_ms": 56.95346,
+            "p99_ms": 95.306415,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 9.332037,
+              "max_request_ms": 139.069631,
+              "max_latency_ms": 139.462958
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.8565905,
+                "median_max_request_ms": 51.3820895,
+                "median_max_latency_ms": 52.136866999999995
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.9260575000000002,
+                "median_max_request_ms": 51.5415225,
+                "median_max_latency_ms": 51.7425985
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.540888,
+                "median_max_request_ms": 54.5728225,
+                "median_max_latency_ms": 55.6982815
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.0836639999999997,
+                "median_max_request_ms": 49.7558195,
+                "median_max_latency_ms": 49.8418975
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.923683,
+                "median_max_request_ms": 46.327034,
+                "median_max_latency_ms": 47.0567645
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.9733295,
+                "median_max_request_ms": 57.3026635,
+                "median_max_latency_ms": 58.7214605
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T10:31:29.765042603Z",
+        "end": "2026-10-20T10:32:29.765042603Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 2.743336,
+            "request_p99_ms": 31.289682,
+            "p50_ms": 8.177598,
+            "p95_ms": 21.651453,
+            "p99_ms": 32.183527,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 19.616578,
+              "max_request_ms": 61.069798,
+              "max_latency_ms": 62.295839
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.5490075,
+                "median_max_request_ms": 29.4809205,
+                "median_max_latency_ms": 29.840830500000003
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.1222805,
+                "median_max_request_ms": 25.3107665,
+                "median_max_latency_ms": 26.564861
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.801437,
+                "median_max_request_ms": 31.1391755,
+                "median_max_latency_ms": 31.349032
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 5.289966,
+                "median_max_request_ms": 28.187725,
+                "median_max_latency_ms": 30.562843
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 4.0372345,
+                "median_max_request_ms": 27.3553815,
+                "median_max_latency_ms": 27.760507
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.5041564999999997,
+                "median_max_request_ms": 32.1112915,
+                "median_max_latency_ms": 33.077944
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 2.681476,
+            "request_p99_ms": 70.976908,
+            "p50_ms": 19.444456,
+            "p95_ms": 50.708372,
+            "p99_ms": 71.147388,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 8.36483,
+              "max_request_ms": 157.543532,
+              "max_latency_ms": 159.826938
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.1772080000000003,
+                "median_max_request_ms": 53.200858999999994,
+                "median_max_latency_ms": 53.4135645
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.9729225000000001,
+                "median_max_request_ms": 49.774964499999996,
+                "median_max_latency_ms": 50.7152575
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.6351755,
+                "median_max_request_ms": 57.477183,
+                "median_max_latency_ms": 58.56334
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 3.3010029999999997,
+                "median_max_request_ms": 60.266377000000006,
+                "median_max_latency_ms": 60.699309
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 3.456337,
+                "median_max_request_ms": 52.6546785,
+                "median_max_latency_ms": 53.137725
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.649071,
+                "median_max_request_ms": 57.853607,
+                "median_max_latency_ms": 58.663326
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      }
+    ],
+    "profile_window_start": "2026-10-20T10:32:30.52547247Z",
+    "profile_window_end": "2026-10-20T10:32:40.52547247Z"
+  },
+  "candidate": {
+    "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/report.json",
+    "sha256": "89d5f2fcd2be8c06300799da96d47e3206f9a8df14a70196f4bdc80b4b4d5aa8",
+    "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "binary_sha256": "0d25039bfc518b166eded2871a365231a041d710c52636a2154eda27179a3825",
+    "windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T10:24:29.928887087Z",
+        "end": "2026-10-20T10:25:29.928887087Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 8.355045,
+            "request_p99_ms": 41.19732,
+            "p50_ms": 7.754669,
+            "p95_ms": 25.6388,
+            "p99_ms": 49.986007,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 37.288515,
+              "max_request_ms": 76.608284,
+              "max_latency_ms": 80.257846
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.176165,
+                "median_max_request_ms": 22.3051095,
+                "median_max_latency_ms": 22.953412999999998
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.7663465,
+                "median_max_request_ms": 23.9310825,
+                "median_max_latency_ms": 24.872644
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.3802785,
+                "median_max_request_ms": 27.9786925,
+                "median_max_latency_ms": 28.997988999999997
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.583582,
+                "median_max_request_ms": 26.701179500000002,
+                "median_max_latency_ms": 27.196057
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 4.1401225,
+                "median_max_request_ms": 26.5562295,
+                "median_max_latency_ms": 28.132421
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.4615755000000004,
+                "median_max_request_ms": 27.346745,
+                "median_max_latency_ms": 28.2141285
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3599,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 59.983333333333334,
+            "driver_wait_p99_ms": 2.746558,
+            "request_p99_ms": 98.530221,
+            "p50_ms": 18.327869,
+            "p95_ms": 60.246792,
+            "p99_ms": 99.11391,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 10.875725,
+              "max_request_ms": 154.417524,
+              "max_latency_ms": 155.67135
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.6651455,
+                "median_max_request_ms": 45.578115,
+                "median_max_latency_ms": 46.055679
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.668124,
+                "median_max_request_ms": 43.369536999999994,
+                "median_max_latency_ms": 44.199298999999996
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.307485,
+                "median_max_request_ms": 57.5074185,
+                "median_max_latency_ms": 58.2427195
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.8521535,
+                "median_max_request_ms": 51.77088,
+                "median_max_latency_ms": 52.1514445
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.3764279999999998,
+                "median_max_request_ms": 54.647187,
+                "median_max_latency_ms": 55.072990000000004
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.4334175,
+                "median_max_request_ms": 54.1232975,
+                "median_max_latency_ms": 54.4461975
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T10:25:30.647914156Z",
+        "end": "2026-10-20T10:26:30.647914156Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 2.389631,
+            "request_p99_ms": 25.48716,
+            "p50_ms": 7.773781,
+            "p95_ms": 19.140629,
+            "p99_ms": 26.150226,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 6.852073,
+              "max_request_ms": 46.047523,
+              "max_latency_ms": 46.833699
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.092215,
+                "median_max_request_ms": 23.445192,
+                "median_max_latency_ms": 23.783648499999998
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.4075175,
+                "median_max_request_ms": 22.7098095,
+                "median_max_latency_ms": 24.212331499999998
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.873805,
+                "median_max_request_ms": 25.630294499999998,
+                "median_max_latency_ms": 26.0719915
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.2411375,
+                "median_max_request_ms": 26.976854000000003,
+                "median_max_latency_ms": 27.296982
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.4361815,
+                "median_max_request_ms": 24.750391999999998,
+                "median_max_latency_ms": 25.151828000000002
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 4.18655,
+                "median_max_request_ms": 28.239364000000002,
+                "median_max_latency_ms": 28.9699655
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3600,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 60,
+            "driver_wait_p99_ms": 2.398295,
+            "request_p99_ms": 57.199601,
+            "p50_ms": 18.323079,
+            "p95_ms": 43.943566,
+            "p99_ms": 57.505298,
+            "verdict": "pass",
+            "late_completions": 0,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 7.373041,
+              "max_request_ms": 94.481252,
+              "max_latency_ms": 94.864997
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.8593605,
+                "median_max_request_ms": 48.546352,
+                "median_max_latency_ms": 49.8735485
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.9337215,
+                "median_max_request_ms": 45.8701995,
+                "median_max_latency_ms": 46.631890999999996
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.6760000000000002,
+                "median_max_request_ms": 49.4843265,
+                "median_max_latency_ms": 50.195251999999996
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.59421,
+                "median_max_request_ms": 50.567161,
+                "median_max_latency_ms": 52.335861
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.2082569999999997,
+                "median_max_request_ms": 50.8944895,
+                "median_max_latency_ms": 51.0226035
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.567752,
+                "median_max_request_ms": 55.9091425,
+                "median_max_latency_ms": 56.3414535
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T10:26:31.365020066Z",
+        "end": "2026-10-20T10:27:31.365020066Z",
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 12000,
+            "completed_in_window": 11999,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 199.98333333333332,
+            "driver_wait_p99_ms": 2.298318,
+            "request_p99_ms": 24.855458,
+            "p50_ms": 7.641643,
+            "p95_ms": 18.65693,
+            "p99_ms": 25.538292,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 9.494192,
+              "max_request_ms": 44.52234,
+              "max_latency_ms": 44.581101
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.5373545,
+                "median_max_request_ms": 26.794724000000002,
+                "median_max_latency_ms": 27.328493
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.3292075,
+                "median_max_request_ms": 25.8455405,
+                "median_max_latency_ms": 27.1748895
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.3200304999999997,
+                "median_max_request_ms": 18.0903505,
+                "median_max_latency_ms": 19.0749415
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.2720124999999998,
+                "median_max_request_ms": 22.159412,
+                "median_max_latency_ms": 22.995047999999997
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 2.991777,
+                "median_max_request_ms": 25.780611,
+                "median_max_latency_ms": 26.7063215
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 2000,
+                "dropped": 0,
+                "median_max_wait_ms": 3.7355415,
+                "median_max_request_ms": 24.1015095,
+                "median_max_latency_ms": 24.996537
+              }
+            ],
+            "slow_arrivals": []
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3599,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "actual_qps": 59.983333333333334,
+            "driver_wait_p99_ms": 2.176653,
+            "request_p99_ms": 55.6275,
+            "p50_ms": 18.151483,
+            "p95_ms": 43.553926,
+            "p99_ms": 56.093419,
+            "verdict": "pass",
+            "late_completions": 1,
+            "dropped_fraction": 0.0,
+            "timeline_summary": {
+              "drop_seconds_zero_indexed": [],
+              "over_500ms_seconds_zero_indexed": [],
+              "over_200ms_seconds_zero_indexed": [],
+              "max_wait_ms": 5.294185,
+              "max_request_ms": 74.426124,
+              "max_latency_ms": 74.942659
+            },
+            "ten_second_groups": [
+              {
+                "start_second": 0,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.157585,
+                "median_max_request_ms": 51.6252555,
+                "median_max_latency_ms": 51.691016000000005
+              },
+              {
+                "start_second": 10,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.064875,
+                "median_max_request_ms": 46.377649000000005,
+                "median_max_latency_ms": 46.7128315
+              },
+              {
+                "start_second": 20,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.288926,
+                "median_max_request_ms": 42.094946,
+                "median_max_latency_ms": 42.36915
+              },
+              {
+                "start_second": 30,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.279871,
+                "median_max_request_ms": 47.552150499999996,
+                "median_max_latency_ms": 48.4011215
+              },
+              {
+                "start_second": 40,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 2.0773789999999996,
+                "median_max_request_ms": 49.1529225,
+                "median_max_latency_ms": 49.447014499999995
+              },
+              {
+                "start_second": 50,
+                "scheduled_seconds": 10,
+                "completed": 600,
+                "dropped": 0,
+                "median_max_wait_ms": 1.7946805000000001,
+                "median_max_request_ms": 50.877458000000004,
+                "median_max_latency_ms": 51.5335385
+              }
+            ],
+            "slow_arrivals": []
+          }
+        ]
+      }
+    ],
+    "profile_window_start": "2026-10-20T10:27:32.144308288Z",
+    "profile_window_end": "2026-10-20T10:27:42.144308288Z"
+  },
+  "matched_medians": {
+    "/conversation/list": {
+      "baseline": {
+        "driver_wait_p99_ms": 2.743336,
+        "request_p99_ms": 31.289682,
+        "p50_ms": 7.418983,
+        "p95_ms": 21.651453,
+        "p99_ms": 32.183527
+      },
+      "candidate": {
+        "driver_wait_p99_ms": 2.389631,
+        "request_p99_ms": 25.48716,
+        "p50_ms": 7.754669,
+        "p95_ms": 19.140629,
+        "p99_ms": 26.150226
+      },
+      "candidate_minus_baseline": {
+        "driver_wait_p99_ms": -0.35370500000000016,
+        "request_p99_ms": -5.802522,
+        "p50_ms": 0.33568599999999993,
+        "p95_ms": -2.5108239999999995,
+        "p99_ms": -6.033300999999998
+      },
+      "candidate_percent_difference": {
+        "driver_wait_p99_ms": -12.893243846178526,
+        "request_p99_ms": -18.544522120742545,
+        "p50_ms": 4.524690243932361,
+        "p95_ms": -11.596561210002854,
+        "p99_ms": -18.746550059600363
+      }
+    },
+    "/conversation/sync": {
+      "baseline": {
+        "driver_wait_p99_ms": 2.681476,
+        "request_p99_ms": 70.976908,
+        "p50_ms": 17.568884,
+        "p95_ms": 50.708372,
+        "p99_ms": 71.147388
+      },
+      "candidate": {
+        "driver_wait_p99_ms": 2.398295,
+        "request_p99_ms": 57.199601,
+        "p50_ms": 18.323079,
+        "p95_ms": 43.943566,
+        "p99_ms": 57.505298
+      },
+      "candidate_minus_baseline": {
+        "driver_wait_p99_ms": -0.2831809999999999,
+        "request_p99_ms": -13.777306999999993,
+        "p50_ms": 0.7541949999999993,
+        "p95_ms": -6.764806,
+        "p99_ms": -13.642090000000003
+      },
+      "candidate_percent_difference": {
+        "driver_wait_p99_ms": -10.56063899136147,
+        "request_p99_ms": -19.41097095973805,
+        "p50_ms": 4.292788318256302,
+        "p95_ms": -13.340609712337049,
+        "p99_ms": -19.174407358426148
+      }
+    }
+  }
+}

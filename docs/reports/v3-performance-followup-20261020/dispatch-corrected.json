@@ -1,0 +1,24 @@
+{
+  "time": "2026-10-20T10:21:23.747097+00:00",
+  "command": [
+    "gh",
+    "workflow",
+    "run",
+    "conversation-qps-diagnose.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "-f",
+    "product_sha=4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "-f",
+    "comparison_sha=b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "-f",
+    "expected_binary_sha256=e327d0252e814b47efdc06ff9c6b80d847af29e30c20a1b22ba1dee98cd45a9a",
+    "-f",
+    "run_release_matrix=false"
+  ],
+  "exit_code": 0,
+  "output": "https://github.com/WuKongIM/WuKongIM/actions/runs/39407349500\n",
+  "reason": "Correct prior build-role hash mismatch before any measurement; retain failed preflight. No threshold or workflow changes."
+}

@@ -1,0 +1,1369 @@
+{
+  "notes": [
+    "Resource CPU/allocation include all three servers and bounded window scrapes, not per-endpoint CPU.",
+    "Host brackets include per-window warmup and observation; cgroup minus server CPU is not an exact driver CPU measure.",
+    "Driver ticks are deliberately not converted to seconds because remote CLK_TCK was not captured.",
+    "Stage wall time sums overlap, have different populations and are not CPU time or additive request latency.",
+    "RPC total counters are exact call counts; duration histogram populations are sampled.",
+    "Three per-window ratios are descriptive, not statistical confidence bounds."
+  ],
+  "inputs": {
+    "reverse_beta24": {
+      "path": "/tmp/wukongim-performance-followup-20261020/reverse/report.json",
+      "sha256": "79abab04edeca8b96ee198d2c9630d700a31cecd884ab25acdba602af1816ad1",
+      "identity": {
+        "product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+        "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "harness_dirty": false,
+        "binary_sha256": "e327d0252e814b47efdc06ff9c6b80d847af29e30c20a1b22ba1dee98cd45a9a",
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "windows": [
+        {
+          "window": 1,
+          "completed": 15600,
+          "server_cpu_seconds": 159.45,
+          "server_cpu_ms_per_completed_mixed_request": 10.221153846153847,
+          "server_allocated_bytes": 36692034904,
+          "server_allocated_bytes_per_completed_mixed_request": 2352053.5194871794,
+          "server_average_cpu_cores_over_60s": 2.6574999999999998,
+          "stages": {
+            "scope=edit_slot,stage=barrier,result=ok": {
+              "count": 273600.0,
+              "sum": 146.27875529499843,
+              "mean": 0.0005346445734466317
+            },
+            "scope=edit_slot,stage=storage,result=ok": {
+              "count": 273600.0,
+              "sum": 13.388568498000051,
+              "mean": 4.8934826381579136e-05
+            },
+            "scope=list,stage=handler,result=ok": {
+              "count": 12000.0,
+              "sum": 87.31824535399997,
+              "mean": 0.007276520446166664
+            },
+            "scope=list,stage=response,result=ok": {
+              "count": 12000.0,
+              "sum": 2.6782440669999996,
+              "mean": 0.0002231870055833333
+            },
+            "scope=persisted_heads,stage=edit_overlay,result=ok": {
+              "count": 15600.0,
+              "sum": 37.73601686300008,
+              "mean": 0.0024189754399359027
+            },
+            "scope=persisted_heads,stage=heads,result=ok": {
+              "count": 15600.0,
+              "sum": 38.28699741300001,
+              "mean": 0.002454294705961539
+            },
+            "scope=persisted_heads,stage=metadata,result=ok": {
+              "count": 15600.0,
+              "sum": 22.20113398000002,
+              "mean": 0.0014231496141025653
+            },
+            "scope=sync,stage=handler,result=ok": {
+              "count": 3600.0,
+              "sum": 66.58773004400004,
+              "mean": 0.0184965916788889
+            },
+            "scope=sync,stage=response,result=ok": {
+              "count": 3600.0,
+              "sum": 2.3707688000000005,
+              "mean": 0.000658546888888889
+            }
+          },
+          "persisted_hold": {
+            "kind=heads,result=ok": {
+              "count": 46800.0,
+              "sum": 18.615060644000025,
+              "mean": 0.0003977577060683766
+            },
+            "kind=recents,result=ok": {
+              "count": 10800.0,
+              "sum": 5.029156537999999,
+              "mean": 0.0004656626424074073
+            }
+          },
+          "persisted_occupancy": {
+            "kind=heads,result=accepted": {
+              "count": 46800.0,
+              "sum": 50069.0,
+              "mean": 1.0698504273504275
+            },
+            "kind=recents,result=accepted": {
+              "count": 10800.0,
+              "sum": 11731.0,
+              "mean": 1.0862037037037038
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_client_exact_calls": {
+            "service=channel committed reads,result=ok": 7200.0,
+            "service=channel conversation heads,result=ok": 31200.0,
+            "service=channel quorum exchange,result=ok": 0.0,
+            "service=node send permissions,result=ok": 0.0,
+            "service=presence authority,result=ok": 0.0,
+            "service=presence owner action,result=ok": 0.0,
+            "service=send authority,result=ok": 0.0,
+            "service=slot channel metadata,result=ok": 0.0,
+            "service=slot message updates,result=ok": 182400.0,
+            "service=slot permission metadata batch,result=ok": 153600.0,
+            "service=slot propose,result=ok": 0.0,
+            "service=slot runtime metadata,result=ok": 28800.0,
+            "service=slot status,result=ok": 0.0,
+            "service=slot user membership,result=ok": 12800.0,
+            "service=controller task result,result=ok": 0.0,
+            "service=controller write,result=ok": 26.0
+          },
+          "rpc_client_sampled_latency": {
+            "service=channel committed reads": {
+              "count": 222.0,
+              "sum": 0.22003725500000004,
+              "mean": 0.0009911588063063065
+            },
+            "service=channel conversation heads": {
+              "count": 972.0,
+              "sum": 0.821395384,
+              "mean": 0.0008450569794238684
+            },
+            "service=slot message updates": {
+              "count": 5700.0,
+              "sum": 5.394644926999999,
+              "mean": 0.0009464289345614033
+            },
+            "service=slot permission metadata batch": {
+              "count": 4800.0,
+              "sum": 1.7333878950000001,
+              "mean": 0.000361122478125
+            },
+            "service=slot runtime metadata": {
+              "count": 900.0,
+              "sum": 0.32683125,
+              "mean": 0.0003631458333333334
+            },
+            "service=slot user membership": {
+              "count": 400.0,
+              "sum": 0.35548667999999994,
+              "mean": 0.0008887166999999998
+            }
+          },
+          "observer_dropped": {},
+          "persisted_occupancy_buckets": {
+            "kind=heads,result=accepted,le=+Inf": 46800.0,
+            "kind=heads,result=accepted,le=1": 43599.0,
+            "kind=heads,result=accepted,le=12": 46800.0,
+            "kind=heads,result=accepted,le=14": 46800.0,
+            "kind=heads,result=accepted,le=15": 46800.0,
+            "kind=heads,result=accepted,le=16": 46800.0,
+            "kind=heads,result=accepted,le=2": 46735.0,
+            "kind=heads,result=accepted,le=4": 46800.0,
+            "kind=heads,result=accepted,le=8": 46800.0,
+            "kind=recents,result=accepted,le=+Inf": 10800.0,
+            "kind=recents,result=accepted,le=1": 9883.0,
+            "kind=recents,result=accepted,le=12": 10800.0,
+            "kind=recents,result=accepted,le=14": 10800.0,
+            "kind=recents,result=accepted,le=15": 10800.0,
+            "kind=recents,result=accepted,le=16": 10800.0,
+            "kind=recents,result=accepted,le=2": 10786.0,
+            "kind=recents,result=accepted,le=4": 10800.0,
+            "kind=recents,result=accepted,le=8": 10800.0
+          },
+          "host": {
+            "bracket_seconds": 60.951706,
+            "cgroup_usage_seconds": 186.789,
+            "cgroup_four_cpu_utilization": 0.7661352415632139,
+            "server_cpu_over_cgroup_cpu_approximate_ratio": 0.8536369914716605,
+            "cgroup_minus_server_cpu_seconds_different_brackets": 27.339,
+            "driver_cpu_ticks": 2926,
+            "driver_cpu_ticks_per_completed_request": 0.18756410256410255,
+            "host_cpu_nonidle_fraction": 0.7857323126104148,
+            "host_cpu_iowait_fraction": 0.0009253806679565912,
+            "host_cpu_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4264136429585745,
+            "throttled_usec_delta": 0,
+            "nr_throttled_delta": 0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+            "driver_clock_tick_hz": null
+          }
+        },
+        {
+          "window": 2,
+          "completed": 15600,
+          "server_cpu_seconds": 158.00999999999996,
+          "server_cpu_ms_per_completed_mixed_request": 10.128846153846151,
+          "server_allocated_bytes": 36695320720,
+          "server_allocated_bytes_per_completed_mixed_request": 2352264.1487179487,
+          "server_average_cpu_cores_over_60s": 2.6334999999999993,
+          "stages": {
+            "scope=edit_slot,stage=barrier,result=ok": {
+              "count": 273600.0,
+              "sum": 171.73937771899995,
+              "mean": 0.0006277024039437133
+            },
+            "scope=edit_slot,stage=storage,result=ok": {
+              "count": 273600.0,
+              "sum": 13.51371542800008,
+              "mean": 4.939223475146228e-05
+            },
+            "scope=list,stage=handler,result=ok": {
+              "count": 12000.0,
+              "sum": 99.59961676599998,
+              "mean": 0.008299968063833332
+            },
+            "scope=list,stage=response,result=ok": {
+              "count": 12000.0,
+              "sum": 2.7094864269999994,
+              "mean": 0.0002257905355833333
+            },
+            "scope=persisted_heads,stage=edit_overlay,result=ok": {
+              "count": 15600.0,
+              "sum": 44.36492704300005,
+              "mean": 0.0028439055796794905
+            },
+            "scope=persisted_heads,stage=heads,result=ok": {
+              "count": 15600.0,
+              "sum": 42.124935601999965,
+              "mean": 0.0027003163847435876
+            },
+            "scope=persisted_heads,stage=metadata,result=ok": {
+              "count": 15600.0,
+              "sum": 26.529903981,
+              "mean": 0.0017006348705769232
+            },
+            "scope=sync,stage=handler,result=ok": {
+              "count": 3600.0,
+              "sum": 76.10740057999988,
+              "mean": 0.02114094460555552
+            },
+            "scope=sync,stage=response,result=ok": {
+              "count": 3600.0,
+              "sum": 2.3945867820000006,
+              "mean": 0.0006651629950000002
+            }
+          },
+          "persisted_hold": {
+            "kind=heads,result=ok": {
+              "count": 46800.0,
+              "sum": 18.890441208999903,
+              "mean": 0.0004036419061752116
+            },
+            "kind=recents,result=ok": {
+              "count": 10800.0,
+              "sum": 5.164025409000014,
+              "mean": 0.00047815050083333465
+            }
+          },
+          "persisted_occupancy": {
+            "kind=heads,result=accepted": {
+              "count": 46800.0,
+              "sum": 50197.0,
+              "mean": 1.07258547008547
+            },
+            "kind=recents,result=accepted": {
+              "count": 10800.0,
+              "sum": 11727.0,
+              "mean": 1.0858333333333334
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_client_exact_calls": {
+            "service=channel committed reads,result=ok": 7200.0,
+            "service=channel conversation heads,result=ok": 31200.0,
+            "service=channel quorum exchange,result=ok": 0.0,
+            "service=node send permissions,result=ok": 0.0,
+            "service=presence authority,result=ok": 0.0,
+            "service=presence owner action,result=ok": 0.0,
+            "service=send authority,result=ok": 0.0,
+            "service=slot channel metadata,result=ok": 0.0,
+            "service=slot message updates,result=ok": 182400.0,
+            "service=slot permission metadata batch,result=ok": 153600.0,
+            "service=slot propose,result=ok": 0.0,
+            "service=slot runtime metadata,result=ok": 28800.0,
+            "service=slot status,result=ok": 0.0,
+            "service=slot user membership,result=ok": 12800.0,
+            "service=controller task result,result=ok": 0.0,
+            "service=controller write,result=ok": 24.0
+          },
+          "rpc_client_sampled_latency": {
+            "service=channel committed reads": {
+              "count": 228.0,
+              "sum": 0.25987073,
+              "mean": 0.0011397839035087718
+            },
+            "service=channel conversation heads": {
+              "count": 972.0,
+              "sum": 0.874482311,
+              "mean": 0.0008996731594650205
+            },
+            "service=slot message updates": {
+              "count": 5700.0,
+              "sum": 6.423863627999999,
+              "mean": 0.0011269936189473684
+            },
+            "service=slot permission metadata batch": {
+              "count": 4800.0,
+              "sum": 2.098862130999996,
+              "mean": 0.00043726294395833256
+            },
+            "service=slot runtime metadata": {
+              "count": 900.0,
+              "sum": 0.44484384000000005,
+              "mean": 0.0004942709333333334
+            },
+            "service=slot user membership": {
+              "count": 400.0,
+              "sum": 0.363664922,
+              "mean": 0.000909162305
+            },
+            "service=controller write": {
+              "count": 2.0,
+              "sum": 0.025767148,
+              "mean": 0.012883574
+            }
+          },
+          "observer_dropped": {},
+          "persisted_occupancy_buckets": {
+            "kind=heads,result=accepted,le=+Inf": 46800.0,
+            "kind=heads,result=accepted,le=1": 43524.0,
+            "kind=heads,result=accepted,le=12": 46800.0,
+            "kind=heads,result=accepted,le=14": 46800.0,
+            "kind=heads,result=accepted,le=15": 46800.0,
+            "kind=heads,result=accepted,le=16": 46800.0,
+            "kind=heads,result=accepted,le=2": 46687.0,
+            "kind=heads,result=accepted,le=4": 46800.0,
+            "kind=heads,result=accepted,le=8": 46800.0,
+            "kind=recents,result=accepted,le=+Inf": 10800.0,
+            "kind=recents,result=accepted,le=1": 9897.0,
+            "kind=recents,result=accepted,le=12": 10800.0,
+            "kind=recents,result=accepted,le=14": 10800.0,
+            "kind=recents,result=accepted,le=15": 10800.0,
+            "kind=recents,result=accepted,le=16": 10800.0,
+            "kind=recents,result=accepted,le=2": 10777.0,
+            "kind=recents,result=accepted,le=4": 10800.0,
+            "kind=recents,result=accepted,le=8": 10800.0
+          },
+          "host": {
+            "bracket_seconds": 60.71128,
+            "cgroup_usage_seconds": 187.34,
+            "cgroup_four_cpu_utilization": 0.7714381907283128,
+            "server_cpu_over_cgroup_cpu_approximate_ratio": 0.8434397352407386,
+            "cgroup_minus_server_cpu_seconds_different_brackets": 29.33000000000004,
+            "driver_cpu_ticks": 2874,
+            "driver_cpu_ticks_per_completed_request": 0.18423076923076923,
+            "host_cpu_nonidle_fraction": 0.7925039130250857,
+            "host_cpu_iowait_fraction": 0.00038072676509158597,
+            "host_cpu_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.43069543254564885,
+            "throttled_usec_delta": 0,
+            "nr_throttled_delta": 0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+            "driver_clock_tick_hz": null
+          }
+        },
+        {
+          "window": 3,
+          "completed": 15600,
+          "server_cpu_seconds": 158.65000000000003,
+          "server_cpu_ms_per_completed_mixed_request": 10.169871794871797,
+          "server_allocated_bytes": 36698925424,
+          "server_allocated_bytes_per_completed_mixed_request": 2352495.2194871795,
+          "server_average_cpu_cores_over_60s": 2.6441666666666674,
+          "stages": {
+            "scope=edit_slot,stage=barrier,result=ok": {
+              "count": 273600.0,
+              "sum": 166.3604188710013,
+              "mean": 0.0006080424666337766
+            },
+            "scope=edit_slot,stage=storage,result=ok": {
+              "count": 273600.0,
+              "sum": 13.68412799700019,
+              "mean": 5.0015087708334026e-05
+            },
+            "scope=list,stage=handler,result=ok": {
+              "count": 12000.0,
+              "sum": 99.46459430399979,
+              "mean": 0.008288716191999982
+            },
+            "scope=list,stage=response,result=ok": {
+              "count": 12000.0,
+              "sum": 2.849153177999996,
+              "mean": 0.00023742943149999965
+            },
+            "scope=persisted_heads,stage=edit_overlay,result=ok": {
+              "count": 15600.0,
+              "sum": 43.76729512499982,
+              "mean": 0.002805595841346142
+            },
+            "scope=persisted_heads,stage=heads,result=ok": {
+              "count": 15600.0,
+              "sum": 42.119496501000135,
+              "mean": 0.0026999677244230855
+            },
+            "scope=persisted_heads,stage=metadata,result=ok": {
+              "count": 15600.0,
+              "sum": 26.652717175999946,
+              "mean": 0.001708507511282048
+            },
+            "scope=sync,stage=handler,result=ok": {
+              "count": 3600.0,
+              "sum": 75.34438249600016,
+              "mean": 0.020928995137777823
+            },
+            "scope=sync,stage=response,result=ok": {
+              "count": 3600.0,
+              "sum": 2.4666268790000068,
+              "mean": 0.0006851741330555574
+            }
+          },
+          "persisted_hold": {
+            "kind=heads,result=ok": {
+              "count": 46800.0,
+              "sum": 19.23056522199979,
+              "mean": 0.0004109095132905938
+            },
+            "kind=recents,result=ok": {
+              "count": 10800.0,
+              "sum": 5.173297915000021,
+              "mean": 0.0004790090662037057
+            }
+          },
+          "persisted_occupancy": {
+            "kind=heads,result=accepted": {
+              "count": 46800.0,
+              "sum": 50124.0,
+              "mean": 1.0710256410256411
+            },
+            "kind=recents,result=accepted": {
+              "count": 10800.0,
+              "sum": 11791.0,
+              "mean": 1.0917592592592593
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_client_exact_calls": {
+            "service=channel committed reads,result=ok": 7200.0,
+            "service=channel conversation heads,result=ok": 31200.0,
+            "service=channel quorum exchange,result=ok": 0.0,
+            "service=node send permissions,result=ok": 0.0,
+            "service=presence authority,result=ok": 0.0,
+            "service=presence owner action,result=ok": 0.0,
+            "service=send authority,result=ok": 0.0,
+            "service=slot channel metadata,result=ok": 0.0,
+            "service=slot message updates,result=ok": 182400.0,
+            "service=slot permission metadata batch,result=ok": 153600.0,
+            "service=slot propose,result=ok": 0.0,
+            "service=slot runtime metadata,result=ok": 28800.0,
+            "service=slot status,result=ok": 0.0,
+            "service=slot user membership,result=ok": 12800.0,
+            "service=controller task result,result=ok": 0.0,
+            "service=controller write,result=ok": 24.0
+          },
+          "rpc_client_sampled_latency": {
+            "service=channel committed reads": {
+              "count": 228.0,
+              "sum": 0.23009357300000002,
+              "mean": 0.0010091823377192985
+            },
+            "service=channel conversation heads": {
+              "count": 972.0,
+              "sum": 0.9471494130000001,
+              "mean": 0.0009744335524691359
+            },
+            "service=slot message updates": {
+              "count": 5700.0,
+              "sum": 6.294402306999997,
+              "mean": 0.0011042811064912274
+            },
+            "service=slot permission metadata batch": {
+              "count": 4800.0,
+              "sum": 2.1245736640000006,
+              "mean": 0.00044261951333333347
+            },
+            "service=slot runtime metadata": {
+              "count": 900.0,
+              "sum": 0.3995354770000003,
+              "mean": 0.0004439283077777781
+            },
+            "service=slot user membership": {
+              "count": 400.0,
+              "sum": 0.3691747769999999,
+              "mean": 0.0009229369424999998
+            }
+          },
+          "observer_dropped": {},
+          "persisted_occupancy_buckets": {
+            "kind=heads,result=accepted,le=+Inf": 46800.0,
+            "kind=heads,result=accepted,le=1": 43589.0,
+            "kind=heads,result=accepted,le=12": 46800.0,
+            "kind=heads,result=accepted,le=14": 46800.0,
+            "kind=heads,result=accepted,le=15": 46800.0,
+            "kind=heads,result=accepted,le=16": 46800.0,
+            "kind=heads,result=accepted,le=2": 46692.0,
+            "kind=heads,result=accepted,le=4": 46800.0,
+            "kind=heads,result=accepted,le=8": 46800.0,
+            "kind=recents,result=accepted,le=+Inf": 10800.0,
+            "kind=recents,result=accepted,le=1": 9838.0,
+            "kind=recents,result=accepted,le=12": 10800.0,
+            "kind=recents,result=accepted,le=14": 10800.0,
+            "kind=recents,result=accepted,le=15": 10800.0,
+            "kind=recents,result=accepted,le=16": 10800.0,
+            "kind=recents,result=accepted,le=2": 10771.0,
+            "kind=recents,result=accepted,le=4": 10800.0,
+            "kind=recents,result=accepted,le=8": 10800.0
+          },
+          "host": {
+            "bracket_seconds": 60.72366,
+            "cgroup_usage_seconds": 184.738,
+            "cgroup_four_cpu_utilization": 0.760568450584171,
+            "server_cpu_over_cgroup_cpu_approximate_ratio": 0.8587837910987455,
+            "cgroup_minus_server_cpu_seconds_different_brackets": 26.087999999999965,
+            "driver_cpu_ticks": 2850,
+            "driver_cpu_ticks_per_completed_request": 0.18269230769230768,
+            "host_cpu_nonidle_fraction": 0.7805712836981323,
+            "host_cpu_iowait_fraction": 0.0004648018254035325,
+            "host_cpu_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4482384131654778,
+            "throttled_usec_delta": 0,
+            "nr_throttled_delta": 0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+            "driver_clock_tick_hz": null
+          }
+        }
+      ],
+      "aggregate": {
+        "completed": 46800,
+        "server_cpu_seconds": 476.11,
+        "server_cpu_ms_per_completed_mixed_request": 10.173290598290599,
+        "server_allocated_bytes": 110086281048,
+        "server_allocated_bytes_per_completed_mixed_request": 2352270.9625641024,
+        "driver_cpu_ticks": 8650,
+        "driver_cpu_ticks_per_completed_request": 0.18482905982905984,
+        "stages": {
+          "scope=edit_slot,stage=barrier,result=ok": {
+            "count": 820800.0,
+            "sum_seconds": 484.3785518849997,
+            "mean_ms": 0.5901298146747072
+          },
+          "scope=edit_slot,stage=storage,result=ok": {
+            "count": 820800.0,
+            "sum_seconds": 40.58641192300032,
+            "mean_ms": 0.04944738294712515
+          },
+          "scope=list,stage=handler,result=ok": {
+            "count": 36000.0,
+            "sum_seconds": 286.3824564239997,
+            "mean_ms": 7.9550682339999925
+          },
+          "scope=list,stage=response,result=ok": {
+            "count": 36000.0,
+            "sum_seconds": 8.236883671999996,
+            "mean_ms": 0.22880232422222213
+          },
+          "scope=persisted_heads,stage=edit_overlay,result=ok": {
+            "count": 46800.0,
+            "sum_seconds": 125.86823903099996,
+            "mean_ms": 2.6894922869871785
+          },
+          "scope=persisted_heads,stage=heads,result=ok": {
+            "count": 46800.0,
+            "sum_seconds": 122.53142951600012,
+            "mean_ms": 2.618192938376071
+          },
+          "scope=persisted_heads,stage=metadata,result=ok": {
+            "count": 46800.0,
+            "sum_seconds": 75.38375513699997,
+            "mean_ms": 1.6107639986538456
+          },
+          "scope=sync,stage=handler,result=ok": {
+            "count": 10800.0,
+            "sum_seconds": 218.0395131200001,
+            "mean_ms": 20.188843807407416
+          },
+          "scope=sync,stage=response,result=ok": {
+            "count": 10800.0,
+            "sum_seconds": 7.231982461000008,
+            "mean_ms": 0.669628005648149
+          }
+        },
+        "rpc_client_exact_calls": {
+          "service=channel committed reads,result=ok": 21600.0,
+          "service=channel conversation heads,result=ok": 93600.0,
+          "service=channel quorum exchange,result=ok": 0.0,
+          "service=node send permissions,result=ok": 0.0,
+          "service=presence authority,result=ok": 0.0,
+          "service=presence owner action,result=ok": 0.0,
+          "service=send authority,result=ok": 0.0,
+          "service=slot channel metadata,result=ok": 0.0,
+          "service=slot message updates,result=ok": 547200.0,
+          "service=slot permission metadata batch,result=ok": 460800.0,
+          "service=slot propose,result=ok": 0.0,
+          "service=slot runtime metadata,result=ok": 86400.0,
+          "service=slot status,result=ok": 0.0,
+          "service=slot user membership,result=ok": 38400.0,
+          "service=controller task result,result=ok": 0.0,
+          "service=controller write,result=ok": 74.0
+        },
+        "rpc_client_calls_per_completed_request": {
+          "service=channel committed reads,result=ok": 0.46153846153846156,
+          "service=channel conversation heads,result=ok": 2.0,
+          "service=channel quorum exchange,result=ok": 0.0,
+          "service=node send permissions,result=ok": 0.0,
+          "service=presence authority,result=ok": 0.0,
+          "service=presence owner action,result=ok": 0.0,
+          "service=send authority,result=ok": 0.0,
+          "service=slot channel metadata,result=ok": 0.0,
+          "service=slot message updates,result=ok": 11.692307692307692,
+          "service=slot permission metadata batch,result=ok": 9.846153846153847,
+          "service=slot propose,result=ok": 0.0,
+          "service=slot runtime metadata,result=ok": 1.8461538461538463,
+          "service=slot status,result=ok": 0.0,
+          "service=slot user membership,result=ok": 0.8205128205128205,
+          "service=controller task result,result=ok": 0.0,
+          "service=controller write,result=ok": 0.0015811965811965813
+        }
+      },
+      "profile_window": {
+        "start": "2026-10-20T10:32:30.52547247Z",
+        "end": "2026-10-20T10:32:40.52547247Z",
+        "cpu_seconds": 26.720000000000027,
+        "allocated_bytes": 6139440296,
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "completed": 2000,
+            "actual_qps": 199.8,
+            "p99_ms": 27.379868,
+            "driver_wait_p99_ms": 2.626,
+            "request_p99_ms": 26.126489,
+            "dropped": 0,
+            "verdict": "pass"
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "completed": 600,
+            "actual_qps": 59.9,
+            "p99_ms": 55.73436,
+            "driver_wait_p99_ms": 2.148825,
+            "request_p99_ms": 55.582826,
+            "dropped": 0,
+            "verdict": "pass"
+          }
+        ]
+      }
+    },
+    "reverse_candidate": {
+      "path": "/tmp/wukongim-performance-followup-20261020/reverse/comparison/report.json",
+      "sha256": "89d5f2fcd2be8c06300799da96d47e3206f9a8df14a70196f4bdc80b4b4d5aa8",
+      "identity": {
+        "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "harness_dirty": false,
+        "binary_sha256": "0d25039bfc518b166eded2871a365231a041d710c52636a2154eda27179a3825",
+        "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+        "driver_gomaxprocs": 4,
+        "node_gomaxprocs": 2
+      },
+      "windows": [
+        {
+          "window": 1,
+          "completed": 15600,
+          "server_cpu_seconds": 158.89999999999998,
+          "server_cpu_ms_per_completed_mixed_request": 10.185897435897434,
+          "server_allocated_bytes": 36694177336,
+          "server_allocated_bytes_per_completed_mixed_request": 2352190.854871795,
+          "server_average_cpu_cores_over_60s": 2.648333333333333,
+          "stages": {
+            "scope=edit_slot,stage=barrier,result=ok": {
+              "count": 273600.0,
+              "sum": 180.8758456059993,
+              "mean": 0.000661095926922512
+            },
+            "scope=edit_slot,stage=storage,result=ok": {
+              "count": 273600.0,
+              "sum": 13.642415758000023,
+              "mean": 4.986263069444453e-05
+            },
+            "scope=list,stage=handler,result=ok": {
+              "count": 12000.0,
+              "sum": 103.12629302600001,
+              "mean": 0.008593857752166667
+            },
+            "scope=list,stage=response,result=ok": {
+              "count": 12000.0,
+              "sum": 2.863919218,
+              "mean": 0.00023865993483333334
+            },
+            "scope=persisted_heads,stage=edit_overlay,result=ok": {
+              "count": 15600.0,
+              "sum": 46.278993358999976,
+              "mean": 0.002966602138397434
+            },
+            "scope=persisted_heads,stage=heads,result=ok": {
+              "count": 15600.0,
+              "sum": 43.404450766000025,
+              "mean": 0.002782336587564104
+            },
+            "scope=persisted_heads,stage=metadata,result=ok": {
+              "count": 15600.0,
+              "sum": 27.51035577799998,
+              "mean": 0.0017634843447435883
+            },
+            "scope=sync,stage=handler,result=ok": {
+              "count": 3600.0,
+              "sum": 79.01927654900011,
+              "mean": 0.02194979904138892
+            },
+            "scope=sync,stage=response,result=ok": {
+              "count": 3600.0,
+              "sum": 2.5104512070000036,
+              "mean": 0.000697347557500001
+            }
+          },
+          "persisted_hold": {
+            "kind=heads,result=ok": {
+              "count": 46800.0,
+              "sum": 19.342655655000012,
+              "mean": 0.0004133046080128208
+            },
+            "kind=recents,result=ok": {
+              "count": 10800.0,
+              "sum": 5.2421090229999985,
+              "mean": 0.00048538046509259247
+            }
+          },
+          "persisted_occupancy": {
+            "kind=heads,result=accepted": {
+              "count": 46800.0,
+              "sum": 50312.0,
+              "mean": 1.075042735042735
+            },
+            "kind=recents,result=accepted": {
+              "count": 10800.0,
+              "sum": 11741.0,
+              "mean": 1.0871296296296296
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_client_exact_calls": {
+            "service=channel committed reads,result=ok": 7200.0,
+            "service=channel conversation heads,result=ok": 31200.0,
+            "service=channel quorum exchange,result=ok": 0.0,
+            "service=node send permissions,result=ok": 0.0,
+            "service=presence authority,result=ok": 0.0,
+            "service=presence owner action,result=ok": 0.0,
+            "service=send authority,result=ok": 0.0,
+            "service=slot channel metadata,result=ok": 0.0,
+            "service=slot message updates,result=ok": 182400.0,
+            "service=slot permission metadata batch,result=ok": 153600.0,
+            "service=slot propose,result=ok": 0.0,
+            "service=slot runtime metadata,result=ok": 28800.0,
+            "service=slot status,result=ok": 0.0,
+            "service=slot user membership,result=ok": 12800.0,
+            "service=controller task result,result=ok": 0.0,
+            "service=controller write,result=ok": 24.0
+          },
+          "rpc_client_sampled_latency": {
+            "service=channel committed reads": {
+              "count": 222.0,
+              "sum": 0.27072036299999996,
+              "mean": 0.0012194610945945943
+            },
+            "service=channel conversation heads": {
+              "count": 972.0,
+              "sum": 1.356733768,
+              "mean": 0.0013958166337448559
+            },
+            "service=slot message updates": {
+              "count": 5700.0,
+              "sum": 6.726434380999995,
+              "mean": 0.0011800762071929817
+            },
+            "service=slot permission metadata batch": {
+              "count": 4800.0,
+              "sum": 2.251923696,
+              "mean": 0.00046915077
+            },
+            "service=slot runtime metadata": {
+              "count": 900.0,
+              "sum": 0.43888674599999994,
+              "mean": 0.00048765193999999995
+            },
+            "service=slot user membership": {
+              "count": 400.0,
+              "sum": 0.46080698100000006,
+              "mean": 0.0011520174525000001
+            }
+          },
+          "observer_dropped": {},
+          "persisted_occupancy_buckets": {
+            "kind=heads,result=accepted,le=+Inf": 46800.0,
+            "kind=heads,result=accepted,le=1": 43398.0,
+            "kind=heads,result=accepted,le=12": 46800.0,
+            "kind=heads,result=accepted,le=14": 46800.0,
+            "kind=heads,result=accepted,le=15": 46800.0,
+            "kind=heads,result=accepted,le=16": 46800.0,
+            "kind=heads,result=accepted,le=2": 46701.0,
+            "kind=heads,result=accepted,le=4": 46800.0,
+            "kind=heads,result=accepted,le=8": 46800.0,
+            "kind=recents,result=accepted,le=+Inf": 10800.0,
+            "kind=recents,result=accepted,le=1": 9885.0,
+            "kind=recents,result=accepted,le=12": 10800.0,
+            "kind=recents,result=accepted,le=14": 10800.0,
+            "kind=recents,result=accepted,le=15": 10800.0,
+            "kind=recents,result=accepted,le=16": 10800.0,
+            "kind=recents,result=accepted,le=2": 10774.0,
+            "kind=recents,result=accepted,le=4": 10800.0,
+            "kind=recents,result=accepted,le=8": 10800.0
+          },
+          "host": {
+            "bracket_seconds": 60.936927,
+            "cgroup_usage_seconds": 189.515,
+            "cgroup_four_cpu_utilization": 0.7775047468343784,
+            "server_cpu_over_cgroup_cpu_approximate_ratio": 0.8384560588871592,
+            "cgroup_minus_server_cpu_seconds_different_brackets": 30.61500000000001,
+            "driver_cpu_ticks": 2948,
+            "driver_cpu_ticks_per_completed_request": 0.18897435897435896,
+            "host_cpu_nonidle_fraction": 0.7972319212485802,
+            "host_cpu_iowait_fraction": 0.000967565521012999,
+            "host_cpu_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4366096767564272,
+            "throttled_usec_delta": 0,
+            "nr_throttled_delta": 0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+            "driver_clock_tick_hz": null
+          }
+        },
+        {
+          "window": 2,
+          "completed": 15600,
+          "server_cpu_seconds": 160.32999999999996,
+          "server_cpu_ms_per_completed_mixed_request": 10.2775641025641,
+          "server_allocated_bytes": 36704126376,
+          "server_allocated_bytes_per_completed_mixed_request": 2352828.613846154,
+          "server_average_cpu_cores_over_60s": 2.672166666666666,
+          "stages": {
+            "scope=edit_slot,stage=barrier,result=ok": {
+              "count": 273600.0,
+              "sum": 151.64341676499578,
+              "mean": 0.0005542522542580255
+            },
+            "scope=edit_slot,stage=storage,result=ok": {
+              "count": 273600.0,
+              "sum": 13.407879272999805,
+              "mean": 4.900540669956069e-05
+            },
+            "scope=list,stage=handler,result=ok": {
+              "count": 12000.0,
+              "sum": 91.15031388999972,
+              "mean": 0.007595859490833311
+            },
+            "scope=list,stage=response,result=ok": {
+              "count": 12000.0,
+              "sum": 2.779528683000003,
+              "mean": 0.00023162739025000027
+            },
+            "scope=persisted_heads,stage=edit_overlay,result=ok": {
+              "count": 15600.0,
+              "sum": 39.213577434000015,
+              "mean": 0.0025136908611538473
+            },
+            "scope=persisted_heads,stage=heads,result=ok": {
+              "count": 15600.0,
+              "sum": 39.752995813,
+              "mean": 0.002548268962371795
+            },
+            "scope=persisted_heads,stage=metadata,result=ok": {
+              "count": 15600.0,
+              "sum": 23.49307120999996,
+              "mean": 0.0015059661032051257
+            },
+            "scope=sync,stage=handler,result=ok": {
+              "count": 3600.0,
+              "sum": 68.9220398579998,
+              "mean": 0.019145011071666614
+            },
+            "scope=sync,stage=response,result=ok": {
+              "count": 3600.0,
+              "sum": 2.4115770139999992,
+              "mean": 0.0006698825038888886
+            }
+          },
+          "persisted_hold": {
+            "kind=heads,result=ok": {
+              "count": 46800.0,
+              "sum": 19.198702682999997,
+              "mean": 0.00041022868980769225
+            },
+            "kind=recents,result=ok": {
+              "count": 10800.0,
+              "sum": 5.176198912000009,
+              "mean": 0.0004792776770370379
+            }
+          },
+          "persisted_occupancy": {
+            "kind=heads,result=accepted": {
+              "count": 46800.0,
+              "sum": 50096.0,
+              "mean": 1.0704273504273505
+            },
+            "kind=recents,result=accepted": {
+              "count": 10800.0,
+              "sum": 11819.0,
+              "mean": 1.0943518518518518
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_client_exact_calls": {
+            "service=channel committed reads,result=ok": 7200.0,
+            "service=channel conversation heads,result=ok": 31200.0,
+            "service=channel quorum exchange,result=ok": 0.0,
+            "service=node send permissions,result=ok": 0.0,
+            "service=presence authority,result=ok": 0.0,
+            "service=presence owner action,result=ok": 0.0,
+            "service=send authority,result=ok": 0.0,
+            "service=slot channel metadata,result=ok": 0.0,
+            "service=slot message updates,result=ok": 182400.0,
+            "service=slot permission metadata batch,result=ok": 153600.0,
+            "service=slot propose,result=ok": 0.0,
+            "service=slot runtime metadata,result=ok": 28800.0,
+            "service=slot status,result=ok": 0.0,
+            "service=slot user membership,result=ok": 12800.0,
+            "service=controller task result,result=ok": 0.0,
+            "service=controller write,result=ok": 24.0
+          },
+          "rpc_client_sampled_latency": {
+            "service=channel committed reads": {
+              "count": 228.0,
+              "sum": 0.2473659349999999,
+              "mean": 0.0010849383114035084
+            },
+            "service=channel conversation heads": {
+              "count": 972.0,
+              "sum": 0.9368442629999996,
+              "mean": 0.0009638315462962958
+            },
+            "service=slot message updates": {
+              "count": 5700.0,
+              "sum": 5.737630032999993,
+              "mean": 0.0010066017601754373
+            },
+            "service=slot permission metadata batch": {
+              "count": 4800.0,
+              "sum": 1.8873525420000017,
+              "mean": 0.00039319844625000037
+            },
+            "service=slot runtime metadata": {
+              "count": 900.0,
+              "sum": 0.3374799060000001,
+              "mean": 0.00037497767333333345
+            },
+            "service=slot user membership": {
+              "count": 400.0,
+              "sum": 0.3288811070000001,
+              "mean": 0.0008222027675000003
+            }
+          },
+          "observer_dropped": {},
+          "persisted_occupancy_buckets": {
+            "kind=heads,result=accepted,le=+Inf": 46800.0,
+            "kind=heads,result=accepted,le=1": 43577.0,
+            "kind=heads,result=accepted,le=12": 46800.0,
+            "kind=heads,result=accepted,le=14": 46800.0,
+            "kind=heads,result=accepted,le=15": 46800.0,
+            "kind=heads,result=accepted,le=16": 46800.0,
+            "kind=heads,result=accepted,le=2": 46730.0,
+            "kind=heads,result=accepted,le=4": 46800.0,
+            "kind=heads,result=accepted,le=8": 46800.0,
+            "kind=recents,result=accepted,le=+Inf": 10800.0,
+            "kind=recents,result=accepted,le=1": 9792.0,
+            "kind=recents,result=accepted,le=12": 10800.0,
+            "kind=recents,result=accepted,le=14": 10800.0,
+            "kind=recents,result=accepted,le=15": 10800.0,
+            "kind=recents,result=accepted,le=16": 10800.0,
+            "kind=recents,result=accepted,le=2": 10789.0,
+            "kind=recents,result=accepted,le=4": 10800.0,
+            "kind=recents,result=accepted,le=8": 10800.0
+          },
+          "host": {
+            "bracket_seconds": 60.719369,
+            "cgroup_usage_seconds": 187.9,
+            "cgroup_four_cpu_utilization": 0.7736411094785915,
+            "server_cpu_over_cgroup_cpu_approximate_ratio": 0.853273017562533,
+            "cgroup_minus_server_cpu_seconds_different_brackets": 27.57000000000005,
+            "driver_cpu_ticks": 2922,
+            "driver_cpu_ticks_per_completed_request": 0.18730769230769231,
+            "host_cpu_nonidle_fraction": 0.7942009383321358,
+            "host_cpu_iowait_fraction": 0.0005494737731941333,
+            "host_cpu_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4627024862527804,
+            "throttled_usec_delta": 0,
+            "nr_throttled_delta": 0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+            "driver_clock_tick_hz": null
+          }
+        },
+        {
+          "window": 3,
+          "completed": 15600,
+          "server_cpu_seconds": 160.26999999999998,
+          "server_cpu_ms_per_completed_mixed_request": 10.273717948717946,
+          "server_allocated_bytes": 36708797944,
+          "server_allocated_bytes_per_completed_mixed_request": 2353128.0733333332,
+          "server_average_cpu_cores_over_60s": 2.6711666666666662,
+          "stages": {
+            "scope=edit_slot,stage=barrier,result=ok": {
+              "count": 273600.0,
+              "sum": 150.1004086920002,
+              "mean": 0.0005486126048684218
+            },
+            "scope=edit_slot,stage=storage,result=ok": {
+              "count": 273600.0,
+              "sum": 13.428729334999593,
+              "mean": 4.908161306651898e-05
+            },
+            "scope=list,stage=handler,result=ok": {
+              "count": 12000.0,
+              "sum": 90.23325973699924,
+              "mean": 0.007519438311416603
+            },
+            "scope=list,stage=response,result=ok": {
+              "count": 12000.0,
+              "sum": 2.7027060769999993,
+              "mean": 0.00022522550641666662
+            },
+            "scope=persisted_heads,stage=edit_overlay,result=ok": {
+              "count": 15600.0,
+              "sum": 38.877110328999734,
+              "mean": 0.0024921224569871623
+            },
+            "scope=persisted_heads,stage=heads,result=ok": {
+              "count": 15600.0,
+              "sum": 39.317843040000014,
+              "mean": 0.002520374553846155
+            },
+            "scope=persisted_heads,stage=metadata,result=ok": {
+              "count": 15600.0,
+              "sum": 23.148647391999898,
+              "mean": 0.0014838876533333268
+            },
+            "scope=sync,stage=handler,result=ok": {
+              "count": 3600.0,
+              "sum": 68.23731011500004,
+              "mean": 0.01895480836527779
+            },
+            "scope=sync,stage=response,result=ok": {
+              "count": 3600.0,
+              "sum": 2.3918950769999885,
+              "mean": 0.0006644152991666635
+            }
+          },
+          "persisted_hold": {
+            "kind=heads,result=ok": {
+              "count": 46800.0,
+              "sum": 19.08691977399976,
+              "mean": 0.00040784016611110596
+            },
+            "kind=recents,result=ok": {
+              "count": 10800.0,
+              "sum": 5.1592141740000255,
+              "mean": 0.00047770501611111345
+            }
+          },
+          "persisted_occupancy": {
+            "kind=heads,result=accepted": {
+              "count": 46800.0,
+              "sum": 50007.0,
+              "mean": 1.068525641025641
+            },
+            "kind=recents,result=accepted": {
+              "count": 10800.0,
+              "sum": 11737.0,
+              "mean": 1.0867592592592592
+            }
+          },
+          "persisted_admission": {
+            "kind=heads,result=accepted": 46800.0,
+            "kind=heads,result=rejected": 0.0,
+            "kind=other,result=accepted": 0.0,
+            "kind=other,result=rejected": 0.0,
+            "kind=recents,result=accepted": 10800.0,
+            "kind=recents,result=rejected": 0.0
+          },
+          "rpc_client_exact_calls": {
+            "service=channel committed reads,result=ok": 7200.0,
+            "service=channel conversation heads,result=ok": 31200.0,
+            "service=channel quorum exchange,result=ok": 0.0,
+            "service=node send permissions,result=ok": 0.0,
+            "service=presence authority,result=ok": 0.0,
+            "service=presence owner action,result=ok": 0.0,
+            "service=send authority,result=ok": 0.0,
+            "service=slot channel metadata,result=ok": 0.0,
+            "service=slot message updates,result=ok": 182400.0,
+            "service=slot permission metadata batch,result=ok": 153600.0,
+            "service=slot propose,result=ok": 0.0,
+            "service=slot runtime metadata,result=ok": 28800.0,
+            "service=slot status,result=ok": 0.0,
+            "service=slot user membership,result=ok": 12800.0,
+            "service=controller task result,result=ok": 0.0,
+            "service=controller write,result=ok": 24.0
+          },
+          "rpc_client_sampled_latency": {
+            "service=channel committed reads": {
+              "count": 228.0,
+              "sum": 0.25960726399999995,
+              "mean": 0.0011386283508771928
+            },
+            "service=channel conversation heads": {
+              "count": 972.0,
+              "sum": 0.6985225989999999,
+              "mean": 0.0007186446491769547
+            },
+            "service=slot message updates": {
+              "count": 5700.0,
+              "sum": 5.66773377499999,
+              "mean": 0.000994339258771928
+            },
+            "service=slot permission metadata batch": {
+              "count": 4800.0,
+              "sum": 1.8052141529999974,
+              "mean": 0.00037608628187499945
+            },
+            "service=slot runtime metadata": {
+              "count": 900.0,
+              "sum": 0.35749783200000007,
+              "mean": 0.0003972198133333334
+            },
+            "service=slot user membership": {
+              "count": 400.0,
+              "sum": 0.3720831930000002,
+              "mean": 0.0009302079825000005
+            },
+            "service=controller write": {
+              "count": 2.0,
+              "sum": 0.019759370000000002,
+              "mean": 0.009879685000000001
+            }
+          },
+          "observer_dropped": {},
+          "persisted_occupancy_buckets": {
+            "kind=heads,result=accepted,le=+Inf": 46800.0,
+            "kind=heads,result=accepted,le=1": 43669.0,
+            "kind=heads,result=accepted,le=12": 46800.0,
+            "kind=heads,result=accepted,le=14": 46800.0,
+            "kind=heads,result=accepted,le=15": 46800.0,
+            "kind=heads,result=accepted,le=16": 46800.0,
+            "kind=heads,result=accepted,le=2": 46728.0,
+            "kind=heads,result=accepted,le=4": 46800.0,
+            "kind=heads,result=accepted,le=8": 46800.0,
+            "kind=recents,result=accepted,le=+Inf": 10800.0,
+            "kind=recents,result=accepted,le=1": 9881.0,
+            "kind=recents,result=accepted,le=12": 10800.0,
+            "kind=recents,result=accepted,le=14": 10800.0,
+            "kind=recents,result=accepted,le=15": 10800.0,
+            "kind=recents,result=accepted,le=16": 10800.0,
+            "kind=recents,result=accepted,le=2": 10784.0,
+            "kind=recents,result=accepted,le=4": 10800.0,
+            "kind=recents,result=accepted,le=8": 10800.0
+          },
+          "host": {
+            "bracket_seconds": 60.700723,
+            "cgroup_usage_seconds": 186.713,
+            "cgroup_four_cpu_utilization": 0.7689900168075428,
+            "server_cpu_over_cgroup_cpu_approximate_ratio": 0.858376224472854,
+            "cgroup_minus_server_cpu_seconds_different_brackets": 26.443000000000012,
+            "driver_cpu_ticks": 2889,
+            "driver_cpu_ticks_per_completed_request": 0.18519230769230768,
+            "host_cpu_nonidle_fraction": 0.7896050071893767,
+            "host_cpu_iowait_fraction": 0.0005497758606106742,
+            "host_cpu_steal_fraction": 0.0,
+            "cpu_psi_some_fraction": 0.4338900049015891,
+            "throttled_usec_delta": 0,
+            "nr_throttled_delta": 0,
+            "cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+            "driver_clock_tick_hz": null
+          }
+        }
+      ],
+      "aggregate": {
+        "completed": 46800,
+        "server_cpu_seconds": 479.4999999999999,
+        "server_cpu_ms_per_completed_mixed_request": 10.245726495726494,
+        "server_allocated_bytes": 110107101656,
+        "server_allocated_bytes_per_completed_mixed_request": 2352715.8473504274,
+        "driver_cpu_ticks": 8759,
+        "driver_cpu_ticks_per_completed_request": 0.18715811965811965,
+        "stages": {
+          "scope=edit_slot,stage=barrier,result=ok": {
+            "count": 820800.0,
+            "sum_seconds": 482.6196710629953,
+            "mean_ms": 0.5879869286829864
+          },
+          "scope=edit_slot,stage=storage,result=ok": {
+            "count": 820800.0,
+            "sum_seconds": 40.47902436599942,
+            "mean_ms": 0.04931655015350807
+          },
+          "scope=list,stage=handler,result=ok": {
+            "count": 36000.0,
+            "sum_seconds": 284.509866652999,
+            "mean_ms": 7.903051851472195
+          },
+          "scope=list,stage=response,result=ok": {
+            "count": 36000.0,
+            "sum_seconds": 8.346153978000004,
+            "mean_ms": 0.2318376105000001
+          },
+          "scope=persisted_heads,stage=edit_overlay,result=ok": {
+            "count": 46800.0,
+            "sum_seconds": 124.36968112199973,
+            "mean_ms": 2.657471818846148
+          },
+          "scope=persisted_heads,stage=heads,result=ok": {
+            "count": 46800.0,
+            "sum_seconds": 122.47528961900004,
+            "mean_ms": 2.616993367927351
+          },
+          "scope=persisted_heads,stage=metadata,result=ok": {
+            "count": 46800.0,
+            "sum_seconds": 74.15207437999985,
+            "mean_ms": 1.5844460337606805
+          },
+          "scope=sync,stage=handler,result=ok": {
+            "count": 10800.0,
+            "sum_seconds": 216.17862652199997,
+            "mean_ms": 20.016539492777774
+          },
+          "scope=sync,stage=response,result=ok": {
+            "count": 10800.0,
+            "sum_seconds": 7.313923297999992,
+            "mean_ms": 0.6772151201851844
+          }
+        },
+        "rpc_client_exact_calls": {
+          "service=channel committed reads,result=ok": 21600.0,
+          "service=channel conversation heads,result=ok": 93600.0,
+          "service=channel quorum exchange,result=ok": 0.0,
+          "service=node send permissions,result=ok": 0.0,
+          "service=presence authority,result=ok": 0.0,
+          "service=presence owner action,result=ok": 0.0,
+          "service=send authority,result=ok": 0.0,
+          "service=slot channel metadata,result=ok": 0.0,
+          "service=slot message updates,result=ok": 547200.0,
+          "service=slot permission metadata batch,result=ok": 460800.0,
+          "service=slot propose,result=ok": 0.0,
+          "service=slot runtime metadata,result=ok": 86400.0,
+          "service=slot status,result=ok": 0.0,
+          "service=slot user membership,result=ok": 38400.0,
+          "service=controller task result,result=ok": 0.0,
+          "service=controller write,result=ok": 72.0
+        },
+        "rpc_client_calls_per_completed_request": {
+          "service=channel committed reads,result=ok": 0.46153846153846156,
+          "service=channel conversation heads,result=ok": 2.0,
+          "service=channel quorum exchange,result=ok": 0.0,
+          "service=node send permissions,result=ok": 0.0,
+          "service=presence authority,result=ok": 0.0,
+          "service=presence owner action,result=ok": 0.0,
+          "service=send authority,result=ok": 0.0,
+          "service=slot channel metadata,result=ok": 0.0,
+          "service=slot message updates,result=ok": 11.692307692307692,
+          "service=slot permission metadata batch,result=ok": 9.846153846153847,
+          "service=slot propose,result=ok": 0.0,
+          "service=slot runtime metadata,result=ok": 1.8461538461538463,
+          "service=slot status,result=ok": 0.0,
+          "service=slot user membership,result=ok": 0.8205128205128205,
+          "service=controller task result,result=ok": 0.0,
+          "service=controller write,result=ok": 0.0015384615384615385
+        }
+      },
+      "profile_window": {
+        "start": "2026-10-20T10:27:32.144308288Z",
+        "end": "2026-10-20T10:27:42.144308288Z",
+        "cpu_seconds": 27.089999999999918,
+        "allocated_bytes": 6138850688,
+        "phases": [
+          {
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "completed": 2000,
+            "actual_qps": 199.8,
+            "p99_ms": 28.720051,
+            "driver_wait_p99_ms": 2.150969,
+            "request_p99_ms": 28.218132,
+            "dropped": 0,
+            "verdict": "pass"
+          },
+          {
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "completed": 600,
+            "actual_qps": 59.9,
+            "p99_ms": 62.502179,
+            "driver_wait_p99_ms": 2.992912,
+            "request_p99_ms": 61.554668,
+            "dropped": 0,
+            "verdict": "pass"
+          }
+        ]
+      }
+    }
+  },
+  "matched_candidate_delta_percent": {
+    "server_cpu_ms_per_completed_mixed_request": 0.7120203314359808,
+    "server_allocated_bytes_per_completed_mixed_request": 0.01891299061227425,
+    "driver_cpu_ticks_per_completed_request": 1.2601156069364183
+  }
+}

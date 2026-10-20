@@ -1,0 +1,66 @@
+{
+  "declared_at": "2026-10-20T10:21:20.469504+00:00",
+  "experiment": "One reverse-order same-host beta24/b469 comparison",
+  "previous_run": 39369947381,
+  "original_failed_run": 39368295521,
+  "workflow_ref": "main",
+  "expected_harness_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "first_product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "first_expected_binary_sha256": null,
+  "second_product_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "second_expected_binary_sha256": "e327d0252e814b47efdc06ff9c6b80d847af29e30c20a1b22ba1dee98cd45a9a",
+  "run_release_matrix": false,
+  "bounded_runs": 1,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "hypothesis": "The prior beta-first/candidate-second latency gap includes order or host-time effects.",
+      "prediction": "If the second product becomes slower after reversal, version-only attribution weakens."
+    },
+    {
+      "rank": 2,
+      "hypothesis": "The candidate has a repeatable added read-path cost.",
+      "prediction": "If b469 remains slower when first, with comparable host pressure and per-request server cost, this supports a candidate-specific difference, still requiring replicated controlled evidence."
+    },
+    {
+      "rank": 3,
+      "hypothesis": "The original failed run is limited by shared runner CPU resources.",
+      "prediction": "If both versions degrade on a resource-stressed host and drops accompany pressure, a common resource constraint strengthens; CPU model differences must remain explicit."
+    }
+  ],
+  "invariants": [
+    "same frozen b469 harness and profile",
+    "unchanged 3x60s list200/sync60 windows;8workers per endpoint",
+    "fresh cluster per product;no measured retries",
+    "all refused windows retained;separate profiles excluded from gates",
+    "Go1.25.11;four visible Linux AMD64 CPUs;driver4/node2",
+    "exact SHA/digest verification for both binaries"
+  ],
+  "limits": [
+    "New runner cannot be assumed identical to earlier runner even if its CPU model matches.",
+    "One reversed sequential pair does not independently establish statistical regression or remove all fixture/time effects.",
+    "This diagnoses old beta24 vs b469 performance difference, not qualification of migration-repaired product98c25091.",
+    "No release matrix, publication, permission changes or paid cloud procurement."
+  ],
+  "frozen_context_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    ".github/workflows/README.md": "bbe0d37990902e6039ae339077177c99a1f939219953472efc798030e863f0c3",
+    ".github/workflows/conversation-qps-diagnose.yml": "7702846f3d7adccc600bf8e1a3515a1eeeaf5e289778fed2e75462b5774d0c9f",
+    "test/e2e/AGENTS.md": "c4e0ac72f2e03e27d8d8df553ce10f6233b6bef13cf9b1b739260874af2c2d2d",
+    "test/e2e/message/AGENTS.md": "90093d546ce4be4ebc36d276e0a151f1f1e66fb89d06e92647343a84eee6b871",
+    "test/e2e/message/conversation_qps/AGENTS.md": "098bf4f18cfec5843ebd20bd2c7f38170d51c4a65671ca8c7ef7f7e8b63aa288",
+    "test/e2e/message/conversation_qps/profile.json": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+    "test/e2e/message/conversation_qps/mixed_attribution_test.go": "f8513f0d29d1bd55db404bc2de48b632cbb66b755d0d6612a79b84b4cbc6ea8c",
+    "test/e2e/suite/FLOW.md": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887"
+  },
+  "previous_preflight_run": 39406775641,
+  "first_prior_role_binary_sha256": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+  "build_identity_correction": {
+    "reason": "Prior beta digest came from comparison-product source directory. Reversed role checks out beta at the root; builds are not trimpath. Observed root binary differs while all go version -m fields after output-path line are byte-identical.",
+    "old_beta_binary_sha256": "2aba832435ad303bd70e47a79b618114d5522aca70109b6a0d7f45affc652853",
+    "observed_root_beta_binary_sha256": "e327d0252e814b47efdc06ff9c6b80d847af29e30c20a1b22ba1dee98cd45a9a",
+    "metadata_equal_excluding_output_path": true,
+    "measurement_windows_executed": 0,
+    "limits": "The entire new binary/archive was not downloaded or independently hashed. Workflow hashes are provenance evidence; path-only binary equivalence was not independently proven. Candidate comparison-role digest must be recorded independently, not required to equal its prior root-role digest."
+  }
+}

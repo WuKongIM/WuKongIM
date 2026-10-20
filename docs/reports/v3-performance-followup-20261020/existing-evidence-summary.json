@@ -1,0 +1,67 @@
+{
+  "scope": "Existing 39368295521 and 39369947381 receipts and original-run profiles only; no workflow dispatch or repository mutation by this analysis.",
+  "candidate_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "baseline_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "latest_migration_candidate_qualified": false,
+  "publication_gate_satisfied": false,
+  "old_failure_retained": true,
+  "matched_cost_delta_percent": {
+    "server_cpu_ms_per_completed_mixed_request": 2.8276662294420163,
+    "server_allocated_bytes_per_completed_mixed_request": 0.010971292189321247,
+    "driver_cpu_ticks_per_completed_request": 4.660111158614777
+  },
+  "findings": [
+    "Original failure coincides with 95% host CPU nonidle and sustained driver queue overflow; three-node product CPU is the major measured consumer, and driver decoding also consumes meaningful CPU.",
+    "No persisted-read admission refusal observed; all sampled occupancy values <=8 with limit16. Driver drops are discarded benchmark arrivals, not lost product messages.",
+    "Matched candidate has ~47.3%/~63.2% greater list/sync median window P99 and only ~2ms driver wait. Request spans HTTP, decode, validation and scheduling, not pure server time.",
+    "Matched mean server handlers are also ~21.2%/~19.8% slower; same stage/call counts and +0.011% allocation do not support a large increase in work or allocations. CPU/request +2.83% and driver ticks/request +4.66%.",
+    "Raw stage buckets absent; server P99 cannot be reconstructed from sums/counts. CPU, wall-time stages and independent P99 fields are not additive.",
+    "Original 7763 vs matched9V45 also differ in completion mix and recorded RPC fanout, so model alone is not an isolated causal variable.",
+    "Profiles are separate later windows, not original 60s windows. Server samples begin before warmup and cover only ~7.36s of measured10s. Matching profile-window ranking reverses, so they cannot prove original tail regression."
+  ],
+  "next_experiment": "One predeclared reversed-order same-host pair (b469 then beta24) using frozen b469 harness/profile. Root manages exact build-provenance digest locks and preserves any pre-measurement failures; this analysis does not dispatch or declare its result.",
+  "files": {
+    "cost-findings.md": {
+      "bytes": 10524,
+      "sha256": "1c40af85192bc56781734d1af096d302aa9fa5331744361d9e58d359dbd095cd"
+    },
+    "cost-data.json": {
+      "bytes": 86127,
+      "sha256": "0d8f40026bc2286ffd1c708d91c3bdea96df876469ddf39c31cdba0e7af349ea"
+    },
+    "cost-analyze.py": {
+      "bytes": 8578,
+      "sha256": "1a0b1a6b84047ccc8ef9ae9019c3b4ed8ac646cbb634025f85cb44623d9a64fe"
+    },
+    "latency-findings.md": {
+      "bytes": 9287,
+      "sha256": "c58b45faec3838582a4dd48d7baf53c499dd57d66bdeb20d9368ead593c3cb5a"
+    },
+    "latency-data.json": {
+      "bytes": 85554,
+      "sha256": "e28696177f5d67361e068e3deeadfde9d94b7987b36ff70875a1fec079265957"
+    },
+    "latency-analyze.py": {
+      "bytes": 3113,
+      "sha256": "f4ea005a163a8d6375b64888630df3b8fed2ebce152c7560d78916d4151fd96a"
+    },
+    "profile-headers.json": {
+      "bytes": 952,
+      "sha256": "9a37515174805174041c868e3de9a70e1ca28137a8e658580382197b23432e7a"
+    },
+    "profile-inputs.json": {
+      "bytes": 1154,
+      "sha256": "69995a94b0f5a3699ccc548f361b6ff072fa3344b8054665d96731665f8bdd34"
+    },
+    "server-profile-tags.txt": {
+      "bytes": 866,
+      "sha256": "8f1fd711c296359c5aa7d9906b63cf559e833beb99ecd502eb2fe616258d2c5b"
+    }
+  },
+  "delivery_checks": {
+    "credential_or_signed_url_patterns_found": [],
+    "new_binary_or_archive_downloaded": false,
+    "all_owned_artifacts_under_bytes": 86127,
+    "total_owned_bytes": 206155
+  }
+}
