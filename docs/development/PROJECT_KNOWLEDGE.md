@@ -139,6 +139,11 @@ specification, runbook, report, or module documentation; link to them when neede
   nothing. Authority, corruption, and I/O failures must not become empty or
   successful partial history. A zero committed frontier is handled before a
   storage API whose zero maximum means unbounded.
+- An incomplete or unavailable Channel recovery proof is typed `ErrNotReady`
+  at `DurableQuorumLog.Install`; ordinary history reads return structured
+  HTTP 503 `code=unavailable` until recovery completes. Local probe storage
+  failures, invalid proofs and invalid authority keep their original error
+  classification. Clients must not infer retryability from error substrings.
 - Controller and Slot snapshot restore starts from snapshot data, then replays
   committed entries after the snapshot index. A later stored applied watermark
   must not skip replay. WAL recovery may repair only an incomplete physical tail

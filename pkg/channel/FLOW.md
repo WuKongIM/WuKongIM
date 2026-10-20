@@ -70,6 +70,9 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   bounded repair workers without contributing votes; page progress survives
   retry deadlines. Recovery can complete under a transfer write fence for new-leader
   verification; business Commit stays blocked until the fence is cleared.
+  Incomplete or unavailable quorum proofs retain public `ErrNotReady` identity
+  at Install, including across read RPCs. Local probe storage errors retain their
+  original cause; invalid proofs and configurations do not become pending recovery.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
    Committed-read results own their payload bytes beyond store-handle closure,
