@@ -1,0 +1,20 @@
+File: wukongim-e2e
+Build ID: d09bd60b965f00fb5b66cf844d277751afccc05d
+Type: alloc_space
+Time: 2026-10-20 12:18:00 CST
+Showing nodes accounting for 580.34MB, 28.72% of 2020.76MB total
+Dropped 386 nodes (cum <= 10.10MB)
+Showing top 12 nodes out of 223
+      flat  flat%   sum%        cum   cum%
+   83.44MB  4.13%  4.13%    85.68MB  4.24%  encoding/json.Marshal
+   60.53MB  3.00%  7.12%    64.03MB  3.17%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).retainWarmLocked
+   55.02MB  2.72%  9.85%    55.02MB  2.72%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).acquire
+   50.65MB  2.51% 12.35%   375.89MB 18.60%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).readChannelConversationHeads
+   48.10MB  2.38% 14.73%   193.29MB  9.57%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readConversationHeadsWithMetadata
+   48.03MB  2.38% 17.11%   168.06MB  8.32%  github.com/WuKongIM/WuKongIM/pkg/db/message.readMessageRowsReverseRaw
+   45.01MB  2.23% 19.34%    47.01MB  2.33%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get
+   40.27MB  1.99% 21.33%    71.78MB  3.55%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadChannelRuntimeMetadataBatch
+   38.36MB  1.90% 23.23%    56.37MB  2.79%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadPermissionMetadataBatch
+   37.66MB  1.86% 25.09%    38.16MB  1.89%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).handleRPCResponse
+   37.01MB  1.83% 26.93%   239.09MB 11.83%  github.com/WuKongIM/WuKongIM/pkg/channel/store.(*messageDBChannelStoreAdapter).ReadCommitted
+   36.25MB  1.79% 28.72%    36.25MB  1.79%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.encodeRPCResultVersion

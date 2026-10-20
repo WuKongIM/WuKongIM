@@ -1,0 +1,20 @@
+File: wukongim-e2e
+Build ID: d09bd60b965f00fb5b66cf844d277751afccc05d
+Type: alloc_space
+Time: 2026-10-20 12:18:00 CST
+Showing nodes accounting for 541.60MB, 28.68% of 1888.22MB total
+Dropped 384 nodes (cum <= 9.44MB)
+Showing top 12 nodes out of 234
+      flat  flat%   sum%        cum   cum%
+   82.91MB  4.39%  4.39%    84.75MB  4.49%  encoding/json.Marshal
+   59.02MB  3.13%  7.52%    59.02MB  3.13%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).acquire
+   48.23MB  2.55% 10.07%   174.44MB  9.24%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readConversationHeadsWithMetadata
+   45.86MB  2.43% 12.50%    46.36MB  2.46%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).handleRPCResponse
+   45.02MB  2.38% 14.88%    48.52MB  2.57%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).retainWarmLocked
+   44.03MB  2.33% 17.22%   340.34MB 18.02%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).readChannelConversationHeads
+   42.51MB  2.25% 19.47%    42.51MB  2.25%  github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec.(*Scanner).Bytes (inline)
+   38.02MB  2.01% 21.48%   142.05MB  7.52%  github.com/WuKongIM/WuKongIM/pkg/db/message.readMessageRowsReverseRaw
+   37.53MB  1.99% 23.47%    50.03MB  2.65%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readPermissionMetadataLocal
+   33.70MB  1.78% 25.25%   107.71MB  5.70%  github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { UID string; ChannelID string; ChannelType int64; JoinSeq uint64; ReadSeq uint64; DeletedToSeq uint64; ConversationHiddenThroughSeq uint64; ActivatedAt int64; Tombstone bool; TombstoneAt int64; SourceVersion uint64; UpdatedAt int64 }].scanIndexWithOptions
+   32.51MB  1.72% 26.97%    32.51MB  1.72%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.conversationFromMembership
+   32.26MB  1.71% 28.68%    59.26MB  3.14%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadChannelRuntimeMetadataBatch

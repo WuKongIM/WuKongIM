@@ -1,0 +1,239 @@
+{
+  "captured_at": "2026-10-20T04:28:45.659938+00:00",
+  "capture_scope": "Existing exact owned processes and bounded file tails only. No HTTP/metrics requests or process signals.",
+  "max_bytes_per_source": 524288,
+  "nodes": [
+    {
+      "node_id": 2,
+      "pid": 30391,
+      "ppid": 30388,
+      "process_elapsed": "04:25",
+      "config_path": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/wukongim.toml",
+      "config_sections": [
+        "node",
+        "cluster",
+        "api",
+        "observability",
+        "gateway",
+        "plugin",
+        "manager",
+        "log",
+        "message"
+      ],
+      "node_data_dir": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/data",
+      "files": [
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/stdout.log",
+          "exists": true,
+          "source_bytes": 8491,
+          "source_mtime_utc": "2026-10-20T04:25:30.797667+00:00",
+          "tail_bytes": 8491,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-2-node-2-stdout.log.redacted.txt",
+          "redacted_sha256": "3e765fabc9efac01b2103d81ff6c7c6eaed297b276a6576818d036ef4852da13",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-2-node-2-stdout.log.restore-events.txt",
+          "selected_events_count": 9
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/stderr.log",
+          "exists": true,
+          "source_bytes": 0,
+          "source_mtime_utc": "2026-10-20T04:24:20.805293+00:00",
+          "tail_bytes": 0,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-2-node-2-stderr.log.redacted.txt",
+          "redacted_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-2-node-2-stderr.log.restore-events.txt",
+          "selected_events_count": 0
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/logs/app.log",
+          "exists": true,
+          "source_bytes": 9270,
+          "source_mtime_utc": "2026-10-20T04:25:30.797454+00:00",
+          "tail_bytes": 9270,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-2-logs-app.log.redacted.txt",
+          "redacted_sha256": "dff8f99b955afc733bf5df64a8da9a7dba0f8af260af5c7a1bce84d9770890dc",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-2-logs-app.log.restore-events.txt",
+          "selected_events_count": 9
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/logs/error.log",
+          "exists": false
+        }
+      ],
+      "api": {
+        "listen_addr": "127.0.0.1:26251"
+      },
+      "manager": {
+        "listen_addr": "127.0.0.1:26252",
+        "auth_on": true
+      },
+      "cluster": {
+        "listen_addr": "127.0.0.1:26247",
+        "hash_slot_count": 256,
+        "initial_slot_count": 3,
+        "slot_replica_n": 3
+      },
+      "log": {
+        "dir": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/logs"
+      }
+    },
+    {
+      "node_id": 3,
+      "pid": 30392,
+      "ppid": 30388,
+      "process_elapsed": "04:25",
+      "config_path": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/wukongim.toml",
+      "config_sections": [
+        "node",
+        "cluster",
+        "api",
+        "observability",
+        "gateway",
+        "plugin",
+        "manager",
+        "log",
+        "message"
+      ],
+      "node_data_dir": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/data",
+      "files": [
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/stdout.log",
+          "exists": true,
+          "source_bytes": 6615,
+          "source_mtime_utc": "2026-10-20T04:25:30.438998+00:00",
+          "tail_bytes": 6615,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-3-node-3-stdout.log.redacted.txt",
+          "redacted_sha256": "97c8e6ca81485506f9f4203c67a4cf3c936ee7e92e164679b4bf8196feefc666",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-3-node-3-stdout.log.restore-events.txt",
+          "selected_events_count": 7
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/stderr.log",
+          "exists": true,
+          "source_bytes": 0,
+          "source_mtime_utc": "2026-10-20T04:24:20.806061+00:00",
+          "tail_bytes": 0,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-3-node-3-stderr.log.redacted.txt",
+          "redacted_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-3-node-3-stderr.log.restore-events.txt",
+          "selected_events_count": 0
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/logs/app.log",
+          "exists": true,
+          "source_bytes": 7394,
+          "source_mtime_utc": "2026-10-20T04:25:30.438978+00:00",
+          "tail_bytes": 7394,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-3-logs-app.log.redacted.txt",
+          "redacted_sha256": "4320d89076bc98ca1cd25f720c110a393aac9182f7cd1777986147042f9eeb78",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-3-logs-app.log.restore-events.txt",
+          "selected_events_count": 7
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/logs/error.log",
+          "exists": false
+        }
+      ],
+      "api": {
+        "listen_addr": "127.0.0.1:26257"
+      },
+      "manager": {
+        "listen_addr": "127.0.0.1:26258",
+        "auth_on": true
+      },
+      "cluster": {
+        "listen_addr": "127.0.0.1:26253",
+        "hash_slot_count": 256,
+        "initial_slot_count": 3,
+        "slot_replica_n": 3
+      },
+      "log": {
+        "dir": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/logs"
+      }
+    },
+    {
+      "node_id": 1,
+      "pid": 30467,
+      "ppid": 30388,
+      "process_elapsed": "03:21",
+      "config_path": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/wukongim.toml",
+      "config_sections": [
+        "node",
+        "cluster",
+        "api",
+        "observability",
+        "gateway",
+        "plugin",
+        "manager",
+        "log",
+        "message"
+      ],
+      "node_data_dir": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/data",
+      "files": [
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/stdout.log",
+          "exists": true,
+          "source_bytes": 4171,
+          "source_mtime_utc": "2026-10-20T04:25:29.886091+00:00",
+          "tail_bytes": 4171,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-1-node-1-stdout.log.redacted.txt",
+          "redacted_sha256": "8e6b09c36f2bf86728d1dd8b8a55c6ab9be96754a6083115c79df7c340506a1b",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-1-node-1-stdout.log.restore-events.txt",
+          "selected_events_count": 2
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/stderr.log",
+          "exists": true,
+          "source_bytes": 0,
+          "source_mtime_utc": "2026-10-20T04:25:24.094290+00:00",
+          "tail_bytes": 0,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-1-node-1-stderr.log.redacted.txt",
+          "redacted_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-1-node-1-stderr.log.restore-events.txt",
+          "selected_events_count": 0
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/logs/app.log",
+          "exists": true,
+          "source_bytes": 12151,
+          "source_mtime_utc": "2026-10-20T04:25:29.885925+00:00",
+          "tail_bytes": 12151,
+          "truncated_before_tail": false,
+          "redacted_tail": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-1-logs-app.log.redacted.txt",
+          "redacted_sha256": "10947f757af4ac55e1ba48ee346c8b0f3c2fc4e9e9b1ec68d13e83dbd7c1bf48",
+          "selected_events": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-node-1-logs-app.log.restore-events.txt",
+          "selected_events_count": 10
+        },
+        {
+          "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/logs/error.log",
+          "exists": false
+        }
+      ],
+      "api": {
+        "listen_addr": "127.0.0.1:26245"
+      },
+      "manager": {
+        "listen_addr": "127.0.0.1:26246",
+        "auth_on": true
+      },
+      "cluster": {
+        "listen_addr": "127.0.0.1:26241",
+        "hash_slot_count": 256,
+        "initial_slot_count": 3,
+        "slot_replica_n": 3
+      },
+      "log": {
+        "dir": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/logs"
+      }
+    }
+  ],
+  "test_events_copy": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/20261020T042845Z-test-events.jsonl"
+}

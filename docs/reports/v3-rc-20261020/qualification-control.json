@@ -1,0 +1,22 @@
+{
+  "product_source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "executed_paid_actions": false,
+  "formal_plan_status": "prepared_not_authorized_or_executed",
+  "fixed_input_sha256": {
+    "configs/cloud/chat-lifecycle/rehearsal-v1.json": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b",
+    "configs/cloud/chat-lifecycle/formal-v1.json": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0",
+    "configs/wkbench/chat-lifecycle/formal.yaml": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573",
+    ".github/workflows/chat-lifecycle-rehearsal.yml": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c",
+    ".github/workflows/chat-lifecycle-formal.yml": "57443e3ee23799bf691ab580808bfca6dfdb0c8f5ce2b00b996e83a7e2904703",
+    ".github/workflows/conversation-qps-diagnose.yml": "7702846f3d7adccc600bf8e1a3515a1eeeaf5e289778fed2e75462b5774d0c9f",
+    ".github/workflows/easysdk-release-acceptance.yml": "3073866aecc25a86dd1ad4cbef27b3913732e8a1c581cb53bc1a77a10a8f3ecd",
+    "test/e2e/message/conversation_qps/profile.json": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1"
+  },
+  "read_only_workflow_runs": {
+    "sdk": 39367425765,
+    "qps": 39368295521,
+    "qps_matched_comparison": 39369947381
+  },
+  "release_tag_created": false,
+  "published_artifacts": false
+}

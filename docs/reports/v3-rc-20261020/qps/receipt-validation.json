@@ -1,0 +1,8 @@
+{
+  "executed": false,
+  "gate_report_present": false,
+  "passed": false,
+  "reason": "Release-matrix precondition found rejected diagnostic phases; no gate/report.json or v2 receipt was produced.",
+  "failing_step": "Validate the complete unchanged release matrix without publication",
+  "precondition_exit_code": 1
+}

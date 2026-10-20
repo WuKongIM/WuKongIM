@@ -1,0 +1,159 @@
+File: wukongim-e2e
+Build ID: d09bd60b965f00fb5b66cf844d277751afccc05d
+Type: cpu
+Time: 2026-10-20 12:18:00 CST
+Duration: 24.45s, Total samples = 23.73s (97.06%)
+Showing nodes accounting for 10.09s, 42.52% of 23.73s total
+Dropped 1019 nodes (cum <= 0.12s)
+Showing top 150 nodes out of 385
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      9.54s 40.20%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+     0.02s 0.084% 0.084%      9.51s 40.08%  runtime/pprof.Do
+         0     0% 0.084%      9.47s 39.91%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 0.084%      8.05s 33.92%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+     0.01s 0.042%  0.13%      7.97s 33.59%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+     0.01s 0.042%  0.17%      7.96s 33.54%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+     0.01s 0.042%  0.21%      7.65s 32.24%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+     0.02s 0.084%  0.29%      7.23s 30.47%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%  0.29%         7s 29.50%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0%  0.29%      4.15s 17.49%  net/http.(*conn).serve
+         0     0%  0.29%      4.12s 17.36%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0%  0.29%      4.12s 17.36%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0%  0.29%      4.12s 17.36%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0%  0.29%      4.12s 17.36%  github.com/gin-gonic/gin.(*Context).Next
+         0     0%  0.29%      4.12s 17.36%  github.com/gin-gonic/gin.(*Engine).ServeHTTP
+         0     0%  0.29%      4.12s 17.36%  github.com/gin-gonic/gin.(*Engine).handleHTTPRequest
+         0     0%  0.29%      4.12s 17.36%  net/http.serverHandler.ServeHTTP
+         0     0%  0.29%      4.04s 17.02%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).messageContentEpochMiddleware.func4
+     0.01s 0.042%  0.34%      3.76s 15.84%  github.com/WuKongIM/WuKongIM/pkg/cluster.slotProxyRPCHandlerFunc.HandleRPC
+         0     0%  0.34%      3.57s 15.04%  syscall.Syscall
+     3.54s 14.92% 15.25%      3.54s 14.92%  internal/runtime/syscall.Syscall6
+     0.01s 0.042% 15.30%      3.44s 14.50%  syscall.RawSyscall6
+     0.01s 0.042% 15.34%      3.20s 13.49%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0% 15.34%      3.16s 13.32%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readSelectedConversationHeads
+     0.03s  0.13% 15.47%      3.09s 13.02%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readStoredConversationHead
+     0.02s 0.084% 15.55%      2.91s 12.26%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch
+     0.06s  0.25% 15.80%      2.88s 12.14%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1
+     0.18s  0.76% 16.56%      2.65s 11.17%  runtime.mallocgc
+     0.04s  0.17% 16.73%      2.61s 11.00%  runtime.systemstack
+     0.01s 0.042% 16.77%      2.55s 10.75%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.WriteFramesInto
+     0.10s  0.42% 17.19%      2.53s 10.66%  github.com/cockroachdb/pebble/v2.(*DB).getInternal
+         0     0% 17.19%      2.50s 10.54%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.RegisterServiceHandlersOn.func4
+     0.01s 0.042% 17.24%      2.47s 10.41%  net.(*Buffers).WriteTo
+     0.06s  0.25% 17.49%      2.46s 10.37%  internal/poll.(*FD).Writev
+         0     0% 17.49%      2.46s 10.37%  net.(*conn).writeBuffers
+         0     0% 17.49%      2.46s 10.37%  net.(*netFD).writeBuffers
+     0.01s 0.042% 17.53%      2.43s 10.24%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).handleForwardConversationHeads
+         0     0% 17.53%      2.43s 10.24%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*ServiceGateway).handleForwardConversationHeads
+         0     0% 17.53%      2.34s  9.86%  internal/poll.writev
+     0.01s 0.042% 17.57%      2.33s  9.82%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readMessageUpdatesLocal
+     0.01s 0.042% 17.61%      2.20s  9.27%  github.com/cockroachdb/pebble/v2.(*Iterator).First
+     0.09s  0.38% 17.99%      2.12s  8.93%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Iterator).seekForBaseSplice
+         0     0% 17.99%      2.08s  8.77%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleConversationList
+         0     0% 17.99%      2.06s  8.68%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).hydrateMembershipDirectory
+         0     0% 17.99%      2.03s  8.55%  github.com/cockroachdb/pebble/v2.(*Iterator).iterFirstWithinBounds
+     1.13s  4.76% 22.76%      2.03s  8.55%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+         0     0% 22.76%      2.02s  8.51%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).handleMessageUpdateReadRPC
+         0     0% 22.76%      1.97s  8.30%  github.com/cockroachdb/pebble/v2.(*getIter).First
+     0.04s  0.17% 22.92%      1.97s  8.30%  github.com/cockroachdb/pebble/v2.(*getIter).Next
+     0.01s 0.042% 22.97%      1.95s  8.22%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+         0     0% 22.97%      1.94s  8.18%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleConversationSyncLegacy
+         0     0% 22.97%      1.93s  8.13%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ConversationStore).HydratePersistedConversationHeads
+     0.01s 0.042% 23.01%      1.93s  8.13%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ConversationStore).hydrateHeads
+         0     0% 23.01%      1.88s  7.92%  github.com/WuKongIM/WuKongIM/pkg/channel/store.(*messageDBChannelStoreAdapter).ReadCommitted
+     0.03s  0.13% 23.14%      1.83s  7.71%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelStore).ListMessagesBySeq
+         0     0% 23.14%      1.79s  7.54%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).ReadChannelPersistedConversationHeads
+     0.02s 0.084% 23.22%      1.79s  7.54%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).readChannelConversationHeads
+         0     0% 23.22%      1.79s  7.54%  github.com/WuKongIM/WuKongIM/pkg/db/meta.(*DB).ReadMessageUpdatesBatch
+         0     0% 23.22%      1.75s  7.37%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelLog).readRowsReverse
+         0     0% 23.22%      1.75s  7.37%  github.com/WuKongIM/WuKongIM/pkg/db/message.readMessageRowsReverseRaw
+         0     0% 23.22%      1.71s  7.21%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).List
+         0     0% 23.22%      1.71s  7.21%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).listMembershipDirectory
+     0.01s 0.042% 23.26%      1.66s  7.00%  github.com/WuKongIM/WuKongIM/pkg/db/meta.readMessageUpdatesSnapshot
+         0     0% 23.26%      1.58s  6.66%  github.com/WuKongIM/WuKongIM/pkg/db/meta.snapshotUpdateRow[go.shape.struct { ReplicaSet string "json:\"replica_set\""; ChannelID string "json:\"channel_id\""; ChannelType int64 "json:\"channel_type\""; Generation string "json:\"generation\""; UpdateSeq uint64 "json:\"update_seq\"" }]
+     0.01s 0.042% 23.30%      1.58s  6.66%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Iterator).SeekGE
+     0.01s 0.042% 23.35%      1.54s  6.49%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).SyncLegacy
+     0.01s 0.042% 23.39%      1.54s  6.49%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Iterator).SeekPrefixGE
+     0.01s 0.042% 23.43%      1.52s  6.41%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadMessageUpdatesBatch.func2
+     0.03s  0.13% 23.56%      1.48s  6.24%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).runWorker
+         0     0% 23.56%      1.48s  6.24%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).start.func1
+     0.01s 0.042% 23.60%      1.43s  6.03%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*Snapshot).Get
+     0.01s 0.042% 23.64%      1.42s  5.98%  github.com/cockroachdb/pebble/v2.(*Snapshot).Get
+         0     0% 23.64%      1.38s  5.82%  github.com/WuKongIM/WuKongIM/pkg/channel/store.(*messageDBChannelStoreAdapter).GetLastSenderMessageSeq
+     0.01s 0.042% 23.68%      1.38s  5.82%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get
+     0.04s  0.17% 23.85%      1.38s  5.82%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelLog).GetLastSenderMessageSeq
+         0     0% 23.85%      1.38s  5.82%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelStore).GetLastSenderMessageSeq
+     0.17s  0.72% 24.57%      1.38s  5.82%  runtime.growslice
+         0     0% 24.57%      1.35s  5.69%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).readChannelConversationHeads.func1
+         0     0% 24.57%      1.35s  5.69%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).ReadPersistedConversationHeadsResolved
+     0.52s  2.19% 26.76%      1.32s  5.56%  runtime.scanobject
+         0     0% 26.76%      1.31s  5.52%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readConversationHeadsWithMetadata
+     0.03s  0.13% 26.89%      1.31s  5.52%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.ReadFrame
+         0     0% 26.89%      1.31s  5.52%  runtime.gcBgMarkWorker
+         0     0% 26.89%      1.31s  5.52%  runtime.gcBgMarkWorker.func2
+         0     0% 26.89%      1.31s  5.52%  runtime.gcDrain
+         0     0% 26.89%      1.26s  5.31%  github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Shard).ListUserChannelMembershipPage
+         0     0% 26.89%      1.26s  5.31%  github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { UID string; ChannelID string; ChannelType int64; JoinSeq uint64; ReadSeq uint64; DeletedToSeq uint64; ConversationHiddenThroughSeq uint64; ActivatedAt int64; Tombstone bool; TombstoneAt int64; SourceVersion uint64; UpdatedAt int64 }].ScanIndex
+         0     0% 26.89%      1.26s  5.31%  github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { UID string; ChannelID string; ChannelType int64; JoinSeq uint64; ReadSeq uint64; DeletedToSeq uint64; ConversationHiddenThroughSeq uint64; ActivatedAt int64; Tombstone bool; TombstoneAt int64; SourceVersion uint64; UpdatedAt int64 }].scanIndex
+         0     0% 26.89%      1.26s  5.31%  github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { UID string; ChannelID string; ChannelType int64; JoinSeq uint64; ReadSeq uint64; DeletedToSeq uint64; ConversationHiddenThroughSeq uint64; ActivatedAt int64; Tombstone bool; TombstoneAt int64; SourceVersion uint64; UpdatedAt int64 }].scanIndexWithOptions
+         0     0% 26.89%      1.25s  5.27%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 26.89%      1.25s  5.27%  runtime.gcDrainMarkWorkerFractional (inline)
+     0.02s 0.084% 26.97%      1.18s  4.97%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).processSlot
+     0.03s  0.13% 27.10%      1.18s  4.97%  io.ReadAtLeast
+         0     0% 27.10%      1.18s  4.97%  io.ReadFull (inline)
+         0     0% 27.10%      1.14s  4.80%  net.(*conn).Read
+         0     0% 27.10%      1.14s  4.80%  net.(*netFD).Read
+     0.01s 0.042% 27.14%      1.13s  4.76%  github.com/cockroachdb/pebble/v2.(*DB).Get (inline)
+     0.01s 0.042% 27.18%      1.12s  4.72%  internal/poll.(*FD).Read
+         0     0% 27.18%      1.11s  4.68%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).handleMembershipRPC
+     0.01s 0.042% 27.22%      1.08s  4.55%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.readLastOrdinaryThrough
+     0.01s 0.042% 27.27%      1.06s  4.47%  syscall.Read (inline)
+         0     0% 27.27%      1.05s  4.42%  syscall.read
+         0     0% 27.27%      0.98s  4.13%  github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { UID string; ChannelID string; ChannelType int64; JoinSeq uint64; ReadSeq uint64; DeletedToSeq uint64; ConversationHiddenThroughSeq uint64; ActivatedAt int64; Tombstone bool; TombstoneAt int64; SourceVersion uint64; UpdatedAt int64 }].getByPrimaryKey
+     0.08s  0.34% 27.60%      0.97s  4.09%  runtime.mallocgcSmallScanNoHeader
+         0     0% 27.60%      0.94s  3.96%  github.com/WuKongIM/WuKongIM/pkg/db/message.getMessageRowBySeq
+     0.13s  0.55% 28.15%      0.93s  3.92%  bytes.Compare
+         0     0% 28.15%      0.92s  3.88%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readSelectedMessageBatch
+         0     0% 28.15%      0.92s  3.88%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readStoredMessages
+     0.04s  0.17% 28.32%      0.92s  3.88%  runtime.newobject
+     0.01s 0.042% 28.36%      0.84s  3.54%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).processReady
+         0     0% 28.36%      0.81s  3.41%  github.com/WuKongIM/WuKongIM/internal/usecase/conversation.(*App).listLegacyConversationCandidates
+     0.81s  3.41% 31.77%      0.81s  3.41%  runtime.duffcopy
+         0     0% 31.77%      0.80s  3.37%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*Iter).Last (inline)
+     0.02s 0.084% 31.86%      0.80s  3.37%  github.com/cockroachdb/pebble/v2.(*Iterator).Last
+         0     0% 31.86%      0.79s  3.33%  encoding/json.Marshal
+     0.01s 0.042% 31.90%      0.79s  3.33%  github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).get
+         0     0% 31.90%      0.78s  3.29%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.runSlotMetadataBatchWorkers.func1 (partial-inline)
+     0.77s  3.24% 35.15%      0.77s  3.24%  cmpbody
+         0     0% 35.15%      0.75s  3.16%  github.com/cockroachdb/pebble/v2.(*Iterator).iterLastWithinBounds
+         0     0% 35.15%      0.75s  3.16%  github.com/cockroachdb/pebble/v2.(*mergingIter).SeekLT
+     0.02s 0.084% 35.23%      0.75s  3.16%  github.com/cockroachdb/pebble/v2.(*mergingIter).seekLT
+         0     0% 35.23%      0.73s  3.08%  encoding/json.(*encodeState).marshal
+         0     0% 35.23%      0.73s  3.08%  encoding/json.(*encodeState).reflectValue
+         0     0% 35.23%      0.73s  3.08%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.RegisterServiceHandlersOn.func5
+     0.10s  0.42% 35.65%      0.72s  3.03%  encoding/json.structEncoder.encode
+         0     0% 35.65%      0.72s  3.03%  github.com/WuKongIM/WuKongIM/internal/app.conversationLegacyMessageReader.ReadLegacyMessagesBatch
+         0     0% 35.65%      0.72s  3.03%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).SyncPersistedChannelMessagesBatch (inline)
+         0     0% 35.65%      0.72s  3.03%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).syncChannelMessagesBatch
+     0.14s  0.59% 36.24%      0.69s  2.91%  runtime.mallocgcSmallNoscan
+     0.01s 0.042% 36.28%      0.67s  2.82%  encoding/json.sliceEncoder.encode
+         0     0% 36.28%      0.67s  2.82%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).handleForwardCommittedReads
+         0     0% 36.28%      0.67s  2.82%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*ServiceGateway).handleForwardCommittedReads
+     0.11s  0.46% 36.75%      0.67s  2.82%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.(*ObserverDrain).ObserveTransport
+     0.01s 0.042% 36.79%      0.66s  2.78%  encoding/json.arrayEncoder.encode
+     0.03s  0.13% 36.92%      0.64s  2.70%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Iterator).SeekLT
+         0     0% 36.92%      0.62s  2.61%  github.com/gin-gonic/gin.(*Context).JSON (inline)
+         0     0% 36.92%      0.62s  2.61%  github.com/gin-gonic/gin.(*Context).Render
+         0     0% 36.92%      0.62s  2.61%  github.com/gin-gonic/gin/render.JSON.Render
+     0.01s 0.042% 36.96%      0.62s  2.61%  github.com/gin-gonic/gin/render.WriteJSON
+         0     0% 36.96%      0.61s  2.57%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*PageReader).SyncMessagesBatch
+     0.23s  0.97% 37.93%      0.60s  2.53%  github.com/cockroachdb/pebble/v2.(*Iterator).Close
+     0.07s  0.29% 38.22%      0.60s  2.53%  runtime.bulkBarrierPreWrite
+     0.01s 0.042% 38.26%      0.59s  2.49%  encoding/json.Unmarshal
+         0     0% 38.26%      0.56s  2.36%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).NewIter
+         0     0% 38.26%      0.54s  2.28%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).handlePermissionBatchRPC
+     0.04s  0.17% 38.43%      0.54s  2.28%  runtime.makeslice
+     0.54s  2.28% 40.71%      0.54s  2.28%  runtime.memmove
+         0     0% 40.71%      0.53s  2.23%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PersistedMessageReader).ReadPersistedMessages
+     0.36s  1.52% 42.23%      0.53s  2.23%  runtime.findObject
+     0.07s  0.29% 42.52%      0.51s  2.15%  encoding/json.(*decodeState).object

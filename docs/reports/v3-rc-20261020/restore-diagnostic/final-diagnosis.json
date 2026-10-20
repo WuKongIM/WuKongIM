@@ -1,0 +1,188 @@
+{
+  "captured_at": "2026-10-20T04:33:05.240638+00:00",
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "summary": "原始三节点备份故障转移及时间点恢复 E2E 已 PASS；此前日志静默不是失败或死锁证据。未重跑、未延长 deadline、未发送额外 HTTP 请求。",
+  "verdict": "PASS",
+  "original_run": {
+    "name": "10-three-restore",
+    "command": [
+      "go",
+      "test",
+      "-tags=e2e",
+      "./test/e2e/backup/three_node_restore",
+      "-count=1",
+      "-timeout=15m",
+      "-p=1",
+      "-parallel=1",
+      "-json"
+    ],
+    "environment": {
+      "GOWORK": "off",
+      "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+      "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "WK_E2E_SEND_BAN_RESTORE_REPORT": "/tmp/wukongim-v3-rc-20261020/reports/restore"
+    },
+    "started_at": "2026-10-20T04:24:18.836659+00:00",
+    "status": "pass",
+    "finished_at": "2026-10-20T04:30:38.879150+00:00",
+    "elapsed_seconds": 380.045,
+    "exit_code": 0,
+    "log": "/tmp/wukongim-v3-rc-20261020/logs/10-three-restore.jsonl",
+    "log_sha256": "c36e70b4dc5dd0aa49a33a116b5c9c86b579c127c98a92b2151f8f691924b776",
+    "test_outcomes": [
+      {
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+        "Test": "TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState",
+        "Elapsed": 378.03
+      },
+      {
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+        "Elapsed": 378.751
+      }
+    ]
+  },
+  "terminal_events": [
+    {
+      "Time": "2026-10-20T12:30:38.828477+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+      "Test": "TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState",
+      "Elapsed": 378.03
+    },
+    {
+      "Time": "2026-10-20T12:30:38.829647+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+      "Elapsed": 378.751
+    }
+  ],
+  "restore_terminal": {
+    "status": "succeeded observed by passing test helper",
+    "basis": "The helper only returns after an error-free authenticated GET /manager/backups observes ActiveRestore == nil and a history record Kind == restore, Status == succeeded. Subsequent readiness, restored policy, SEND rejection and point-in-time message assertions all passed.",
+    "manager_dashboard_raw_retained": false,
+    "manager_dashboard_raw_absence_reason": "The passing helper does not emit its final dashboard; full last dashboard is emitted only on context timeout.",
+    "active_restore_at_success": null,
+    "history_record_status_at_success": "succeeded",
+    "exact_internal_stage_timeline": "unavailable from retained logs/report",
+    "exact_success_timestamp": "unavailable; observed after 04:25:30.798761Z admission and before first restored-policy observation at 04:30:37.910744Z",
+    "per_node_manager_restore_state_and_errors": "not serialized by the passing test; no assertion of their exact values",
+    "original_test_context_timeout": false,
+    "go_test_timeout": false
+  },
+  "completed_assertions": [
+    {
+      "assertion": "Controller Leader was stopped while backup was active; backup resumed and published archive",
+      "evidence": "final-test-events.jsonl"
+    },
+    {
+      "assertion": "Stopped node restarted and all-node public readiness passed before restore admission",
+      "code": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/test/e2e/backup/three_node_restore/three_node_restore_test.go:175"
+    },
+    {
+      "assertion": "No active restore and succeeded restore history observed by Manager helper",
+      "code": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/test/e2e/backup/three_node_restore/three_node_restore_test.go:504"
+    },
+    {
+      "assertion": "Public cluster readiness passed after restore terminal record",
+      "code": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/test/e2e/backup/three_node_restore/three_node_restore_test.go:198"
+    },
+    {
+      "assertion": "All three nodes restored pre-backup user/group/person send-ban values and versions; later-only policy reset",
+      "code": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/test/e2e/backup/three_node_restore/three_node_restore_test.go:753",
+      "evidence": "final-restore-3-node.json observations[phase=restored]"
+    },
+    {
+      "assertion": "All three nodes rejected restored user/group/both person-direction bans with ReasonSendBan and zero message ID/sequence",
+      "code": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/test/e2e/backup/three_node_restore/three_node_restore_test.go:754",
+      "evidence": "final-restore-3-node.json observations[phase=restored-send-rejection]"
+    },
+    {
+      "assertion": "Public message history contains only pre-backup client message number, excluding post-backup message",
+      "code": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/test/e2e/backup/three_node_restore/three_node_restore_test.go:200"
+    }
+  ],
+  "node_observations": [
+    {
+      "at": "2026-10-20T04:30:37.910744Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 1,
+      "phase": "restored",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:30:37.91251Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 2,
+      "phase": "restored",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:30:37.914378Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 3,
+      "phase": "restored",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    }
+  ],
+  "retained_evidence": [
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/logs/10-three-restore.jsonl",
+      "sha256": "c36e70b4dc5dd0aa49a33a116b5c9c86b579c127c98a92b2151f8f691924b776"
+    },
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/reports/restore-3-node.json",
+      "sha256": "9a52610907e30e11f9dd781df85da856aa9137f51fd8a3f5f6e7f1c52a1350d7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/final-test-events.jsonl",
+      "sha256": "c36e70b4dc5dd0aa49a33a116b5c9c86b579c127c98a92b2151f8f691924b776"
+    },
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/final-restore-3-node.json",
+      "sha256": "9a52610907e30e11f9dd781df85da856aa9137f51fd8a3f5f6e7f1c52a1350d7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic/progress-diagnosis.json",
+      "purpose": "Prior bounded observation; its active-run status is superseded by this terminal diagnosis, not deleted."
+    }
+  ],
+  "attribution": {
+    "product_failure_confirmed": false,
+    "fixture_failure_confirmed": false,
+    "hang_or_deadlock_confirmed": false,
+    "cause_of_multi_minute_restore_duration": "not determined; retained evidence lacks internal stage timings, so no causal attribution is made",
+    "previous_warns": "Prior node-dial warnings during deliberately stopped backup leader predate successful archive publication and are not evidence of restore failure.",
+    "new_release_blocker_from_this_scenario": false
+  },
+  "scope_limits": [
+    "This confirms this one frozen-candidate macOS functional E2E execution, not long-soak or Linux performance qualification.",
+    "No exact per-node internal restore stage/error snapshot was retained; successful business assertions cannot reconstruct that timeline.",
+    "Other matrix failures, including ordinary-history migration, remain independent and unresolved by this pass."
+  ],
+  "actions_taken": [
+    "Read existing JSONL, public-output report and test source only",
+    "Preserve final evidence in /tmp",
+    "No control request, credential retrieval, process signal, test launch, source edit, or timeout change"
+  ],
+  "next_step": "No restore retest or product fix is justified by this successful run. Retain the original evidence alongside the other matrix results."
+}

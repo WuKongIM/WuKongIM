@@ -1,0 +1,699 @@
+{
+  "run_id": 39368295521,
+  "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39368295521",
+  "checked_at": "2026-10-20T04:20:11.147138+00:00",
+  "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "workflow_status": "completed",
+  "workflow_conclusion": "failure",
+  "workflow_head_matches": true,
+  "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+  "binary_sha256_recorded": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+  "publication_gate_satisfied": false,
+  "publication_gate_note": "Diagnostic workflow has no publication authority; publishers still require exact-tag gate.",
+  "binary_downloaded_or_independently_rehashed": false,
+  "diagnostic": {
+    "report_present": true,
+    "identity_valid": true,
+    "collection_complete": true,
+    "window_count": 3,
+    "all_three_windows_pass": false,
+    "windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T04:14:57.422761586Z",
+        "end": "2026-10-20T04:15:57.422761586Z",
+        "passed": false,
+        "phases": [
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10559,
+            "completed_in_window": 10455,
+            "duration_seconds": 60,
+            "actual_qps": 174.25,
+            "p99_ms": 813.440441,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1441,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          },
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3594,
+            "completed_in_window": 3586,
+            "duration_seconds": 60,
+            "actual_qps": 59.766666666666666,
+            "p99_ms": 654.878107,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 6,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T04:15:58.676450637Z",
+        "end": "2026-10-20T04:16:58.676450637Z",
+        "passed": false,
+        "phases": [
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10858,
+            "completed_in_window": 10752,
+            "duration_seconds": 60,
+            "actual_qps": 179.2,
+            "p99_ms": 671.008459,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1142,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          },
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3592,
+            "duration_seconds": 60,
+            "actual_qps": 59.86666666666667,
+            "p99_ms": 169.412097,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "pass"
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T04:16:59.905488313Z",
+        "end": "2026-10-20T04:17:59.905488313Z",
+        "passed": false,
+        "phases": [
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10968,
+            "completed_in_window": 10863,
+            "duration_seconds": 60,
+            "actual_qps": 181.05,
+            "p99_ms": 656.809981,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1032,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          },
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3594,
+            "duration_seconds": 60,
+            "actual_qps": 59.9,
+            "p99_ms": 372.061907,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "pass"
+          }
+        ]
+      }
+    ],
+    "separate_profile_window_excluded": true,
+    "failed_windows": [
+      {
+        "window": 1,
+        "start": "2026-10-20T04:14:57.422761586Z",
+        "end": "2026-10-20T04:15:57.422761586Z",
+        "passed": false,
+        "phases": [
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10559,
+            "completed_in_window": 10455,
+            "duration_seconds": 60,
+            "actual_qps": 174.25,
+            "p99_ms": 813.440441,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1441,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          },
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3594,
+            "completed_in_window": 3586,
+            "duration_seconds": 60,
+            "actual_qps": 59.766666666666666,
+            "p99_ms": 654.878107,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 6,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          }
+        ]
+      },
+      {
+        "window": 2,
+        "start": "2026-10-20T04:15:58.676450637Z",
+        "end": "2026-10-20T04:16:58.676450637Z",
+        "passed": false,
+        "phases": [
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10858,
+            "completed_in_window": 10752,
+            "duration_seconds": 60,
+            "actual_qps": 179.2,
+            "p99_ms": 671.008459,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1142,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          },
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3592,
+            "duration_seconds": 60,
+            "actual_qps": 59.86666666666667,
+            "p99_ms": 169.412097,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "pass"
+          }
+        ]
+      },
+      {
+        "window": 3,
+        "start": "2026-10-20T04:16:59.905488313Z",
+        "end": "2026-10-20T04:17:59.905488313Z",
+        "passed": false,
+        "phases": [
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 200
+            },
+            "driver_workers": 8,
+            "queue_capacity": 100,
+            "scheduled": 12000,
+            "completed": 10968,
+            "completed_in_window": 10863,
+            "duration_seconds": 60,
+            "actual_qps": 181.05,
+            "p99_ms": 656.809981,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 1032,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "incomplete or failed requests"
+          },
+          {
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 60
+            },
+            "driver_workers": 8,
+            "queue_capacity": 30,
+            "scheduled": 3600,
+            "completed": 3600,
+            "completed_in_window": 3594,
+            "duration_seconds": 60,
+            "actual_qps": 59.9,
+            "p99_ms": 372.061907,
+            "errors": 0,
+            "unexpected_errors": 0,
+            "dropped": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "verdict": "pass"
+          }
+        ]
+      }
+    ]
+  },
+  "release_matrix": {
+    "report_present": false,
+    "receipt_validator_pass": false,
+    "note": "Missing gate report is not a passing matrix.",
+    "execution_state": "not_started_due_to_rejected_diagnostic_windows",
+    "receipt_state": "not_produced"
+  },
+  "rc_qps_evidence_pass": false,
+  "local_files": {
+    "report.json": {
+      "bytes": 1813451,
+      "sha256": "eca951e9fc455f1ec803c3656d33eacd7654218a998bad1c64e42ebb91306487"
+    },
+    "binary.sha256": {
+      "bytes": 122,
+      "sha256": "efccfb8dc36b351fda69a03eba1e26643fe87e379587c8840aa0e3e168f05fdf"
+    },
+    "build.txt": {
+      "bytes": 8943,
+      "sha256": "f59961c954e811bc6b1962c91cd8c80ef82461a95673a965b98cdc3c2e11aa91"
+    },
+    "host.json": {
+      "bytes": 4483,
+      "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+    },
+    "kernel.txt": {
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    "test.log": {
+      "bytes": 1788,
+      "sha256": "d41bb0f1f25d12bd275eb09f734549ed51ba68a62ad4ffbb90ff0556e341ab1e"
+    },
+    "profile.json": {
+      "bytes": 2087,
+      "sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1"
+    },
+    "validate-conversation-qps-report.jq": {
+      "bytes": 3688,
+      "sha256": "f30ad61e9bc3947de60f235328e2f2efe8381c791ef5af5f1ad8b0f301b2368f"
+    },
+    "failed-step.log": {
+      "bytes": 3485,
+      "sha256": "f66e1e40bb9027df90758712771b15e7e12a711d053cdac60d6ead16f88f8085"
+    },
+    "node1-cpu.pprof": {
+      "bytes": 65019,
+      "sha256": "6af7b295059394acba73914b6a515457efa80b798c71ca1864a7f02afafebb4e"
+    },
+    "server-cpu-cum-expanded.txt": {
+      "bytes": 17083,
+      "sha256": "032d2667372800f968cd101cef577538ea62f3e876e667c9f9b64bc203446ce7"
+    },
+    "node3-alloc-after.pprof": {
+      "bytes": 116826,
+      "sha256": "a51245b156bab3758e2606866849182e2327710c7b06bae16a6ef85c83a8ada4"
+    },
+    "node1-alloc-diff-top.txt": {
+      "bytes": 1630,
+      "sha256": "59b317a0a311f5c3cc94a336e7b18229ae5aff5d8eaa9d80873bd88da07aa342"
+    },
+    "resource-analysis.json": {
+      "bytes": 5841,
+      "sha256": "6089bd5c0beede4a293c4fe12e48ff21bea583ba156e5064d7c8ce4e12d1cf18"
+    },
+    "node2-alloc-after.pprof": {
+      "bytes": 112532,
+      "sha256": "ee507ce0492971a5f2bfb12d6c4fee9e02b447d1bece0708838523ee33cc5450"
+    },
+    "node2-alloc-diff-top.txt": {
+      "bytes": 1971,
+      "sha256": "04574ea0aa6b1e5f5f19e611b5006628168f5e546395425c29d66e8f5ecd157e"
+    },
+    "node1-alloc-after.pprof": {
+      "bytes": 117555,
+      "sha256": "9915e59be1a8f41b73d0be5491ab48123b45993e7d00ec795b04adbea9f432b3"
+    },
+    "driver-cpu-top.txt": {
+      "bytes": 1420,
+      "sha256": "689ce078bd0024118cc3cd8ad0af3b37eb9d67884d756e9c1d15e8ede09d0507"
+    },
+    "node3-alloc-before.pprof": {
+      "bytes": 114595,
+      "sha256": "b094187a2210e2aa13575c4e5b6d50f8c93d462010aad765dfb17a16509c9354"
+    },
+    "profile-download.json": {
+      "bytes": 1423,
+      "sha256": "2c26041902336dfef62afc216c56f1c0b3b30dfa4a3dee34c89238b39985a8ba"
+    },
+    "server-cpu-cum.txt": {
+      "bytes": 2987,
+      "sha256": "8189f0f1aacc1fba71277c062bd2116bb8a98482e090765eb8f8278ab13befa3"
+    },
+    "node2-alloc-before.pprof": {
+      "bytes": 110759,
+      "sha256": "38d6553ae36528bf805ecba834ec27f992fbe4f727260b2fac8c7064bb6f7583"
+    },
+    "node3-cpu.pprof": {
+      "bytes": 63570,
+      "sha256": "0789a1a02bfc96776c7abf2cdc5d30cb386fee53162b0798ccdc52e6737c0004"
+    },
+    "driver-cpu-cum.txt": {
+      "bytes": 1863,
+      "sha256": "11ab4041a9f2651c67b24907be518a6e68c9d0326ba4c4de165451a62e915ab1"
+    },
+    "driver-cpu.pprof": {
+      "bytes": 25685,
+      "sha256": "e3f838a0577df9c3b5f7d8a930ed111b0496355e36c70211e4d99d2b632d92a2"
+    },
+    "selective-download.json": {
+      "bytes": 938,
+      "sha256": "d589a207f0034c8326d4c12f045d78f3215f19cc8ebaa386d50975b2092667bd"
+    },
+    "server-cpu-top.txt": {
+      "bytes": 1421,
+      "sha256": "24122864605ece67ee024662a6072a7bf51b34eeb5003511d37c4f73a7670fa2"
+    },
+    "node1-alloc-before.pprof": {
+      "bytes": 115098,
+      "sha256": "18d6081583bf07618ceb2ac54fd2e284ac79ddd3d71d75c787716fbc53b2b59d"
+    },
+    "node3-alloc-diff-top.txt": {
+      "bytes": 1714,
+      "sha256": "6eb16006f92e7063a69f3ecf9806d7be752947cf33e4c21ddcab148e3e31c078"
+    },
+    "node2-cpu.pprof": {
+      "bytes": 62170,
+      "sha256": "0a163bfe31eccd8deafce6dcda75cd1fd946e166d5f4f67a85e6ca052a4f008c"
+    },
+    "diagnosis.md": {
+      "bytes": 5948,
+      "sha256": "00fa65f5e6677eecf181d16d66388aed1a99434c900789dbb409c2d6200ce102"
+    },
+    "receipt-validation.json": {
+      "bytes": 319,
+      "sha256": "ac4494166c83b82ed2052cef7ac84b056db1f3de92ac76e936db2ac69ff47c42"
+    },
+    "run.json": {
+      "bytes": 5084,
+      "sha256": "544f4cbc35fb971dc51911f09c8d325bd2a3e73cf5103a981792f511db1cc3e6"
+    },
+    "artifacts.json": {
+      "bytes": 902,
+      "sha256": "9cbaf216d2790efb996c5b36ea6e6332c39476a8c7115329eaef4a6ce55d9e59"
+    }
+  },
+  "bounded_diagnosis": {
+    "observed_failure": "Fixed mixed list 200 QPS fails in all three windows; sync 60 QPS fails the first window. Matrix precondition rejects; no 20-endpoint matrix or v2 gate receipt was produced.",
+    "resource_assessment": "High host/cgroup CPU use and CPU pressure are concurrent with the misses. No measured cgroup throttling increments; cpu.max is unavailable. These observations support contention but do not establish whether product CPU cost, driver cost, runner capacity or a combination is the root cause.",
+    "no_mutation_or_protocol_error_observed": true,
+    "host_cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "visible_cpus": 4,
+    "driver_gomaxprocs": 4,
+    "node_gomaxprocs": 2,
+    "windows": [
+      {
+        "window": 1,
+        "metrics_interval_note": "Host/driver cuts bracket the measured window plus bounded surrounding observation; not exact endpoint CPU attribution.",
+        "host_sample_elapsed_seconds": 61.482324,
+        "server_cpu_seconds": 187.21999999999997,
+        "server_allocated_bytes": 34278219512,
+        "completed_total": 14153,
+        "server_allocated_bytes_per_completed_request": 2421975.52,
+        "release_mixed_window_allocation_ceiling": 5000000,
+        "allocation_within_release_ceiling": true,
+        "nodes": [
+          {
+            "node": 1,
+            "cpu_seconds": 62.68,
+            "allocated_bytes": 11574958024,
+            "gc_count": 144,
+            "gc_pause_sum_seconds": 0.115922
+          },
+          {
+            "node": 2,
+            "cpu_seconds": 60.66,
+            "allocated_bytes": 11003944888,
+            "gc_count": 138,
+            "gc_pause_sum_seconds": 0.10365
+          },
+          {
+            "node": 3,
+            "cpu_seconds": 63.89,
+            "allocated_bytes": 11701644160,
+            "gc_count": 146,
+            "gc_pause_sum_seconds": 0.14223
+          }
+        ],
+        "cgroup_usage_seconds_delta": 230.928,
+        "cgroup_usage_fraction_of_four_visible_cpus": 0.939,
+        "cgroup_nr_throttled_delta": 0,
+        "cgroup_throttled_usec_delta": 0,
+        "cgroup_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+        "host_cpu_nonidle_fraction": 0.9524,
+        "host_cpu_iowait_fraction": 0.0009,
+        "host_cpu_steal_fraction": 0.0,
+        "cpu_pressure_some_fraction": 0.6027,
+        "driver_utime_ticks_delta": 3707,
+        "driver_stime_ticks_delta": 284,
+        "driver_rss_before": "189280 kB",
+        "driver_rss_after": "52184 kB"
+      },
+      {
+        "window": 2,
+        "metrics_interval_note": "Host/driver cuts bracket the measured window plus bounded surrounding observation; not exact endpoint CPU attribution.",
+        "host_sample_elapsed_seconds": 61.251985,
+        "server_cpu_seconds": 190.65,
+        "server_allocated_bytes": 34780477808,
+        "completed_total": 14458,
+        "server_allocated_bytes_per_completed_request": 2405621.65,
+        "release_mixed_window_allocation_ceiling": 5000000,
+        "allocation_within_release_ceiling": true,
+        "nodes": [
+          {
+            "node": 1,
+            "cpu_seconds": 64.05,
+            "allocated_bytes": 11739663480,
+            "gc_count": 146,
+            "gc_pause_sum_seconds": 0.139439
+          },
+          {
+            "node": 2,
+            "cpu_seconds": 61.55,
+            "allocated_bytes": 11165933600,
+            "gc_count": 140,
+            "gc_pause_sum_seconds": 0.101697
+          },
+          {
+            "node": 3,
+            "cpu_seconds": 65.04,
+            "allocated_bytes": 11874600696,
+            "gc_count": 148,
+            "gc_pause_sum_seconds": 0.109445
+          }
+        ],
+        "cgroup_usage_seconds_delta": 230.588,
+        "cgroup_usage_fraction_of_four_visible_cpus": 0.9411,
+        "cgroup_nr_throttled_delta": 0,
+        "cgroup_throttled_usec_delta": 0,
+        "cgroup_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+        "host_cpu_nonidle_fraction": 0.9544,
+        "host_cpu_iowait_fraction": 0.0003,
+        "host_cpu_steal_fraction": 0.0,
+        "cpu_pressure_some_fraction": 0.6242,
+        "driver_utime_ticks_delta": 3702,
+        "driver_stime_ticks_delta": 286,
+        "driver_rss_before": "52516 kB",
+        "driver_rss_after": "52588 kB"
+      },
+      {
+        "window": 3,
+        "metrics_interval_note": "Host/driver cuts bracket the measured window plus bounded surrounding observation; not exact endpoint CPU attribution.",
+        "host_sample_elapsed_seconds": 61.211202,
+        "server_cpu_seconds": 190.04000000000008,
+        "server_allocated_bytes": 34954719808,
+        "completed_total": 14568,
+        "server_allocated_bytes_per_completed_request": 2399417.89,
+        "release_mixed_window_allocation_ceiling": 5000000,
+        "allocation_within_release_ceiling": true,
+        "nodes": [
+          {
+            "node": 1,
+            "cpu_seconds": 63.81,
+            "allocated_bytes": 11791773912,
+            "gc_count": 147,
+            "gc_pause_sum_seconds": 0.159951
+          },
+          {
+            "node": 2,
+            "cpu_seconds": 61.4,
+            "allocated_bytes": 11222370424,
+            "gc_count": 141,
+            "gc_pause_sum_seconds": 0.112727
+          },
+          {
+            "node": 3,
+            "cpu_seconds": 64.82,
+            "allocated_bytes": 11939094672,
+            "gc_count": 148,
+            "gc_pause_sum_seconds": 0.120081
+          }
+        ],
+        "cgroup_usage_seconds_delta": 230.284,
+        "cgroup_usage_fraction_of_four_visible_cpus": 0.9405,
+        "cgroup_nr_throttled_delta": 0,
+        "cgroup_throttled_usec_delta": 0,
+        "cgroup_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+        "host_cpu_nonidle_fraction": 0.9537,
+        "host_cpu_iowait_fraction": 0.0002,
+        "host_cpu_steal_fraction": 0.0,
+        "cpu_pressure_some_fraction": 0.6021,
+        "driver_utime_ticks_delta": 3657,
+        "driver_stime_ticks_delta": 291,
+        "driver_rss_before": "55680 kB",
+        "driver_rss_after": "52264 kB"
+      }
+    ]
+  },
+  "profile_analysis": {
+    "scope": "Separate bounded profiling after the three unprofiled windows; not performance qualification.",
+    "driver_cpu_samples_seconds": 6.82,
+    "driver_profile_duration_seconds": 11.45,
+    "driver_json_unmarshal_cumulative_percent": 64.96,
+    "server_cpu_samples_seconds_sum": 23.73,
+    "server_durations_are_concurrent_and_not_summed_wall_clock": true,
+    "server_rpc_service_handle_cumulative_percent": 32.24,
+    "server_selected_conversation_heads_cumulative_percent": 13.32,
+    "server_hydrate_membership_directory_cumulative_percent": 8.68,
+    "server_mallocgc_cumulative_percent": 11.17,
+    "cumulative_call_tree_percentages_overlap": true,
+    "root_cause_confirmed": false,
+    "candidate_regression_proven": false,
+    "details_file": "/tmp/wukongim-v3-rc-20261020/qps/diagnosis.md"
+  },
+  "initial_proposed_experiment": {
+    "dispatched": false,
+    "workflow": "conversation-qps-diagnose.yml",
+    "product_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "comparison_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "expected_binary_sha256": "963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+    "run_release_matrix": false,
+    "baseline_compatibility": "Static API/harness/build/config compatibility verified; baseline not executed.",
+    "retains_original_failure": true,
+    "snapshot_phase": "before_dispatch; preserved original proposal"
+  },
+  "executed_follow_up": {
+    "run_id": 39369947381,
+    "summary": "qps-comparison-summary.json",
+    "candidate_binary_lock_matched": true,
+    "baseline_and_candidate_all_three_windows_pass": true,
+    "same_host_between_versions": true,
+    "same_host_model_as_original_failure": false,
+    "original_failure_cpu_model": "AMD EPYC 7763",
+    "comparison_cpu_model": "AMD EPYC 9V45",
+    "release_matrix_run": false,
+    "original_failure_remains": true
+  }
+}

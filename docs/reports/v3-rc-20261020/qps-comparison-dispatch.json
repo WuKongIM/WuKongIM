@@ -1,0 +1,26 @@
+{
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "baseline_revision": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "time": "2026-10-20T04:30:35.601007+00:00",
+  "command": [
+    "gh",
+    "workflow",
+    "run",
+    "conversation-qps-diagnose.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "-f",
+    "product_sha=b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "-f",
+    "comparison_sha=4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+    "-f",
+    "expected_binary_sha256=963bdb3d10489dea79550de3a18b4e6d7ffb903d18eedf5ebaa6c2ba516f7ecf",
+    "-f",
+    "run_release_matrix=false"
+  ],
+  "outcome": "dispatched",
+  "dispatch_output": "https://github.com/WuKongIM/WuKongIM/actions/runs/39369947381",
+  "purpose": "One predeclared same-host baseline-then-candidate comparison after rejected candidate windows; not a retry or publication gate."
+}

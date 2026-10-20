@@ -1,0 +1,34 @@
+File: wukongim-e2e
+Build ID: d09bd60b965f00fb5b66cf844d277751afccc05d
+Type: cpu
+Time: 2026-10-20 12:18:00 CST
+Duration: 24.45s, Total samples = 23.73s (97.06%)
+Showing nodes accounting for 3.67s, 15.47% of 23.73s total
+Dropped 1019 nodes (cum <= 0.12s)
+Showing top 25 nodes out of 385
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      9.54s 40.20%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+     0.02s 0.084% 0.084%      9.51s 40.08%  runtime/pprof.Do
+         0     0% 0.084%      9.47s 39.91%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 0.084%      8.05s 33.92%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+     0.01s 0.042%  0.13%      7.97s 33.59%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+     0.01s 0.042%  0.17%      7.96s 33.54%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+     0.01s 0.042%  0.21%      7.65s 32.24%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+     0.02s 0.084%  0.29%      7.23s 30.47%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%  0.29%         7s 29.50%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0%  0.29%      4.15s 17.49%  net/http.(*conn).serve
+         0     0%  0.29%      4.12s 17.36%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0%  0.29%      4.12s 17.36%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0%  0.29%      4.12s 17.36%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0%  0.29%      4.12s 17.36%  github.com/gin-gonic/gin.(*Context).Next
+         0     0%  0.29%      4.12s 17.36%  github.com/gin-gonic/gin.(*Engine).ServeHTTP
+         0     0%  0.29%      4.12s 17.36%  github.com/gin-gonic/gin.(*Engine).handleHTTPRequest
+         0     0%  0.29%      4.12s 17.36%  net/http.serverHandler.ServeHTTP
+         0     0%  0.29%      4.04s 17.02%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).messageContentEpochMiddleware.func4
+     0.01s 0.042%  0.34%      3.76s 15.84%  github.com/WuKongIM/WuKongIM/pkg/cluster.slotProxyRPCHandlerFunc.HandleRPC
+         0     0%  0.34%      3.57s 15.04%  syscall.Syscall
+     3.54s 14.92% 15.25%      3.54s 14.92%  internal/runtime/syscall.Syscall6
+     0.01s 0.042% 15.30%      3.44s 14.50%  syscall.RawSyscall6
+     0.01s 0.042% 15.34%      3.20s 13.49%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0% 15.34%      3.16s 13.32%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readSelectedConversationHeads
+     0.03s  0.13% 15.47%      3.09s 13.02%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readStoredConversationHead

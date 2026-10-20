@@ -1,0 +1,217 @@
+{
+  "schema": "wukongim/rc-migration-readonly-diagnosis/v1",
+  "created_at": "2026-10-20T04:25:05.071999+00:00",
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "evidence_log": "/tmp/wukongim-v3-rc-20261020/logs/08-ordinary-history.jsonl",
+  "scope": "Read-only diagnosis; no repository modifications, extra processes, tests, retry, or load.",
+  "symptom": {
+    "failed_case": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+    "case_seconds": 19.0,
+    "phase": "First original-history read after complete target cluster stop and restart, test check invoked at line 198; rejection at line 145.",
+    "http_status": 400,
+    "http_body": {
+      "msg": "internal/message: append failed: channel replication: recovery probe incomplete",
+      "status": 400
+    },
+    "readyz": "All three node snapshots show ready=true and running processes.",
+    "passed_topologies": [
+      "1->1",
+      "3->1",
+      "3->3",
+      "3->5"
+    ],
+    "failed_topology_preceding_steps_passed": [
+      "CLI prepare/export/import/import/independent verify",
+      "Original imported history from every ingress",
+      "Original v2 credential CONNECT",
+      "WKProto append with exact expected sequence 4",
+      "Four-message history equality from every ingress",
+      "Complete process stop/restart and HTTP readiness"
+    ],
+    "not_reached": [
+      "after-full-restart HTTP append/idempotency",
+      "Channel Leader-stop failover",
+      "Final every-ingress history equality"
+    ]
+  },
+  "confirmed_findings": [
+    {
+      "classification": "Product read-error classification gap",
+      "evidence": [
+        "pkg/channel/replication/recovery.go:12 defines a private errRecoveryProbeIncomplete with no public ErrNotReady identity.",
+        "pkg/channel/replication/quorum_log.go:149-151 and 157-162 directly return recovery errors from public Install.",
+        "internal/infra/cluster/message_reader.go:65-75 maps read errors through mapAppendError.",
+        "internal/infra/cluster/error_map.go:43 wraps unknown errors as ErrAppendFailed.",
+        "internal/runtime/readavailability/errors.go recognizes channel.ErrNotReady but not the private recovery error.",
+        "internal/access/api/channel_messagesync.go:69 calls writeReadUnavailable, then falls back to legacy 400; observed HTTP body agrees."
+      ],
+      "limit": "This confirms the unclassified recovery error escaped the read API, not which internal probe condition fired or whether recovery would later succeed."
+    },
+    {
+      "classification": "Harness obsolete retry-envelope contract",
+      "evidence": [
+        "test/e2e/migration/ordinary_history/ordinary_history_test.go:143-145 retries only HTTP400 whose body contains internal/message: route not ready:.",
+        "internal/access/api/FLOW.md and message_read_error_test.go define current transient single-channel history reads as HTTP503 with code=unavailable, legacy status/msg retained."
+      ],
+      "limit": "Simply updating the fixture to 503 does not fix the observed private recovery error, which currently remains HTTP400."
+    },
+    {
+      "classification": "Diagnostic evidence limitation",
+      "evidence": [
+        "Failure artifact includes bounded stdout/config tails but no probe-round branch, voter proof identities, or subsequent recovery attempts.",
+        "Prepared migration NodeSpec omits LogDir; diagnostic app.log paths in Node RootDir do not exist.",
+        "Scenario temporary directories are removed by t.TempDir cleanup."
+      ],
+      "limit": "Do not infer data corruption, bad v2 conversion, a permanent recovery stall, or successful eventual recovery."
+    }
+  ],
+  "ranked_hypotheses": [
+    {
+      "rank": 1,
+      "hypothesis": "A startup recovery proof encountered a changing/incomplete voter frontier and correctly failed closed, but the transient status was lost at the public Install boundary.",
+      "prediction": "With the exact incomplete-proof condition assigned public ErrNotReady identity, local and forwarded history return only structured HTTP503 and eventually recover exact four-message history within the original 20-second read deadline; no new append is needed to warm it.",
+      "status": "Mapping gap confirmed statically; eventual convergence unverified."
+    },
+    {
+      "rank": 2,
+      "hypothesis": "The quorum probe fails to maintain a stable supporter set across frontier and identity rounds, even when an unchanged quorum exists.",
+      "prediction": "A deterministic dispatcher reproducing different completion order can yield probe-incomplete despite unchanged durable states; recording bounded per-round voter outcome/frontier identities distinguishes this from actual mutations.",
+      "status": "Possible; no exact branch evidence in saved E2E artifact."
+    },
+    {
+      "rank": 3,
+      "hypothesis": "The migrated target or native appended tail has a persistent compatibility/recovery problem specific to this 1->3 layout.",
+      "prediction": "After valid structured retry handling and a bounded retained diagnostic window, the same exact history remains unreadable until deadline, or recovery returns LogConflict/invalid proof rather than eventual exact success.",
+      "status": "Not established; four other topology cases pass and this case passed import verification/history/auth/append before restart."
+    }
+  ],
+  "recommended_next_steps": [
+    "Keep original failed log and source/binary receipts immutable. Do not classify the run as passed based on a clean rerun.",
+    "After the matrix completes, add a focused regression before implementation at the real quorum-log Install boundary: scripted legal frontier changes cause probe-incomplete; require errors.Is(err, channel.ErrNotReady), unchanged non-ready state, and no falsely successful history. Keep permanent log conflict/invalid config nonretryable.",
+    "Expose only the known incomplete/quorum-unavailable recovery causes as typed ErrNotReady at the owning replication public boundary. Preserve private causes with wrapping/joining; do not string-match generic messages in HTTP or widen all append failures.",
+    "Update migration check to retry only the documented HTTP503 JSON code=unavailable/status=503 (and require valid structured body), with the existing 20-second deadline and 100ms interval; retain exact full expected history and warmup prohibition. Do not accept arbitrary 400/503 or prolong the budget.",
+    "Run focused error classification tests plus exact 1_source_nodes_to_3_target_nodes E2E against the corrected product and harness; record the product candidate SHA/hash change. A product correction cannot be reported as qualification of the frozen original b469 binary.",
+    "If unavailable persists or a permanent error appears, retain bounded per-node Manager exact Channel state/Slot authority and targeted existing metrics/log tails before cleanup; investigate recovery state instead of enlarging retries.",
+    "After targeted validation, run the full five-topology migration package and related cold-read/failover tests."
+  ],
+  "retest_selector": "^TestOriginalOrdinaryHistoryTopology$/^1_source_nodes_to_3_target_nodes$",
+  "retest_base_command": "GOWORK=off WK_E2E_BINARY=<corrected-product-binary> go test -tags=e2e ./test/e2e/migration/ordinary_history -run '^TestOriginalOrdinaryHistoryTopology$/^1_source_nodes_to_3_target_nodes$' -count=1 -timeout=4m -p=1 -parallel=1 -json",
+  "flow_files_read": [
+    "test/e2e/suite/FLOW.md",
+    "internal/usecase/message/FLOW.md",
+    "internal/infra/cluster/FLOW.md",
+    "pkg/cluster/FLOW.md",
+    "internal/access/api/FLOW.md",
+    "internal/runtime/readavailability/FLOW.md",
+    "pkg/channel/FLOW.md",
+    "pkg/channel/reactor/FLOW.md",
+    "pkg/channel/worker/FLOW.md"
+  ],
+  "agent_files_read": [
+    "test/e2e/AGENTS.md",
+    "test/e2e/migration/AGENTS.md",
+    "test/e2e/migration/ordinary_history/AGENTS.md"
+  ],
+  "no_fix_claim": true,
+  "current_task_disposition": "Retained as a release-qualification blocker. This assessment records the bounded product-repair work package and required new-candidate validation; no product or migration-retry change has been implemented, and no clean rerun replaces the original failure.",
+  "line_evidence": [
+    {
+      "path": "test/e2e/migration/ordinary_history/ordinary_history_test.go",
+      "line": 144,
+      "fact": "Only legacy HTTP400 route-not-ready text is retryable in current fixture."
+    },
+    {
+      "path": "test/e2e/migration/ordinary_history/ordinary_history_test.go",
+      "line": 198,
+      "fact": "Failure happens in history verification after full cluster restart and HTTP readiness, before warming append."
+    },
+    {
+      "path": "pkg/channel/replication/recovery.go",
+      "line": 12,
+      "fact": "Private recovery-probe-incomplete sentinel has no public transient error identity."
+    },
+    {
+      "path": "pkg/channel/replication/quorum_log.go",
+      "line": 149,
+      "fact": "Install returns recoverQuorumPrefix failure unchanged."
+    },
+    {
+      "path": "pkg/channel/replication/quorum_log.go",
+      "line": 161,
+      "fact": "Second convergence proof likewise returns error unchanged."
+    },
+    {
+      "path": "pkg/channel/replication/recovery_owner.go",
+      "line": 325,
+      "fact": "Identity-page loss or changed state removes a stable voter; insufficient surviving quorum returns incomplete. Possible branch only, not established as this incident branch."
+    },
+    {
+      "path": "pkg/channel/replication/recovery_owner.go",
+      "line": 344,
+      "fact": "Changed quorum frontier also returns incomplete. Possible branch only."
+    },
+    {
+      "path": "internal/infra/cluster/message_reader.go",
+      "line": 75,
+      "fact": "Aligned committed-read errors use mapAppendError."
+    },
+    {
+      "path": "internal/infra/cluster/error_map.go",
+      "line": 43,
+      "fact": "Unclassified cause becomes ErrAppendFailed."
+    },
+    {
+      "path": "internal/runtime/readavailability/errors.go",
+      "line": 24,
+      "fact": "Known temporary classification includes public channel.ErrNotReady; private recovery sentinel is absent."
+    },
+    {
+      "path": "internal/access/api/channel_messagesync.go",
+      "line": 69,
+      "fact": "Error path tries writeReadUnavailable, otherwise writes legacy JSON error."
+    },
+    {
+      "path": "internal/access/api/message_read_error.go",
+      "line": 14,
+      "fact": "Only typed/closed temporary cause families map to 503 unavailable."
+    },
+    {
+      "path": "internal/access/api/FLOW.md",
+      "line": 106,
+      "fact": "Temporary single-channel history errors documented as HTTP503 code=unavailable."
+    },
+    {
+      "path": "internal/runtime/readavailability/FLOW.md",
+      "line": 26,
+      "fact": "Exact cause identities required; arbitrary string/substring matching is not the contract."
+    },
+    {
+      "path": "internal/access/api/message_read_error_test.go",
+      "line": 30,
+      "fact": "Current executable test asserts typed transient errors map to 503 across four read routes."
+    },
+    {
+      "path": "internal/access/api/message_read_error_test.go",
+      "line": 60,
+      "fact": "Unknown/permanent/business errors must remain nonretryable."
+    },
+    {
+      "path": "pkg/channel/replication/recovery_owner_test.go",
+      "line": 51,
+      "fact": "Existing deterministic dispatcher fixture makes identity-page quorum loss produce the private incomplete cause."
+    }
+  ],
+  "minimum_next_repair_red_test": {
+    "proposed_name": "TestQuorumLogInstallPreservesTemporaryRecoveryFailureIdentity",
+    "seam": "Real quorumLog.Install using the existing scripted dispatcher pattern from recovery_owner_test.go:51; not a new helper-only classification test.",
+    "arrange": "Three legal voters, quorum two, identical durable prefix; frontier round succeeds, identity page outcomes leave fewer than quorum unchanged supporters.",
+    "assertions": [
+      "Install returns a nonnil error with both errRecoveryProbeIncomplete and public channel.ErrNotReady identity.",
+      "Installed result does not grant an authority frontier or writable state.",
+      "Known log conflict and invalid configuration controls must not become channel.ErrNotReady.",
+      "A subsequent complete identical proof may install successfully without mutating or discarding acknowledged records."
+    ],
+    "current_expected_red": "The incomplete proof currently escapes Install as the private sentinel only, so errors.Is(err, channel.ErrNotReady) should fail.",
+    "execution_status": "Proposed only; not written or executed in this qualification task."
+  }
+}

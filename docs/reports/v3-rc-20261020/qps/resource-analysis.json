@@ -1,0 +1,152 @@
+{
+  "observed_failure": "Fixed mixed list 200 QPS fails in all three windows; sync 60 QPS fails the first window. Matrix precondition rejects; no 20-endpoint matrix or v2 gate receipt was produced.",
+  "resource_assessment": "High host/cgroup CPU use and CPU pressure are concurrent with the misses. No measured cgroup throttling increments; cpu.max is unavailable. These observations support contention but do not establish whether product CPU cost, driver cost, runner capacity or a combination is the root cause.",
+  "no_mutation_or_protocol_error_observed": true,
+  "host_cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "visible_cpus": 4,
+  "driver_gomaxprocs": 4,
+  "node_gomaxprocs": 2,
+  "windows": [
+    {
+      "window": 1,
+      "metrics_interval_note": "Host/driver cuts bracket the measured window plus bounded surrounding observation; not exact endpoint CPU attribution.",
+      "host_sample_elapsed_seconds": 61.482324,
+      "server_cpu_seconds": 187.21999999999997,
+      "server_allocated_bytes": 34278219512,
+      "completed_total": 14153,
+      "server_allocated_bytes_per_completed_request": 2421975.52,
+      "release_mixed_window_allocation_ceiling": 5000000,
+      "allocation_within_release_ceiling": true,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_seconds": 62.68,
+          "allocated_bytes": 11574958024,
+          "gc_count": 144,
+          "gc_pause_sum_seconds": 0.115922
+        },
+        {
+          "node": 2,
+          "cpu_seconds": 60.66,
+          "allocated_bytes": 11003944888,
+          "gc_count": 138,
+          "gc_pause_sum_seconds": 0.10365
+        },
+        {
+          "node": 3,
+          "cpu_seconds": 63.89,
+          "allocated_bytes": 11701644160,
+          "gc_count": 146,
+          "gc_pause_sum_seconds": 0.14223
+        }
+      ],
+      "cgroup_usage_seconds_delta": 230.928,
+      "cgroup_usage_fraction_of_four_visible_cpus": 0.939,
+      "cgroup_nr_throttled_delta": 0,
+      "cgroup_throttled_usec_delta": 0,
+      "cgroup_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+      "host_cpu_nonidle_fraction": 0.9524,
+      "host_cpu_iowait_fraction": 0.0009,
+      "host_cpu_steal_fraction": 0.0,
+      "cpu_pressure_some_fraction": 0.6027,
+      "driver_utime_ticks_delta": 3707,
+      "driver_stime_ticks_delta": 284,
+      "driver_rss_before": "189280 kB",
+      "driver_rss_after": "52184 kB"
+    },
+    {
+      "window": 2,
+      "metrics_interval_note": "Host/driver cuts bracket the measured window plus bounded surrounding observation; not exact endpoint CPU attribution.",
+      "host_sample_elapsed_seconds": 61.251985,
+      "server_cpu_seconds": 190.65,
+      "server_allocated_bytes": 34780477808,
+      "completed_total": 14458,
+      "server_allocated_bytes_per_completed_request": 2405621.65,
+      "release_mixed_window_allocation_ceiling": 5000000,
+      "allocation_within_release_ceiling": true,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_seconds": 64.05,
+          "allocated_bytes": 11739663480,
+          "gc_count": 146,
+          "gc_pause_sum_seconds": 0.139439
+        },
+        {
+          "node": 2,
+          "cpu_seconds": 61.55,
+          "allocated_bytes": 11165933600,
+          "gc_count": 140,
+          "gc_pause_sum_seconds": 0.101697
+        },
+        {
+          "node": 3,
+          "cpu_seconds": 65.04,
+          "allocated_bytes": 11874600696,
+          "gc_count": 148,
+          "gc_pause_sum_seconds": 0.109445
+        }
+      ],
+      "cgroup_usage_seconds_delta": 230.588,
+      "cgroup_usage_fraction_of_four_visible_cpus": 0.9411,
+      "cgroup_nr_throttled_delta": 0,
+      "cgroup_throttled_usec_delta": 0,
+      "cgroup_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+      "host_cpu_nonidle_fraction": 0.9544,
+      "host_cpu_iowait_fraction": 0.0003,
+      "host_cpu_steal_fraction": 0.0,
+      "cpu_pressure_some_fraction": 0.6242,
+      "driver_utime_ticks_delta": 3702,
+      "driver_stime_ticks_delta": 286,
+      "driver_rss_before": "52516 kB",
+      "driver_rss_after": "52588 kB"
+    },
+    {
+      "window": 3,
+      "metrics_interval_note": "Host/driver cuts bracket the measured window plus bounded surrounding observation; not exact endpoint CPU attribution.",
+      "host_sample_elapsed_seconds": 61.211202,
+      "server_cpu_seconds": 190.04000000000008,
+      "server_allocated_bytes": 34954719808,
+      "completed_total": 14568,
+      "server_allocated_bytes_per_completed_request": 2399417.89,
+      "release_mixed_window_allocation_ceiling": 5000000,
+      "allocation_within_release_ceiling": true,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_seconds": 63.81,
+          "allocated_bytes": 11791773912,
+          "gc_count": 147,
+          "gc_pause_sum_seconds": 0.159951
+        },
+        {
+          "node": 2,
+          "cpu_seconds": 61.4,
+          "allocated_bytes": 11222370424,
+          "gc_count": 141,
+          "gc_pause_sum_seconds": 0.112727
+        },
+        {
+          "node": 3,
+          "cpu_seconds": 64.82,
+          "allocated_bytes": 11939094672,
+          "gc_count": 148,
+          "gc_pause_sum_seconds": 0.120081
+        }
+      ],
+      "cgroup_usage_seconds_delta": 230.284,
+      "cgroup_usage_fraction_of_four_visible_cpus": 0.9405,
+      "cgroup_nr_throttled_delta": 0,
+      "cgroup_throttled_usec_delta": 0,
+      "cgroup_cpu_max": "unavailable: open /sys/fs/cgroup/cpu.max: no such file or directory",
+      "host_cpu_nonidle_fraction": 0.9537,
+      "host_cpu_iowait_fraction": 0.0002,
+      "host_cpu_steal_fraction": 0.0,
+      "cpu_pressure_some_fraction": 0.6021,
+      "driver_utime_ticks_delta": 3657,
+      "driver_stime_ticks_delta": 291,
+      "driver_rss_before": "55680 kB",
+      "driver_rss_after": "52264 kB"
+    }
+  ]
+}

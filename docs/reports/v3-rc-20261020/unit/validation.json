@@ -1,0 +1,18 @@
+{
+  "source_commit": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "platform": "darwin/arm64",
+  "go_version": "go1.25.11",
+  "unit": {
+    "command": "GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1",
+    "exit_code": 0,
+    "passed_packages": 219,
+    "packages_without_tests": 15,
+    "log_sha256": "5eaf7d1aeba24f8c1a23d468f4a9a82fcb0250364c01516c9286fd6173f54468"
+  },
+  "focused_integration": {
+    "command": "GOWORK=off go test -tags=integration ./pkg/db/internal/commit ./pkg/slot/proxy -run 'Test(CoordinatorExpiredWindow|SendPermissionCohorts)' -count=1 -timeout=2m -p=1",
+    "exit_code": 0,
+    "log_sha256": "4058193d7ca7d34fa9d8ce042f0d8c23110bfa387d1cb3463bea47c674da881d"
+  },
+  "scope": "Local validation, not formal Linux long-soak or release qualification"
+}

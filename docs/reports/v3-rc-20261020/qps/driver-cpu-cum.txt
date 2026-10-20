@@ -1,0 +1,27 @@
+File: conversation_qps.test
+Build ID: 7f8fb0709f74c0415e0d2e101b5658852641efaa
+Type: cpu
+Time: 2026-10-20 12:18:00 CST
+Duration: 11.45s, Total samples = 6.82s (59.58%)
+Showing nodes accounting for 2.42s, 35.48% of 6.82s total
+Dropped 237 nodes (cum <= 0.03s)
+Showing top 18 nodes out of 167
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      5.25s 76.98%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.request
+     0.01s  0.15%  0.15%      5.17s 75.81%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.measureMixed.func1.1
+         0     0%  0.15%      5.17s 75.81%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.measureRequests.func1
+         0     0%  0.15%      4.43s 64.96%  encoding/json.Unmarshal
+     0.03s  0.44%  0.59%      2.84s 41.64%  encoding/json.(*decodeState).array
+         0     0%  0.59%      2.84s 41.64%  encoding/json.(*decodeState).unmarshal
+     0.02s  0.29%  0.88%      2.84s 41.64%  encoding/json.(*decodeState).value
+     0.22s  3.23%  4.11%      2.81s 41.20%  encoding/json.(*decodeState).object
+     0.85s 12.46% 16.57%      1.59s 23.31%  encoding/json.checkValid
+         0     0% 16.57%      1.03s 15.10%  runtime.systemstack
+     0.03s  0.44% 17.01%      0.71s 10.41%  encoding/json.(*decodeState).literalStore
+     0.57s  8.36% 25.37%      0.71s 10.41%  encoding/json.(*decodeState).rescanLiteral
+         0     0% 25.37%      0.64s  9.38%  runtime.gcBgMarkWorker
+         0     0% 25.37%      0.61s  8.94%  runtime.gcBgMarkWorker.func2
+     0.03s  0.44% 25.81%      0.61s  8.94%  runtime.gcDrain
+     0.52s  7.62% 33.43%      0.56s  8.21%  encoding/json.unquoteBytes
+     0.14s  2.05% 35.48%      0.55s  8.06%  runtime.scanobject
+         0     0% 35.48%      0.41s  6.01%  github.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps.conversationResponse

@@ -1,0 +1,63 @@
+{
+  "run_id": 39368295521,
+  "artifact_id": 12240044930,
+  "artifact_name": "conversation-mixed-39368295521-1",
+  "artifact_archive_digest": "sha256:41f9e68251eb20dc4e11639c53ca5fde2853e47d1234660964cc0d0e6584fec6",
+  "archive_bytes": 45927074,
+  "downloaded_bytes": 905699,
+  "range_requests": 34,
+  "files": [
+    {
+      "path": "driver-cpu.pprof",
+      "bytes": 25685,
+      "zip_crc32": "b12f4e01"
+    },
+    {
+      "path": "node1-alloc-after.pprof",
+      "bytes": 117555,
+      "zip_crc32": "b5ee5d35"
+    },
+    {
+      "path": "node1-alloc-before.pprof",
+      "bytes": 115098,
+      "zip_crc32": "dd5bb00d"
+    },
+    {
+      "path": "node1-cpu.pprof",
+      "bytes": 65019,
+      "zip_crc32": "674205bd"
+    },
+    {
+      "path": "node2-alloc-after.pprof",
+      "bytes": 112532,
+      "zip_crc32": "6d8b26a8"
+    },
+    {
+      "path": "node2-alloc-before.pprof",
+      "bytes": 110759,
+      "zip_crc32": "af3bd52d"
+    },
+    {
+      "path": "node2-cpu.pprof",
+      "bytes": 62170,
+      "zip_crc32": "dbbb1d9a"
+    },
+    {
+      "path": "node3-alloc-after.pprof",
+      "bytes": 116826,
+      "zip_crc32": "8cf07ae2"
+    },
+    {
+      "path": "node3-alloc-before.pprof",
+      "bytes": 114595,
+      "zip_crc32": "a99d719b"
+    },
+    {
+      "path": "node3-cpu.pprof",
+      "bytes": 63570,
+      "zip_crc32": "fb820d98"
+    }
+  ],
+  "archive_digest_recomputed": false,
+  "binary_downloaded": false
+}

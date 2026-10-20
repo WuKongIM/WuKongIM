@@ -1,0 +1,63 @@
+{
+  "run_id": 39369947381,
+  "artifact_id": 12240354897,
+  "artifact_name": "conversation-mixed-39369947381-1",
+  "artifact_archive_digest": "sha256:fee95856c24f499e9cbfbf30b729124d3dfd140cc8d44d1116a048d2f8cbfce5",
+  "archive_bytes": 91720272,
+  "downloaded_bytes": 237488,
+  "range_requests": 34,
+  "files": [
+    {
+      "path": "binary.sha256",
+      "bytes": 122,
+      "zip_crc32": "48d4bff2"
+    },
+    {
+      "path": "build.txt",
+      "bytes": 8943,
+      "zip_crc32": "413fa5fa"
+    },
+    {
+      "path": "comparison/binary.sha256",
+      "bytes": 133,
+      "zip_crc32": "92031700"
+    },
+    {
+      "path": "comparison/build.txt",
+      "bytes": 8954,
+      "zip_crc32": "a8f7bca9"
+    },
+    {
+      "path": "comparison/report.json",
+      "bytes": 1787758,
+      "zip_crc32": "73fa7ab6"
+    },
+    {
+      "path": "comparison/test.log",
+      "bytes": 1645,
+      "zip_crc32": "9220d9e9"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4656,
+      "zip_crc32": "757ba93f"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 128,
+      "zip_crc32": "911946ec"
+    },
+    {
+      "path": "report.json",
+      "bytes": 1788227,
+      "zip_crc32": "7b03df6e"
+    },
+    {
+      "path": "test.log",
+      "bytes": 1593,
+      "zip_crc32": "eecf8f44"
+    }
+  ],
+  "archive_digest_recomputed": false,
+  "binary_downloaded": false
+}

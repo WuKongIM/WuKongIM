@@ -1,0 +1,104 @@
+{
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "worktree_modified": false,
+  "patch_applied": false,
+  "extra_tests_run": false,
+  "patch": "/tmp/wukongim-v3-rc-20261020/cross-node-auth.patch",
+  "confirmed_failures": [
+    "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+    "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel"
+  ],
+  "root_cause": "The helper passes an empty CONNECT token while the fixture retains default Token authentication. Gateway rejects before VerifyToken, SEND, or cross-node delivery.",
+  "patch_scope": "Only newConnectedClient and its English responsibility comment. Register through public /user/token with frame.APP and device_level 0; one five-second context bounds registration and CONNECT; keep default authentication and all assertions.",
+  "helper_call_sites": [
+    {
+      "line": 46,
+      "test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+      "uid_role": "sender"
+    },
+    {
+      "line": 48,
+      "test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+      "uid_role": "receiver"
+    },
+    {
+      "line": 134,
+      "test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+      "uid_role": "sender"
+    },
+    {
+      "line": 136,
+      "test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+      "uid_role": "receiver"
+    }
+  ],
+  "opt_in_load_effect": "No calls to this helper. runReplicaLoad uses WorkloadRunner.Prepare, Connect, Warmup, then RSSBeforeRun and Run; Identity.Token.Mode is bench_api. This patch neither adds work inside its windows nor changes its preparation.",
+  "other_selected_fixture_scan": [
+    {
+      "scenario": "single_node_send",
+      "auth": "Registers public token and uses ConnectWithTokenContext",
+      "observed_status": "pass"
+    },
+    {
+      "scenario": "send_permission",
+      "auth": "Business assertions are HTTP; managed readiness provisions its own token",
+      "observed_status": "pass"
+    },
+    {
+      "scenario": "cold_hot_send",
+      "auth": "Explicit token_auth_on=false for intentional tokenless timing fixture",
+      "observed_status": "pass"
+    },
+    {
+      "scenario": "channel_failover",
+      "auth": "Main fixture explicitly sets token_auth_on=false; HTTP pause cases use HTTP readiness",
+      "observed_status": "pass in local-e2e.json"
+    },
+    {
+      "scenario": "send_ban",
+      "auth": "Tokenless functional fixtures explicitly false. WriteRecoveryAndConcurrentMetadata explicitly true, registers tokens and passes Token in wkclient.ConnectOptions. Opt-in diagnostics false and not selected.",
+      "observed_status": "running at scan"
+    },
+    {
+      "scenario": "chat_lifecycle",
+      "auth": "Shared lifecycleOverrides explicitly false for tokenless clients",
+      "observed_status": "not yet run at scan"
+    },
+    {
+      "scenario": "migration/original_v2",
+      "auth": "Explicit true; successful empty-group case sends original imported token and device_flag 1; refusal cases do not connect business clients",
+      "observed_status": "not yet run at scan"
+    },
+    {
+      "scenario": "migration/ordinary_history",
+      "auth": "Explicit true; sends original imported token and device_flag 1",
+      "observed_status": "not yet run at scan"
+    },
+    {
+      "scenario": "backup/scheduled_restore and backup/three_node_restore",
+      "auth": "Scenario business assertions use HTTP, managed readiness provisions its own Token",
+      "observed_status": "not yet run at scan"
+    }
+  ],
+  "retest_selector": "^TestThreeNode(ClusterCrossNodeUsersExchangeMessages|ReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel)$",
+  "retest_rules": [
+    "Wait for all matrix groups to finish before applying.",
+    "Reuse /tmp/wukongim-v3-rc-20261020/wukongim-e2e and original SHA256.",
+    "Preserve original red JSONL and local-e2e manifest; record amended harness source separately.",
+    "After targeted success rerun all four default cross-node tests; do not claim the opt-in 2000 SEND/s comparison passed."
+  ],
+  "flow_files_read": [
+    "test/e2e/suite/FLOW.md",
+    "pkg/client/FLOW.md",
+    "pkg/gateway/FLOW.md",
+    "internal/access/gateway/FLOW.md",
+    "internal/usecase/user/FLOW.md",
+    "internal/app/FLOW.md"
+  ],
+  "limitations": [
+    "Static scan finds no second identical empty-token fixture defect among selected groups; it does not prove later scenarios will pass.",
+    "No changed harness execution yet; expected recovery remains unverified."
+  ],
+  "diagnosis_phase": "before_fixture_repair",
+  "subsequent_verification": "See cross-node-retest.json for the later committed fixture and actual passing result."
+}

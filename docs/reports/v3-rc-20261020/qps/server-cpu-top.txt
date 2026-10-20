@@ -1,0 +1,24 @@
+File: wukongim-e2e
+Build ID: d09bd60b965f00fb5b66cf844d277751afccc05d
+Type: cpu
+Time: 2026-10-20 12:18:00 CST
+Duration: 24.45s, Total samples = 23.73s (97.06%)
+Showing nodes accounting for 9.89s, 41.68% of 23.73s total
+Dropped 1019 nodes (cum <= 0.12s)
+Showing top 15 nodes out of 385
+      flat  flat%   sum%        cum   cum%
+     3.54s 14.92% 14.92%      3.54s 14.92%  internal/runtime/syscall.Syscall6
+     1.13s  4.76% 19.68%      2.03s  8.55%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.81s  3.41% 23.09%      0.81s  3.41%  runtime.duffcopy
+     0.77s  3.24% 26.34%      0.77s  3.24%  cmpbody
+     0.54s  2.28% 28.61%      0.54s  2.28%  runtime.memmove
+     0.52s  2.19% 30.80%      1.32s  5.56%  runtime.scanobject
+     0.50s  2.11% 32.91%      0.50s  2.11%  runtime.nextFreeFast (inline)
+     0.36s  1.52% 34.43%      0.53s  2.23%  runtime.findObject
+     0.35s  1.47% 35.90%      0.35s  1.47%  runtime.memclrNoHeapPointers
+     0.33s  1.39% 37.29%      0.33s  1.39%  runtime.typePointers.nextFast (inline)
+     0.23s  0.97% 38.26%      0.60s  2.53%  github.com/cockroachdb/pebble/v2.(*Iterator).Close
+     0.23s  0.97% 39.23%      0.51s  2.15%  runtime.wbBufFlush1
+     0.21s  0.88% 40.12%      0.21s  0.88%  internal/runtime/maps.ctrlGroup.matchH2
+     0.19s   0.8% 40.92%      0.19s   0.8%  aeshashbody
+     0.18s  0.76% 41.68%      2.65s 11.17%  runtime.mallocgc

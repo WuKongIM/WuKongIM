@@ -1,0 +1,636 @@
+{
+  "schema": "wukongim.v3_rc.sdk_acceptance_summary/v1",
+  "checked_at_utc": "2026-10-20T04:16:11.468397+00:00",
+  "run": {
+    "id": 39367425765,
+    "name": "Safety Automation - EasySDK Released Package Acceptance",
+    "event": "workflow_dispatch",
+    "head_branch": "main",
+    "head_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "path": ".github/workflows/easysdk-release-acceptance.yml",
+    "status": "completed",
+    "conclusion": "success",
+    "run_attempt": 1,
+    "created_at": "2026-10-20T04:02:15Z",
+    "updated_at": "2026-10-20T04:15:21Z",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765"
+  },
+  "jobs": [
+    {
+      "id": 118447333693,
+      "name": "iOS CocoaPods 1.1.1",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-20T04:02:24Z",
+      "completed_at": "2026-10-20T04:10:44Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765/job/118447333693",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:25Z",
+          "completed_at": "2026-10-20T04:02:27Z"
+        },
+        {
+          "name": "Check out WuKongIM",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:27Z",
+          "completed_at": "2026-10-20T04:02:37Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:37Z",
+          "completed_at": "2026-10-20T04:02:55Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "number": 4,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:55Z",
+          "completed_at": "2026-10-20T04:03:02Z"
+        },
+        {
+          "name": "Set up Ruby",
+          "number": 5,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:03:02Z",
+          "completed_at": "2026-10-20T04:03:02Z"
+        },
+        {
+          "name": "Install CocoaPods",
+          "number": 6,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:03:02Z",
+          "completed_at": "2026-10-20T04:03:04Z"
+        },
+        {
+          "name": "Resolve the exact CocoaPods package",
+          "number": 7,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:03:04Z",
+          "completed_at": "2026-10-20T04:03:13Z"
+        },
+        {
+          "name": "Start WuKongIM and released Web peer",
+          "number": 8,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:03:13Z",
+          "completed_at": "2026-10-20T04:04:46Z"
+        },
+        {
+          "name": "Boot iOS Simulator",
+          "number": 9,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:04:46Z",
+          "completed_at": "2026-10-20T04:06:54Z"
+        },
+        {
+          "name": "Build and run the CocoaPods app",
+          "number": 10,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:06:55Z",
+          "completed_at": "2026-10-20T04:10:07Z"
+        },
+        {
+          "name": "Clean up runtime",
+          "number": 11,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:10:07Z",
+          "completed_at": "2026-10-20T04:10:07Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "number": 20,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:10:07Z",
+          "completed_at": "2026-10-20T04:10:09Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 21,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:10:09Z",
+          "completed_at": "2026-10-20T04:10:30Z"
+        },
+        {
+          "name": "Post Check out WuKongIM",
+          "number": 22,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:10:30Z",
+          "completed_at": "2026-10-20T04:10:31Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 23,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:10:31Z",
+          "completed_at": "2026-10-20T04:10:40Z"
+        }
+      ]
+    },
+    {
+      "id": 118447333949,
+      "name": "Flutter pub.dev 1.1.0 on iOS",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-20T04:02:24Z",
+      "completed_at": "2026-10-20T04:15:21Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765/job/118447333949",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:25Z",
+          "completed_at": "2026-10-20T04:02:27Z"
+        },
+        {
+          "name": "Check out WuKongIM",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:27Z",
+          "completed_at": "2026-10-20T04:02:33Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:33Z",
+          "completed_at": "2026-10-20T04:02:48Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "number": 4,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:48Z",
+          "completed_at": "2026-10-20T04:02:54Z"
+        },
+        {
+          "name": "Set up Flutter",
+          "number": 5,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:54Z",
+          "completed_at": "2026-10-20T04:04:07Z"
+        },
+        {
+          "name": "Check out Flutter release source",
+          "number": 6,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:04:07Z",
+          "completed_at": "2026-10-20T04:04:10Z"
+        },
+        {
+          "name": "Point the official example at pub.dev",
+          "number": 7,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:04:10Z",
+          "completed_at": "2026-10-20T04:04:15Z"
+        },
+        {
+          "name": "Start WuKongIM and released Web peer",
+          "number": 8,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:04:15Z",
+          "completed_at": "2026-10-20T04:05:52Z"
+        },
+        {
+          "name": "Boot iOS Simulator",
+          "number": 9,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:05:52Z",
+          "completed_at": "2026-10-20T04:08:08Z"
+        },
+        {
+          "name": "Run released Flutter package on iOS",
+          "number": 10,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:08:08Z",
+          "completed_at": "2026-10-20T04:13:56Z"
+        },
+        {
+          "name": "Clean up runtime",
+          "number": 11,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:13:56Z",
+          "completed_at": "2026-10-20T04:13:57Z"
+        },
+        {
+          "name": "Post Check out Flutter release source",
+          "number": 18,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:13:57Z",
+          "completed_at": "2026-10-20T04:13:58Z"
+        },
+        {
+          "name": "Post Set up Flutter",
+          "number": 19,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:13:58Z",
+          "completed_at": "2026-10-20T04:14:54Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "number": 20,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:14:54Z",
+          "completed_at": "2026-10-20T04:14:55Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 21,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:14:55Z",
+          "completed_at": "2026-10-20T04:15:07Z"
+        },
+        {
+          "name": "Post Check out WuKongIM",
+          "number": 22,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:15:07Z",
+          "completed_at": "2026-10-20T04:15:07Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 23,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:15:07Z",
+          "completed_at": "2026-10-20T04:15:17Z"
+        }
+      ]
+    },
+    {
+      "id": 118447334065,
+      "name": "Android Maven Central 1.0.5",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-20T04:02:19Z",
+      "completed_at": "2026-10-20T04:07:18Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765/job/118447334065",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:20Z",
+          "completed_at": "2026-10-20T04:02:23Z"
+        },
+        {
+          "name": "Check out WuKongIM",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:23Z",
+          "completed_at": "2026-10-20T04:02:27Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:27Z",
+          "completed_at": "2026-10-20T04:02:43Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "number": 4,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:43Z",
+          "completed_at": "2026-10-20T04:02:49Z"
+        },
+        {
+          "name": "Set up Java",
+          "number": 5,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:49Z",
+          "completed_at": "2026-10-20T04:02:50Z"
+        },
+        {
+          "name": "Check out Android release source",
+          "number": 6,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:50Z",
+          "completed_at": "2026-10-20T04:02:51Z"
+        },
+        {
+          "name": "Point the official example at Maven Central",
+          "number": 7,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:02:51Z",
+          "completed_at": "2026-10-20T04:03:42Z"
+        },
+        {
+          "name": "Start WuKongIM and released Web peer",
+          "number": 8,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:03:42Z",
+          "completed_at": "2026-10-20T04:04:14Z"
+        },
+        {
+          "name": "Enable KVM",
+          "number": 9,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:04:14Z",
+          "completed_at": "2026-10-20T04:04:14Z"
+        },
+        {
+          "name": "Run released Android package on API 34",
+          "number": 10,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:04:14Z",
+          "completed_at": "2026-10-20T04:07:12Z"
+        },
+        {
+          "name": "Clean up runtime",
+          "number": 11,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:12Z",
+          "completed_at": "2026-10-20T04:07:12Z"
+        },
+        {
+          "name": "Post Check out Android release source",
+          "number": 18,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:12Z",
+          "completed_at": "2026-10-20T04:07:12Z"
+        },
+        {
+          "name": "Post Set up Java",
+          "number": 19,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:12Z",
+          "completed_at": "2026-10-20T04:07:12Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "number": 20,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:12Z",
+          "completed_at": "2026-10-20T04:07:13Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 21,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:13Z",
+          "completed_at": "2026-10-20T04:07:13Z"
+        },
+        {
+          "name": "Post Check out WuKongIM",
+          "number": 22,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:13Z",
+          "completed_at": "2026-10-20T04:07:13Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 23,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-20T04:07:13Z",
+          "completed_at": "2026-10-20T04:07:13Z"
+        }
+      ]
+    }
+  ],
+  "all_jobs_success": true,
+  "actual_bidirectional_messaging_verified": true,
+  "released_web_peer": "easyjssdk@2.0.4",
+  "platform_receipts": {
+    "android": {
+      "bidirectional_verified": true,
+      "receipt": null,
+      "verification": "Selected ReleaseSmokeTest executed one connected instrumentation test successfully. Source assertions require sender/content-matched reply, positive SENDACK and reply sequences, and disconnected state. Web peer log independently confirms forward receive and reverse send acknowledgement. Android per-test PASS text is not surfaced in the retained job console.",
+      "log_path": "/tmp/wukongim-v3-rc-20261020/sdk-android.log",
+      "log_sha256": "f9dfcd089a9aa017a0a5473a48f9c8c4e0634702af6a06a5698a38c11b1837a6",
+      "evidence": [
+        {
+          "line": 382,
+          "text": "2026-10-20T04:03:42.5035741Z +--- com.githubim:easysdk-android:1.0.5"
+        },
+        {
+          "line": 740,
+          "text": "2026-10-20T04:07:08.1910495Z Starting 1 tests on emulator-5554 - 14"
+        },
+        {
+          "line": 742,
+          "text": "2026-10-20T04:07:11.0648032Z BUILD SUCCESSFUL in 1m 19s"
+        },
+        {
+          "line": 746,
+          "text": "2026-10-20T04:07:11.3982896Z PEER_PASS alice-to-bob=true bob-to-alice-ack=true"
+        }
+      ],
+      "assertion_source": {
+        "repository_path": "test/easysdk-release/android/ReleaseSmokeTest.kt",
+        "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "content_sha256": "90e663dd3e906c22aafc6cd5c5b877d7c58f2fc3b6a0ed50802d1e3e2e6c8126",
+        "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-android.txt",
+        "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/android/ReleaseSmokeTest.kt"
+      }
+    },
+    "ios": {
+      "bidirectional_verified": true,
+      "receipt": {
+        "aliceToBob": true,
+        "bobToAlice": true,
+        "disconnected": true,
+        "package": "WuKongEasySDK CocoaPods 1.1.1",
+        "platform": "iOS Simulator",
+        "status": "PASS"
+      },
+      "verification": "Simulator app emitted a PASS receipt after matched reverse reply, positive SENDACK/reply sequences and disconnect. Web peer independently passed.",
+      "log_path": "/tmp/wukongim-v3-rc-20261020/sdk-ios.log",
+      "log_sha256": "b3c313e006551966e5603087ec6a4576f291b4bf65c68cef5d3a62b23d7ac334",
+      "evidence": [
+        {
+          "line": 363,
+          "text": "2026-10-20T04:03:12.1110110Z Installing WuKongEasySDK (1.1.1)"
+        },
+        {
+          "line": 626,
+          "text": "2026-10-20T04:10:07.0882620Z {\"aliceToBob\":true,\"bobToAlice\":true,\"disconnected\":true,\"package\":\"WuKongEasySDK CocoaPods 1.1.1\",\"platform\":\"iOS Simulator\",\"status\":\"PASS\"}PEER_READY package=easyjssdk@2.0.4"
+        },
+        {
+          "line": 627,
+          "text": "2026-10-20T04:10:07.1105110Z PEER_PASS alice-to-bob=true bob-to-alice-ack=true"
+        }
+      ],
+      "assertion_source": {
+        "repository_path": "test/easysdk-release/ios/ReleaseSmoke/ReleaseSmokeApp.swift",
+        "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "content_sha256": "e4e4b7cb99acca9deac2941b09f007181aded0d3b60f0bbbe6a87b4f6fa5cad6",
+        "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-ios.txt",
+        "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/ios/ReleaseSmoke/ReleaseSmokeApp.swift"
+      }
+    },
+    "flutter": {
+      "bidirectional_verified": true,
+      "receipt": {
+        "status": "PASS",
+        "package": "wukong_easy_sdk@1.1.0",
+        "alice_to_bob": true,
+        "bob_to_alice": true,
+        "disconnected": true
+      },
+      "verification": "Hosted pub.dev 1.1.0 package was installed/launched on iOS Simulator and emitted PASS after matched reverse reply, positive SENDACK/reply sequences and disconnect. Web peer independently passed.",
+      "log_path": "/tmp/wukongim-v3-rc-20261020/sdk-flutter.log",
+      "log_sha256": "69ff57c1d5579954996967318ec53ba4ac1845a6f3374c445dfc41febcc18495",
+      "evidence": [
+        {
+          "line": 508,
+          "text": "2026-10-20T04:04:15.9909280Z   \"name\": \"wukong_easy_sdk\","
+        },
+        {
+          "line": 509,
+          "text": "2026-10-20T04:04:15.9910060Z   \"version\": \"1.1.0\","
+        },
+        {
+          "line": 511,
+          "text": "2026-10-20T04:04:15.9911960Z   \"source\": \"hosted\","
+        },
+        {
+          "line": 805,
+          "text": "2026-10-20T04:08:10.9617170Z FLUTTER_RELEASE_SMOKE_STAGE stage=build"
+        },
+        {
+          "line": 810,
+          "text": "2026-10-20T04:13:13.9607620Z FLUTTER_RELEASE_SMOKE_STAGE stage=install"
+        },
+        {
+          "line": 811,
+          "text": "2026-10-20T04:13:48.7148670Z FLUTTER_RELEASE_SMOKE_STAGE stage=launch"
+        },
+        {
+          "line": 813,
+          "text": "2026-10-20T04:13:56.5945200Z {\"status\":\"PASS\",\"package\":\"wukong_easy_sdk@1.1.0\",\"alice_to_bob\":true,\"bob_to_alice\":true,\"disconnected\":true}PEER_READY package=easyjssdk@2.0.4"
+        },
+        {
+          "line": 814,
+          "text": "2026-10-20T04:13:56.5949240Z PEER_PASS alice-to-bob=true bob-to-alice-ack=true"
+        }
+      ],
+      "assertion_source": {
+        "repository_path": "test/easysdk-release/flutter/release_smoke_app.dart",
+        "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "content_sha256": "9288c92573df19c391d1d03d0fbf0e0d089619fd1a181eae12bbbf8a5476072f",
+        "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-flutter.txt",
+        "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/flutter/release_smoke_app.dart"
+      }
+    }
+  },
+  "sources": {
+    "android": {
+      "repository_path": "test/easysdk-release/android/ReleaseSmokeTest.kt",
+      "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "content_sha256": "90e663dd3e906c22aafc6cd5c5b877d7c58f2fc3b6a0ed50802d1e3e2e6c8126",
+      "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-android.txt",
+      "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/android/ReleaseSmokeTest.kt"
+    },
+    "ios": {
+      "repository_path": "test/easysdk-release/ios/ReleaseSmoke/ReleaseSmokeApp.swift",
+      "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "content_sha256": "e4e4b7cb99acca9deac2941b09f007181aded0d3b60f0bbbe6a87b4f6fa5cad6",
+      "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-ios.txt",
+      "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/ios/ReleaseSmoke/ReleaseSmokeApp.swift"
+    },
+    "flutter": {
+      "repository_path": "test/easysdk-release/flutter/release_smoke_app.dart",
+      "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "content_sha256": "9288c92573df19c391d1d03d0fbf0e0d089619fd1a181eae12bbbf8a5476072f",
+      "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-flutter.txt",
+      "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/flutter/release_smoke_app.dart"
+    },
+    "peer": {
+      "repository_path": "test/easysdk-release/peer/peer.cjs",
+      "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "content_sha256": "ae653892d0ab80484e5c83f0a95be62d2d8a14602697d8e817d134e03d22e9a3",
+      "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-peer.txt",
+      "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/peer/peer.cjs"
+    },
+    "verify_peer": {
+      "repository_path": "test/easysdk-release/verify-peer.sh",
+      "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "content_sha256": "389a1425e9a93d31257b35257c6be95a7564fb631b14ea6bf42ad772f5ac1f97",
+      "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-verify_peer.txt",
+      "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/test/easysdk-release/verify-peer.sh"
+    },
+    "workflow": {
+      "repository_path": ".github/workflows/easysdk-release-acceptance.yml",
+      "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "content_sha256": "3073866aecc25a86dd1ad4cbef27b3913732e8a1c581cb53bc1a77a10a8f3ecd",
+      "local_path": "/tmp/wukongim-v3-rc-20261020/sdk-source-workflow.txt",
+      "url": "https://github.com/WuKongIM/WuKongIM/blob/b469c6e5e2b4ff65611a8fe3389fb5034de3f152/.github/workflows/easysdk-release-acceptance.yml"
+    }
+  },
+  "scope_limitations": [
+    "This proves the pinned released packages and simulator/emulator scenarios in this workflow, not every SDK version or platform.",
+    "The workflow builds the product from exact run head SHA; it is not validation of a future v3.0.0 binary artifact.",
+    "Android console exposes successful selected instrumentation execution plus peer receipt; it does not expose a separate app JSON receipt."
+  ],
+  "monitoring": {
+    "read_only": true,
+    "reruns": 0,
+    "additional_dispatches": 0,
+    "poll_interval_seconds_minimum": 120
+  },
+  "raw_api_evidence": [
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/sdk-run-api.json",
+      "sha256": "8dd6edab75b0a0099ef6704e08984784f5ba0533cdd1862940c90624007ff4d9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020/sdk-jobs-api.json",
+      "sha256": "884be702d4ff258595bd3bbebb7bb703c03aacf3c9f9abf573cff29e7ccc6fa8"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+File: wukongim-e2e
+Build ID: d09bd60b965f00fb5b66cf844d277751afccc05d
+Type: alloc_space
+Time: 2026-10-20 12:18:00 CST
+Showing nodes accounting for 578.04MB, 28.97% of 1995.37MB total
+Dropped 342 nodes (cum <= 9.98MB)
+Showing top 12 nodes out of 237
+      flat  flat%   sum%        cum   cum%
+   87.33MB  4.38%  4.38%    87.90MB  4.40%  encoding/json.Marshal
+   68.03MB  3.41%  7.79%    68.03MB  3.41%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).acquire
+   59.53MB  2.98% 10.77%    65.53MB  3.28%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).retainWarmLocked
+   47.65MB  2.39% 13.16%   164.39MB  8.24%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).readConversationHeadsWithMetadata
+   47.03MB  2.36% 15.51%   164.56MB  8.25%  github.com/WuKongIM/WuKongIM/pkg/db/message.readMessageRowsReverseRaw
+   43.48MB  2.18% 17.69%   319.54MB 16.01%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).readChannelConversationHeads
+   41.12MB  2.06% 19.75%    41.12MB  2.06%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).handleRPCResponse
+   39.53MB  1.98% 21.73%    39.53MB  1.98%  reflect.growslice
+   38.01MB  1.90% 23.64%    38.01MB  1.90%  github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec.(*Scanner).Bytes (inline)
+   36.52MB  1.83% 25.47%   201.08MB 10.08%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelStore).ListMessagesBySeq
+   35.32MB  1.77% 27.24%    35.32MB  1.77%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.encodeRPCResultVersion
+   34.51MB  1.73% 28.97%    37.01MB  1.85%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get

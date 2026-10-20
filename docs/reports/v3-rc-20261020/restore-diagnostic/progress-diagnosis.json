@@ -1,0 +1,121 @@
+{
+  "captured_at": "2026-10-20T04:29:41.370668+00:00",
+  "stage_confirmed": "The test has logged restore admission and is polling /manager/backups once per second in waitForRestoreSuccess; it has not logged success or a terminal test verdict.",
+  "test_callsite": "test/e2e/backup/three_node_restore/three_node_restore_test.go:195",
+  "poll_implementation": "test/e2e/backup/three_node_restore/three_node_restore_test.go:483",
+  "last_test_output": {
+    "Time": "2026-10-20T12:25:30.798761+08:00",
+    "Action": "output",
+    "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+    "Test": "TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState",
+    "Output": "    three_node_restore_test.go:193: three-node restore admitted: restore-0a1b4b1a6a02fe7f4b4f5d5bf1036e91\n"
+  },
+  "last_output_age_seconds": 250.572,
+  "all_existing_node_logs_unchanged_since_first_capture": true,
+  "comparison_started_at": "2026-10-20T04:28:45.659938+00:00",
+  "comparison_elapsed_seconds": 55.711,
+  "process_snapshot_columns": "pid ppid stat cpu_time cpu_percent rss_kib elapsed",
+  "process_snapshot": "30391 30388 U      0:32.03   5.6 361440 05:21\n30392 30388 U      0:34.91   6.0 560176 05:21\n30467 30388 U      0:21.24   5.4 361808 04:17",
+  "sources": [
+    {
+      "node_id": 2,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/stdout.log",
+      "exists": true,
+      "bytes": 8491,
+      "mtime_utc": "2026-10-20T04:25:30.797667+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "3e765fabc9efac01b2103d81ff6c7c6eaed297b276a6576818d036ef4852da13"
+    },
+    {
+      "node_id": 2,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/stderr.log",
+      "exists": true,
+      "bytes": 0,
+      "mtime_utc": "2026-10-20T04:24:20.805293+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "node_id": 2,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-2/logs/app.log",
+      "exists": true,
+      "bytes": 9270,
+      "mtime_utc": "2026-10-20T04:25:30.797454+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "dff8f99b955afc733bf5df64a8da9a7dba0f8af260af5c7a1bce84d9770890dc"
+    },
+    {
+      "node_id": 3,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/stdout.log",
+      "exists": true,
+      "bytes": 6615,
+      "mtime_utc": "2026-10-20T04:25:30.438998+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "97c8e6ca81485506f9f4203c67a4cf3c936ee7e92e164679b4bf8196feefc666"
+    },
+    {
+      "node_id": 3,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/stderr.log",
+      "exists": true,
+      "bytes": 0,
+      "mtime_utc": "2026-10-20T04:24:20.806061+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "node_id": 3,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-3/logs/app.log",
+      "exists": true,
+      "bytes": 7394,
+      "mtime_utc": "2026-10-20T04:25:30.438978+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "4320d89076bc98ca1cd25f720c110a393aac9182f7cd1777986147042f9eeb78"
+    },
+    {
+      "node_id": 1,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/stdout.log",
+      "exists": true,
+      "bytes": 4171,
+      "mtime_utc": "2026-10-20T04:25:29.886091+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "8e6b09c36f2bf86728d1dd8b8a55c6ab9be96754a6083115c79df7c340506a1b"
+    },
+    {
+      "node_id": 1,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/stderr.log",
+      "exists": true,
+      "bytes": 0,
+      "mtime_utc": "2026-10-20T04:25:24.094290+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "node_id": 1,
+      "source": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeS2991038606/001/node-1/logs/app.log",
+      "exists": true,
+      "bytes": 12151,
+      "mtime_utc": "2026-10-20T04:25:29.885925+00:00",
+      "unchanged_size_and_mtime": true,
+      "redacted_sha256": "10947f757af4ac55e1ba48ee346c8b0f3c2fc4e9e9b1ec68d13e83dbd7c1bf48"
+    }
+  ],
+  "known_completed_phases": [
+    "Controller Leader stopped during backup at 12:24:33 Asia/Shanghai",
+    "Archive published at 12:25:24 Asia/Shanghai",
+    "Stopped node restarted and cluster readiness proved before admission",
+    "Restore admitted at 12:25:30 Asia/Shanghai"
+  ],
+  "unavailable": [
+    "Exact current Controller restore stage and per-replica restore progress are not logged by this fixture during polling.",
+    "No configured wukongim-ops MCP tools are available in this chat; discovery for cluster_health and backup_inspect returned empty.",
+    "No metrics snapshot was already retained by this fixture."
+  ],
+  "limits": [
+    "Log silence is not proof of a deadlock, no internal progress, or failed restore.",
+    "No root cause assigned. The run remains active within its existing deadline.",
+    "No HTTP requests, credentials retrieval, process signals, database reads, fixture changes, or product changes were used."
+  ],
+  "preserved_evidence_root": "/tmp/wukongim-v3-rc-20261020/restore-diagnostic",
+  "ops_skill_checked": ".agents/skills/wukongim-ops/SKILL.md",
+  "suggested_next": "Allow the original deadline/cleanup to finish. Preserve the final JSONL, which prints the last Manager backup dashboard on deadline. Do not change timeout or retry controls."
+}

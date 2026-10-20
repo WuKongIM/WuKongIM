@@ -1,0 +1,92 @@
+{
+  "schema": "wukongim/conversation-qps-profile/v2",
+  "duration_seconds": 15,
+  "workers": 8,
+  "cohorts": 3,
+  "users_per_cohort": 8,
+  "channels_per_cohort": 200,
+  "messages_per_channel": 3,
+  "payload_bytes": 256,
+  "min_completion_ratio": 0.95,
+  "max_p99_ms": 500,
+  "cases": [
+    {
+      "endpoint": "/conversation/list",
+      "page_size": 25,
+      "offered_qps": 400,
+      "max_allocated_bytes_per_request": {
+        "1": 550000,
+        "3": 800000
+      }
+    },
+    {
+      "endpoint": "/conversation/list",
+      "page_size": 100,
+      "offered_qps": 200,
+      "max_allocated_bytes_per_request": {
+        "1": 2000000,
+        "3": 3000000
+      }
+    },
+    {
+      "endpoint": "/conversation/list",
+      "page_size": 200,
+      "offered_qps": 100,
+      "max_allocated_bytes_per_request": {
+        "1": 4000000,
+        "3": 6000000
+      }
+    },
+    {
+      "endpoint": "/conversation/sync",
+      "page_size": 25,
+      "offered_qps": 80,
+      "max_allocated_bytes_per_request": {
+        "1": 4800000,
+        "3": 7300000
+      }
+    },
+    {
+      "endpoint": "/conversation/sync",
+      "page_size": 100,
+      "offered_qps": 60,
+      "max_allocated_bytes_per_request": {
+        "1": 7200000,
+        "3": 11500000
+      }
+    },
+    {
+      "endpoint": "/conversation/sync",
+      "page_size": 200,
+      "offered_qps": 40,
+      "max_allocated_bytes_per_request": {
+        "1": 11200000,
+        "3": 16500000
+      }
+    }
+  ],
+  "stress_diagnosis": {
+    "mixed_seconds": 600,
+    "mixed_list_qps": 600,
+    "mixed_sync_qps": 200,
+    "mixed_workers_per_endpoint": 24,
+    "hidden_seconds": 30,
+    "hidden_qps": 20,
+    "hidden_workers": 48
+  },
+  "stress_gate": {
+    "mixed_seconds": 60,
+    "mixed_list_qps": 200,
+    "mixed_sync_qps": 60,
+    "mixed_workers_per_endpoint": 8,
+    "hidden_seconds": 15,
+    "hidden_qps": 20,
+    "hidden_workers": 8,
+    "max_allocated_bytes_per_request": {
+      "mixed": 5000000,
+      "hidden_50_percent": 12000000,
+      "hidden_90_percent": 7500000,
+      "hidden_after_99_visible": 12000000
+    }
+  }
+}

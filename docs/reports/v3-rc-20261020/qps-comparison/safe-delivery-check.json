@@ -1,0 +1,8 @@
+{
+  "scanned_non_py_files": 15,
+  "total_bytes": 3615305,
+  "largest_file_bytes": 1788227,
+  "secret_or_signed_url_pattern_hits": [],
+  "no_binary_or_profiles_present": true,
+  "note": "Heuristic scan supplements known download provenance; no token or signed redirect URL is written by the fetcher."
+}

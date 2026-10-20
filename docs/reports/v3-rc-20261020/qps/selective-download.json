@@ -1,0 +1,43 @@
+{
+  "run_id": 39368295521,
+  "artifact_id": 12240044930,
+  "artifact_name": "conversation-mixed-39368295521-1",
+  "artifact_archive_digest": "sha256:41f9e68251eb20dc4e11639c53ca5fde2853e47d1234660964cc0d0e6584fec6",
+  "archive_bytes": 45927074,
+  "downloaded_bytes": 125671,
+  "range_requests": 22,
+  "files": [
+    {
+      "path": "binary.sha256",
+      "bytes": 122,
+      "zip_crc32": "48d4bff2"
+    },
+    {
+      "path": "build.txt",
+      "bytes": 8943,
+      "zip_crc32": "413fa5fa"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4483,
+      "zip_crc32": "f38c7b89"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 128,
+      "zip_crc32": "911946ec"
+    },
+    {
+      "path": "report.json",
+      "bytes": 1813451,
+      "zip_crc32": "ebc0fa57"
+    },
+    {
+      "path": "test.log",
+      "bytes": 1788,
+      "zip_crc32": "8de09566"
+    }
+  ],
+  "archive_digest_recomputed": false,
+  "binary_downloaded": false
+}

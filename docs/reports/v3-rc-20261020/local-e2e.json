@@ -1,0 +1,821 @@
+{
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "source_tree": "6b6c60cbac17a5a9570a332bc840b397e6bd7f77",
+  "binary_sha256": "5bffb20d465d46f269a3eeadd4ddae3ef4775dc3679e56e33702ae1f69addc36",
+  "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+  "go_version": "go version go1.25.11 darwin/arm64",
+  "status": "fail",
+  "cases": [
+    {
+      "name": "01-smoke",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/single_node_send",
+        "./test/e2e/message/send_permission",
+        "-count=1",
+        "-timeout=2m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+      },
+      "started_at": "2026-10-20T04:05:15.051317+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:05:31.378618+00:00",
+      "elapsed_seconds": 16.327,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/01-smoke.jsonl",
+      "log_sha256": "7dffd757ad4a079e90887a8170d5cf2d3af9f3e8d338953fc82e800891c19e20",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/single_node_send",
+          "Test": "TestWukongIMSingleNodeClusterSendProjectsConversationList",
+          "Elapsed": 3.86
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/single_node_send",
+          "Test": "TestWukongIMPersonDirectoryReadyMakesLaterSendMembershipWriteFree",
+          "Elapsed": 3.51
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/single_node_send",
+          "Elapsed": 8.072
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Test": "TestWukongIMHTTPMessageSendEnforcesLegacyPermissions/missing_group_channel",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Test": "TestWukongIMHTTPMessageSendEnforcesLegacyPermissions/group_sender_not_subscriber",
+          "Elapsed": 0.08
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Test": "TestWukongIMHTTPMessageSendEnforcesLegacyPermissions/group_sender_denylisted",
+          "Elapsed": 0.11
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Test": "TestWukongIMHTTPMessageSendEnforcesLegacyPermissions/group_sender_missing_from_nonempty_allowlist",
+          "Elapsed": 0.12
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Test": "TestWukongIMHTTPMessageSendEnforcesLegacyPermissions/sender_send_ban_wins_before_group_lookup",
+          "Elapsed": 0.03
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Test": "TestWukongIMHTTPMessageSendEnforcesLegacyPermissions",
+          "Elapsed": 2.78
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_permission",
+          "Elapsed": 3.211
+        }
+      ]
+    },
+    {
+      "name": "02-cross-node",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/cross_node_delivery",
+        "-count=1",
+        "-timeout=2m",
+        "-p=1",
+        "-parallel=1",
+        "-json",
+        "-run",
+        "^TestThreeNode(ClusterCrossNodeUsersExchangeMessages|ReplicaTwoClusterConvergesSlotTopology|ReplicaThreeClusterConvergesSlotTopology|ReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel)$"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+      },
+      "started_at": "2026-10-20T04:05:31.428983+00:00",
+      "status": "fail",
+      "finished_at": "2026-10-20T04:06:50.254628+00:00",
+      "elapsed_seconds": 78.825,
+      "exit_code": 1,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/02-cross-node.jsonl",
+      "log_sha256": "98052f6332385200d15fc2d05af1f109b7068abb99a03aab99bff9e2413a6abe",
+      "test_outcomes": [
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+          "Elapsed": 21.28
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+          "Elapsed": 16.23
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+          "Elapsed": 19.2
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+          "Elapsed": 19.74
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Elapsed": 76.985
+        }
+      ]
+    },
+    {
+      "name": "03-cold-hot",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/cold_hot_send",
+        "-count=1",
+        "-timeout=4m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "WK_E2E_COLD_HOT_REPORT": "/tmp/wukongim-v3-rc-20261020/reports/cold-hot.json"
+      },
+      "started_at": "2026-10-20T04:06:50.302866+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:07:18.242955+00:00",
+      "elapsed_seconds": 27.94,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/03-cold-hot.jsonl",
+      "log_sha256": "5ed451d2e15190a3b505a1b588152133c9eacd0750a77ff55338b52f1d6f8eb9",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cold_hot_send",
+          "Test": "TestColdCreationDoesNotHoldHotSENDACK/1-node-cluster",
+          "Elapsed": 4.46
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cold_hot_send",
+          "Test": "TestColdCreationDoesNotHoldHotSENDACK/3-node-cluster",
+          "Elapsed": 21.32
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cold_hot_send",
+          "Test": "TestColdCreationDoesNotHoldHotSENDACK",
+          "Elapsed": 25.78
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cold_hot_send",
+          "Elapsed": 26.71
+        }
+      ]
+    },
+    {
+      "name": "04-failover",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/channel_failover",
+        "-count=1",
+        "-timeout=6m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+      },
+      "started_at": "2026-10-20T04:07:18.292390+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:09:10.237774+00:00",
+      "elapsed_seconds": 111.945,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/04-failover.jsonl",
+      "log_sha256": "7bbd8d2b0ca92a19cbba7fae656a7e9b33b9cd2e3c2b415cc5f4493925a6abe2",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestChannelRuntimeMetaItemDecodesMinISR",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestFastRecoveryHealthReportBudgetHasRenewalHeadroom",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestReplicaRepairTopologyPreconditionRequiresMinISRQuorum",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestReplicaRepairTopologyPreconditionAcceptsRepairedQuorum",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestControllerQuorumPreconditionRequiresHealthySchedulableSpare/not_schedulable",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestControllerQuorumPreconditionRequiresHealthySchedulableSpare/stale",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestControllerQuorumPreconditionRequiresHealthySchedulableSpare/runtime_not_ready",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestControllerQuorumPreconditionRequiresHealthySchedulableSpare/not_alive",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestControllerQuorumPreconditionRequiresHealthySchedulableSpare",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestControllerQuorumPreconditionAcceptsHealthyDataOnlySpare",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestPostStopControlPlaneFingerprintAcceptsConvergedSurvivors",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestPostStopControlPlaneFingerprintRejectsStoppedSlotLeader",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestChannelThreeNodeLeaderFailoverAfterNodeKill",
+          "Elapsed": 16.35
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestChannelNewPlacementFailsClosedWhenReplicaCountUnavailable",
+          "Elapsed": 12.96
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestChannelFollowerReplicaRepairAfterNodeKill",
+          "Elapsed": 22.69
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestChannelThreeNodeLeaderFailoverWhileProcessPaused",
+          "Elapsed": 28.72
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Test": "TestChannelAcknowledgedHistorySurvivesProcessPause",
+          "Elapsed": 29.18
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/channel_failover",
+          "Elapsed": 110.698
+        }
+      ]
+    },
+    {
+      "name": "05-send-ban",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/send_ban",
+        "-count=1",
+        "-timeout=8m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "WK_E2E_SEND_BAN_REPORT": "/tmp/wukongim-v3-rc-20261020/reports/send-ban.json"
+      },
+      "started_at": "2026-10-20T04:09:10.285521+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:14:07.661583+00:00",
+      "elapsed_seconds": 297.376,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/05-send-ban.jsonl",
+      "log_sha256": "ed9ea75363266fb66405bd1c3a97a668e8ddeb926cd874510a47b6cccab5d97c",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanManagementAudit",
+          "Elapsed": 4.69
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanSurvivesManualLeaderTransfer",
+          "Elapsed": 25.15
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionCallerBaseline",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionCallerCohorts",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionCPUProbeCalibration",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionCallerFixedLoad",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionCallerFixedLoadV2",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionObserverCostDiagnosticV2",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestRemotePermissionOverloadFailsClosed",
+          "Elapsed": 29.96
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestRemotePermissionReadsOverlap",
+          "Elapsed": 32.77
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionSequentialDiagnostics",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestPermissionTimelinePartialFailureReceipt",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanGatewayDistributions/one-user-one-channel",
+          "Elapsed": 0.42
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanGatewayDistributions/many-users-one-channel",
+          "Elapsed": 0.44
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanGatewayDistributions/one-user-many-channels",
+          "Elapsed": 3.68
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanGatewayDistributions/many-users-many-channels",
+          "Elapsed": 6.12
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanGatewayDistributions",
+          "Elapsed": 29.94
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestRejectedSendHasNoDelivery",
+          "Elapsed": 42.08
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestHundredKGroupSendBan",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestUserAndChannelSendBan/1-node-cluster",
+          "Elapsed": 14.22
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestUserAndChannelSendBan/3-node-cluster",
+          "Elapsed": 54.17
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestUserAndChannelSendBan",
+          "Elapsed": 68.4
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestNonReplicaIngressReadsUserSendBan",
+          "Elapsed": 14.7
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestKnownUserBanPrecedesUnavailableChannelSlot",
+          "Elapsed": 20.88
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Test": "TestSendBanWriteRecoveryAndConcurrentMetadata",
+          "Elapsed": 26.32
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/send_ban",
+          "Elapsed": 295.635
+        }
+      ]
+    },
+    {
+      "name": "06-chat-lifecycle",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/chat_lifecycle",
+        "-count=1",
+        "-timeout=9m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "WK_E2E_CHAT_LIFECYCLE_REPORT": "/tmp/wukongim-v3-rc-20261020/reports/chat-lifecycle.json",
+        "WK_E2E_CHAT_LIFECYCLE_ARTIFACT_ROOT": "/tmp/wukongim-v3-rc-20261020/chat-lifecycle-processes"
+      },
+      "started_at": "2026-10-20T04:14:07.708312+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:20:16.368271+00:00",
+      "elapsed_seconds": 368.715,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/06-chat-lifecycle.jsonl",
+      "log_sha256": "f37e5ab7a8513bc7ee3df48255030380268bc2f06b0bd270c94f30f588d14633",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/chat_lifecycle",
+          "Test": "TestPersonChannelNaturalReheat",
+          "Elapsed": 321.06
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/chat_lifecycle",
+          "Test": "TestPersonChannelCrossIngressBurstPreservesReceiveSequence",
+          "Elapsed": 21.83
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/chat_lifecycle",
+          "Test": "TestGroupChannelCrossIngressBurstPreservesReceiveSequence",
+          "Elapsed": 23.3
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/chat_lifecycle",
+          "Elapsed": 366.846
+        }
+      ]
+    },
+    {
+      "name": "07-original-v2",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/migration/original_v2",
+        "-count=1",
+        "-timeout=5m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+      },
+      "started_at": "2026-10-20T04:20:16.420234+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:20:57.318369+00:00",
+      "elapsed_seconds": 40.898,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/07-original-v2.jsonl",
+      "log_sha256": "ebae519d3d63cdd3680a068c932d35faf1cdd47d84530734967afedf2b7b95f9",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Test": "TestOriginalV2UnsupportedHistoryBlocksSingleNodeTarget",
+          "Elapsed": 6.34
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Test": "TestOriginalV2UnsupportedHistoryBlocksThreeNodeTarget",
+          "Elapsed": 4.97
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Test": "TestOriginalThreeNodeUnappliedHistoryBlocksSingleNodeTarget",
+          "Elapsed": 4.91
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Test": "TestOriginalThreeNodeUnappliedHistoryBlocksThreeNodeTarget",
+          "Elapsed": 4.8
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Test": "TestOriginalThreeNodeUnappliedHistoryBlocksFiveNodeTarget",
+          "Elapsed": 4.93
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Test": "TestOriginalEmptyGroupRemainsInvisibleUntilFirstMessage",
+          "Elapsed": 12.73
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/original_v2",
+          "Elapsed": 39.558
+        }
+      ]
+    },
+    {
+      "name": "08-ordinary-history",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/migration/ordinary_history",
+        "-count=1",
+        "-timeout=12m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+      },
+      "started_at": "2026-10-20T04:20:57.365055+00:00",
+      "status": "fail",
+      "finished_at": "2026-10-20T04:22:38.831779+00:00",
+      "elapsed_seconds": 101.467,
+      "exit_code": 1,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/08-ordinary-history.jsonl",
+      "log_sha256": "ca250a5b83089db8f3f95c0489a34c9c54830b6c0903efb2e4c1390e18eedb07",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "Elapsed": 15.31
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "Elapsed": 19
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "Elapsed": 14.98
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "Elapsed": 21.69
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "Elapsed": 28.82
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology",
+          "Elapsed": 99.8
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Elapsed": 100.199
+        }
+      ]
+    },
+    {
+      "name": "09-single-restore",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/backup/scheduled_restore",
+        "-count=1",
+        "-timeout=15m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "WK_E2E_SEND_BAN_RESTORE_REPORT": "/tmp/wukongim-v3-rc-20261020/reports/restore"
+      },
+      "started_at": "2026-10-20T04:22:38.885059+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:24:18.792442+00:00",
+      "elapsed_seconds": 99.908,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/09-single-restore.jsonl",
+      "log_sha256": "88d2cd1cc5a01151a4edb5338e7f7cce74d1104fbf221d55ed4b4139f05b4c1a",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/scheduled_restore",
+          "Test": "TestScheduledFullBackupRestoresPointInTimeBusinessState",
+          "Elapsed": 98.09
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/scheduled_restore",
+          "Elapsed": 98.605
+        }
+      ]
+    },
+    {
+      "name": "10-three-restore",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/backup/three_node_restore",
+        "-count=1",
+        "-timeout=15m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "WK_E2E_BINARY": "/tmp/wukongim-v3-rc-20261020/wukongim-e2e",
+        "WK_E2E_SOURCE_REVISION": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+        "WK_E2E_SEND_BAN_RESTORE_REPORT": "/tmp/wukongim-v3-rc-20261020/reports/restore"
+      },
+      "started_at": "2026-10-20T04:24:18.836659+00:00",
+      "status": "pass",
+      "finished_at": "2026-10-20T04:30:38.879150+00:00",
+      "elapsed_seconds": 380.045,
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-rc-20261020/logs/10-three-restore.jsonl",
+      "log_sha256": "c36e70b4dc5dd0aa49a33a116b5c9c86b579c127c98a92b2151f8f691924b776",
+      "test_outcomes": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+          "Test": "TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState",
+          "Elapsed": 378.03
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/backup/three_node_restore",
+          "Elapsed": 378.751
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "macOS functional evidence, not formal Linux performance or long-soak qualification",
+    "no dedicated self-chat E2E selected",
+    "default opt-in diagnostics remain skipped",
+    "temporary migration directories are cleaned by the existing harness"
+  ],
+  "source_clean_after": true,
+  "reports": {
+    "reports/chat-lifecycle.json": "ba5189b79d4d8601858167d645f1d84f655b4090fecd3c4ddfa40058106702d8",
+    "reports/cold-hot.json": "5406b67675ec9586b6ba0580acb8e02b0d405e49a167389ea14de30143d8dd3d",
+    "reports/restore-1-node.json": "6e61cb5f04237d1def98c6010c4a781866e26bc6ba6039ed4522dbfb211406fb",
+    "reports/restore-3-node.json": "9a52610907e30e11f9dd781df85da856aa9137f51fd8a3f5f6e7f1c52a1350d7",
+    "reports/send-ban.json": "6a1d802addb990d73957c7ec7f693a66e448a0af36d3ddd7b3423abc1a015a07",
+    "reports/send-ban.json.audit.json": "e5693aa3c667699aaa12def484eca7e9f425923584f7773fff329a70638beeb9",
+    "reports/send-ban.json.delivery.json": "b001030fe58572837c9b3a2e3e89bca1dc202af9797b0b9b5fd16911436219b7",
+    "reports/send-ban.json.gateway-distributions.json": "6d79d7690e8c751e0e33e9f433b31fa95429e9d34ef29c4859d96beb431bc7af",
+    "reports/send-ban.json.leader-transfer.json": "b434ab2587e19388c9d66e7b93f2b161fb53521f07393e6f565d2086cbb6a41d",
+    "reports/send-ban.json.network-admission.json": "26456ed905fb501134b1be1198977897c3e6a7c95e9fb862f5db89512e8591e1",
+    "reports/send-ban.json.non-replica.json": "fd0d7a5ca8e6585de465180e3a51f93675bd08e240a91bfeec79a6549be11c68",
+    "reports/send-ban.json.parallel.json": "d29d902693d0ece7a0b7c8a62d3a24c2f6df663b60593fa97e3c5d7e3b8916ed",
+    "reports/send-ban.json.priority.json": "33aaaa1f88fa08358de458772d4168ecedc85c04df92a57b57059805672c8811",
+    "reports/send-ban.json.write-recovery.json": "ecbe0731a76ea586a5395fe6878c2cd903474b054a3c33155a6f617b5cf49e74"
+  }
+}

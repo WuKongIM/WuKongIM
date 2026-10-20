@@ -1,0 +1,16 @@
+{
+  "cases": [
+    "TestSendPermissionCohorts/dedup-and-align-local-and-remote",
+    "TestSendPermissionCohorts/deadline-and-cancel-isolation",
+    "TestSendPermissionCohorts/late-arrival-cannot-join-started-barrier",
+    "TestSendPermissionCohorts/last-cancel-and-close-join",
+    "TestSendPermissionCohorts/retained-bytes-reject-and-recover",
+    "TestSendPermissionCohorts/owned-call-and-active-cohort-limits",
+    "TestSendPermissionCohorts/pre-canceled-and-invalid-do-not-own-work"
+  ],
+  "finished_at": "2026-10-20T03:54:51.865272Z",
+  "kind": "controlled cluster ports; production proxy/codec/database",
+  "passed": true,
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "started_at": "2026-10-20T03:54:49.415209Z"
+}

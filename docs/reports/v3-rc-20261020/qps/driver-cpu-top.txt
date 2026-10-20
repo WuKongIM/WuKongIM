@@ -1,0 +1,24 @@
+File: conversation_qps.test
+Build ID: 7f8fb0709f74c0415e0d2e101b5658852641efaa
+Type: cpu
+Time: 2026-10-20 12:18:00 CST
+Duration: 11.45s, Total samples = 6820ms (59.58%)
+Showing nodes accounting for 4160ms, 61.00% of 6820ms total
+Dropped 237 nodes (cum <= 34.10ms)
+Showing top 15 nodes out of 167
+      flat  flat%   sum%        cum   cum%
+     850ms 12.46% 12.46%     1590ms 23.31%  encoding/json.checkValid
+     570ms  8.36% 20.82%      710ms 10.41%  encoding/json.(*decodeState).rescanLiteral
+     520ms  7.62% 28.45%      560ms  8.21%  encoding/json.unquoteBytes
+     380ms  5.57% 34.02%      400ms  5.87%  encoding/json.stateInString
+     260ms  3.81% 37.83%      260ms  3.81%  runtime.asyncPreempt
+     240ms  3.52% 41.35%      240ms  3.52%  internal/runtime/syscall.Syscall6
+     220ms  3.23% 44.57%     2810ms 41.20%  encoding/json.(*decodeState).object
+     200ms  2.93% 47.51%      250ms  3.67%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+     170ms  2.49% 50.00%      170ms  2.49%  runtime.memmove
+     150ms  2.20% 52.20%      330ms  4.84%  runtime.findObject
+     150ms  2.20% 54.40%      160ms  2.35%  runtime.spanOf (inline)
+     140ms  2.05% 56.45%      550ms  8.06%  runtime.scanobject
+     130ms  1.91% 58.36%      210ms  3.08%  encoding/json.stateEndValue
+      90ms  1.32% 59.68%      200ms  2.93%  encoding/json.stateBeginValue
+      90ms  1.32% 61.00%      110ms  1.61%  runtime.unlock2

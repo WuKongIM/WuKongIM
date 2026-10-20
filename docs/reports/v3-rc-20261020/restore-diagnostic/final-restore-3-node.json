@@ -1,0 +1,134 @@
+{
+  "finished_at": "2026-10-20T04:30:37.939759Z",
+  "hash_slots": 256,
+  "nodes": 3,
+  "observations": [
+    {
+      "at": "2026-10-20T04:24:28.774412Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 1,
+      "phase": "before-backup",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:24:28.778059Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 2,
+      "phase": "before-backup",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:24:28.780796Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 3,
+      "phase": "before-backup",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:25:30.444768Z",
+      "later_user_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      },
+      "node": 1,
+      "phase": "after-backup",
+      "user_and_channel_policy": {
+        "send_ban": 0,
+        "send_ban_version": "2"
+      }
+    },
+    {
+      "at": "2026-10-20T04:25:30.446242Z",
+      "later_user_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      },
+      "node": 2,
+      "phase": "after-backup",
+      "user_and_channel_policy": {
+        "send_ban": 0,
+        "send_ban_version": "2"
+      }
+    },
+    {
+      "at": "2026-10-20T04:25:30.447463Z",
+      "later_user_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      },
+      "node": 3,
+      "phase": "after-backup",
+      "user_and_channel_policy": {
+        "send_ban": 0,
+        "send_ban_version": "2"
+      }
+    },
+    {
+      "at": "2026-10-20T04:30:37.910744Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 1,
+      "phase": "restored",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:30:37.91251Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 2,
+      "phase": "restored",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "at": "2026-10-20T04:30:37.914378Z",
+      "later_user_policy": {
+        "send_ban": 0,
+        "send_ban_version": "0"
+      },
+      "node": 3,
+      "phase": "restored",
+      "user_and_channel_policy": {
+        "send_ban": 1,
+        "send_ban_version": "1"
+      }
+    },
+    {
+      "archive_id": "backup-6c8581ec2872c0536558ea130d7984f0",
+      "at": "2026-10-20T04:30:37.938245Z",
+      "nodes": 3,
+      "phase": "restored-send-rejection"
+    }
+  ],
+  "passed": true,
+  "permission_cache_ttl": "1h",
+  "source_revision": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "started_at": "2026-10-20T04:24:28.520821Z"
+}
