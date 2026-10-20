@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-10-20T09:54:53.624032+00:00",
+  "source_revision": "288247b3ab410eed30c1ee70b064c37e93b304d8",
+  "paths": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "test/e2e/AGENTS.md": "c4e0ac72f2e03e27d8d8df553ce10f6233b6bef13cf9b1b739260874af2c2d2d",
+    "test/e2e/migration/AGENTS.md": "ada2ef6c7b39c62b09e7d5d26a9d6f2ddf2de344765d09ae9fa34490cf2d15c6",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "b2ef4332477bb1663eeeb6abe2e280d7753304f1e97cde42a113af3b494cee32",
+    "test/e2e/suite/FLOW.md": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+    "internal/access/api/FLOW.md": "2af34512e6fb8cd0559ddad21c8e4d4a317b699c088ed28c0673847a2940ade9",
+    "internal/runtime/readavailability/FLOW.md": "c2377f3d87f4f1b3c5e247ff4ce6a4981e7cb71e930428b2a543e871f07a233c"
+  }
+}

@@ -1,0 +1,663 @@
+{
+  "schema": "wukongim/migration-repair-unit-validation/v1",
+  "captured_at": "2026-10-20T10:07:36.529750+00:00",
+  "summary_zh": "13 个相关包全部通过；2 个新顶层测试的 8 个子用例通过。精化后的红例证明 3 个 Install 故障及 1 个本地 probe item-error 故障。初版 Index 预期遗漏导致的错误文案不是历史丢失证据。",
+  "scope": "Read-only analysis of previously saved /tmp logs and failure designs; no tests executed, no worktree changes, no performance investigation.",
+  "source_identity": {
+    "initial_context_revision": "288247b3ab410eed30c1ee70b064c37e93b304d8",
+    "committed_repair_revision_reported_by_root": "98c25091bb9587a303af982bb14bf4cedd9aa110",
+    "frozen_binary_build_info": {
+      "source": "binary-build-info.txt",
+      "vcs_revision": "98c25091bb9587a303af982bb14bf4cedd9aa110",
+      "vcs_modified": false,
+      "binary_toolchain": "go1.25.11",
+      "platform": "darwin/arm64"
+    },
+    "unit_log_provenance_limit": "Unit JSONL files do not themselves encode the tested Git tree or command. They predate the repair commit timestamp and are pre-commit repair-run evidence associated with this repair by the root agent. Do not claim the unit runner executed the frozen server binary. The local-probe red receipt independently records its exact command and source digests."
+  },
+  "related_unit_result": {
+    "source": "related-unit.jsonl",
+    "packages_passed": 13,
+    "packages_failed": 0,
+    "packages_skipped": 0,
+    "top_level_test_functions_passed": 1469,
+    "leaf_test_cases_passed": 2548,
+    "test_terminal_pass_events_including_parents": 2709,
+    "counting_rule": "Top-level means no slash in Test. Leaf means no emitted descendant with the same package and Test prefix plus slash. Terminal events include both parent test and subtest outcomes; never present 2709 as 2709 independent cases.",
+    "packages": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel",
+        "action": "pass",
+        "elapsed_seconds": 0.363,
+        "line": 261,
+        "time": "2026-10-20T18:01:16.050809+08:00",
+        "top_level_tests_passed": 20,
+        "leaf_cases_passed": 61,
+        "all_test_pass_events": 64
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/machine",
+        "action": "pass",
+        "elapsed_seconds": 0.673,
+        "line": 464,
+        "time": "2026-10-20T18:01:16.360987+08:00",
+        "top_level_tests_passed": 34,
+        "leaf_cases_passed": 46,
+        "all_test_pass_events": 50
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+        "action": "pass",
+        "elapsed_seconds": 1.5110000000000001,
+        "line": 3284,
+        "time": "2026-10-20T18:01:19.53649+08:00",
+        "top_level_tests_passed": 152,
+        "leaf_cases_passed": 189,
+        "all_test_pass_events": 201
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor",
+        "action": "pass",
+        "elapsed_seconds": 1.617,
+        "line": 3518,
+        "time": "2026-10-20T18:01:19.641959+08:00",
+        "top_level_tests_passed": 375,
+        "leaf_cases_passed": 503,
+        "all_test_pass_events": 522
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/service",
+        "action": "pass",
+        "elapsed_seconds": 0.532,
+        "line": 3675,
+        "time": "2026-10-20T18:01:20.777671+08:00",
+        "top_level_tests_passed": 34,
+        "leaf_cases_passed": 36,
+        "all_test_pass_events": 38
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/testkit",
+        "action": "pass",
+        "elapsed_seconds": 0.408,
+        "line": 3803,
+        "time": "2026-10-20T18:01:21.817086+08:00",
+        "top_level_tests_passed": 7,
+        "leaf_cases_passed": 8,
+        "all_test_pass_events": 9
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/transport",
+        "action": "pass",
+        "elapsed_seconds": 0.355,
+        "line": 3890,
+        "time": "2026-10-20T18:01:22.299474+08:00",
+        "top_level_tests_passed": 9,
+        "leaf_cases_passed": 9,
+        "all_test_pass_events": 9
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/store",
+        "action": "pass",
+        "elapsed_seconds": 2.914,
+        "line": 4075,
+        "time": "2026-10-20T18:01:23.446222+08:00",
+        "top_level_tests_passed": 50,
+        "leaf_cases_passed": 62,
+        "all_test_pass_events": 66
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/worker",
+        "action": "pass",
+        "elapsed_seconds": 0.495,
+        "line": 4682,
+        "time": "2026-10-20T18:01:23.93958+08:00",
+        "top_level_tests_passed": 74,
+        "leaf_cases_passed": 136,
+        "all_test_pass_events": 151
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/channels",
+        "action": "pass",
+        "elapsed_seconds": 1.255,
+        "line": 8174,
+        "time": "2026-10-20T18:01:26.775557+08:00",
+        "top_level_tests_passed": 335,
+        "leaf_cases_passed": 819,
+        "all_test_pass_events": 870
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/runtime/readavailability",
+        "action": "pass",
+        "elapsed_seconds": 0.508,
+        "line": 9445,
+        "time": "2026-10-20T18:01:27.823102+08:00",
+        "top_level_tests_passed": 2,
+        "leaf_cases_passed": 2,
+        "all_test_pass_events": 2
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+        "action": "pass",
+        "elapsed_seconds": 2.396,
+        "line": 9803,
+        "time": "2026-10-20T18:01:29.502823+08:00",
+        "top_level_tests_passed": 253,
+        "leaf_cases_passed": 347,
+        "all_test_pass_events": 364
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/access/api",
+        "action": "pass",
+        "elapsed_seconds": 0.437,
+        "line": 11258,
+        "time": "2026-10-20T18:01:29.875793+08:00",
+        "top_level_tests_passed": 124,
+        "leaf_cases_passed": 330,
+        "all_test_pass_events": 363
+      }
+    ]
+  },
+  "new_regression_tests": {
+    "top_level_functions": 2,
+    "subtests": 8,
+    "passed": true,
+    "suites": [
+      {
+        "name": "TestQuorumLogInstallPreservesRecoveryFailureIdentity",
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+        "green_source": "related-unit.jsonl",
+        "subtest_count": 6,
+        "outcomes": [
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/identity-page-loses-quorum",
+            "action": "pass",
+            "line": 850
+          },
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/frontier-loses-quorum",
+            "action": "pass",
+            "line": 854
+          },
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/invalid-proof-is-permanent",
+            "action": "pass",
+            "line": 858
+          },
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/local-storage-error-is-preserved",
+            "action": "pass",
+            "line": 862
+          },
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/invalid-authority-is-permanent",
+            "action": "pass",
+            "line": 866
+          },
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/caller-cancellation-is-preserved",
+            "action": "pass",
+            "line": 870
+          },
+          {
+            "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity",
+            "action": "pass",
+            "line": 872
+          }
+        ]
+      },
+      {
+        "name": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors",
+        "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+        "green_source": "related-unit.jsonl",
+        "subtest_count": 2,
+        "outcomes": [
+          {
+            "test": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors/batch_error",
+            "action": "pass",
+            "line": 1150
+          },
+          {
+            "test": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors/item_error",
+            "action": "pass",
+            "line": 1154
+          },
+          {
+            "test": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors",
+            "action": "pass",
+            "line": 1156
+          }
+        ]
+      }
+    ]
+  },
+  "run_summaries": {
+    "install-red.jsonl": {
+      "first_event_at": "2026-10-20T17:56:48.644661+08:00",
+      "last_event_at": "2026-10-20T17:56:49.215616+08:00",
+      "jsonl_line_count": 32,
+      "package_outcomes": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+          "action": "fail",
+          "elapsed_seconds": 0.571,
+          "line": 32,
+          "time": "2026-10-20T17:56:49.215616+08:00"
+        }
+      ],
+      "package_counts": {
+        "fail": 1
+      },
+      "all_test_terminal_events": {
+        "fail": 3,
+        "pass": 3
+      },
+      "top_level_test_functions": {
+        "fail": 1
+      },
+      "leaf_test_cases": {
+        "fail": 2,
+        "pass": 3
+      },
+      "failed_leaf_cases": [
+        {
+          "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/identity-page-loses-quorum",
+          "line": 9
+        },
+        {
+          "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/frontier-loses-quorum",
+          "line": 15
+        }
+      ]
+    },
+    "install-red-refined.jsonl": {
+      "first_event_at": "2026-10-20T17:58:46.737485+08:00",
+      "last_event_at": "2026-10-20T17:58:47.303672+08:00",
+      "jsonl_line_count": 35,
+      "package_outcomes": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+          "action": "fail",
+          "elapsed_seconds": 0.566,
+          "line": 35,
+          "time": "2026-10-20T17:58:47.303672+08:00"
+        }
+      ],
+      "package_counts": {
+        "fail": 1
+      },
+      "all_test_terminal_events": {
+        "fail": 4,
+        "pass": 3
+      },
+      "top_level_test_functions": {
+        "fail": 1
+      },
+      "leaf_test_cases": {
+        "fail": 3,
+        "pass": 3
+      },
+      "failed_leaf_cases": [
+        {
+          "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/identity-page-loses-quorum",
+          "line": 8
+        },
+        {
+          "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/frontier-loses-quorum",
+          "line": 13
+        },
+        {
+          "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/local-storage-error-is-preserved",
+          "line": 22
+        }
+      ]
+    },
+    "local-probe-red.jsonl": {
+      "first_event_at": "2026-10-20T17:59:29.578607+08:00",
+      "last_event_at": "2026-10-20T17:59:30.15735+08:00",
+      "jsonl_line_count": 17,
+      "package_outcomes": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+          "action": "fail",
+          "elapsed_seconds": 0.579,
+          "line": 17,
+          "time": "2026-10-20T17:59:30.15735+08:00"
+        }
+      ],
+      "package_counts": {
+        "fail": 1
+      },
+      "all_test_terminal_events": {
+        "pass": 1,
+        "fail": 2
+      },
+      "top_level_test_functions": {
+        "fail": 1
+      },
+      "leaf_test_cases": {
+        "pass": 1,
+        "fail": 1
+      },
+      "failed_leaf_cases": [
+        {
+          "test": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors/item_error",
+          "line": 12
+        }
+      ]
+    },
+    "focused-green.jsonl": {
+      "first_event_at": "2026-10-20T18:00:18.389361+08:00",
+      "last_event_at": "2026-10-20T18:00:18.954757+08:00",
+      "jsonl_line_count": 32,
+      "package_outcomes": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+          "action": "pass",
+          "elapsed_seconds": 0.565,
+          "line": 32,
+          "time": "2026-10-20T18:00:18.954757+08:00"
+        }
+      ],
+      "package_counts": {
+        "pass": 1
+      },
+      "all_test_terminal_events": {
+        "pass": 7
+      },
+      "top_level_test_functions": {
+        "pass": 1
+      },
+      "leaf_test_cases": {
+        "pass": 6
+      },
+      "failed_leaf_cases": []
+    },
+    "related-unit.jsonl": {
+      "first_event_at": "2026-10-20T18:01:15.687941+08:00",
+      "last_event_at": "2026-10-20T18:01:29.875793+08:00",
+      "jsonl_line_count": 11258,
+      "package_outcomes": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel",
+          "action": "pass",
+          "elapsed_seconds": 0.363,
+          "line": 261,
+          "time": "2026-10-20T18:01:16.050809+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/machine",
+          "action": "pass",
+          "elapsed_seconds": 0.673,
+          "line": 464,
+          "time": "2026-10-20T18:01:16.360987+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+          "action": "pass",
+          "elapsed_seconds": 1.5110000000000001,
+          "line": 3284,
+          "time": "2026-10-20T18:01:19.53649+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor",
+          "action": "pass",
+          "elapsed_seconds": 1.617,
+          "line": 3518,
+          "time": "2026-10-20T18:01:19.641959+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/service",
+          "action": "pass",
+          "elapsed_seconds": 0.532,
+          "line": 3675,
+          "time": "2026-10-20T18:01:20.777671+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/testkit",
+          "action": "pass",
+          "elapsed_seconds": 0.408,
+          "line": 3803,
+          "time": "2026-10-20T18:01:21.817086+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/transport",
+          "action": "pass",
+          "elapsed_seconds": 0.355,
+          "line": 3890,
+          "time": "2026-10-20T18:01:22.299474+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/store",
+          "action": "pass",
+          "elapsed_seconds": 2.914,
+          "line": 4075,
+          "time": "2026-10-20T18:01:23.446222+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/channel/worker",
+          "action": "pass",
+          "elapsed_seconds": 0.495,
+          "line": 4682,
+          "time": "2026-10-20T18:01:23.93958+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/channels",
+          "action": "pass",
+          "elapsed_seconds": 1.255,
+          "line": 8174,
+          "time": "2026-10-20T18:01:26.775557+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/runtime/readavailability",
+          "action": "pass",
+          "elapsed_seconds": 0.508,
+          "line": 9445,
+          "time": "2026-10-20T18:01:27.823102+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+          "action": "pass",
+          "elapsed_seconds": 2.396,
+          "line": 9803,
+          "time": "2026-10-20T18:01:29.502823+08:00"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/access/api",
+          "action": "pass",
+          "elapsed_seconds": 0.437,
+          "line": 11258,
+          "time": "2026-10-20T18:01:29.875793+08:00"
+        }
+      ],
+      "package_counts": {
+        "pass": 13
+      },
+      "all_test_terminal_events": {
+        "pass": 2709
+      },
+      "top_level_test_functions": {
+        "pass": 1469
+      },
+      "leaf_test_cases": {
+        "pass": 2548
+      },
+      "failed_leaf_cases": []
+    }
+  },
+  "confirmed_red_to_green": [
+    {
+      "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/identity-page-loses-quorum",
+      "red": {
+        "line": 6,
+        "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/identity-page-loses-quorum",
+        "output": "quorum_log_recovery_error_test.go:73: Install() error = channel replication: recovery probe incomplete, retryable = false; want true"
+      },
+      "red_source": "install-red-refined.jsonl",
+      "meaning": "An incomplete identity proof lacked the public retryable error identity. This remains a real red after the Index fixture correction.",
+      "green_sources": [
+        "focused-green.jsonl",
+        "related-unit.jsonl"
+      ]
+    },
+    {
+      "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/frontier-loses-quorum",
+      "red": {
+        "line": 11,
+        "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/frontier-loses-quorum",
+        "output": "quorum_log_recovery_error_test.go:73: Install() error = channel replication: recovery quorum unavailable, retryable = false; want true"
+      },
+      "red_source": "install-red-refined.jsonl",
+      "meaning": "An unavailable recovery quorum lacked the public retryable error identity.",
+      "green_sources": [
+        "focused-green.jsonl",
+        "related-unit.jsonl"
+      ]
+    },
+    {
+      "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/local-storage-error-is-preserved",
+      "red": {
+        "line": 20,
+        "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/local-storage-error-is-preserved",
+        "output": "quorum_log_recovery_error_test.go:70: Install() error = <nil>, want original cause local storage read failed"
+      },
+      "red_source": "install-red-refined.jsonl",
+      "meaning": "Install returned nil rather than the injected local permanent storage cause. Do not reduce this to only a status-code defect.",
+      "green_sources": [
+        "focused-green.jsonl",
+        "related-unit.jsonl"
+      ]
+    },
+    {
+      "test": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors/item_error",
+      "red": {
+        "line": 10,
+        "test": "TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors/item_error",
+        "output": "recovery_probe_error_test.go:54: local probe error = channel replication: invalid exchange result, want original storage cause replica storage read failed"
+      },
+      "red_source": "local-probe-red.jsonl",
+      "meaning": "The local probe callback replaced the per-item storage cause with invalid exchange result.",
+      "green_sources": [
+        "related-unit.jsonl"
+      ]
+    }
+  ],
+  "passing_negative_controls": [
+    "invalid-proof-is-permanent",
+    "invalid-authority-is-permanent",
+    "caller-cancellation-is-preserved",
+    "batch_error"
+  ],
+  "initial_index_fixture_correction": {
+    "classification": "Test fixture expected-record metadata correction, not product history loss.",
+    "direct_fact_from_root_test_author": {
+      "attribution": "Root agent confirmation in this collaboration, before this summary was written.",
+      "before": "The first version compared against original.Records, whose Index field was not filled and therefore defaulted to 0.",
+      "observed": "Storage correctly returned Index=1.",
+      "correction": "Use cloneRecords(original.Records), then set expectedRecords[0].Index=1.",
+      "ordering": "The correction was applied before install-red-refined.jsonl and before the product repair."
+    },
+    "independent_log_evidence": [
+      {
+        "line": 7,
+        "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/identity-page-loses-quorum",
+        "output": "quorum_log_recovery_error_test.go:122: voter 1 lost original content after recovery: [{Manifest:{Version:1 ChannelEpoch:3 LeaderTerm:5 FenceVersion:7 CommandID:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 41] BaseOffset:0 LastOffset:1 PreviousTerm:0 PreviousIndex:0 PreviousDigest:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] Digest:[82 57 239 110 64 122 96 79 6 50 141 231 62 5 241 124 228 135 181 220 211 248 210 130 238 65 11 198 19 130 88 99]} Records:[{ID:41 Index:1 Epoch:3 Setting:0 Expire:0 FromUID:sender ClientMsgNo:m-41 ServerTimestampMS:41 SyncOnce:false RedDot:false Payload:[41] PublicationMetadata:[] SizeBytes:1}] Found:true Err:<nil>}]"
+      },
+      {
+        "line": 13,
+        "test": "TestQuorumLogInstallPreservesRecoveryFailureIdentity/frontier-loses-quorum",
+        "output": "quorum_log_recovery_error_test.go:122: voter 1 lost original content after recovery: [{Manifest:{Version:1 ChannelEpoch:3 LeaderTerm:5 FenceVersion:7 CommandID:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 41] BaseOffset:0 LastOffset:1 PreviousTerm:0 PreviousIndex:0 PreviousDigest:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] Digest:[82 57 239 110 64 122 96 79 6 50 141 231 62 5 241 124 228 135 181 220 211 248 210 130 238 65 11 198 19 130 88 99]} Records:[{ID:41 Index:1 Epoch:3 Setting:0 Expire:0 FromUID:sender ClientMsgNo:m-41 ServerTimestampMS:41 SyncOnce:false RedDot:false Payload:[41] PublicationMetadata:[] SizeBytes:1}] Found:true Err:<nil>}]"
+      }
+    ],
+    "independent_interpretation": "Both initial messages print Found:true, Err:<nil>, record ID:41, Index:1, ClientMsgNo:m-41 and Payload:[41]. They show the record is present; the misleading assertion text alone is not evidence of lost history.",
+    "refined_log_evidence": "The spurious lost-original-content messages disappear in install-red-refined.jsonl while both retryability failures remain, and the local-storage error preservation negative control is added.",
+    "do_not_claim": [
+      "No product data-loss incident is established by the initial assertion wording.",
+      "The initial expectation correction is not the product fix.",
+      "Do not count the initial two metadata mismatch messages as two additional independent product bugs."
+    ]
+  },
+  "other_green_coverage": {
+    "description": "The related-unit run also passes existing transport and HTTP read-error contract tests. Logs alone do not identify every added table input; these are not counted as newly introduced top-level tests.",
+    "top_level_tests": [
+      "TestTransportClientPreservesChannelApplicationErrors",
+      "TestTransportClientPreservesForwardApplicationErrors",
+      "TestReadRPCErrorDoesNotGuessOrChangeAppendErrors",
+      "TestReadRPCWholeFailurePreservesTransportAvailability",
+      "TestMessageReadRoutesRetryableErrors",
+      "TestMessageReadErrorsDoNotRetryBusinessOrUnknownFailures"
+    ]
+  },
+  "local_probe_red_receipt_verified": {
+    "log_sha256_matches": true,
+    "source_digests_before_after_identical": true,
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "./pkg/channel/replication",
+      "-run",
+      "^TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors$",
+      "-count=1",
+      "-json",
+      "-timeout=30s"
+    ],
+    "source_revision": "288247b3ab410eed30c1ee70b064c37e93b304d8"
+  },
+  "evidence_files": [
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/install-red.jsonl",
+      "sha256": "d9f0821e06f7ca37ca53a2859eea2e97ab0d915b2ca5a26be89a35dbc16c64ae",
+      "bytes": 9589
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/install-red-refined.jsonl",
+      "sha256": "51218af53607d7978c78a802918587fa8f357e020295c280f33e35880b4241ae",
+      "bytes": 9202
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/local-probe-red.jsonl",
+      "sha256": "767866807ed88fea6e8ce7c81402ab32a4e3e0bd44c06ea648430b98d3745722",
+      "bytes": 4083
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/focused-green.jsonl",
+      "sha256": "220907605d9d8b6b6e8c0b117a2b906a24024da942517cb4878ab357fb40fe77",
+      "bytes": 8116
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/related-unit.jsonl",
+      "sha256": "f2cd7f0fb3b4af437743832619ffc6b12eec993fd4e92fe3f9e2ee51f5743917",
+      "bytes": 2676925
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/failure-inventory.md",
+      "sha256": "4d4bb98c0076f5caff08fbf8016c1d5332f92338ff26024a1c85fab5de9a0c77",
+      "bytes": 1962
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/local-probe-failure-design.md",
+      "sha256": "6976a88d2b8fdfc72926596c8282b415ecf9601ecd160b4981e617a882893378",
+      "bytes": 2436
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/local-probe-red-receipt.json",
+      "sha256": "7d89bab6543a4baec41868dfdc1bcedad70ad3569719928df6fdc46d4a37f56c",
+      "bytes": 1571
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/context.json",
+      "sha256": "eb74a654f5d46262c2527e480ea88ee50593be4ec4fb60c5f8c199f623841931",
+      "bytes": 18586
+    },
+    {
+      "path": "/tmp/wukongim-migration-repair-20261020/binary-build-info.txt",
+      "sha256": "cf35870ad3689bb8cde88efc4f0eab16da7495cf5419126aa4c3a289757328b1",
+      "bytes": 8946
+    }
+  ],
+  "limits": [
+    "Unit success is not process E2E acceptance. The serial frozen-candidate E2E run is owned by the root and is outside this summary.",
+    "No successful rerun is used to erase or overwrite the original red logs.",
+    "No performance result is inferred or investigated."
+  ]
+}

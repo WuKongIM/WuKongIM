@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-10-20T09:56:04.635154+00:00",
+  "base_revision": "288247b3ab410eed30c1ee70b064c37e93b304d8",
+  "modified_paths": [
+    "test/e2e/migration/ordinary_history/AGENTS.md",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go"
+  ],
+  "sha256": {
+    "test/e2e/migration/ordinary_history/AGENTS.md": "a23651ef513acae1339995490f6c5c06d736d64fd20b526f90fec8f56aa97734",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "556ec56d8a94b23dffd6d514e0796e1024383d831206926227d276487dc5be0c"
+  },
+  "gofmt_and_diff_check": "passed",
+  "compile_only": {
+    "command": "GOWORK=off go test -tags=e2e -c -o /tmp/wukongim-migration-repair-20261020/ordinary_history.test ./test/e2e/migration/ordinary_history",
+    "exit_code": 0,
+    "note": "Compile succeeded; subsequent edit only added phase/node formatting arguments to the existing equality assertion message."
+  },
+  "live_e2e": "Not run by subagent; root owns serial candidate regression",
+  "commit": "not created",
+  "preserved_assertions": "All existing exact history rows, source fixtures, credentials, append identities/sequences, idempotency, full restart before warming append, and leader-stop/restart assertions unchanged; budgets remain20s/100ms."
+}

@@ -1,0 +1,16 @@
+{
+  "reviewer": "standards_review subagent",
+  "source_revision": "98c25091bb9587a303af982bb14bf4cedd9aa110",
+  "scope": [
+    "pkg/channel/replication/quorum_log.go",
+    "pkg/channel/replication/recovery_owner.go"
+  ],
+  "result": "No concrete findings in static review",
+  "observations": [
+    "Readiness identity is joined only for recovery proof incomplete or quorum unavailable; causes remain discoverable.",
+    "Local batch/item storage and local probe completion errors retain their cause.",
+    "Quorum proof, stable frontier, repair, authority barrier, write fencing and success-only readiness publication remain unchanged.",
+    "InvalidConfig, LogConflict, ordinary storage errors and cancellation do not gain retryable identity."
+  ],
+  "validation_limit": "Read-only static review; no independent test execution."
+}

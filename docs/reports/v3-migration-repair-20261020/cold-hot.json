@@ -1,0 +1,202 @@
+{
+  "finished_at": "2026-10-20T10:11:34.869439Z",
+  "hash_slots": 256,
+  "observations": [
+    {
+      "client_msg_no": "cold-0",
+      "elapsed_us": 63838,
+      "nodes": 1,
+      "seq": 1,
+      "wave": 0
+    },
+    {
+      "client_msg_no": "hot-0",
+      "elapsed_us": 72846,
+      "nodes": 1,
+      "seq": 2,
+      "wave": 0
+    },
+    {
+      "client_msg_no": "follow-0",
+      "elapsed_us": 72840,
+      "nodes": 1,
+      "seq": 2,
+      "wave": 0
+    },
+    {
+      "client_msg_no": "cold-1",
+      "elapsed_us": 65140,
+      "nodes": 1,
+      "seq": 1,
+      "wave": 1
+    },
+    {
+      "client_msg_no": "hot-1",
+      "elapsed_us": 72859,
+      "nodes": 1,
+      "seq": 3,
+      "wave": 1
+    },
+    {
+      "client_msg_no": "follow-1",
+      "elapsed_us": 72869,
+      "nodes": 1,
+      "seq": 2,
+      "wave": 1
+    },
+    {
+      "client_msg_no": "cold-2",
+      "elapsed_us": 56888,
+      "nodes": 1,
+      "seq": 1,
+      "wave": 2
+    },
+    {
+      "client_msg_no": "hot-2",
+      "elapsed_us": 62761,
+      "nodes": 1,
+      "seq": 4,
+      "wave": 2
+    },
+    {
+      "client_msg_no": "follow-2",
+      "elapsed_us": 62766,
+      "nodes": 1,
+      "seq": 2,
+      "wave": 2
+    },
+    {
+      "channel": "cold-hot-warm-group",
+      "exact_history": [
+        "hot-2",
+        "hot-1",
+        "hot-0",
+        "warm-control"
+      ],
+      "nodes": 1
+    },
+    {
+      "channel": "cold-hot-new-group-0",
+      "exact_history": [
+        "follow-0",
+        "cold-0"
+      ],
+      "nodes": 1
+    },
+    {
+      "channel": "cold-hot-new-group-1",
+      "exact_history": [
+        "follow-1",
+        "cold-1"
+      ],
+      "nodes": 1
+    },
+    {
+      "channel": "cold-hot-new-group-2",
+      "exact_history": [
+        "follow-2",
+        "cold-2"
+      ],
+      "nodes": 1
+    },
+    {
+      "client_msg_no": "cold-0",
+      "elapsed_us": 78124,
+      "nodes": 3,
+      "seq": 1,
+      "wave": 0
+    },
+    {
+      "client_msg_no": "hot-0",
+      "elapsed_us": 94077,
+      "nodes": 3,
+      "seq": 2,
+      "wave": 0
+    },
+    {
+      "client_msg_no": "follow-0",
+      "elapsed_us": 94071,
+      "nodes": 3,
+      "seq": 2,
+      "wave": 0
+    },
+    {
+      "client_msg_no": "cold-1",
+      "elapsed_us": 74954,
+      "nodes": 3,
+      "seq": 1,
+      "wave": 1
+    },
+    {
+      "client_msg_no": "hot-1",
+      "elapsed_us": 90715,
+      "nodes": 3,
+      "seq": 3,
+      "wave": 1
+    },
+    {
+      "client_msg_no": "follow-1",
+      "elapsed_us": 90715,
+      "nodes": 3,
+      "seq": 2,
+      "wave": 1
+    },
+    {
+      "client_msg_no": "cold-2",
+      "elapsed_us": 70966,
+      "nodes": 3,
+      "seq": 1,
+      "wave": 2
+    },
+    {
+      "client_msg_no": "hot-2",
+      "elapsed_us": 86655,
+      "nodes": 3,
+      "seq": 4,
+      "wave": 2
+    },
+    {
+      "client_msg_no": "follow-2",
+      "elapsed_us": 86696,
+      "nodes": 3,
+      "seq": 2,
+      "wave": 2
+    },
+    {
+      "channel": "cold-hot-warm-group",
+      "exact_history": [
+        "hot-2",
+        "hot-1",
+        "hot-0",
+        "warm-control"
+      ],
+      "nodes": 3
+    },
+    {
+      "channel": "cold-hot-new-group-0",
+      "exact_history": [
+        "follow-0",
+        "cold-0"
+      ],
+      "nodes": 3
+    },
+    {
+      "channel": "cold-hot-new-group-1",
+      "exact_history": [
+        "follow-1",
+        "cold-1"
+      ],
+      "nodes": 3
+    },
+    {
+      "channel": "cold-hot-new-group-2",
+      "exact_history": [
+        "follow-2",
+        "cold-2"
+      ],
+      "nodes": 3
+    }
+  ],
+  "passed": true,
+  "started_at": "2026-10-20T10:11:08.662932Z"
+}

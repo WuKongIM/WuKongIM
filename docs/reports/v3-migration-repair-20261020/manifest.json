@@ -1,0 +1,253 @@
+{
+  "source_directory": "/tmp/wukongim-migration-repair-20261020",
+  "files": [
+    {
+      "file": "binary-build-info.txt",
+      "sha256": "cf35870ad3689bb8cde88efc4f0eab16da7495cf5419126aa4c3a289757328b1",
+      "bytes": 8946,
+      "original_file": "binary-build-info.txt",
+      "original_sha256": "cf35870ad3689bb8cde88efc4f0eab16da7495cf5419126aa4c3a289757328b1",
+      "original_bytes": 8946
+    },
+    {
+      "file": "cold-hot.json",
+      "sha256": "60ca530bf06e3fc1ad945007e55ad5ea5ecb8e5ac27c4a8e601414328bf32382",
+      "bytes": 3589,
+      "original_file": "cold-hot.json",
+      "original_sha256": "60ca530bf06e3fc1ad945007e55ad5ea5ecb8e5ac27c4a8e601414328bf32382",
+      "original_bytes": 3589
+    },
+    {
+      "file": "context.json",
+      "sha256": "eb74a654f5d46262c2527e480ea88ee50593be4ec4fb60c5f8c199f623841931",
+      "bytes": 18586,
+      "original_file": "context.json",
+      "original_sha256": "eb74a654f5d46262c2527e480ea88ee50593be4ec4fb60c5f8c199f623841931",
+      "original_bytes": 18586
+    },
+    {
+      "file": "failure-inventory.md",
+      "sha256": "4d4bb98c0076f5caff08fbf8016c1d5332f92338ff26024a1c85fab5de9a0c77",
+      "bytes": 1962,
+      "original_file": "failure-inventory.md",
+      "original_sha256": "4d4bb98c0076f5caff08fbf8016c1d5332f92338ff26024a1c85fab5de9a0c77",
+      "original_bytes": 1962
+    },
+    {
+      "file": "fixture-context-digests.json",
+      "sha256": "1080a2e065abc3964885224f67e24409f481c422cfd2b496cba8323c3d596763",
+      "bytes": 860,
+      "original_file": "fixture-context-digests.json",
+      "original_sha256": "1080a2e065abc3964885224f67e24409f481c422cfd2b496cba8323c3d596763",
+      "original_bytes": 860
+    },
+    {
+      "file": "fixture-failure-design.md",
+      "sha256": "0dcb7c447002a5409caac67f183e10b83a28892cff8514b563040ef6a2c2152e",
+      "bytes": 3526,
+      "original_file": "fixture-failure-design.md",
+      "original_sha256": "0dcb7c447002a5409caac67f183e10b83a28892cff8514b563040ef6a2c2152e",
+      "original_bytes": 3526
+    },
+    {
+      "file": "fixture-repair.patch",
+      "sha256": "a3744716c0baf6da51ba1b0dafdcca91f5f4a471420d08295313278dd39f7d2d",
+      "bytes": 6771,
+      "original_file": "fixture-repair.patch",
+      "original_sha256": "a3744716c0baf6da51ba1b0dafdcca91f5f4a471420d08295313278dd39f7d2d",
+      "original_bytes": 6771
+    },
+    {
+      "file": "fixture-validation.json",
+      "sha256": "2a742421a640a01523451eea3acbc367e59f07f831d5313c147a6a1a3a97ba89",
+      "bytes": 1255,
+      "original_file": "fixture-validation.json",
+      "original_sha256": "2a742421a640a01523451eea3acbc367e59f07f831d5313c147a6a1a3a97ba89",
+      "original_bytes": 1255
+    },
+    {
+      "file": "flow-doc-contracts-green.log",
+      "sha256": "72e88979aac0d1a2b15ed07ea456956021d005ab3e6974ca495439e07533efe5",
+      "bytes": 1376,
+      "original_file": "flow-doc-contracts-green.log",
+      "original_sha256": "72e88979aac0d1a2b15ed07ea456956021d005ab3e6974ca495439e07533efe5",
+      "original_bytes": 1376
+    },
+    {
+      "file": "flow-doc-contracts.log",
+      "sha256": "548fc5e1f4f0f49d08ee0ab7f72dfc09fcde3e1f78a3de73a67acc35d4a4246d",
+      "bytes": 1458,
+      "original_file": "flow-doc-contracts.log",
+      "original_sha256": "548fc5e1f4f0f49d08ee0ab7f72dfc09fcde3e1f78a3de73a67acc35d4a4246d",
+      "original_bytes": 1458
+    },
+    {
+      "file": "focused-green.jsonl",
+      "sha256": "220907605d9d8b6b6e8c0b117a2b906a24024da942517cb4878ab357fb40fe77",
+      "bytes": 8116,
+      "original_file": "focused-green.jsonl",
+      "original_sha256": "220907605d9d8b6b6e8c0b117a2b906a24024da942517cb4878ab357fb40fe77",
+      "original_bytes": 8116
+    },
+    {
+      "file": "followup-channel-failover.jsonl",
+      "sha256": "7f36428ee6436776225873a1c49ee40577c147ab032ab775089bb29146e5dbc8",
+      "bytes": 19905,
+      "original_file": "followup-channel-failover.jsonl",
+      "original_sha256": "7f36428ee6436776225873a1c49ee40577c147ab032ab775089bb29146e5dbc8",
+      "original_bytes": 19905
+    },
+    {
+      "file": "followup-cold-hot.jsonl",
+      "sha256": "958d819f17d30b2b3653d837a3421ed98b4e3d61ba49f1dc0f1be94555bf3e10",
+      "bytes": 3428,
+      "original_file": "followup-cold-hot.jsonl",
+      "original_sha256": "958d819f17d30b2b3653d837a3421ed98b4e3d61ba49f1dc0f1be94555bf3e10",
+      "original_bytes": 3428
+    },
+    {
+      "file": "followup-migration-all-topologies.jsonl",
+      "sha256": "611202756f3a371028dd2c6bfd312898c867c7bd0be3bc3124653a4843641dc5",
+      "bytes": 27485,
+      "original_file": "followup-migration-all-topologies.jsonl",
+      "original_sha256": "611202756f3a371028dd2c6bfd312898c867c7bd0be3bc3124653a4843641dc5",
+      "original_bytes": 27485
+    },
+    {
+      "file": "followup-original-v2-controls.jsonl",
+      "sha256": "ff3d8d05967cbf0c1d6a1b653b55ccfa71e83461ad6a407bcc788ab90ac736b9",
+      "bytes": 6523,
+      "original_file": "followup-original-v2-controls.jsonl",
+      "original_sha256": "ff3d8d05967cbf0c1d6a1b653b55ccfa71e83461ad6a407bcc788ab90ac736b9",
+      "original_bytes": 6523
+    },
+    {
+      "file": "install-red-refined.jsonl",
+      "sha256": "51218af53607d7978c78a802918587fa8f357e020295c280f33e35880b4241ae",
+      "bytes": 9202,
+      "original_file": "install-red-refined.jsonl",
+      "original_sha256": "51218af53607d7978c78a802918587fa8f357e020295c280f33e35880b4241ae",
+      "original_bytes": 9202
+    },
+    {
+      "file": "install-red.jsonl",
+      "sha256": "d9f0821e06f7ca37ca53a2859eea2e97ab0d915b2ca5a26be89a35dbc16c64ae",
+      "bytes": 9589,
+      "original_file": "install-red.jsonl",
+      "original_sha256": "d9f0821e06f7ca37ca53a2859eea2e97ab0d915b2ca5a26be89a35dbc16c64ae",
+      "original_bytes": 9589
+    },
+    {
+      "file": "local-probe-failure-design.md",
+      "sha256": "6976a88d2b8fdfc72926596c8282b415ecf9601ecd160b4981e617a882893378",
+      "bytes": 2436,
+      "original_file": "local-probe-failure-design.md",
+      "original_sha256": "6976a88d2b8fdfc72926596c8282b415ecf9601ecd160b4981e617a882893378",
+      "original_bytes": 2436
+    },
+    {
+      "file": "local-probe-red-receipt.json",
+      "sha256": "7d89bab6543a4baec41868dfdc1bcedad70ad3569719928df6fdc46d4a37f56c",
+      "bytes": 1571,
+      "original_file": "local-probe-red-receipt.json",
+      "original_sha256": "7d89bab6543a4baec41868dfdc1bcedad70ad3569719928df6fdc46d4a37f56c",
+      "original_bytes": 1571
+    },
+    {
+      "file": "local-probe-red.jsonl",
+      "sha256": "767866807ed88fea6e8ce7c81402ab32a4e3e0bd44c06ea648430b98d3745722",
+      "bytes": 4083,
+      "original_file": "local-probe-red.jsonl",
+      "original_sha256": "767866807ed88fea6e8ce7c81402ab32a4e3e0bd44c06ea648430b98d3745722",
+      "original_bytes": 4083
+    },
+    {
+      "file": "migration-1-to-3.jsonl",
+      "sha256": "0f6e37a9fc5f10a74a24a932dc494ff32fa433fa687ef602ddda706841c58aff",
+      "bytes": 7415,
+      "original_file": "migration-1-to-3.jsonl",
+      "original_sha256": "0f6e37a9fc5f10a74a24a932dc494ff32fa433fa687ef602ddda706841c58aff",
+      "original_bytes": 7415
+    },
+    {
+      "file": "migration-all-topologies.jsonl",
+      "sha256": "5a1890ad6e4cd77a3ecb8fb2b0e539fbabb628ad995420f7fd25835ffa33a578",
+      "bytes": 23864,
+      "original_file": "migration-all-topologies.jsonl",
+      "original_sha256": "5a1890ad6e4cd77a3ecb8fb2b0e539fbabb628ad995420f7fd25835ffa33a578",
+      "original_bytes": 23864
+    },
+    {
+      "file": "regressions-after-sequence-fixture.json",
+      "sha256": "48ab14fb313de48386860c267a090a5a2dc4b01fdf0a13bbd4d9b9c6e001e29d",
+      "bytes": 39417,
+      "original_file": "regressions-after-sequence-fixture.json",
+      "original_sha256": "48ab14fb313de48386860c267a090a5a2dc4b01fdf0a13bbd4d9b9c6e001e29d",
+      "original_bytes": 39417
+    },
+    {
+      "file": "regressions.json",
+      "sha256": "b63ba1693f6e6463d6ff0b83869dcf414f8df2d18817441db937d92a5e11120b",
+      "bytes": 30569,
+      "original_file": "regressions.json",
+      "original_sha256": "b63ba1693f6e6463d6ff0b83869dcf414f8df2d18817441db937d92a5e11120b",
+      "original_bytes": 30569
+    },
+    {
+      "file": "related-unit.jsonl.gz",
+      "sha256": "3fbea37699026acae59744e95b1b9aa13cb389c41afab92b8d24080cb56044c7",
+      "bytes": 149658,
+      "original_file": "related-unit.jsonl",
+      "original_sha256": "f2cd7f0fb3b4af437743832619ffc6b12eec993fd4e92fe3f9e2ee51f5743917",
+      "original_bytes": 2676925
+    },
+    {
+      "file": "review.json",
+      "sha256": "21584420021711cc57bec5861c1a4dd8cba588e17f1135e6f7fe99b5f2152c2b",
+      "bytes": 832,
+      "original_file": "review.json",
+      "original_sha256": "21584420021711cc57bec5861c1a4dd8cba588e17f1135e6f7fe99b5f2152c2b",
+      "original_bytes": 832
+    },
+    {
+      "file": "run-followup-regressions.py",
+      "sha256": "283638f1ba6c257a409a0e5b2a5c3054cefb635f687490b00d10d1b0652f4934",
+      "bytes": 3925,
+      "original_file": "run-followup-regressions.py",
+      "original_sha256": "283638f1ba6c257a409a0e5b2a5c3054cefb635f687490b00d10d1b0652f4934",
+      "original_bytes": 3925
+    },
+    {
+      "file": "run-regressions.py",
+      "sha256": "e88abad164305f7856920d1627fcb2a350e5eea9b98bdebf47ba6f3ba8820b29",
+      "bytes": 3601,
+      "original_file": "run-regressions.py",
+      "original_sha256": "e88abad164305f7856920d1627fcb2a350e5eea9b98bdebf47ba6f3ba8820b29",
+      "original_bytes": 3601
+    },
+    {
+      "file": "sequence-failure-design.md",
+      "sha256": "76d4e550ef80f58bcac8ea9fbaba4aafc8f7194ebd65a760bcfd92998a89f0b4",
+      "bytes": 2008,
+      "original_file": "sequence-failure-design.md",
+      "original_sha256": "76d4e550ef80f58bcac8ea9fbaba4aafc8f7194ebd65a760bcfd92998a89f0b4",
+      "original_bytes": 2008
+    },
+    {
+      "file": "sequence-fixture-correction.json",
+      "sha256": "55dbd8f48b794f41ed636280a3eda885c4ef1540d154deb1a7c9459d81195b51",
+      "bytes": 1732,
+      "original_file": "sequence-fixture-correction.json",
+      "original_sha256": "55dbd8f48b794f41ed636280a3eda885c4ef1540d154deb1a7c9459d81195b51",
+      "original_bytes": 1732
+    },
+    {
+      "file": "unit-validation-summary.json",
+      "sha256": "34ceaf6a019af85f8472ee6c134e4e288e8446d8fccc0a7e30a1baf4c0561566",
+      "bytes": 25541,
+      "original_file": "unit-validation-summary.json",
+      "original_sha256": "34ceaf6a019af85f8472ee6c134e4e288e8446d8fccc0a7e30a1baf4c0561566",
+      "original_bytes": 25541
+    }
+  ]
+}

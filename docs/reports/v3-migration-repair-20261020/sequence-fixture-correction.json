@@ -1,0 +1,35 @@
+{
+  "product_revision": "98c25091bb9587a303af982bb14bf4cedd9aa110",
+  "original_harness_revision": "98c25091bb9587a303af982bb14bf4cedd9aa110",
+  "corrected_harness_revision": "dee2b5c7f",
+  "original_failure_log_sha256": "5a1890ad6e4cd77a3ecb8fb2b0e539fbabb628ad995420f7fd25835ffa33a578",
+  "failed_test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+  "phase": "first protocol append, before full restart",
+  "observed": {
+    "original_history_all_five_ingresses": "exactly matches three original rows",
+    "expected_first_append_seq": 4,
+    "actual_first_append_seq": 6
+  },
+  "classification": "fixture assumption contradicts pre-existing public migration contract",
+  "contract_preexists_in": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "references": [
+    "docs-site/content/docs/server/operations/v2-to-v3-migration-reference.en.mdx:248",
+    "pkg/channel/replication/recovery_barrier.go:41",
+    "test/e2e/message/channel_failover/channel_failover_test.go:55"
+  ],
+  "independent_reviewer": "standards_review",
+  "preserved_assertions": [
+    "imported positions 1..N",
+    "strictly increasing new business positions",
+    "exact ACK position in every ordinary-history row",
+    "complete original/append history equality across every ingress",
+    "restart-before-next-append",
+    "applicable leader failover",
+    "original timeout/retry envelope constraints"
+  ],
+  "limits": [
+    "Failed run did not retain evidence identifying the records at positions 4 and 5.",
+    "This failure is not proof of duplicate/lost data or changed sequence allocation in the product fix.",
+    "Original failure retained; corrected harness will be evaluated on the same frozen product binary once."
+  ]
+}

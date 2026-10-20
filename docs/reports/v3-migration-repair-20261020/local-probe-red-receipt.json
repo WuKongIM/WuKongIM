@@ -1,0 +1,34 @@
+{
+  "schema": "wukongim/local-probe-red-test/v1",
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification",
+  "started_at": "2026-10-20T09:59:28.192101+00:00",
+  "command": [
+    "go",
+    "test",
+    "./pkg/channel/replication",
+    "-run",
+    "^TestBatchingRecoveryProbeDispatcherPreservesLocalStorageErrors$",
+    "-count=1",
+    "-json",
+    "-timeout=30s"
+  ],
+  "environment": {
+    "GOWORK": "off"
+  },
+  "head": "288247b3ab410eed30c1ee70b064c37e93b304d8",
+  "source_sha256_before": {
+    "pkg/channel/replication/recovery_probe_error_test.go": "220067399616e5b308cfd30f8a0174770fc926589e3b7ee02dcb55cd63331296",
+    "pkg/channel/replication/recovery_owner.go": "a7974fc87a0a9c8427901f0e3a4ed5234d1ee4da7c72862dd0ea5459068432d7",
+    "pkg/channel/replication/exchange_server.go": "1f26cd903764497b927203b32efcd8311b7e4d323df6ccc04bf9f2d04cfc252a"
+  },
+  "failure_design_sha256": "6976a88d2b8fdfc72926596c8282b415ecf9601ecd160b4981e617a882893378",
+  "log": "local-probe-red.jsonl",
+  "exit_code": 1,
+  "finished_at": "2026-10-20T09:59:30.207718+00:00",
+  "source_sha256_after": {
+    "pkg/channel/replication/recovery_probe_error_test.go": "220067399616e5b308cfd30f8a0174770fc926589e3b7ee02dcb55cd63331296",
+    "pkg/channel/replication/recovery_owner.go": "a7974fc87a0a9c8427901f0e3a4ed5234d1ee4da7c72862dd0ea5459068432d7",
+    "pkg/channel/replication/exchange_server.go": "1f26cd903764497b927203b32efcd8311b7e4d323df6ccc04bf9f2d04cfc252a"
+  },
+  "log_sha256": "767866807ed88fea6e8ce7c81402ab32a4e3e0bd44c06ea648430b98d3745722"
+}
