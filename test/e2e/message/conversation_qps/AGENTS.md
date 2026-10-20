@@ -165,7 +165,7 @@ remain evidence, unexpected failures or runtime/membership mutations abort, and
 collection completion never qualifies publication. The read-only
 `conversation-qps-diagnose.yml` verifies the optional exact prior binary digest.
 
-Add `WK_E2E_CONVERSATION_FIXED_HOST=1` only to MixedAttribution to control
+Add `WK_E2E_CONVERSATION_FIXED_HOST=1` to MixedAttribution to control
 preparation age on the fixed Linux AMD64 host. Reuse one precompiled driver with
 GOMAXPROCS=4 and a prebuilt product for each fresh three-node cluster; all four
 processes must share the same four-CPU affinity, with node GOMAXPROCS=2.
@@ -198,6 +198,43 @@ archive or perform a second scrape to reconstruct that body. Four fixed
 preparation cuts are sufficient; do not add continuous scraping. The original
 three 60-second windows, independent profile phase, response checks and gate
 thresholds remain unchanged. Fixed-host collection is diagnostic only.
+
+CPU overlap diagnosis uses the separate `TestConversationQPSCPUPlacement`
+entry with `WK_E2E_CONVERSATION_CPU_PLACEMENT=shared|overlap|disjoint`, alongside
+the mixed-attribution and fixed-host flags, exact product binary/SHA and report
+path. The orchestrator `scripts/run-conversation-cpu-contention.py` freezes one
+candidate binary and driver, and runs S/O/D/D/O/S on fresh clusters with the
+unchanged original mixed load. All four processes share the same four CPUs
+through the 180-second preparation release. Only then apply and verify affinity
+for every kernel thread, retaining PID/TID starttimes and the original masks.
+Require one visible package/NUMA node with two SMT2 cores; derive masks from
+sysfs rather than hard-coding sibling CPU numbers.
+
+S keeps all four CPUs and driver GOMAXPROCS=4. O/D keep identical three-CPU
+node masks and node GOMAXPROCS=2; the driver has one CPU and GOMAXPROCS=1.
+O places the driver on a node-eligible CPU; D uses its excluded SMT sibling.
+This compares logical overlap, not physical isolation. Their eligible CPU union
+differs (three versus four), and S/D changes multiple controls. Preserve all
+six blocks and numeric rejections; invalid controls or unexpected failures
+abort without automatic retries or a changed plan.
+
+Only this entry samples the original windows at one Hz, with at most four
+processes, 256 threads per process, 70 points, 75 seconds and a conservative
+64-MiB receipt bound. Keep raw task stat/schedstat/affinity, process/cgroup
+identity, visible ancestor CPU pressure/throttling and host counters; missing,
+exited, reused or unobserved tasks remain explicit. Join the sampler before
+serialization and subsequent metrics; record its own thread CPU, read duration,
+bytes and missed slots. Matched-thread runqueue deltas are bounded observations,
+not complete Go goroutine waiting or a per-request cause. Confirmed natural
+thread exits reduce matched coverage; they do not by themselves invalidate
+surviving-thread controls. Read failures, identity reuse and mask mismatches
+remain invalid. Zero dynamic
+sched_schedstats alone does not establish unavailable schedstat counters.
+Separately retain producer lateness (all scheduled arrivals including drops)
+and queued-worker delay (attempted requests), without adding their percentiles.
+These probes can perturb scheduling and their overhead must be reported.
+The later short pprof phase excludes the in-window sampler. The ordinary gate
+and MixedAttribution retain their existing schemas, workload and thresholds.
 
 Message-update same-host Linux diagnosis is opt-in:
 `WK_E2E_MESSAGE_UPDATE_SOAK=1 WK_E2E_MESSAGE_UPDATE_REPORT=/tmp/message-update/report.json WK_E2E_BINARY=/absolute/product GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestMessageUpdateThreeNodeSoak$' -count=1 -timeout=12m -p=1 -v`.

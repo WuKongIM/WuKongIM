@@ -63,7 +63,7 @@ func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T
 	require.Len(t, w.On, 1)
 	require.Contains(t, w.On, "workflow_dispatch")
 	require.Equal(t, map[string]string{"contents": "read"}, w.Permissions)
-	require.Len(t, w.Jobs, 2)
+	require.Len(t, w.Jobs, 3)
 	require.Equal(t, "ubuntu-24.04", w.Jobs["diagnose"].RunsOn)
 	require.Equal(t, 40, w.Jobs["diagnose"].Timeout)
 	require.Nil(t, w.Jobs["diagnose"].Environment)

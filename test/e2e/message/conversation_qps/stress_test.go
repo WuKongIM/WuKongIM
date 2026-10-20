@@ -158,6 +158,21 @@ func measureMixed(t *testing.T, c *suite.StartedCluster, client *http.Client, p 
 	start := time.Now().Add(100 * time.Millisecond)
 	w.Start = start.UTC()
 	w.End = w.Start.Add(time.Duration(p.DurationSeconds) * time.Second)
+	var stopSamples func() CPUWindowSamples
+	if p.cpuWindowSampler != nil {
+		var err error
+		stopSamples, err = p.cpuWindowSampler(start, time.Duration(p.DurationSeconds)*time.Second)
+		require.NoError(t, err)
+		defer func() {
+			if w.CPUSamples == nil {
+				samples := stopSamples()
+				w.CPUSamples = &samples
+			}
+			if p.cpuWindowCheckpoint != nil {
+				p.cpuWindowCheckpoint(w)
+			}
+		}()
+	}
 	var group sync.WaitGroup
 	for i, work := range cases {
 		group.Add(1)
@@ -169,6 +184,10 @@ func measureMixed(t *testing.T, c *suite.StartedCluster, client *http.Client, p 
 		}()
 	}
 	group.Wait()
+	if stopSamples != nil {
+		samples := stopSamples()
+		w.CPUSamples = &samples
+	}
 	finishStressWindow(t, c, &w, before, p)
 	return w
 }

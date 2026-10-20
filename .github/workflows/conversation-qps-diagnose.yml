@@ -3,6 +3,10 @@ name: Agent Tool - Diagnose Conversation QPS
 on:
   workflow_dispatch:
     inputs:
+      cpu_contention_validation:
+        description: Frozen product S/O/D/D/O/S CPU-placement diagnosis; never a release gate
+        type: boolean
+        default: false
       fixed_host_validation:
         description: Fixed B/B + A/B/B/A comparison followed by candidate and full release matrix
         type: boolean
@@ -29,7 +33,7 @@ permissions:
 
 jobs:
   diagnose:
-    if: ${{ !inputs.fixed_host_validation }}
+    if: ${{ !inputs.fixed_host_validation && !inputs.cpu_contention_validation }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -153,7 +157,7 @@ jobs:
           retention-days: 90
 
   fixed-host:
-    if: ${{ inputs.fixed_host_validation }}
+    if: ${{ inputs.fixed_host_validation && !inputs.cpu_contention_validation }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
@@ -206,5 +210,80 @@ jobs:
           path: |
             ${{ runner.temp }}/conversation-fixed-host/
             ${{ runner.temp }}/conversation-fixed-host-preflight.*
+          if-no-files-found: error
+          retention-days: 90
+
+  cpu-contention:
+    if: ${{ inputs.cpu_contention_validation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GOWORK: "off"
+      CPU_CONTENTION_WORKFLOW_SHA: ${{ github.sha }}
+      CPU_CONTENTION_FIXED_HOST: ${{ inputs.fixed_host_validation }}
+      CPU_CONTENTION_RELEASE_MATRIX: ${{ inputs.run_release_matrix }}
+      PRODUCT_SHA: ${{ inputs.product_sha }}
+      COMPARISON_SHA: ${{ inputs.comparison_sha }}
+      EXPECTED_BINARY_SHA256: ${{ inputs.expected_binary_sha256 }}
+    steps:
+      - name: Reject conflicting modes and mutable product inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            [[ "$CPU_CONTENTION_FIXED_HOST" == false && "$CPU_CONTENTION_RELEASE_MATRIX" == false ]] || exit 1
+            [[ "$PRODUCT_SHA" == ef798352c40a94e57f768f76b2f4713712f827fe ]] || exit 1
+            [[ -z "$COMPARISON_SHA" && -z "$EXPECTED_BINARY_SHA256" ]] || exit 1
+            echo "Frozen product, digest and S/O/D/D/O/S plan selected"
+          } 2>&1 | tee "$RUNNER_TEMP/conversation-cpu-contention-preflight.inputs.log"
+      - name: Checkout exact diagnostic harness without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up exact product and harness Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+      - name: Verify Linux session cleanup before placement measurement
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          GOWORK=off go test -tags=integration ./scripts \
+            -run '^TestConversationFixedHostTimeoutCleansChildProcessGroups$' \
+            -count=1 -timeout=2m -v -json \
+            2> "$RUNNER_TEMP/conversation-cpu-contention-preflight.cleanup.stderr.log" | tee "$RUNNER_TEMP/conversation-cpu-contention-preflight.cleanup.jsonl"
+          jq -se --arg test TestConversationFixedHostTimeoutCleansChildProcessGroups \
+            '([.[] | select(.Test == $test and .Action == "pass")] | length) == 1 and (any(.[]; .Test == $test and .Action == "skip") | not)' \
+            "$RUNNER_TEMP/conversation-cpu-contention-preflight.cleanup.jsonl"
+      - name: Verify real Linux all-thread placement and bounded sampler
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          GOWORK=off go test -tags=integration ./test/e2e/message/conversation_qps \
+            -run '^(TestCPUPlacementLinuxAllThreads|TestCPUWindowSamplerLinuxPreflight)$' \
+            -count=1 -timeout=3m -v -json \
+            2> "$RUNNER_TEMP/conversation-cpu-contention-preflight.placement.stderr.log" | tee "$RUNNER_TEMP/conversation-cpu-contention-preflight.placement.jsonl"
+          jq -se --argjson tests '["TestCPUPlacementLinuxAllThreads","TestCPUWindowSamplerLinuxPreflight"]' \
+            '. as $events | all($tests[]; . as $name | ([ $events[] | select(.Test == $name and .Action == "pass") ] | length) == 1 and (any($events[]; .Test == $name and .Action == "skip") | not))' \
+            "$RUNNER_TEMP/conversation-cpu-contention-preflight.placement.jsonl"
+      - name: Collect the frozen product CPU-placement sequence once
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/run-conversation-cpu-contention.py \
+            --harness-sha "$CPU_CONTENTION_WORKFLOW_SHA" \
+            --output-dir "$RUNNER_TEMP/conversation-cpu-contention"
+      - name: Retain all CPU-placement evidence including failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conversation-cpu-contention-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/conversation-cpu-contention/
+            ${{ runner.temp }}/conversation-cpu-contention-preflight.*
           if-no-files-found: error
           retention-days: 90

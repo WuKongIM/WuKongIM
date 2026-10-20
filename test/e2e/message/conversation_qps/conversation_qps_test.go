@@ -293,11 +293,12 @@ func request(ctx context.Context, client *http.Client, addr string, p profile, c
 }
 
 type observation struct {
-	index                   int
-	driverWait, requestTime float64
-	latency                 float64
-	within                  bool
-	err                     error
+	index                           int
+	driverWait, requestTime         float64
+	producerDelay, queuedWorkerWait float64
+	latency                         float64
+	within                          bool
+	err                             error
 }
 
 // measure schedules arrivals independently of completions. Queueing counts toward
@@ -315,8 +316,9 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 	// Retain at most one latency budget of arrivals. Scheduling and queue delay
 	// still count toward P99, and sustained overload eventually drops and fails.
 	jobs := make(chan struct {
-		at    time.Time
-		index int
+		at       time.Time
+		enqueued time.Time
+		index    int
 	}, queuedArrivalLimit(p, w))
 	var wg sync.WaitGroup
 	end := start.Add(time.Duration(p.DurationSeconds) * time.Second)
@@ -330,7 +332,15 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 				e := call(ctx, j.index)
 				cancel()
 				now := time.Now()
-				results <- observation{index: j.index, latency: float64(now.Sub(j.at)) / float64(time.Millisecond), within: !now.After(end), err: e, driverWait: float64(requestStart.Sub(j.at)) / float64(time.Millisecond), requestTime: float64(now.Sub(requestStart)) / float64(time.Millisecond)}
+				got := observation{index: j.index, latency: float64(now.Sub(j.at)) / float64(time.Millisecond), within: !now.After(end), err: e, driverWait: float64(requestStart.Sub(j.at)) / float64(time.Millisecond), requestTime: float64(now.Sub(requestStart)) / float64(time.Millisecond)}
+				if p.captureDriverTiming {
+					var timingErr error
+					got.producerDelay, got.queuedWorkerWait, timingErr = splitDriverWaiting(j.at, j.enqueued, requestStart)
+					if timingErr != nil {
+						got.err = timingErr
+					}
+				}
+				results <- got
 			}
 		}()
 	}
@@ -338,16 +348,34 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 	if p.captureTimeline {
 		r.Timeline = make([]arrivalSecond, p.DurationSeconds)
 	}
+	var producerDelays, queuedWorkerWaits []float64
+	if p.captureDriverTiming {
+		r.DriverTiming = &driverTimingSummary{}
+		producerDelays = make([]float64, 0, total)
+		queuedWorkerWaits = make([]float64, 0, total)
+	}
 	for i := 0; i < total; i++ {
 		at := start.Add(time.Duration(i) * time.Second / time.Duration(w.OfferedQPS))
 		if delay := time.Until(at); delay > 0 {
 			time.Sleep(delay)
 		}
+		var enqueued time.Time
+		if p.captureDriverTiming {
+			// This precedes the nonblocking enqueue attempt. The worker component
+			// includes this bounded producer bookkeeping, not only channel residence.
+			enqueued = time.Now()
+			delay := float64(enqueued.Sub(at)) / float64(time.Millisecond)
+			producerDelays = append(producerDelays, delay)
+			if p.captureTimeline {
+				r.Timeline[i/w.OfferedQPS].MaxProducerDelayMS = max(r.Timeline[i/w.OfferedQPS].MaxProducerDelayMS, delay)
+			}
+		}
 		select {
 		case jobs <- struct {
-			at    time.Time
-			index int
-		}{at, i}:
+			at       time.Time
+			enqueued time.Time
+			index    int
+		}{at, enqueued, i}:
 		default:
 			r.Dropped++
 			if p.captureTimeline {
@@ -360,14 +388,21 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 	close(results)
 	var latencies, driverWaits, requestTimes []float64
 	for got := range results {
+		if p.captureDriverTiming {
+			r.DriverTiming.Observed++
+			queuedWorkerWaits = append(queuedWorkerWaits, got.queuedWorkerWait)
+		}
 		if p.captureTimeline {
 			slot := &r.Timeline[got.index/w.OfferedQPS]
 			slot.Completed++
 			slot.MaxWaitMS = max(slot.MaxWaitMS, got.driverWait)
 			slot.MaxRequestMS = max(slot.MaxRequestMS, got.requestTime)
 			slot.MaxLatencyMS = max(slot.MaxLatencyMS, got.latency)
+			if p.captureDriverTiming {
+				slot.MaxQueuedWorkerWaitMS = max(slot.MaxQueuedWorkerWaitMS, got.queuedWorkerWait)
+			}
 			if got.latency > 200 && len(r.Slow) < 16 {
-				r.Slow = append(r.Slow, slowArrival{Index: got.index, WaitMS: got.driverWait, RequestMS: got.requestTime})
+				r.Slow = append(r.Slow, slowArrival{Index: got.index, WaitMS: got.driverWait, RequestMS: got.requestTime, ProducerDelayMS: got.producerDelay, QueuedWorkerWaitMS: got.queuedWorkerWait})
 			}
 		}
 
@@ -409,6 +444,12 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 	r.P99MS = percentile(latencies, .99)
 	r.DriverWaitP99MS = percentile(driverWaits, .99)
 	r.RequestP99MS = percentile(requestTimes, .99)
+	if p.captureDriverTiming {
+		r.DriverTiming.ProducerArrivals = len(producerDelays)
+		r.DriverTiming.DroppedArrivals = r.Dropped
+		r.DriverTiming.ProducerP99MS = percentile(producerDelays, .99)
+		r.DriverTiming.QueuedWorkerP99MS = percentile(queuedWorkerWaits, .99)
+	}
 	return r
 }
 

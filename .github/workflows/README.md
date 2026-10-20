@@ -462,6 +462,85 @@ The entry supports `--plan --candidate-sha <exact SHA>` without starting any
 process or changing files. Actual publishers still require their exact-tag
 release gate and signed native package publication/client checks.
 
+### Frozen-product CPU contention diagnosis
+
+`cpu_contention_validation=true` selects the separate 90-minute Linux job.
+Use exact `product_sha=ef798352c40a94e57f768f76b2f4713712f827fe`; leave
+`comparison_sha` and `expected_binary_sha256` empty, and both
+`fixed_host_validation` and `run_release_matrix` false. Conflicting selections
+fail explicitly. The original two modes and publication gates keep their
+existing contracts. This is one authorized diagnosis, with read-only repository
+permissions, credential-free source, no protected Environment or secrets, and
+no release/publication authority or paid resource acquisition.
+
+The frozen product C builds once with Go 1.25.11, `go build -tags=e2e`, from the
+same clean absolute source directory used by its prior validation:
+`/home/runner/work/_temp/conversation-fixed-host-build`. Its SHA-256 must be
+`8c3c79f2853b76be7f83dbd606404bf6ab1fdf34ce9370e82c056b389d03c57d`.
+A mismatch aborts before measurement and retains the actual build receipt;
+do not change the expected digest to continue. The clean main-descended
+Workflow SHA identifies the new harness, compiled once and reused from its
+scenario directory. It is distinct from product C. Its `profile.json` must be
+byte-identical to C's profile: list/sync 200/60 QPS, eight workers per endpoint,
+three 60-second windows and all original numeric thresholds remain fixed.
+
+The order is **S, O, D, D, O, S**. Each block starts a fresh three-node cluster,
+prepares with all four logical CPUs shared, and uses the existing 180-second
+process-age control. Only after release does the helper apply placement to all
+threads of the four owned processes, before the original warmup. S keeps
+four-CPU masks and driver `GOMAXPROCS=4`. O and D both use driver
+`GOMAXPROCS=1` on one CPU and the same three-CPU node mask; every node keeps
+`GOMAXPROCS=2`. The actual one-socket, one-NUMA-node, two-core/SMT2 topology
+selects a sibling pair: O puts the driver on the member included in the node
+mask, D on the excluded sibling. Unknown or different topology rejects the
+control. CPU numbers are discovered, not assumed. All-thread identities and
+masks, unchanged visible cgroup controls, preparation/release times, and
+actual window timing remain in the receipt.
+
+Equal per-role mask widths do not equalize total eligible CPUs: O's union is
+three CPUs and D's is four. D removes shared logical CPUs between owned roles,
+but still shares SMT cores, caches, cgroups and unknown physical-host activity.
+S is a before/after sentinel; S/D also changes driver parallelism and is not a
+single-variable contrast. The predeclared offline screen compares O2/D3 and
+O5/D4: each endpoint's median of three driver-wait P99 values must decrease in D
+by both 25% and 1 ms, with total P99 moving in the same direction. Report S/S,
+O/O and D/D repeat variation and all original windows. This screen alone cannot
+prove a cause; conflicting repeat variation or mechanism evidence is
+inconclusive. These medians are not pooled P99s. Latency includes all attempted
+requests, including errors, but excludes dropped arrivals; it cannot establish
+improvement when offered requests are dropped.
+
+Each original 60-second window adds bounded one-second process/thread CPU and
+scheduler observations, host and actual-cgroup data, collector cost, missed
+samples and thread-lifetime coverage. Missing signals remain unknown; invalid
+observations reject the control after saving evidence. Keep separate producer,
+queue and complete-request timing; their P99s cannot be added. Separate short
+profiles remain outside original windows and cannot explain their exact stalls
+by themselves. The new report and preparation schemas distinguish this
+placement diagnostic from the unchanged fixed-host shared-four control.
+
+Before measurement the Linux job requires explicit, non-skipped passes from
+`TestConversationFixedHostTimeoutCleansChildProcessGroups`,
+`TestCPUPlacementLinuxAllThreads`, and `TestCPUWindowSamplerLinuxPreflight`.
+The orchestrator reuses the owned-session cleanup and checks completion before
+the next block. Numeric rejections remain in sequence; unexpected errors,
+identity/control drift, incomplete observations and process leaks abort. It
+never retries, reorders, or runs the release matrix. `complete` means all six
+controlled collections finished; `numeric_pass` is separate, and
+`release_qualification` is always false.
+
+The script deadline is 84 minutes inside the 90-minute job; every block keeps
+its 12-minute test deadline and builds keep four-minute limits. Setup and
+preflight consume the job budget, so a fixed upload margin is not guaranteed.
+Normally six blocks take roughly 36–45 minutes, excluding setup/build time.
+The always-run 90-day artifact retains `plan/sequence.json`, `host.json`,
+`events.jsonl`, `summary.json`, `binaries/C/`, `harness/`, and
+`blocks/01-S,02-O,03-D,04-D,05-O,06-S` with raw reports, profiles, logs and
+command/cleanup receipts, plus separate preflight logs. Forced host loss can
+interrupt upload and cannot create passing evidence. `--plan --harness-sha
+<exact SHA>` prints this frozen plan without running commands or creating files.
+Inspect all evidence before authorizing any further experiment.
+
 ## Conversation QPS release gate
 
 Both Docker and binary publication require `conversation-qps-gate.yml` to pass

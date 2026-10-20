@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Add a bounded same-binary Linux CPU placement diagnostic with all-thread
+  affinity verification and in-window scheduler observations. /
+  新增同一二进制的有界 Linux CPU 绑定对照，核验所有线程的 CPU 亲和性并记录窗口内调度数据。
+
 - Add a bounded Linux conversation-performance comparison that reuses frozen
   binaries and one driver on the same host, records preparation and CPU limits,
   and checks the unchanged full matrix for the selected candidate. /

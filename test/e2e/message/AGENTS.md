@@ -7,6 +7,11 @@ This file is for agents working inside `test/e2e/message`.
 This domain covers black-box message and conversation behavior for
 `cmd/wukongim`.
 
+The conversation QPS scenario also owns a separate opt-in Linux S/O/D/D/O/S
+CPU placement experiment with one frozen binary, all-thread affinity receipts
+and bounded window scheduler observations. See its AGENTS.md for controls and
+limits; it does not replace the unchanged release gate.
+
 ## Scenarios
 
 | Scenario | Purpose | Run |

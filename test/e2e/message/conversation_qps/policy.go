@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 )
 
 //go:embed profile.json
@@ -22,20 +23,26 @@ type workloadCase struct {
 // profile fixes workload shape and release floors in reviewed source.
 type profile struct {
 	// captureTimeline is diagnostic-only and never changes the release workload.
-	captureTimeline    bool
-	StressGate         stressConfig   `json:"stress_gate"`
-	StressDiagnosis    stressConfig   `json:"stress_diagnosis"`
-	Schema             string         `json:"schema"`
-	DurationSeconds    int            `json:"duration_seconds"`
-	Workers            int            `json:"workers"`
-	Cohorts            int            `json:"cohorts"`
-	UsersPerCohort     int            `json:"users_per_cohort"`
-	ChannelsPerCohort  int            `json:"channels_per_cohort"`
-	MessagesPerChannel int            `json:"messages_per_channel"`
-	PayloadBytes       int            `json:"payload_bytes"`
-	MinCompletionRatio float64        `json:"min_completion_ratio"`
-	MaxP99MS           float64        `json:"max_p99_ms"`
-	Cases              []workloadCase `json:"cases"`
+	captureTimeline bool
+	// captureDriverTiming separates enqueue lateness from queued worker waiting.
+	captureDriverTiming bool
+	// cpuWindowSampler observes only explicitly selected diagnostic windows.
+	cpuWindowSampler func(time.Time, time.Duration) (func() CPUWindowSamples, error)
+	// cpuWindowCheckpoint retains observations even if a later metrics cut fails.
+	cpuWindowCheckpoint func(stressWindow)
+	StressGate          stressConfig   `json:"stress_gate"`
+	StressDiagnosis     stressConfig   `json:"stress_diagnosis"`
+	Schema              string         `json:"schema"`
+	DurationSeconds     int            `json:"duration_seconds"`
+	Workers             int            `json:"workers"`
+	Cohorts             int            `json:"cohorts"`
+	UsersPerCohort      int            `json:"users_per_cohort"`
+	ChannelsPerCohort   int            `json:"channels_per_cohort"`
+	MessagesPerChannel  int            `json:"messages_per_channel"`
+	PayloadBytes        int            `json:"payload_bytes"`
+	MinCompletionRatio  float64        `json:"min_completion_ratio"`
+	MaxP99MS            float64        `json:"max_p99_ms"`
+	Cases               []workloadCase `json:"cases"`
 }
 
 func loadProfile() (profile, []byte, error) {
@@ -79,8 +86,9 @@ func loadProfile() (profile, []byte, error) {
 // phaseResult accounts for every scheduled arrival, including overload drops.
 // ActualQPS excludes completions after the measurement window.
 type phaseResult struct {
-	Timeline []arrivalSecond `json:"arrival_timeline,omitempty"`
-	Slow     []slowArrival   `json:"slow_arrivals,omitempty"`
+	Timeline     []arrivalSecond      `json:"arrival_timeline,omitempty"`
+	Slow         []slowArrival        `json:"slow_arrivals,omitempty"`
+	DriverTiming *driverTimingSummary `json:"driver_timing,omitempty"`
 	// Separate component percentiles are diagnostic and are not additive.
 	DriverWaitP99MS   float64      `json:"driver_wait_p99_ms,omitempty"`
 	RequestP99MS      float64      `json:"request_p99_ms,omitempty"`
@@ -153,15 +161,39 @@ func queuedArrivalLimit(p profile, w workloadCase) int {
 
 // arrivalSecond attributes bounded timing evidence to the scheduled second.
 type arrivalSecond struct {
-	Completed    int     `json:"completed"`
-	Dropped      int     `json:"dropped"`
-	MaxWaitMS    float64 `json:"max_wait_ms"`
-	MaxRequestMS float64 `json:"max_request_ms"`
-	MaxLatencyMS float64 `json:"max_latency_ms"`
+	Completed             int     `json:"completed"`
+	Dropped               int     `json:"dropped"`
+	MaxWaitMS             float64 `json:"max_wait_ms"`
+	MaxRequestMS          float64 `json:"max_request_ms"`
+	MaxLatencyMS          float64 `json:"max_latency_ms"`
+	MaxProducerDelayMS    float64 `json:"max_producer_delay_ms,omitempty"`
+	MaxQueuedWorkerWaitMS float64 `json:"max_queued_worker_wait_ms,omitempty"`
 }
 
 type slowArrival struct {
-	Index     int     `json:"index"`
-	WaitMS    float64 `json:"wait_ms"`
-	RequestMS float64 `json:"request_ms"`
+	Index              int     `json:"index"`
+	WaitMS             float64 `json:"wait_ms"`
+	RequestMS          float64 `json:"request_ms"`
+	ProducerDelayMS    float64 `json:"producer_delay_ms,omitempty"`
+	QueuedWorkerWaitMS float64 `json:"queued_worker_wait_ms,omitempty"`
+}
+
+// driverTimingSummary describes distinct populations; their percentiles cannot
+// be added. Producer timing includes dropped arrivals, worker timing does not.
+type driverTimingSummary struct {
+	Observed          int     `json:"observed"`
+	ProducerArrivals  int     `json:"producer_arrivals"`
+	DroppedArrivals   int     `json:"dropped_arrivals"`
+	ProducerP99MS     float64 `json:"producer_p99_ms"`
+	QueuedWorkerP99MS float64 `json:"queued_worker_p99_ms"`
+}
+
+// splitDriverWaiting keeps chronology failures visible rather than clamping
+// them into apparent zero delay. Queued waiting includes worker scheduling.
+func splitDriverWaiting(scheduled, enqueued, requested time.Time) (float64, float64, error) {
+	if enqueued.Before(scheduled) || requested.Before(enqueued) {
+		return 0, 0, fmt.Errorf("invalid driver timing chronology")
+	}
+	return float64(enqueued.Sub(scheduled)) / float64(time.Millisecond),
+		float64(requested.Sub(enqueued)) / float64(time.Millisecond), nil
 }

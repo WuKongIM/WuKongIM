@@ -80,9 +80,9 @@ func TestConversationFixedHostWorkflowAndRunnerContracts(t *testing.T) {
 	input := workflow.On["workflow_dispatch"].Inputs["fixed_host_validation"]
 	require.Equal(t, "boolean", input.Type)
 	require.False(t, input.Default)
-	require.Equal(t, "${{ !inputs.fixed_host_validation }}", workflow.Jobs["diagnose"].If)
+	require.Equal(t, "${{ !inputs.fixed_host_validation && !inputs.cpu_contention_validation }}", workflow.Jobs["diagnose"].If)
 	fixed := workflow.Jobs["fixed-host"]
-	require.Equal(t, "${{ inputs.fixed_host_validation }}", fixed.If)
+	require.Equal(t, "${{ inputs.fixed_host_validation && !inputs.cpu_contention_validation }}", fixed.If)
 	require.Equal(t, "ubuntu-24.04", fixed.RunsOn)
 	require.Equal(t, 120, fixed.Timeout)
 	require.Nil(t, fixed.Environment)

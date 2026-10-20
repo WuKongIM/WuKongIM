@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +31,25 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 	if os.Getenv("WK_E2E_CONVERSATION_MIXED_ATTRIBUTION") != "1" {
 		t.Skip("explicit four-CPU Linux AMD64 mixed attribution")
 	}
+	require.Empty(t, os.Getenv("WK_E2E_CONVERSATION_CPU_PLACEMENT"), "CPU placement requires its separate diagnostic entry")
+	runConversationQPSMixedAttribution(t, "")
+}
+
+// TestConversationQPSCPUPlacement contrasts logical CPU overlap using one binary
+// after identical preparation; it is not a publication or physical-isolation gate.
+func TestConversationQPSCPUPlacement(t *testing.T) {
+	mode := os.Getenv("WK_E2E_CONVERSATION_CPU_PLACEMENT")
+	if mode == "" {
+		t.Skip("explicit Linux CPU placement diagnostic")
+	}
+	require.Contains(t, []string{"shared", "overlap", "disjoint"}, mode)
+	require.Equal(t, "1", os.Getenv("WK_E2E_CONVERSATION_MIXED_ATTRIBUTION"))
+	require.Equal(t, "1", os.Getenv("WK_E2E_CONVERSATION_FIXED_HOST"))
+	runConversationQPSMixedAttribution(t, mode)
+}
+
+func runConversationQPSMixedAttribution(t *testing.T, placementMode string) {
+	t.Helper()
 	fixedHost := os.Getenv("WK_E2E_CONVERSATION_FIXED_HOST") == "1"
 	if !fixedHost {
 		require.Equal(t, "linux", runtime.GOOS)
@@ -43,26 +63,28 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 	p, raw, err := loadProfile()
 	require.NoError(t, err)
 	p.captureTimeline = true
+	p.captureDriverTiming = placementMode != ""
 	sha, err := exec.Command("git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 	dirty, err := exec.Command("git", "status", "--porcelain").Output()
 	require.NoError(t, err)
 	digest := sha256.Sum256(raw)
 	r := struct {
-		Schema           string              `json:"schema"`
-		HarnessSHA       string              `json:"harness_sha"`
-		HarnessDirty     bool                `json:"harness_dirty"`
-		ProductSHA       string              `json:"product_sha"`
-		BinarySHA        string              `json:"binary_sha256"`
-		ProfileSHA       string              `json:"profile_sha256"`
-		DriverGOMAXPROCS int                 `json:"driver_gomaxprocs"`
-		NodeGOMAXPROCS   int                 `json:"node_gomaxprocs"`
-		Config           stressConfig        `json:"config"`
-		Windows          []stressWindow      `json:"windows"`
-		Host             []map[string]string `json:"host_snapshots"`
-		ProfileWindow    *stressWindow       `json:"profile_window,omitempty"`
-		FixedEnvironment *fixedHostReceipt   `json:"fixed_environment,omitempty"`
-		Complete         bool                `json:"complete"`
+		Schema           string               `json:"schema"`
+		HarnessSHA       string               `json:"harness_sha"`
+		HarnessDirty     bool                 `json:"harness_dirty"`
+		ProductSHA       string               `json:"product_sha"`
+		BinarySHA        string               `json:"binary_sha256"`
+		ProfileSHA       string               `json:"profile_sha256"`
+		DriverGOMAXPROCS int                  `json:"driver_gomaxprocs"`
+		NodeGOMAXPROCS   int                  `json:"node_gomaxprocs"`
+		Config           stressConfig         `json:"config"`
+		Windows          []stressWindow       `json:"windows"`
+		Host             []map[string]string  `json:"host_snapshots"`
+		ProfileWindow    *stressWindow        `json:"profile_window,omitempty"`
+		FixedEnvironment *fixedHostReceipt    `json:"fixed_environment,omitempty"`
+		CPUPlacement     *CPUPlacementReceipt `json:"cpu_placement,omitempty"`
+		Complete         bool                 `json:"complete"`
 	}{Schema: "wukongim/conversation-mixed-attribution/v1", HarnessSHA: strings.TrimSpace(string(sha)), HarnessDirty: len(dirty) > 0, ProductSHA: os.Getenv("WK_E2E_PRODUCT_SHA"), ProfileSHA: hex.EncodeToString(digest[:]), DriverGOMAXPROCS: runtime.GOMAXPROCS(0), NodeGOMAXPROCS: 2, Config: p.StressGate}
 	if fixedHost {
 		r.FixedEnvironment = &fixedHostReceipt{
@@ -70,6 +92,10 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 			WindowAgeClock:   "Window UTC start minus estimated UTC process start; preparation wait and release use the monotonic clock.",
 			ResourceCutScope: "Cuts surround the original measurement helper, including its warmup and metrics/snapshot overhead; they are not exact 60-second counter deltas.",
 		}
+	}
+	if placementMode != "" {
+		r.Schema = "wukongim/conversation-cpu-placement/v1"
+		r.FixedEnvironment.Schema = "wukongim/conversation-cpu-placement-preparation/v1"
 	}
 	require.Regexp(t, `^[0-9a-f]{40}$`, r.ProductSHA)
 	save := func() {
@@ -130,6 +156,66 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 		releaseFixedHostPreparation(t, r.FixedEnvironment)
 	})
 	captureFixedHostBoundary(t, r.FixedEnvironment, c, "after_age_wait_before_original_warmup")
+	if placementMode != "" {
+		nodePIDs := make([]int, len(r.FixedEnvironment.Nodes))
+		for i, process := range r.FixedEnvironment.Nodes {
+			nodePIDs[i] = process.PID
+		}
+		modeCode := map[string]string{"shared": "S", "overlap": "O", "disjoint": "D"}[placementMode]
+		r.CPUPlacement, err = applyCPUPlacement(os.Getpid(), nodePIDs, modeCode)
+		save()
+		require.NoError(t, err)
+		require.True(t, r.CPUPlacement.Valid, r.CPUPlacement.Failure)
+		require.False(t, r.CPUPlacement.StartedAt.Before(r.FixedEnvironment.ReleasedAt))
+		driverProcs := 1
+		if placementMode == "shared" {
+			driverProcs = 4
+		}
+		runtime.GOMAXPROCS(driverProcs)
+		r.DriverGOMAXPROCS = runtime.GOMAXPROCS(0)
+		// Preparation remains recorded in CPUPlacement.Initial. Rebind only the
+		// expected measurement masks, preserving executable/configuration identity.
+		rebind := func(process *fixedHostProcess) {
+			current, observeErr := observeFixedHostProcess(process.PID)
+			require.NoError(t, observeErr)
+			require.Equal(t, process.StartTicks, current.StartTicks)
+			require.Equal(t, process.Cgroup.Location, current.Cgroup.Location)
+			current.BinaryPath, current.BinarySHA256 = process.BinaryPath, process.BinarySHA256
+			current.ConfigPath, current.ConfigSHA256 = process.ConfigPath, process.ConfigSHA256
+			current.RedactedConfig, current.EstimatedStart = process.RedactedConfig, process.EstimatedStart
+			*process = current
+		}
+		rebind(&r.FixedEnvironment.Driver)
+		for i := range r.FixedEnvironment.Nodes {
+			rebind(&r.FixedEnvironment.Nodes[i])
+		}
+		processes := append([]fixedHostProcess{r.FixedEnvironment.Driver}, r.FixedEnvironment.Nodes...)
+		sampleProcesses := make([]cpuSampleProcess, len(processes))
+		cgroupSet := map[string]bool{}
+		for i, process := range processes {
+			role := "driver"
+			if i > 0 {
+				role = fmt.Sprintf("node%d", i)
+			}
+			sampleProcesses[i] = cpuSampleProcess{Role: role, PID: process.PID, StartTimeTicks: process.StartTicks, Affinity: process.Affinity}
+			for directory := range process.Cgroup.Controls {
+				cgroupSet[directory] = true
+			}
+		}
+		cgroups := make([]string, 0, len(cgroupSet))
+		for directory := range cgroupSet {
+			cgroups = append(cgroups, directory)
+		}
+		sort.Strings(cgroups)
+		p.cpuWindowSampler = func(start time.Time, duration time.Duration) (func() CPUWindowSamples, error) {
+			return startCPUWindowSampler(sampleProcesses, cgroups, start, duration)
+		}
+		p.cpuWindowCheckpoint = func(w stressWindow) {
+			r.Windows = append(r.Windows, w)
+			r.FixedEnvironment.WindowStartAgeSeconds = append(r.FixedEnvironment.WindowStartAgeSeconds, w.Start.Sub(r.FixedEnvironment.EstimatedFirstProductStart).Seconds())
+			save()
+		}
+	}
 	if r.FixedEnvironment != nil {
 		save()
 	}
@@ -137,16 +223,24 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 		r.Host = append(r.Host, mixedHostSnapshot(t))
 		captureFixedHostResources(t, r.FixedEnvironment, fmt.Sprintf("window_%d_before_warmup", i+1))
 		w := measureMixed(t, c, client, p, p.StressGate, expected, initial)
-		if r.FixedEnvironment != nil {
+		if r.FixedEnvironment != nil && placementMode == "" {
 			r.FixedEnvironment.WindowStartAgeSeconds = append(r.FixedEnvironment.WindowStartAgeSeconds, w.Start.Sub(r.FixedEnvironment.EstimatedFirstProductStart).Seconds())
 		}
-		r.Windows = append(r.Windows, w)
+		if placementMode == "" {
+			r.Windows = append(r.Windows, w)
+		}
 		r.Host = append(r.Host, mixedHostSnapshot(t))
 		captureFixedHostResources(t, r.FixedEnvironment, fmt.Sprintf("window_%d_after_measurement", i+1))
 		save()
+		if placementMode != "" {
+			require.NotNil(t, w.CPUSamples)
+			require.True(t, w.CPUSamples.Valid, w.CPUSamples.Issues)
+		}
 		checkStressWindow(t, w, false)
 	}
-	// CPU sampling and allocation snapshots are excluded from all three windows.
+	p.cpuWindowSampler = nil
+	p.cpuWindowCheckpoint = nil
+	// pprof sampling and allocation snapshots are excluded from all three windows.
 	fetch := func(addr, route, name string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()

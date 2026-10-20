@@ -1880,3 +1880,10 @@ specification, runbook, report, or module documentation; link to them when neede
   completed list/sync mix exactly; they do not independently prove extra fanout.
   The original effective service cgroup was not sampled, so the new run's zero
   visible throttling cannot retrospectively exclude a historical quota.
+- A shared runner can test a CPU-overlap mechanism by changing only the driver's
+  logical CPU while retaining the same node mask and per-role GOMAXPROCS.
+  Verify every TID after preparation and during load, not just process leaders.
+  Disjoint logical masks still share SMT resources and hidden host scheduling.
+  Preserve within-window scheduler evidence, observer cost and same-mode repeats;
+  neither correlation nor a successful intervention proves the unique cause of
+  an earlier run on an unavailable host.
