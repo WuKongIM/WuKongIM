@@ -1,0 +1,10 @@
+{
+  "method": "GET",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/cloud-lease-analyze.yml/runs?per_page=20",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:38:25.387462+00:00",
+  "bytes": 292214,
+  "sha256": "320937dc367eda0a3464c5bb9e2faaded44afc4987b4882212d4d7293fe4c46f",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "public-bounded-archive/v1",
+  "files": [
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "size": 192,
+      "sha256": "e12c5e26d7ac88d988c78fe452e84f1eb295c08e7eb6d3b10519592b77b2f379",
+      "crc32": "a9b184ff"
+    },
+    {
+      "path": "README.md",
+      "size": 5942,
+      "sha256": "a6d957221499ad5d916694aa88eba9c435ab2671f4f58e9abb8aa4d6e989201b",
+      "crc32": "54bd4bc3"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size": 689,
+      "sha256": "e87292efdedfc24a34eb07df9503a3c6922a46abf46b1b53300205324e00d3c4",
+      "crc32": "f4347890"
+    },
+    {
+      "path": "archive-contract-probe.py",
+      "size": 1948,
+      "sha256": "931a14c40ead958a0d06f00ff9abe916fe6b0c3fa2edb4e8e0d9203ef946599d",
+      "crc32": "7db45844"
+    },
+    {
+      "path": "archive-contract-result.json",
+      "size": 394,
+      "sha256": "ae198da865228ec2d6e9ad67a44171dbdcdf44fdc6c45f3b0082ac63fe550282",
+      "crc32": "4523f609"
+    },
+    {
+      "path": "completion.json",
+      "size": 312,
+      "sha256": "195a6cd88350f8c3ffa790626753fb30c169083705de41e2db4d77b2939f49c7",
+      "crc32": "f21dfbe1"
+    },
+    {
+      "path": "evidence-summary.json",
+      "size": 8898,
+      "sha256": "60476055dd5fd748506a2522728c5a7e0e7605d99c590c9711e084ec3c4f6f39",
+      "crc32": "2e819e43"
+    },
+    {
+      "path": "feedback-plan.md",
+      "size": 4326,
+      "sha256": "32530b19dfe209d5ff34b4c0e66b7141d490de0cc1929ae05a02d887b53ba235",
+      "crc32": "1fb736b2"
+    },
+    {
+      "path": "source-binding.json",
+      "size": 6006,
+      "sha256": "fa717825eeb9e99c80c840b8c28eee5520f3c7eae876dc3b28e12ad2bc3b2dac",
+      "crc32": "da579bc0"
+    }
+  ],
+  "public_scan": "Exact allowlist; no symlinks; no raw logs, credentials, private keys or profiles; only hashes and bounded aggregate facts.",
+  "scope": "Offline benchmark-source and existing evidence analysis only."
+}

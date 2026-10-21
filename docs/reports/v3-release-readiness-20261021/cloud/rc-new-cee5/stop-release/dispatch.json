@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-10-21T17:39:27.276801+00:00",
+  "finished_at": "2026-10-21T17:39:30.144444+00:00",
+  "exit_status": 0,
+  "command": [
+    "gh",
+    "workflow",
+    "run",
+    "chat-lifecycle-stop.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "-f",
+    "request_id=chat-20261021T163850Z-4ccd7506",
+    "-f",
+    "stop_authorization=operator-stop-chat-lifecycle"
+  ],
+  "automatic_retry": false
+}

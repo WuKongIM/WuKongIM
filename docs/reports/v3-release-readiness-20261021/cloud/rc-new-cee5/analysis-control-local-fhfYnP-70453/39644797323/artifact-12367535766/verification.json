@@ -1,0 +1,15 @@
+{
+  "artifact_id": 12367535766,
+  "archive_bytes": 2146,
+  "archive_sha256": "cb8c33b1c69fc4f52feebc64edfcc759e9be51cd42b06151ac896ce92fa5f393",
+  "api_digest_matches": true,
+  "all_crc_verified": true,
+  "members": [
+    {
+      "name": "preflight.json",
+      "size": 48037,
+      "sha256": "a784637f9d7f5d9f74c09430640b49bd16556dd22466ac70e4fb8492f6aa84fd",
+      "crc32": "d2c0199a"
+    }
+  ]
+}

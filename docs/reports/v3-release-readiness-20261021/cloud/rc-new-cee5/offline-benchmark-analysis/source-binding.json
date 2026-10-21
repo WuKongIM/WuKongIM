@@ -1,0 +1,171 @@
+{
+  "schema": "offline-source-binding/v1",
+  "head": "cee5d51f325fb84033060f546337d326110adae5",
+  "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "worktree_clean_before": true,
+  "rules_and_context": [
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "size": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "size": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "size": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "docs/adr/0024-protect-results-from-load-generator-saturation.md",
+      "size": 1019,
+      "sha256": "b4c7472900dc44e27f219386043073ea1867ff495bf18c8cd84a71c93ccf9792",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "docs/adr/0046-report-resource-saturation-as-a-capacity-warning.md",
+      "size": 654,
+      "sha256": "9c9752d1bded2e6f63161494d169051d292b9b21dea295e1995970dc89d2f036",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "docs/adr/0025-start-workload-only-after-cluster-readiness.md",
+      "size": 832,
+      "sha256": "9b6c59c078f4b75baad46257937a24a59b32c09b96ed9ab01b44b25c3c9dae3e",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-04-chat-lifecycle-soak-design.md",
+      "size": 25515,
+      "sha256": "9de60e6f8701bb63370dd820703dec826c155b2ceef0c48d7982c03a08576dc3",
+      "matches_exact_HEAD": true
+    }
+  ],
+  "source_files": [
+    {
+      "path": "internal/bench/chatlifecycle/verifier.go",
+      "size": 55689,
+      "sha256": "f16dcacd27b6976f3ba3e680b4bc0b3d5adaa98cc53e9b9408f5f240194e4efa",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session.go",
+      "size": 55019,
+      "sha256": "b51382894de7e306c22bb276d493b8bc605d770109103b65c6ebd6bc494b7e05",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "size": 158802,
+      "sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/worker_server.go",
+      "size": 60318,
+      "sha256": "456cc0b9f15653ca31d041d26f54bb5964f7cd2dc3a1f6715d341dd309b4b538",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "size": 9593,
+      "sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "size": 121975,
+      "sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "size": 27890,
+      "sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/live_diagnostics.go",
+      "size": 14768,
+      "sha256": "808d895a3735b7fa1509cdae64b43bf12f624b1bafd9bdecf4ae6fd34dca1fce",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "size": 16721,
+      "sha256": "aea78c57780fa71013ddb27446c9ead3a528283e2b33633ee84f43c3e3aa8988",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "size": 37534,
+      "sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/defaults.go",
+      "size": 10194,
+      "sha256": "2ee3e9b49ba0921ae02daa01ceef22a1c5b1091217afb007d9df96af8ffa6843",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "size": 21490,
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verdict.go",
+      "size": 37359,
+      "sha256": "7796e085ff8d718dc3b49ba1f9a842241a96e59f8cd46fca375f2caa21d18589",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verifier_test.go",
+      "size": 74705,
+      "sha256": "984c089d633ce6d9437eff4c87d0555bf664c44bdb0bd9fdd20ee8ed27fe1cb8",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine_test.go",
+      "size": 283525,
+      "sha256": "966503e781904dfd365ffd4e1bed3a7600cedd17e62ec8b52607e76041070b5f",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine_churn_integration_test.go",
+      "size": 10634,
+      "sha256": "55a53fb23503cf0f6d877ed7244bebfa8af6cb9c8f53d4a5d70d034f2d1f8954",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/config.go",
+      "size": 2153,
+      "sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "matches_exact_HEAD": true
+    },
+    {
+      "path": "internal/bench/wkproto/client.go",
+      "size": 30491,
+      "sha256": "d5fbf4ab07ce5aab589053a12bb0a29c440257e0d89f9c79576e4626943e1ab5",
+      "matches_exact_HEAD": true
+    }
+  ],
+  "skill": {
+    "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  },
+  "execution_limit": "Read-only source/data analysis. No product/test/binary execution, no cloud/SSH/MCP, no source edits."
+}

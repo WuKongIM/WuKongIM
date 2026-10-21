@@ -1,0 +1,9 @@
+{
+  "schema": "wukongim.chat_lifecycle.rehearsal_finalization/v1",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "outcome": "product_failure",
+  "cause": "message_loss",
+  "expected_end_at": "2026-10-22T03:05:48.909224454+08:00",
+  "observed_at": "2026-10-21T17:41:59Z",
+  "systemd_state": "failed"
+}

@@ -1,0 +1,342 @@
+{
+  "schema": "offline-benchmark-evidence/v1",
+  "source_zip_sha256": "a74b828be1a383d34bb8779bba4ed7473e51461ef6826c2d6d1a22afef415ccf",
+  "final_json_sha256": "80855a67613686c2860b9982564c516dd88f472537b8487290cd7d48ab966616",
+  "load_log_sha256": "f0a564134f69a17463cc71590625cf4fd495869594fb609230c8957ef753c3f5",
+  "measurement": {
+    "start": "2026-10-22T01:05:48.909224454+08:00",
+    "end": "2026-10-22T01:06:50.121277292+08:00",
+    "elapsed_nanoseconds": 61212052848,
+    "correlation_deadline_nanoseconds": 10000000000,
+    "first_loss_cut_elapsed_nanoseconds": 60025390115,
+    "final_after_first_loss_cut_nanoseconds": 1186662723
+  },
+  "messages": {
+    "sent": 122002,
+    "send_attempts": 122002,
+    "first_attempts": 122002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 122002,
+    "send_rejected": 0,
+    "received": 158484,
+    "receive_acknowledged": 158484,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 1,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 1339,
+    "delivered": 1338,
+    "expired": 1,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "evidence_counts": [
+    0,
+    0,
+    0,
+    1,
+    0
+  ],
+  "samples_present": false,
+  "verdict": {
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "worker_cuts": [
+    {
+      "source_line": 157,
+      "at": "2026-10-22T01:05:53.934615299+08:00",
+      "cut": "periodic",
+      "sent": 10009,
+      "send_acknowledged": 9942,
+      "received": 12918,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 158,
+      "at": "2026-10-22T01:05:58.934615259+08:00",
+      "cut": "periodic",
+      "sent": 20018,
+      "send_acknowledged": 19900,
+      "received": 25840,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 159,
+      "at": "2026-10-22T01:06:03.934614629+08:00",
+      "cut": "periodic",
+      "sent": 30016,
+      "send_acknowledged": 29907,
+      "received": 38877,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 160,
+      "at": "2026-10-22T01:06:08.934613948+08:00",
+      "cut": "periodic",
+      "sent": 40013,
+      "send_acknowledged": 39921,
+      "received": 51900,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 161,
+      "at": "2026-10-22T01:06:13.93461469+08:00",
+      "cut": "periodic",
+      "sent": 50016,
+      "send_acknowledged": 49924,
+      "received": 64915,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 162,
+      "at": "2026-10-22T01:06:18.934613959+08:00",
+      "cut": "periodic",
+      "sent": 60020,
+      "send_acknowledged": 59844,
+      "received": 77723,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 163,
+      "at": "2026-10-22T01:06:23.93461397+08:00",
+      "cut": "periodic",
+      "sent": 70021,
+      "send_acknowledged": 69890,
+      "received": 90866,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 164,
+      "at": "2026-10-22T01:06:28.934615649+08:00",
+      "cut": "periodic",
+      "sent": 80015,
+      "send_acknowledged": 79837,
+      "received": 103811,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 165,
+      "at": "2026-10-22T01:06:33.934614819+08:00",
+      "cut": "periodic",
+      "sent": 90016,
+      "send_acknowledged": 89797,
+      "received": 116404,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 166,
+      "at": "2026-10-22T01:06:38.934614839+08:00",
+      "cut": "periodic",
+      "sent": 100018,
+      "send_acknowledged": 99832,
+      "received": 128968,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 167,
+      "at": "2026-10-22T01:06:43.934614789+08:00",
+      "cut": "periodic",
+      "sent": 110014,
+      "send_acknowledged": 109809,
+      "received": 141882,
+      "losses": 0,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 168,
+      "at": "2026-10-22T01:06:48.934614569+08:00",
+      "cut": "periodic",
+      "sent": 120015,
+      "send_acknowledged": 119914,
+      "received": 155516,
+      "losses": 1,
+      "online": 10000,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    },
+    {
+      "source_line": 169,
+      "at": "2026-10-22T01:06:50.121277292+08:00",
+      "cut": "terminal",
+      "sent": 122002,
+      "send_acknowledged": 122002,
+      "received": 158484,
+      "losses": 1,
+      "online": 0,
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 10000,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness_failures": 0
+    }
+  ],
+  "limitations": [
+    "Cut labels are coordinator observation labels, not per-sample ACK/RECV/expiry timestamps.",
+    "No sample identity in the retained final report or load cuts.",
+    "No local RECV ingress/queue delay timeline for the lost sample.",
+    "Product failure/message_loss remains the original authoritative outcome."
+  ]
+}

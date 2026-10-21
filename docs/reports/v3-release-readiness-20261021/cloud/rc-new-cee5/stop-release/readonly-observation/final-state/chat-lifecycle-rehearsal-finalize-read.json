@@ -1,0 +1,8 @@
+{
+  "endpoint": "actions/workflows/chat-lifecycle-rehearsal-finalize.yml",
+  "method": "GET",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:45:37.322924+00:00",
+  "sha256": "6e1b8644f94b3d46827106ed894271b17ba418d3f390e34eaecc33863b951cb3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

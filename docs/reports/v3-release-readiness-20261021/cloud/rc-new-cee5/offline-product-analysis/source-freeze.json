@@ -1,0 +1,113 @@
+{
+  "observed_at": "2026-10-21T17:51:21.797291+00:00",
+  "source": "cee5d51f325fb84033060f546337d326110adae5",
+  "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "scope": "Read-only offline product source inspection. No product execution or change. Rules and navigation are digests only.",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "bytes": 12335
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "bytes": 3273
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    {
+      "path": "internal/infra/delivery/FLOW.md",
+      "sha256": "060a4a2e615f43bc0178d70aa5f069221ec1552379744dcee07c3462b2cd8363",
+      "bytes": 2635
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/FLOW.md",
+      "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+      "bytes": 1505
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "bytes": 2626
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "bytes": 8612
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+      "bytes": 6088
+    },
+    {
+      "path": "internal/app/online_delivery.go",
+      "sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+      "bytes": 5278
+    },
+    {
+      "path": "internal/app/delivery_wiring.go",
+      "sha256": "67c219633b1c65ba9062c03685768dfc993358c35ea0bd977ecab27000ff788b",
+      "bytes": 2666
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "bytes": 41754
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_ports.go",
+      "sha256": "b4f8c7fc64b88b06b42e4f43da00d7d8f07cbdcf22339e4b77638d16025d8118",
+      "bytes": 8842
+    },
+    {
+      "path": "internal/infra/delivery/online_presence.go",
+      "sha256": "3d740d791dafe04b4b4fb184ce27f8fdfcf03250831efb5c28bca55425655f57",
+      "bytes": 2848
+    },
+    {
+      "path": "internal/usecase/presence/lookup.go",
+      "sha256": "e32b05f35488b83c468789877547e9e8d8b4ea2347f1d842c7e3851c4e0cf13d",
+      "bytes": 2389
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "bytes": 6242
+    },
+    {
+      "path": "internal/infra/cluster/presence.go",
+      "sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "bytes": 31462
+    },
+    {
+      "path": "internal/infra/cluster/presence_directory.go",
+      "sha256": "fdfc19ceff1b1d51caa4ffa30cb04afbcba3e476fe97bb8d5cf87f9a854e5f35",
+      "bytes": 5410
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "bytes": 8454
+    },
+    {
+      "path": "internal/access/node/presence_rpc.go",
+      "sha256": "cf69cdf31e23c5bd4cd96039e6e4ed451ef4fa82ced1d61d166cd902a6c27b55",
+      "bytes": 36655
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/types.go",
+      "sha256": "6867d772c1d9d4c68bfe1052b7fbc5ff33703ca0c5a007f5ef2c8c8f4478b5b3",
+      "bytes": 4137
+    }
+  ]
+}

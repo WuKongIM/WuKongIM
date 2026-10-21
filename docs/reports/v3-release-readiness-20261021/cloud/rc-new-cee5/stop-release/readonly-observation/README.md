@@ -1,0 +1,11 @@
+# Exact Stop and zero-inventory closure
+
+Root dispatched the authorized Stop39645737564 for request `chat-20261021T163850Z-4ccd7506`. This observer performed only GitHub GET/read-only artifact verification. Stop, rehearsal finalizer39645768090, formal finalizer39645772423 and Release39646126395 all completed successfully on exact source/control `cee5d51f325fb84033060f546337d326110adae5`, attempt1. The formal finalization job was skipped; this did not start a formal Lease.
+
+**The exact rehearsal Lease reached verified zero inventory at 2026-10-21T17:43:09.4025176Z.** Release artifact12366778108 and cleanup12366858052 were fully SHA256/CRC verified. Their selector matches the original request/Lease/provider/region/repository/plan digest; the account hash matches the earlier live inventory. All12 resource scopes are present. The Release JSON SHA256 is `0740da8b300367414c189b492e8102e38cb623644637234f2bd9173bcd767f51`. The finalizer's cleanup and complete-envelope embedded zero proof are byte-identical.
+
+Complete artifact12367302003 was inspected using exact HTTP ranges: directory metadata and12 selected public JSON members only. Member CRCs and SHA256 are recorded. The full archive digest is an API declaration, not recomputed. No raw runtime log, profile, encrypted token or private SSH material was downloaded. Private tooling redirect headers/stderr are excluded from the public allowlist.
+
+The original final.json remains byte-identical to the first failure: reported product_failure/message_loss after61.212052848seconds,122002 ACKs,10000 completed syncs and one sampled loss. Stop/cleanup success does not turn this into a2hpass. The new finalization preserves that failure. Terminal capture remains incomplete because the Prometheus range exceeded4194304bytes by one sentinel byte; the manifest records one capture failure. The parent's live diagnosis assessment remains insufficient_evidence; neither analysis attempt produced an MCP Diagnosis Result.
+
+Rehearsal/formal finalizers and formal starter are disabled at the final read. Generic Release sweep remains active under its existing idle-disarm contract; no manual state change was made here. The Issue remains open with latest operator_stop_requested text despite the separately verified zero proof. Actual provider billing is unresolved; conservative quote74477600micros is not an invoice.

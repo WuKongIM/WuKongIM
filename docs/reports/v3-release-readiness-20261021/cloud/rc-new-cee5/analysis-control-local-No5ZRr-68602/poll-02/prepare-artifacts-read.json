@@ -1,0 +1,9 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39644107534/artifacts?per_page=100",
+  "method": "GET",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:30:59.047939+00:00",
+  "bytes": 1446,
+  "sha256": "a8abdee0b4c3f4fdcaccd1e1929e9b9dd3761a4ca58c5573f6aea3b9956ffa50",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

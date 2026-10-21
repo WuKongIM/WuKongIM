@@ -1,0 +1,23 @@
+{
+  "correlation": "local-No5ZRr-68602",
+  "lease": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "state": "live",
+  "inventory_count": 28,
+  "resource_counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "all_resources_match_source_and_selector": true,
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c",
+  "input_members_identical_between_inspect_and_prepare": true,
+  "preflight_sha256": "9ba0470440a8763cfa43b6d6095d57488337067541353a9c8bf5a27fe94551dd"
+}

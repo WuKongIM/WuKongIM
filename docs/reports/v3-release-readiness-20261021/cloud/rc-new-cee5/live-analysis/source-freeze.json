@@ -1,0 +1,16 @@
+{
+  "source": "cee5d51f325fb84033060f546337d326110adae5",
+  "at": "2026-10-21T17:27:13.275775+00:00",
+  "request": "chat-20261021T163850Z-4ccd7506",
+  "lease": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    ".github/workflows/README.md": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    ".github/workflows/cloud-lease-analyze.yml": "bf94f6dea7bed588e9d7435c6516fcbfa280a980513902c201c0b83a923697bb",
+    "scripts/cloud-sim/analyze.sh": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8",
+    "scripts/cloud-sim/local-runtime.sh": "c34b5d17eea64e259e80e8e3e0bdf7c0e4016feb0c2cbf5f08d445d03cfee192",
+    ".agents/skills/wukongim-cloud-analysis/SKILL.md": "23b2646053829392152e2eda308a1ced4384fbfda812b08fcdde7365b663b45c",
+    ".agents/skills/wukongim-cloud-analysis/references/tool-contract.md": "85977c8f32cc1e094887acf8b1710a14d8eb71a4884330abd36b7eb3f92784ac"
+  },
+  "scope": "Existing exact lease read-only analysis, bounded narrow Analysis grants and closure, no workload restart, no procurement."
+}

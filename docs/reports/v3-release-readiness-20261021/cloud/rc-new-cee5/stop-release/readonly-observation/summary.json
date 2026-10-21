@@ -1,0 +1,177 @@
+{
+  "billing": "Conservative quote74477600micros is not a provider invoice; provider_reported remains pending_billing_delay/unresolved.",
+  "formal_finalize_job": "skipped; no formal transition emitted by this Stop path",
+  "issue": {
+    "comments": 3,
+    "latest_comment": "<!-- chat-lifecycle:chat-20261021T163850Z-4ccd7506:operator_stop_requested -->\nstate=operator_stop_requested\nobserved_at_utc=2026-10-21T17:39:45Z\nobserved_at_asia_shanghai=2026-10-22T01:39:45+0800\nrun=https://github.com/WuKongIM/WuKongIM/actions/runs/39645737564",
+    "note": "Exact zero proof is authoritative cleanup evidence; Issue text remains operator_stop_requested as observed.",
+    "state": "open"
+  },
+  "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "observed_at": "2026-10-21T17:47:09.012602+00:00",
+  "operator_diagnosis_assessment": "insufficient_evidence; not a schema-validated MCP diagnosis result",
+  "operator_stop_marker": {
+    "observed_at": "2026-10-21T17:39:39Z",
+    "outcome": "operator_stop",
+    "request_id": "chat-20261021T163850Z-4ccd7506",
+    "schema": "wukongim.chat_lifecycle.operator_stop/v1"
+  },
+  "release": {
+    "account_hash_equal_to_live_inventory": true,
+    "artifact_id": 12366778108,
+    "cleanup_artifact_id": 12366858052,
+    "complete_embedded_proof_identical": true,
+    "release_json_sha256": "0740da8b300367414c189b492e8102e38cb623644637234f2bd9173bcd767f51",
+    "run_id": 39646126395,
+    "scopes": [
+      "disk_attachments",
+      "disks",
+      "eip_associations",
+      "eips",
+      "enis",
+      "instances",
+      "nat_gateways",
+      "route_entries",
+      "security_group_rules",
+      "security_groups",
+      "vpcs",
+      "vswitches"
+    ],
+    "selector_equal_to_original": true,
+    "zero_observed_at": "2026-10-21T17:43:09.4025176Z"
+  },
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "runs": [
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:39:29Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39645737564,
+      "status": "completed",
+      "title": "Chat Lifecycle Stop chat-20261021T163850Z-4ccd7506",
+      "updated_at": "2026-10-21T17:39:48Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39645737564"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:39:42Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39645768090,
+      "status": "completed",
+      "title": "Chat Lifecycle Rehearsal Finalizer chat-20261021T163850Z-4ccd7506",
+      "updated_at": "2026-10-21T17:43:46Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39645768090"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:39:44Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39645772423,
+      "status": "completed",
+      "title": "Chat Lifecycle Formal Finalizer chat-20261021T163850Z-4ccd7506",
+      "updated_at": "2026-10-21T17:40:26Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39645772423"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:42:06Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39646126395,
+      "status": "completed",
+      "title": "Cloud Lease Release chat-20261021T163850Z-4ccd7506",
+      "updated_at": "2026-10-21T17:43:14Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39646126395"
+    }
+  ],
+  "scope": "Read-only GitHub GET; no dispatch, cancel, stop, provider/SSH/MCP call, state mutation or private runtime/ciphertext download. Root owns the authorized Stop.",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "terminal": {
+    "capture_failures": 1,
+    "complete_artifact_id": 12367302003,
+    "elapsed_seconds": 61.212052848,
+    "evidence_complete": false,
+    "finalization": {
+      "cause": "message_loss",
+      "expected_end_at": "2026-10-22T03:05:48.909224454+08:00",
+      "observed_at": "2026-10-21T17:41:59Z",
+      "outcome": "product_failure",
+      "request_id": "chat-20261021T163850Z-4ccd7506",
+      "schema": "wukongim.chat_lifecycle.rehearsal_finalization/v1",
+      "systemd_state": "failed"
+    },
+    "finalizer_job_completed_at": "2026-10-21T17:43:25Z",
+    "full_archive_sha256_recomputed": false,
+    "losses": 1,
+    "manifest": {
+      "assembled_at": "2026-10-21T17:43:18Z",
+      "cost": {
+        "conservative_quote_micros": 74477600,
+        "provider_reported": {
+          "state": "pending_billing_delay",
+          "unresolved": true
+        }
+      },
+      "evidence": {
+        "cleanup": "cleanup/zero-inventory.json",
+        "terminal": "terminal/evidence/manifest.json"
+      },
+      "request_id": "chat-20261021T163850Z-4ccd7506",
+      "schema": "wukongim.chat_lifecycle.complete_evidence/v1",
+      "stage": "rehearsal",
+      "zero_inventory": true
+    },
+    "member_checks": "Selected12publicJSONmembers via exactHTTPRange andCRC32; APIdeclared ZIPdigest retained, no rawlog/profile/ciphertext bytes read.",
+    "missing_capture": {
+      "bytes": 4194305,
+      "class": "metrics",
+      "name": "range",
+      "state": "oversized"
+    },
+    "original_report_bytes_preserved": [
+      {
+        "path": "terminal/final.json",
+        "same_as_first_failure": true,
+        "sha256": "80855a67613686c2860b9982564c516dd88f472537b8487290cd7d48ab966616"
+      },
+      {
+        "path": "terminal/run-start.json",
+        "same_as_first_failure": true,
+        "sha256": "dadfba49cf6e0bff7cd5ac704ad9e2b0c6eb7b29b4e2e848861f927e97c02570"
+      },
+      {
+        "path": "terminal/handoff.json",
+        "same_as_first_failure": true,
+        "sha256": "d5ec0a4eaeafef3276c57dec0fda6aa43a1d95dccb97cc0952a757641bbaff9f"
+      },
+      {
+        "path": "terminal/run-plan.json",
+        "same_as_first_failure": true,
+        "sha256": "769d8819a7e29a61a6ce9828b1a34672f48b28fca3e27e03814c89eff5e7302c"
+      },
+      {
+        "path": "terminal/quote.json",
+        "same_as_first_failure": true,
+        "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917"
+      },
+      {
+        "path": "terminal/receipt.json",
+        "same_as_first_failure": true,
+        "sha256": "49d2851054312349017c8e8b8f2734cc16b65861e1b82ccada4165fb5d7b0dbf"
+      }
+    ],
+    "reported_cause": "message_loss",
+    "reported_verdict": "product_failure",
+    "sent_and_acknowledged": 122002,
+    "sync_completed": 10000
+  },
+  "workflow_states": {
+    "chat-lifecycle-formal": "disabled_manually",
+    "chat-lifecycle-formal-finalize": "disabled_manually",
+    "chat-lifecycle-rehearsal-finalize": "disabled_manually",
+    "cloud-lease-release": "active"
+  }
+}

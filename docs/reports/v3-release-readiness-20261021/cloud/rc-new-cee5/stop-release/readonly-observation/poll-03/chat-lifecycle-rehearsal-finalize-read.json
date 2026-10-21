@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/chat-lifecycle-rehearsal-finalize.yml/runs?per_page=20&created=%3E%3D2026-10-21T17%3A39%3A20Z",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:44:57.912458+00:00",
+  "bytes": 15079,
+  "sha256": "c7a812eecdcf8214df4501bba29785163ee027250ce4ff8054fae27d654e22d5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,23 @@
+{
+  "artifact_id": 12366057952,
+  "artifact_name": "chat-lifecycle-analysis-input-local-No5ZRr-68602",
+  "observed_at": "2026-10-21T17:30:31.609664+00:00",
+  "archive_bytes": 876,
+  "archive_sha256": "f4494995b01c941c9fb38f169a13f94762bf4111a3bc066913137cd2bcd810ca",
+  "api_digest_matches": true,
+  "all_crc_verified": true,
+  "members": [
+    {
+      "name": "analysis-endpoint.json",
+      "size": 576,
+      "sha256": "1aa665f014b1c36261e7f922506719afa5e6d6e93bd8e2a25f061bbaea0bb585",
+      "crc32": "3e1311af"
+    },
+    {
+      "name": "release-selector.json",
+      "size": 319,
+      "sha256": "347f4ace5e207350a900a95cde537e59d1111ae1a16ce859633df3845991c733",
+      "crc32": "64e2031f"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "source_commit": "cee5d51f325fb84033060f546337d326110adae5",
+  "files": [
+    {
+      "path": ".github/workflows/README.md",
+      "size": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-analyze.yml",
+      "size": 30614,
+      "sha256": "bf94f6dea7bed588e9d7435c6516fcbfa280a980513902c201c0b83a923697bb"
+    },
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "applicable_root_AGENTS_frozen": true,
+  "actions_contract_read": ".github/workflows/README.md",
+  "production_implementation_not_changed": true
+}

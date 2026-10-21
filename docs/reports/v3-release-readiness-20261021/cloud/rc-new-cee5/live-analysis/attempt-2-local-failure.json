@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-21T17:39:15.139783+00:00",
+  "exit_status": 1,
+  "correlation": "local-fhfYnP-70453",
+  "inspect": 39644797323,
+  "prepare": 39644968427,
+  "close": 39645628548,
+  "health_attempts": 12,
+  "curl_statuses": [
+    28,
+    28,
+    28,
+    28,
+    28,
+    28,
+    28,
+    28,
+    28,
+    28,
+    28,
+    28
+  ],
+  "mcp_queries": 0,
+  "validated_diagnosis_result": false,
+  "operator_verdict": "insufficient_evidence",
+  "severity": "none",
+  "root_cause_scope": "unknown",
+  "explanation": "Provider-bound live inventory and prepared session succeeded, but the local pinned TLS MCP endpoint never connected. No run_inspect or metrics query executed. Traffic remains failed/stopped; no load restart.",
+  "stderr_sha256": "d404bd69d5a28e89474824408a507f3e43d105250c80fc463df8d3e337e4abf5"
+}

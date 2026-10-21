@@ -1,0 +1,156 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 119382063709,
+      "run_id": 39646126395,
+      "workflow_name": "Cloud Lease Release chat-20261021T163850Z-4ccd7506",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39646126395",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAby7m6XQ",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119382063709",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39646126395/job/119382063709",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:42:07Z",
+      "started_at": "2026-10-21T17:42:10Z",
+      "completed_at": "2026-10-21T17:43:14Z",
+      "name": "Delete only exact tagged Lease inventory",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T17:42:11Z",
+          "completed_at": "2026-10-21T17:42:13Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T17:42:13Z",
+          "completed_at": "2026-10-21T17:42:18Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T17:42:18Z",
+          "completed_at": "2026-10-21T17:42:28Z"
+        },
+        {
+          "name": "Validate exact cleanup authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T17:42:28Z",
+          "completed_at": "2026-10-21T17:42:28Z"
+        },
+        {
+          "name": "Run go build -trimpath -o \"$RUNNER_TEMP/wkcloudlease\" ./cmd/wkcloudlease",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T17:42:28Z",
+          "completed_at": "2026-10-21T17:42:30Z"
+        },
+        {
+          "name": "Exchange exact Releaser OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T17:42:30Z",
+          "completed_at": "2026-10-21T17:42:31Z"
+        },
+        {
+          "name": "Release and retain residual evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T17:42:31Z",
+          "completed_at": "2026-10-21T17:43:09Z"
+        },
+        {
+          "name": "Upload release or residual proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T17:43:09Z",
+          "completed_at": "2026-10-21T17:43:10Z"
+        },
+        {
+          "name": "Post Exchange exact Releaser OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T17:43:10Z",
+          "completed_at": "2026-10-21T17:43:10Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T17:43:10Z",
+          "completed_at": "2026-10-21T17:43:11Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T17:43:11Z",
+          "completed_at": "2026-10-21T17:43:11Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T17:43:11Z",
+          "completed_at": "2026-10-21T17:43:11Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119382063709",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024478,
+      "runner_name": "GitHub Actions 1000024478",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 119382625322,
+      "run_id": 39646126395,
+      "workflow_name": "Cloud Lease Release chat-20261021T163850Z-4ccd7506",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39646126395",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAby8JMKg",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119382625322",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39646126395/job/119382625322",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-21T17:43:14Z",
+      "started_at": "2026-10-21T17:43:14Z",
+      "completed_at": "2026-10-21T17:43:14Z",
+      "name": "Disable idle generic Cloud Lease sweep",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119382625322",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    }
+  ]
+}

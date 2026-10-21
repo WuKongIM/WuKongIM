@@ -1,0 +1,15 @@
+{
+  "ended_at": "2026-10-21T17:33:01.117180+00:00",
+  "exit_status": 1,
+  "correlation": "local-No5ZRr-68602",
+  "inspect": 39643960558,
+  "prepare": 39644107534,
+  "close": 39644512227,
+  "failure": "No compatible CLI selected: PATH codex0.134.0; old app path absent. No MCP query and no token decryption occurred.",
+  "stderr_sha256": "5376a38b7e5cbd97825ebb1e6725c17165e371cc209eea83655bb194f5c92f8c",
+  "replacement": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+  "replacement_version": "0.163.0-alpha.10.2",
+  "replacement_required_flags_present": true,
+  "replacement_login_status": "Logged in using ChatGPT",
+  "action": "Use existing WK_CODEX_BIN override for a new bounded analysis correlation after confirmed close. No install, repository change or workload restart."
+}

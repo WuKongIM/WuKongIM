@@ -1,0 +1,11 @@
+# Analysis control session local-No5ZRr-68602
+
+Read-only observation of exact Lease `chat-20261021T163850Z-4ccd7506-rehearsal-1`, source/control `cee5d51f325fb84033060f546337d326110adae5`. Inspect [39643960558](https://github.com/WuKongIM/WuKongIM/actions/runs/39643960558), prepare [39644107534](https://github.com/WuKongIM/WuKongIM/actions/runs/39644107534), and close [39644512227](https://github.com/WuKongIM/WuKongIM/actions/runs/39644512227) all completed successfully, attempt 1, with the exact correlation in each title.
+
+The fully SHA/CRC-verified preflight reports live inventory: 28 resources including four instances, eight disks, one EIP, four disk attachments, four ENIs, one EIP association, one security group, three rules, one VPC and one vSwitch. Every resource tag matches the source, request, Lease, provider, region, repository and exact plan digest. The authenticated endpoint and selector are identical in all three operations; all four small non-secret ZIPs were fully hash/CRC checked.
+
+Prepare's client validation, narrow runner grant, identity exchange/encryption and runner cleanup steps succeeded. The pinned workflow restricts both correlation-named grants to load-role TCP19444 and one IPv4 /32; runner duration is ten minutes, client expiry follows the issued token. Exact dynamic addresses/expiry were not independently retrieved. Close job119376562034's idempotent runner/client revocation step succeeded. This is control-plane revocation evidence, not a fresh post-close inventory proof or Lease release.
+
+Session artifact12366282899 was not downloaded. A HEAD-only attempt to obtain a range-read redirect stopped because gh returned only final headers; no session body or encrypted-token bytes were read. The original reader and its local failure are retained. Session metadata remains unverified. The operator separately reported local exit1 due to Codex version/path admission; no token decryption or MCP call occurred. That local result is parent-reported, not independently inspected.
+
+No private logs, diagnostic private directories, token ciphertext, provider access, workflow mutation or new analysis operation was performed by this observer. Earlier cloud workload failure remains a separate result.

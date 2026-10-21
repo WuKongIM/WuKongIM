@@ -1,0 +1,126 @@
+{
+  "bounded_grant_contract": {
+    "client_grant": "analysis-local-No5ZRr-68602-client",
+    "client_until": "token expiry (source contract; exact value not independently read)",
+    "port_from": 19444,
+    "port_to": 19444,
+    "protocol": "tcp",
+    "runner_grant": "analysis-local-No5ZRr-68602-runner",
+    "runner_until": "creation plus 10 minutes (source contract; exact value not independently read)",
+    "source_lines": [
+      374,
+      435,
+      511,
+      574
+    ],
+    "source_path": ".github/workflows/cloud-lease-analyze.yml",
+    "source_prefix": "exact runner/client IPv4 /32",
+    "target_role": "load"
+  },
+  "close": {
+    "completed_at": "2026-10-21T17:32:28Z",
+    "control_revocation_success": true,
+    "independent_post_close_provider_inventory_read": false,
+    "job_id": 119376562034,
+    "lease_release_or_zero_inventory_claimed": false,
+    "revoke_step": {
+      "completed_at": "2026-10-21T17:32:25Z",
+      "conclusion": "success",
+      "name": "Revoke exact runner and client grants idempotently",
+      "number": 7,
+      "started_at": "2026-10-21T17:31:53Z",
+      "status": "completed"
+    }
+  },
+  "correlation": "local-No5ZRr-68602",
+  "inspect_prepare_close_inputs_identical": true,
+  "inventory": {
+    "all_resources_match_source_and_selector": true,
+    "correlation": "local-No5ZRr-68602",
+    "input_members_identical_between_inspect_and_prepare": true,
+    "inventory_count": 28,
+    "lease": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+    "plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c",
+    "preflight_sha256": "9ba0470440a8763cfa43b6d6095d57488337067541353a9c8bf5a27fe94551dd",
+    "resource_counts": {
+      "disk": 8,
+      "disk-attachment": 4,
+      "eip": 1,
+      "eip-association": 1,
+      "eni": 4,
+      "instance": 4,
+      "security-group": 1,
+      "security-rule": 3,
+      "vpc": 1,
+      "vswitch": 1
+    },
+    "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "state": "live"
+  },
+  "lease": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "limitations": [
+    "Actions run head and authenticated public input prove the control/source identity; raw job logs were not fetched for an additional git checkout echo.",
+    "Prepare step success is not an independently read session receipt or successful local MCP session.",
+    "Close proves the exact revocation command step succeeded; it is not a new provider inventory proof and does not release the paid Lease."
+  ],
+  "local_observer_limit": {
+    "encrypted_token_bytes_downloaded": false,
+    "exception_type": "AssertionError",
+    "local_observer_failure": true,
+    "phase": "HEAD redirect discovery",
+    "reason": "gh api HEAD returned only final response headers; no Location present. Stopped before any HTTP range/data read.",
+    "session_artifact_body_bytes_downloaded": 0
+  },
+  "observed_at": "2026-10-21T17:33:46.543367+00:00",
+  "operator_reported_local_result": {
+    "exit_code": 1,
+    "mcp_used": false,
+    "private_temporary_directory_removed": true,
+    "reason": "PATH Codex0.134 below required0.140 and former bundled binary absent",
+    "source": "parent message; not independently inspected",
+    "token_decrypted": false
+  },
+  "prepare": {
+    "client_validation": "success",
+    "encrypted_token_downloaded": false,
+    "identity_exchange_and_encrypt": "success",
+    "runner_cleanup": "success",
+    "runner_exchange_window": "success",
+    "session_artifact_id": 12366282899,
+    "session_metadata_independently_read": false
+  },
+  "runs": [
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:27:30Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39643960558,
+      "operation": "inspect",
+      "updated_at": "2026-10-21T17:28:22Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39643960558"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:28:30Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39644107534,
+      "operation": "prepare",
+      "updated_at": "2026-10-21T17:31:05Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39644107534"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:31:11Z",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "id": 39644512227,
+      "operation": "close",
+      "updated_at": "2026-10-21T17:32:29Z",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39644512227"
+    }
+  ],
+  "scope": "GitHub GET and bounded non-secret artifact members only; no dispatch, cancel, rerun, provider operation, SSH, token decryption, private temp read or MCP call.",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5"
+}

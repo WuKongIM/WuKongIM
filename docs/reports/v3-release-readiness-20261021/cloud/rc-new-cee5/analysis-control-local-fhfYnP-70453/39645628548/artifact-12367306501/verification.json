@@ -1,0 +1,22 @@
+{
+  "artifact_id": 12367306501,
+  "archive_bytes": 876,
+  "archive_sha256": "2092729220211d9053ec2a079d554517aaf22f1f88014120605efd1fced02837",
+  "api_digest_matches": true,
+  "all_crc_verified": true,
+  "members_identical_to_inspect_and_prepare": true,
+  "members": [
+    {
+      "name": "analysis-endpoint.json",
+      "size": 576,
+      "sha256": "1aa665f014b1c36261e7f922506719afa5e6d6e93bd8e2a25f061bbaea0bb585",
+      "crc32": "3e1311af"
+    },
+    {
+      "name": "release-selector.json",
+      "size": 319,
+      "sha256": "347f4ace5e207350a900a95cde537e59d1111ae1a16ce859633df3845991c733",
+      "crc32": "64e2031f"
+    }
+  ]
+}

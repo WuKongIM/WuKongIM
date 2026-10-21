@@ -1,0 +1,18 @@
+{
+  "schema": "wukongim.chat_lifecycle.complete_evidence/v1",
+  "stage": "rehearsal",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "assembled_at": "2026-10-21T17:43:18Z",
+  "zero_inventory": true,
+  "evidence": {
+    "terminal": "terminal/evidence/manifest.json",
+    "cleanup": "cleanup/zero-inventory.json"
+  },
+  "cost": {
+    "conservative_quote_micros": 74477600,
+    "provider_reported": {
+      "state": "pending_billing_delay",
+      "unresolved": true
+    }
+  }
+}

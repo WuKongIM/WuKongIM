@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-21T17:39:15.139783+00:00",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "reason": "The workload failed after61.212seconds; the bounded local diagnosis could not connect. Preserve final evidence and release the exact authorized Lease now rather than retain idle paid hosts.",
+  "authority": "User authorized this exact request with final cleanup; no new procurement.",
+  "prior_stop_dispatch_for_this_request": false
+}

@@ -1,0 +1,778 @@
+{
+  "schema": "wukongim.offline-terminal-evidence-inventory/v1",
+  "scope": "Read-only inventory of original terminal ZIP; no source analysis, cloud, SSH, MCP, process launch, or new profile collection.",
+  "zip": {
+    "sha256": "a74b828be1a383d34bb8779bba4ed7473e51461ef6826c2d6d1a22afef415ccf",
+    "bytes": 855906,
+    "members": 29,
+    "uncompressed_bytes": 1119200,
+    "all_sha_crc_size_path_checks_passed": true
+  },
+  "manifest": {
+    "observed_at": "2026-10-21T17:20:11Z",
+    "complete": false,
+    "capture_failures": 1,
+    "uncollected": [
+      {
+        "class": "metrics",
+        "name": "range",
+        "state": "oversized",
+        "bytes": 4194305
+      }
+    ]
+  },
+  "measurement": {
+    "start_utc": "2026-10-21T17:05:48.909224Z",
+    "end_utc": "2026-10-21T17:06:50.121277Z",
+    "end_plus90_utc": "2026-10-21T17:08:20.121277Z",
+    "original_window": {
+      "start": "2026-10-22T01:05:48.909224454+08:00",
+      "warmup_end": "2026-10-22T03:05:48.909224454+08:00",
+      "qualification_at": "2026-10-23T01:05:48.909224454+08:00",
+      "final_at": "2026-10-22T03:05:48.909224454+08:00",
+      "end": "2026-10-22T01:06:50.121277292+08:00",
+      "elapsed": 61212052848
+    }
+  },
+  "log_inventory": [
+    {
+      "host": "load",
+      "member": "evidence/logs/load.log",
+      "manifest_state": "collected",
+      "lines": 173,
+      "timestamped_lines": 173,
+      "first_event_utc": "2026-10-21T17:01:33Z",
+      "last_event_utc": "2026-10-21T17:06:50Z",
+      "journal_timestamp_resolution": "seconds",
+      "measurement_overlapping_second_buckets": 17,
+      "post_end_second_buckets_before_plus90": 0,
+      "measurement_plus90_collection_coverage_verified": false,
+      "collector_requested_window": null,
+      "file_capture_timestamp": null,
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        20,
+        0
+      ],
+      "delivery_plan_incomplete_count": 0,
+      "delivery_phase_counts": {},
+      "delivery_result_counts": {},
+      "delivery_first_utc": null,
+      "delivery_last_utc": null,
+      "message_or_correlation_identity_fields": [],
+      "observed_event_line_counts": {
+        "oom": 0,
+        "restart": 0,
+        "panic": 0
+      },
+      "actual_global_oom_restart_panic_counts": null
+    },
+    {
+      "host": "service-1",
+      "member": "evidence/logs/service-1.log",
+      "manifest_state": "collected",
+      "lines": 150,
+      "timestamped_lines": 150,
+      "first_event_utc": "2026-10-21T17:01:17Z",
+      "last_event_utc": "2026-10-21T17:06:46Z",
+      "journal_timestamp_resolution": "seconds",
+      "measurement_overlapping_second_buckets": 22,
+      "post_end_second_buckets_before_plus90": 0,
+      "measurement_plus90_collection_coverage_verified": false,
+      "collector_requested_window": null,
+      "file_capture_timestamp": null,
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        19,
+        6
+      ],
+      "delivery_plan_incomplete_count": 22,
+      "delivery_phase_counts": {
+        "presence": 22
+      },
+      "delivery_result_counts": {
+        "timeout": 22
+      },
+      "delivery_first_utc": "2026-10-21T17:06:39.993000Z",
+      "delivery_last_utc": "2026-10-21T17:06:46.679000Z",
+      "message_or_correlation_identity_fields": [],
+      "observed_event_line_counts": {
+        "oom": 0,
+        "restart": 0,
+        "panic": 0
+      },
+      "actual_global_oom_restart_panic_counts": null
+    },
+    {
+      "host": "service-2",
+      "member": "evidence/logs/service-2.log",
+      "manifest_state": "collected",
+      "lines": 139,
+      "timestamped_lines": 139,
+      "first_event_utc": "2026-10-21T17:01:23Z",
+      "last_event_utc": "2026-10-21T17:06:46Z",
+      "journal_timestamp_resolution": "seconds",
+      "measurement_overlapping_second_buckets": 12,
+      "post_end_second_buckets_before_plus90": 0,
+      "measurement_plus90_collection_coverage_verified": false,
+      "collector_requested_window": null,
+      "file_capture_timestamp": null,
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        19,
+        24
+      ],
+      "delivery_plan_incomplete_count": 12,
+      "delivery_phase_counts": {
+        "presence": 12
+      },
+      "delivery_result_counts": {
+        "timeout": 12
+      },
+      "delivery_first_utc": "2026-10-21T17:06:39.976000Z",
+      "delivery_last_utc": "2026-10-21T17:06:46.848000Z",
+      "message_or_correlation_identity_fields": [],
+      "observed_event_line_counts": {
+        "oom": 0,
+        "restart": 0,
+        "panic": 0
+      },
+      "actual_global_oom_restart_panic_counts": null
+    },
+    {
+      "host": "service-3",
+      "member": "evidence/logs/service-3.log",
+      "manifest_state": "collected",
+      "lines": 139,
+      "timestamped_lines": 139,
+      "first_event_utc": "2026-10-21T17:01:29Z",
+      "last_event_utc": "2026-10-21T17:06:46Z",
+      "journal_timestamp_resolution": "seconds",
+      "measurement_overlapping_second_buckets": 13,
+      "post_end_second_buckets_before_plus90": 0,
+      "measurement_plus90_collection_coverage_verified": false,
+      "collector_requested_window": null,
+      "file_capture_timestamp": null,
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        19,
+        44
+      ],
+      "delivery_plan_incomplete_count": 13,
+      "delivery_phase_counts": {
+        "presence": 13
+      },
+      "delivery_result_counts": {
+        "timeout": 13
+      },
+      "delivery_first_utc": "2026-10-21T17:06:40.012000Z",
+      "delivery_last_utc": "2026-10-21T17:06:46.454000Z",
+      "message_or_correlation_identity_fields": [],
+      "observed_event_line_counts": {
+        "oom": 0,
+        "restart": 0,
+        "panic": 0
+      },
+      "actual_global_oom_restart_panic_counts": null
+    }
+  ],
+  "system_inventory": [
+    {
+      "host": "load",
+      "member": "evidence/system/load.txt",
+      "capture_timestamp": null,
+      "manifest_observed_at": "2026-10-21T17:20:11Z",
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        20,
+        4
+      ],
+      "missing_timestamp_reason": "No per-file capture timestamp in text or manifest; ZIP mtime is metadata, timezone and capture meaning are unproven.",
+      "units": [
+        {
+          "Id": "wkbench-host-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-worker@1.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-worker@2.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-worker@3.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-rehearsal.service",
+          "ActiveState": "failed",
+          "SubState": "failed",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "exit-code",
+          "ExecMainCode": "1",
+          "ExecMainStatus": "7",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "prometheus.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkanalysis.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "caddy.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "node-exporter.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-process-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-evidence.timer",
+          "ActiveState": "active",
+          "SubState": "waiting",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": null,
+          "Result": "success",
+          "ExecMainCode": null,
+          "ExecMainStatus": null,
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        }
+      ]
+    },
+    {
+      "host": "service-1",
+      "member": "evidence/system/service-1.txt",
+      "capture_timestamp": null,
+      "manifest_observed_at": "2026-10-21T17:20:11Z",
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        19,
+        10
+      ],
+      "missing_timestamp_reason": "No per-file capture timestamp in text or manifest; ZIP mtime is metadata, timezone and capture meaning are unproven.",
+      "units": [
+        {
+          "Id": "wukongim.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-host-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "node-exporter.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-process-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-evidence.timer",
+          "ActiveState": "active",
+          "SubState": "waiting",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": null,
+          "Result": "success",
+          "ExecMainCode": null,
+          "ExecMainStatus": null,
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        }
+      ]
+    },
+    {
+      "host": "service-2",
+      "member": "evidence/system/service-2.txt",
+      "capture_timestamp": null,
+      "manifest_observed_at": "2026-10-21T17:20:11Z",
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        19,
+        30
+      ],
+      "missing_timestamp_reason": "No per-file capture timestamp in text or manifest; ZIP mtime is metadata, timezone and capture meaning are unproven.",
+      "units": [
+        {
+          "Id": "wukongim.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-host-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "node-exporter.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-process-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-evidence.timer",
+          "ActiveState": "active",
+          "SubState": "waiting",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": null,
+          "Result": "success",
+          "ExecMainCode": null,
+          "ExecMainStatus": null,
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        }
+      ]
+    },
+    {
+      "host": "service-3",
+      "member": "evidence/system/service-3.txt",
+      "capture_timestamp": null,
+      "manifest_observed_at": "2026-10-21T17:20:11Z",
+      "zip_mtime_unzoned": [
+        2026,
+        10,
+        21,
+        17,
+        19,
+        48
+      ],
+      "missing_timestamp_reason": "No per-file capture timestamp in text or manifest; ZIP mtime is metadata, timezone and capture meaning are unproven.",
+      "units": [
+        {
+          "Id": "wukongim.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wkbench-host-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "node-exporter.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-process-metrics.service",
+          "ActiveState": "active",
+          "SubState": "running",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": "0",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        },
+        {
+          "Id": "wukongim-evidence.timer",
+          "ActiveState": "active",
+          "SubState": "waiting",
+          "MainPID": null,
+          "ExecMainStartTimestamp": null,
+          "NRestarts": null,
+          "Result": "success",
+          "ExecMainCode": null,
+          "ExecMainStatus": null,
+          "OOMKilled": null,
+          "OOMPolicy": null,
+          "MemoryCurrent": null,
+          "MemoryPeak": null
+        }
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "member": "evidence/profiles/service-1-heap.pprof",
+      "bytes": 270529,
+      "sha256": "8418e1ac06761a0e3b743f24294bcb8d11c04642089743f65ef3c98ed0074bec",
+      "crc32": "ff7b58fd",
+      "manifest_size_matches": true,
+      "extracted": false,
+      "pprof_semantics_parsed": false
+    },
+    {
+      "member": "evidence/profiles/service-1-goroutine.pprof",
+      "bytes": 11218,
+      "sha256": "f5bf72dc74992f22178fec4620f11341f9b8de60f628b541bfff644a568c645f",
+      "crc32": "1db36962",
+      "manifest_size_matches": true,
+      "extracted": false,
+      "pprof_semantics_parsed": false
+    },
+    {
+      "member": "evidence/profiles/service-2-heap.pprof",
+      "bytes": 259634,
+      "sha256": "f9d38d76eccf789474534c30caf162e108461615d166fb9d50bd1a4f360bb554",
+      "crc32": "d6293dde",
+      "manifest_size_matches": true,
+      "extracted": false,
+      "pprof_semantics_parsed": false
+    },
+    {
+      "member": "evidence/profiles/service-2-goroutine.pprof",
+      "bytes": 10895,
+      "sha256": "2713cfd98b9813b18ac5adee88e9f0f13f67aea4deb4b67e55fab4ebe1a9612e",
+      "crc32": "624eb603",
+      "manifest_size_matches": true,
+      "extracted": false,
+      "pprof_semantics_parsed": false
+    },
+    {
+      "member": "evidence/profiles/service-3-heap.pprof",
+      "bytes": 257703,
+      "sha256": "0f056e0f277d0036105cdde32adc1819affe5a67284e0e1d6143f562e776a031",
+      "crc32": "97e87520",
+      "manifest_size_matches": true,
+      "extracted": false,
+      "pprof_semantics_parsed": false
+    },
+    {
+      "member": "evidence/profiles/service-3-goroutine.pprof",
+      "bytes": 10892,
+      "sha256": "a8c92dca328efe821b6e02acad57b5fc38689b4808e0d0f7bfc8bfb0fd2cc115",
+      "crc32": "b11df489",
+      "manifest_size_matches": true,
+      "extracted": false,
+      "pprof_semantics_parsed": false
+    }
+  ],
+  "sample_identity": {
+    "final_aggregate": {
+      "window": {
+        "start": "2026-10-22T01:05:48.909224454+08:00",
+        "warmup_end": "2026-10-22T03:05:48.909224454+08:00",
+        "qualification_at": "2026-10-23T01:05:48.909224454+08:00",
+        "final_at": "2026-10-22T03:05:48.909224454+08:00",
+        "end": "2026-10-22T01:06:50.121277292+08:00",
+        "elapsed": 61212052848
+      },
+      "correlation": {
+        "pending_unfinished": 0,
+        "outstanding": 0,
+        "sampled": 1339,
+        "delivered": 1338,
+        "expired": 1,
+        "duplicate_completions": 0,
+        "conflicting_completions": 0,
+        "unknown_acknowledgments": 0
+      },
+      "messages_losses": 1,
+      "verdict_outcome": "product_failure",
+      "verdict_cause": "message_loss"
+    },
+    "concrete_expired_message_or_correlation_event_present": false,
+    "identified_sample_id": null,
+    "presence_timeout_can_be_bound_to_expired_sample": false,
+    "limit": "47 presence/durable timeout events contain UID but no sample/message/correlation ID. Final report contains only aggregate sampled/delivered/expired counts. No causal link is established."
+  },
+  "minimal_redacted_supporting_lines": [
+    {
+      "member": "evidence/logs/load.log",
+      "line": 170,
+      "time_utc": "2026-10-21T17:06:50Z",
+      "redacted_line": "2026-10-22T01:06:50+08:00 <HOST> run-chat-lifecycle-stage.sh[PID]: chat-lifecycle outcome=product_failure cause=message_loss report=/var/lib/wukongim-cloud/reports/rehearsal/final.json"
+    },
+    {
+      "member": "evidence/logs/service-2.log",
+      "line": 128,
+      "time_utc": "2026-10-21T17:06:39.976000Z",
+      "event": "internal.app.delivery.plan_incomplete",
+      "result": "timeout",
+      "phase": "presence",
+      "mode": "durable",
+      "recipients": 471,
+      "error": "context deadline exceeded",
+      "message_or_correlation_id_present": false,
+      "redacted_line": "2026-10-22T01:06:39+08:00 <HOST> wukongim[PID]: 2026-10-22 01:06:39.976        WARN        [delivery]        app/online_delivery.go:59        online delivery plan incomplete        {\"event\": \"internal.app.delivery.plan_incomplete\", \"result\": \"timeout\", \"phase\": \"presence\", \"mode\": \"durable\", \"recipients\": 471, \"uid\": \"<REDACTED>\", \"ownerNodeID\": 0, \"error\": \"context deadline exceeded\"}"
+    },
+    {
+      "member": "evidence/logs/service-2.log",
+      "line": 139,
+      "time_utc": "2026-10-21T17:06:46.848000Z",
+      "event": "internal.app.delivery.plan_incomplete",
+      "result": "timeout",
+      "phase": "presence",
+      "mode": "durable",
+      "recipients": 512,
+      "error": "context deadline exceeded",
+      "message_or_correlation_id_present": false,
+      "redacted_line": "2026-10-22T01:06:46+08:00 <HOST> wukongim[PID]: 2026-10-22 01:06:46.848        WARN        [delivery]        app/online_delivery.go:59        online delivery plan incomplete        {\"event\": \"internal.app.delivery.plan_incomplete\", \"result\": \"timeout\", \"phase\": \"presence\", \"mode\": \"durable\", \"recipients\": 512, \"uid\": \"<REDACTED>\", \"ownerNodeID\": 0, \"error\": \"context deadline exceeded\"}"
+    }
+  ],
+  "limits": [
+    "Manifest observed_at is collector-level completion observation, not each file capture time.",
+    "No collector command, requested journal window, cursor, or explicit end-of-window proof is in this ZIP. Event timestamps and ZIP mtime cannot substitute.",
+    "No entries after the failure second are present. This does not prove collection omitted the next 90 seconds; the period may have no emitted records.",
+    "Zero observed OOM/restart/panic matching lines refers only to retained four unit logs. Kernel logs/full requested-window coverage are not established; global counts remain unknown.",
+    "MainPID, ExecMainStartTimestamp, per-file capture timestamps and OOM fields are absent and recorded as null.",
+    "Six profiles are present with exact size/SHA/CRC; their pprof content has not been analyzed."
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "artifact_id": 12366858052,
+  "archive_bytes": 1481,
+  "archive_sha256": "afdb61b5ed70017013cf3d90013d397649bd10cbc63000e591162eca2fc60f16",
+  "api_digest_matches": true,
+  "all_crc_verified": true,
+  "members": [
+    {
+      "path": "cleanup.json",
+      "size": 172,
+      "sha256": "f51fad6680972b2c7f9f4736c825fc2ea1b075c044e29a0b369d4944e1198163",
+      "crc32": "152a4199"
+    },
+    {
+      "path": "attempt-1/cloud-lease-release-chat-20261021T163850Z-4ccd7506/release.json",
+      "size": 659,
+      "sha256": "0740da8b300367414c189b492e8102e38cb623644637234f2bd9173bcd767f51",
+      "crc32": "39de4e0e"
+    },
+    {
+      "path": "zero-inventory.json",
+      "size": 659,
+      "sha256": "0740da8b300367414c189b492e8102e38cb623644637234f2bd9173bcd767f51",
+      "crc32": "39de4e0e"
+    }
+  ]
+}

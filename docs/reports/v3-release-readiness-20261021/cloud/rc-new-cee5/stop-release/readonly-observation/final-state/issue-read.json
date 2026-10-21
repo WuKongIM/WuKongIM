@@ -1,0 +1,8 @@
+{
+  "endpoint": "issues/1023",
+  "method": "GET",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:45:37.340698+00:00",
+  "sha256": "dd42f16ad62fd6aad09f31e92215a9b2b1e7929efbe23be6e1f8a8a1ebd62cee",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

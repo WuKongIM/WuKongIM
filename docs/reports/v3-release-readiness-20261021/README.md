@@ -377,3 +377,7 @@ immutable publication and signed native-package public-client acceptance.
 - [D2第二版修复](packages/provider-adapter-repair-v2/README.md)、[独立并行复核](packages/provider-adapter-review-v2/combined-review.md)与[原本地提交](packages/provider-adapter-delivery-preparation/README.md)：两项Spec问题关闭，保留历史tests-first过程P2；新head Linux仍待验收，生产激活不支持。
 
 - [#75普通合并与独立后置检查](packages/pr75-merge/README.md)：1829c381同验收tree，557零skip+4再次通过、部署跳过，原非祖先分支/worktree保留。
+
+- [精确Stop与零库存](cloud/rc-new-cee5/stop-release/readonly-observation/README.md)：17:43:09Z十二scope清零，正式租约未启动；原message_loss终态逐字保留。
+- [离线终态盘点](cloud/rc-new-cee5/offline-evidence-inventory/README.md)、[产品路径](cloud/rc-new-cee5/offline-product-analysis/README.md)、[压测关联](cloud/rc-new-cee5/offline-benchmark-analysis/README.md)：实际10秒期限，47条presence timeout无样本身份可关联，worker证据缺档、历史根因未知。
+- [#76首次CI失败快照](packages/pr76-ci-root-observation/pr76.json)：默认/SDK/原签名演练通过，四客户端失败；draft保留，未重跑或合并。

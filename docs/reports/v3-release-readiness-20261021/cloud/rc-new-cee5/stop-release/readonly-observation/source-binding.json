@@ -1,0 +1,31 @@
+{
+  "source_commit": "cee5d51f325fb84033060f546337d326110adae5",
+  "files": [
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "size": 31210,
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "size": 34715,
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "size": 3747,
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "size": 5948,
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "path": "scripts/chat-lifecycle/release-until-zero.sh",
+      "size": 3554,
+      "sha256": "bc8167ac9db7ab632caa372f5e19c1f4bba9872678c6843351c379604feb8b64"
+    }
+  ],
+  "root_AGENTS_and_Actions_README_frozen_in": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/analysis-control-local-No5ZRr-68602/source-binding.json"
+}

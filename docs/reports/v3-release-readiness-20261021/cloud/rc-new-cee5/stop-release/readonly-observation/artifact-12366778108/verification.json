@@ -1,0 +1,15 @@
+{
+  "artifact_id": 12366778108,
+  "archive_bytes": 556,
+  "archive_sha256": "fed5d7d5eaad58160beea8bb454ce9c90f069cb045296e19c5e985761ea9854d",
+  "api_digest_matches": true,
+  "all_crc_verified": true,
+  "members": [
+    {
+      "path": "release.json",
+      "size": 659,
+      "sha256": "0740da8b300367414c189b492e8102e38cb623644637234f2bd9173bcd767f51",
+      "crc32": "39de4e0e"
+    }
+  ]
+}

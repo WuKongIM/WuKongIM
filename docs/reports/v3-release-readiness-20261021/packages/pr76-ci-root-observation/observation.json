@@ -1,0 +1,15 @@
+{
+  "observed_at": "2026-10-21T17:53:36.878791+00:00",
+  "command": [
+    "gh",
+    "pr",
+    "view",
+    "76",
+    "--repo",
+    "WuKongIM/packages",
+    "--json",
+    "state,isDraft,headRefOid,baseRefOid,statusCheckRollup,mergeStateStatus"
+  ],
+  "read_only": true,
+  "action": "Keep draft; do not merge or rerun first failed CI."
+}

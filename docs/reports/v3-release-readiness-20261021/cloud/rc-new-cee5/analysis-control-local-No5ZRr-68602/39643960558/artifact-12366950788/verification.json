@@ -1,0 +1,17 @@
+{
+  "artifact_id": 12366950788,
+  "artifact_name": "chat-lifecycle-analysis-preflight-local-No5ZRr-68602",
+  "observed_at": "2026-10-21T17:30:27.275098+00:00",
+  "archive_bytes": 2146,
+  "archive_sha256": "b61edaa835634c09d9f6e89fd3de66bec5e8d87bf1460279d0cdf59d0f963083",
+  "api_digest_matches": true,
+  "all_crc_verified": true,
+  "members": [
+    {
+      "name": "preflight.json",
+      "size": 48037,
+      "sha256": "9ba0470440a8763cfa43b6d6095d57488337067541353a9c8bf5a27fe94551dd",
+      "crc32": "837fb287"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+The offline delivery preparation now has optional official OSS/CDN SDK library primitives and fresh GitHub/source/audit/control input authentication. Explicit resources and temporary credentials, create-only writes, complete streamed readback, full configuration observations and exact refresh-task binding are covered at the real SDK HTTP boundary. The SDK dependencies are fully pinned and hashed, with independent contents-read CI.
+
+Configuration observations bind the full body, resource and domain before writes; SDK debug state is rejected before credential-bearing SDK entry. Historical candidate/seal identity remains separate from current executor identity. Original planners, simulation, producers and production client validation are unchanged.
+
+Production activation remains unsupported. Static rewrite candidates do not establish live cloud routing equivalence. This change provides no production writer or complete production-shaped v2/native-signature/live-client success proof.
+
+Validation: before rebase, the default suite ran **567 tests = 566 passed + 1 existing RPM-tool skip**. On this exact head, SDK **22 passed, zero skips**, focused input **10 passed**, and inherited native-client context **44 passed**. Hash-locked installation and diff checks passed. Rebase changes only inherited CHANGELOG context; seven other D2 files retain their reviewed bytes. Linux CI is pending. Independent v2 review closed both Spec findings, with zero new Spec or Standards findings.
+
+Process disclosure: two original HTTP wiring unit tests were added after their implementation, violating the project tests-first rule. They and the actual chronology remain documented; this historical Standards P2 is not claimed resolved. The new configuration/logging repair regressions were written and run red before their fixes.

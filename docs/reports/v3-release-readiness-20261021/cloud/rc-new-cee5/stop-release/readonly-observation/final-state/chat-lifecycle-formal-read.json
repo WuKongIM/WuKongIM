@@ -1,0 +1,8 @@
+{
+  "endpoint": "actions/workflows/chat-lifecycle-formal.yml",
+  "method": "GET",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:45:38.207110+00:00",
+  "sha256": "affd1ea1f9038241197f08e382b38b99a7cc7d50e3574ed39b91b3c396a21aac",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

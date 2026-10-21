@@ -1,0 +1,10 @@
+{
+  "head": "cee5d51f325fb84033060f546337d326110adae5",
+  "worktree_clean_after": true,
+  "product_tests_or_binaries_executed": false,
+  "source_changes": false,
+  "cloud_ssh_mcp_calls": false,
+  "offline_probe_exit_code": 1,
+  "offline_probe_is_product_reproducer": false,
+  "all_subprocesses_terminal": true
+}

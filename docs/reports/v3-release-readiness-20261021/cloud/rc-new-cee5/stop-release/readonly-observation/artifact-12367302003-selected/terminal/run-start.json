@@ -1,0 +1,9 @@
+{
+  "schema": "wukongim.chat_lifecycle.run_start/v1",
+  "stage": "rehearsal",
+  "started_at": "2026-10-22T01:05:48.909224454+08:00",
+  "expected_end_at": "2026-10-22T03:05:48.909224454+08:00",
+  "run_hash": "sha256:4d1a0f3b44a15dd9c3c0fb93396a17a7991b768d45619bcf2d11c31438576496",
+  "assignment_hash": "sha256:51817c54cb0b692a3dff72ef9d81f9a1a206c92a0bee02d301378ad6b51551b8",
+  "generation": 1
+}

@@ -1,0 +1,8 @@
+{
+  "endpoint": "actions/workflows/cloud-lease-release.yml",
+  "method": "GET",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:45:38.215146+00:00",
+  "sha256": "a1223007d9d32224e93db5796d405c6de969b8c5dba257d4d277b002989f6453",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

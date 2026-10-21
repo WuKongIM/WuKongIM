@@ -1,0 +1,10 @@
+{
+  "method": "GET",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39645628548/jobs?filter=all&per_page=100",
+  "exit_code": 0,
+  "observed_at": "2026-10-21T17:39:54.325664+00:00",
+  "bytes": 7857,
+  "sha256": "d67a026187e7fda72e14ec9550e0998ae47245e3efa57a52dee6ad0e81af0d0d",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

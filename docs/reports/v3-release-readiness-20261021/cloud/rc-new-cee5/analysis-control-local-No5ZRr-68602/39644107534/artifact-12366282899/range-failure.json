@@ -1,0 +1,8 @@
+{
+  "phase": "HEAD redirect discovery",
+  "exception_type": "AssertionError",
+  "reason": "gh api HEAD returned only final response headers; no Location present. Stopped before any HTTP range/data read.",
+  "encrypted_token_bytes_downloaded": false,
+  "session_artifact_body_bytes_downloaded": 0,
+  "local_observer_failure": true
+}

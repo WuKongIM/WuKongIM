@@ -1,0 +1,111 @@
+{
+  "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+  "stage": "rehearsal",
+  "observed_at": "2026-10-21T17:41:59Z",
+  "max_file_bytes": 4194304,
+  "capture_failures": 1,
+  "complete": false,
+  "captures": [
+    {
+      "class": "logs",
+      "name": "service-1",
+      "state": "collected",
+      "bytes": 46440
+    },
+    {
+      "class": "system",
+      "name": "service-1",
+      "state": "collected",
+      "bytes": 575
+    },
+    {
+      "class": "profiles",
+      "name": "service-1-heap",
+      "state": "collected",
+      "bytes": 277398
+    },
+    {
+      "class": "profiles",
+      "name": "service-1-goroutine",
+      "state": "collected",
+      "bytes": 11070
+    },
+    {
+      "class": "logs",
+      "name": "service-2",
+      "state": "collected",
+      "bytes": 41541
+    },
+    {
+      "class": "system",
+      "name": "service-2",
+      "state": "collected",
+      "bytes": 575
+    },
+    {
+      "class": "profiles",
+      "name": "service-2-heap",
+      "state": "collected",
+      "bytes": 267023
+    },
+    {
+      "class": "profiles",
+      "name": "service-2-goroutine",
+      "state": "collected",
+      "bytes": 10895
+    },
+    {
+      "class": "logs",
+      "name": "service-3",
+      "state": "collected",
+      "bytes": 41661
+    },
+    {
+      "class": "system",
+      "name": "service-3",
+      "state": "collected",
+      "bytes": 575
+    },
+    {
+      "class": "profiles",
+      "name": "service-3-heap",
+      "state": "collected",
+      "bytes": 265707
+    },
+    {
+      "class": "profiles",
+      "name": "service-3-goroutine",
+      "state": "collected",
+      "bytes": 10892
+    },
+    {
+      "class": "logs",
+      "name": "load",
+      "state": "collected",
+      "bytes": 58717
+    },
+    {
+      "class": "system",
+      "name": "load",
+      "state": "collected",
+      "bytes": 1306
+    },
+    {
+      "class": "metrics",
+      "name": "targets",
+      "state": "collected",
+      "bytes": 4693
+    },
+    {
+      "class": "metrics",
+      "name": "range",
+      "state": "oversized",
+      "bytes": 4194305
+    }
+  ],
+  "diagnosis_references": {
+    "window": "../diagnosis-window.json",
+    "result": "../diagnosis-result.json",
+    "optional": true
+  }
+}

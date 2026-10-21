@@ -1,0 +1,23 @@
+{
+  "correlation": "local-fhfYnP-70453",
+  "lease": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "state": "live",
+  "resource_counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "total_resources": 28,
+  "all_resources_match_exact_source_and_selector": true,
+  "same_provider_resources_as_first_inspect": true,
+  "previous_control_archive": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/analysis-control-local-No5ZRr-68602",
+  "previous_control_manifest_sha256": "cfa694dee11ba00d209f9f671a7249617b1f70b7d898d6bc327b0722c68ad0f9"
+}

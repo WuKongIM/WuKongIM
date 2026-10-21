@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12367306501,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM2NzMwNjUwMQ==",
+      "name": "chat-lifecycle-analysis-input-local-fhfYnP-70453",
+      "size_in_bytes": 876,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12367306501",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12367306501/zip",
+      "expired": false,
+      "digest": "sha256:2092729220211d9053ec2a079d554517aaf22f1f88014120605efd1fced02837",
+      "created_at": "2026-10-21T17:39:03Z",
+      "updated_at": "2026-10-21T17:39:03Z",
+      "expires_at": "2026-10-22T17:39:02Z",
+      "workflow_run": {
+        "id": 39645628548,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "main",
+        "head_sha": "cee5d51f325fb84033060f546337d326110adae5"
+      }
+    }
+  ]
+}

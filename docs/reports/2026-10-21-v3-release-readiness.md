@@ -1,10 +1,12 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 17:35Z（北京时间10月22日01:35）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 17:55Z（北京时间10月22日01:55）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 已授权的新云RC实际进入测量，但仅运行61.212秒就因一条采样消息到期未送达而失败：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。报告的 `product_failure/message_loss` 尚不是已证明的产品根因。流量已停止，租约处于有界诊断窗口，尚未释放；2小时预演及后续72小时长稳均未通过。终态metrics/range采集超过4MiB上限，正在通过受限现场分析补齐必要证据。
+结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
-产品 #1016/#1017/#1019–#1022及packages #67–#75已合并。#75最终候选2368c874的首次Linux557项测试（零skip）、4项合同、完整签名仓库演练和49/49真实客户端场景全部通过；普通rebase合并为1829c381，同完整验收tree，分支保护不变。D2真实SDK适配的两项实现P2已修复并独审关闭；两项原始HTTP测试晚于实现的历史过程P2如实保留。D2已重放到#75合并基线并提交draft #76，首次Linux CI待终态。生产stable公网交付仍未完成，没有正式tag或正式发布。
+产品 #1016/#1017/#1019–#1022及packages #67–#75已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过，但四客户端检查失败，保持draft且未重跑。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
+
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，正在按先测试后实现修复诊断能力；47条presence超时日志尚不能与那条过期样本建立因果关系。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -243,13 +245,26 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 
 [真实部署与run-start封存](v3-release-readiness-20261021/cloud/rc-new-cee5/deployment-run-start-public-frozen/README.md)已核：部署39639281581于17:02:39Z通过三节点/256健康slot、0pending controller、3worker/7监测目标；顶层39637426411于17:06:15Z success。实际run-start generation1、hash绑定exactLease、started_at北京时间01:05:48.909224454，预期03:05:48.909224454，整2小时。bundle/Acquire/Deployment父链、selector及预算、加密外层身份均验证；已校验bundle配置和执行源码绑定10k在线同步/首2000 SEND/s grant的启动门槛，收据无独立在线计数或持续吞吐采样，不能夸大为两小时性能通过。原空Job在本次Linux正常归一为0并通过启动，支持#1021修复实际生效。初次本地验证因Acquire裸digest与deployment sha256前缀不同失败已保留，按官方类型修正后100项交叉检查通过。尚无2小时终态、正式72小时结果或该租约零库存。
 
-## 17:35Z 最新验收与诊断状态
+## 17:35Z 验收与诊断快照（历史）
 
 [新RC首个运行时失败](v3-release-readiness-20261021/cloud/rc-new-cee5/first-diagnosis-public-frozen/README.md)由首次安全收尾运行39642565187保留：其工作流success只表示诊断收集成功，不代表预演通过。完整855,906字节制品已核API SHA、ZIP CRC及原stage八份输入逐字绑定。实际窗为17:05:48.909224454Z→17:06:50.121277292Z；122,002次SEND全部ACK、0重试、sync完成10,000，采样关联损失1，其他报告内重复/损坏/序号错误为0。诊断窗口截止19:06:50Z（北京时间03:06:50），没有正式阶段转换或再次采购。终态包的metrics/range因4,194,305字节超过4,194,304上限而不完整，不能将缺失指标填零或据此唯一归因。只读Analysis inspect已经启动并绑定cee5；现场因果与exact零库存尚待确认。
 
 [#75第三代完整首次CI](v3-release-readiness-20261021/packages/pr75-ci-generation-3/README.md)现已全绿：557零skip+4、既有7/10/6/31/8及完整签名安装、49/49真实stable客户端场景。Rocky serial24、Alma serial35均证明先读A元数据，再经精确B mirrorlist/B前缀下载已验签精确A；fresh-B仍选B。8套installed CLI、12缓存场景和最终容器/网络/缓存零遗留已核。17:22:24Z按长期授权普通合并#75为1829c381，tree2119196与候选一致；原2368tip因rebase非祖先，保留其干净分支/worktree，不强删。生产stable仍关闭。
 
 [D2第二版修复](v3-release-readiness-20261021/packages/provider-adapter-repair-v2/README.md)重新绑定完整配置正文/resource/domain及canonical摘要，并在SDK入口前拒绝DEBUG泄漏条件；5个新增方法的24子场景先红后绿。[独立并行复核](v3-release-readiness-20261021/packages/provider-adapter-review-v2/combined-review.md)关闭原两项Spec P2，无新实现发现；历史Standards过程P2保留，不倒写测试时间线。最终SDK22项零skip、输入10项及默认567项（566通过/1原Mac RPM工具skip）通过；八文件原提交eae1afc已机械重放至#75合并基线1829c381，当前dded26af/tree e319ee72；七完整文件与已审v2相同，CHANGELOG只保留main原文并加D2原项，其余116个main文件不变。新head的SDK22/输入10/native上下文44均通过；原默认567结果仍绑定旧base，不冒充新head完整回归。已正常推送并创建draft [packages #76](https://github.com/WuKongIM/packages/pull/76)，首次Linux CI正在执行，未调用真实云。生产activate仍unsupported，完整生产形态v2/native签名正例与真实云/公网客户端均未验证。
+
+
+## 17:55Z 收尾与离线诊断
+
+[精确Stop/Release封存](v3-release-readiness-20261021/cloud/rc-new-cee5/stop-release/readonly-observation/README.md)确认Stop39645737564、预演收尾39645768090、formal收尾39645772423及Release39646126395均首次结束；formal实际工作跳过，没有采购正式租约。Release与cleanup制品全量SHA/CRC通过，零库存JSON逐字一致，12个scope于17:43:09.4025176Z为零。complete大包仅按范围读取12份公共JSON并核成员CRC，其整包摘要仅为API声明、未重算。原final.json与首次失败逐字一致；清理成功不改变验收失败。预演/formal收尾和formal starter已停用，通用清理sweep仍按原合同运行。累计¥223.4328是报价预留，实际账单仍未知。
+
+两次[现场分析控制链](v3-release-readiness-20261021/cloud/rc-new-cee5/analysis-control-local-No5ZRr-68602/README.md)均已关闭。第一次在本地CLI版本检查退出，未解密token或调用MCP；第二次使用既有兼容CLI，12次health超时，未调用run_inspect或生成MCP诊断。原始CLI路径问题和本地连接失败保存在[有界失败记录](v3-release-readiness-20261021/cloud/rc-new-cee5/live-analysis/attempt-2-local-failure.json)；不能推定VPN、公网来源或产品为原因。没有第三次现场尝试或新采购。
+
+[原终态归档盘点](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-evidence-inventory/README.md)全量核验855,906字节ZIP/29成员；保留日志中有47条presence阶段timeout（22/12/13），无可连接采样消息的身份。日志未见panic/OOM/restart模式不等于全局排除，文件末尾时间也不证明collector遗漏后90秒窗口。[产品路径分析](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-product-analysis/README.md)确认五秒plan处理预算、失败presence组不重排且成功兄弟组继续；这不是持久消息丢失的证明，也不证明哪个等待/锁导致了超时。
+
+[压测关联分析](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-benchmark-analysis/README.md)校正实际CorrelationDeadline为10秒；第60.025秒周期快照首次计到loss，终态为61.212秒，均不是失效消息的ACK时间。ACK/RECV乱序和重复ACK已有明确处理，在线接收者有租约保护。RECV本地排队越过期限是待反证机制，没有该样本时钟证据。`worker-evidence.json`会承载有界脱敏例子，但终态collector没有覆盖该路径；离线archive probe如预期RED。后续修复采集和有界指标保留，维持零loss门禁；不把归档缺失误写为运行时写失败。
+
+[#76首次Linux检查快照](v3-release-readiness-20261021/packages/pr76-ci-root-observation/pr76.json)的四客户端job于17:52:48Z failure，其余三个验收job通过，Pages部署跳过。保持draft；正在封存原始失败断言与清理结果，未合并、未重跑、未修改生产渠道。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

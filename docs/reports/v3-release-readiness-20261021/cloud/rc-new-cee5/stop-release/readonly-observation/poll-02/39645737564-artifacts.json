@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12367840170,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM2Nzg0MDE3MA==",
+      "name": "chat-lifecycle-operator-stop-chat-20261021T163850Z-4ccd7506",
+      "size_in_bytes": 289,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12367840170",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12367840170/zip",
+      "expired": false,
+      "digest": "sha256:db4646a700082512bf4d4dd2dc58035c39495b0e75843f2b31217587c2cd5e7e",
+      "created_at": "2026-10-21T17:39:39Z",
+      "updated_at": "2026-10-21T17:39:39Z",
+      "expires_at": "2027-01-19T17:39:31Z",
+      "workflow_run": {
+        "id": 39645737564,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "main",
+        "head_sha": "cee5d51f325fb84033060f546337d326110adae5"
+      }
+    }
+  ]
+}

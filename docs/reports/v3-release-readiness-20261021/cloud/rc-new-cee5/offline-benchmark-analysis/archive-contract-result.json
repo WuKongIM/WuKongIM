@@ -1,0 +1,11 @@
+{
+  "scope": "offline_archive_evidence_sufficiency_only",
+  "source_zip_sha256": "a74b828be1a383d34bb8779bba4ed7473e51461ef6826c2d6d1a22afef415ccf",
+  "members": 29,
+  "crc_all_valid": true,
+  "expired_correlations": 1,
+  "worker_evidence_member_count": 0,
+  "result": "RED_MISSING_BOUNDED_SAMPLE_EVIDENCE",
+  "historical_product_cause_proven": false,
+  "runtime_write_failure_proven": false
+}

@@ -1,0 +1,11 @@
+# Original terminal ZIP — offline evidence inventory
+
+The supplied ZIP SHA-256 matches; all 29 member CRCs, sizes and paths pass. Four host logs, four system snapshots, three heap and three goroutine members match the terminal manifest. Profiles remain unextracted and unanalysed. The manifest is still incomplete: Prometheus range capture exceeded its 4 MiB limit.
+
+The measurement ended at 17:06:50.121277 UTC after starting at 17:05:48.909224 UTC. Retained load log events end in the 17:06:50 second; service log events end in the 17:06:46 second. There are no records in later seconds through end + 90 seconds. This does **not** establish that collection omitted those seconds: there may have been no emitted records. The requested collector window/cursor is absent. Global manifest observation is 17:20:11Z; per-file capture timestamps are absent. ZIP mtimes are retained as unzoned file metadata, not treated as capture timestamps.
+
+Service logs contain 47 `delivery.plan_incomplete` events: service-1 22, service-2 12, service-3 13. All report durable/presence timeout (`context deadline exceeded`), from 17:06:39.976Z to 17:06:46.848Z. Two minimally redacted examples and the terminal message-loss line are in summary.json. No concrete expired sample/message/correlation ID is present, so these warnings cannot be linked to the one expired sample. The final aggregate remains sampled 1339, delivered 1338, expired 1; this inventory does not establish a root cause.
+
+Three `wukongim.service` snapshots are active/running, Result=success and NRestarts=0. The load rehearsal unit is failed with ExecMainStatus=7 and NRestarts=0; other captured service units are active. MainPID, ExecMainStartTimestamp, per-file capture time and OOM fields are missing, explicitly null. No OOM/restart/panic pattern was found in the retained unit logs; actual global counts remain unknown because full-window and kernel-log coverage are unproven.
+
+Only this summary and its hashes are public. Thirteen selected logs/system/small JSON files were safely extracted with private permissions under the private offline-inventory directory; no SSH configuration, credential, private key, product configuration, raw log or profile is exported publicly. No cloud/SSH/MCP operation, product source read, product process or new profile capture occurred.
