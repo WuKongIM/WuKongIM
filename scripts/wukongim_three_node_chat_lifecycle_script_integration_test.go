@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -450,34 +451,83 @@ signal_seen=0
 trap 'signal_seen=1' TERM
 ` + extractBashFunction(t, script, "wait_child_uninterrupted") + "\n" +
 		extractBashFunction(t, script, "join_threshold_pprof_capture") + `
+exec 3>"$WK_TEST_TRACE_PATH"
+fixture_phase=initial
+trap 'fixture_status=$?; printf "fixture_exit phase=%s status=%s\n" "$fixture_phase" "$fixture_status" >&3; exit "$fixture_status"' EXIT
+printf 'fixture_shell=%s parent_pid=%s\n' "$BASH_VERSION" "$$" >&3
+# Bash 3 lacks a separate xtrace descriptor; keep phase evidence on FD 3 only.
+if (( BASH_VERSINFO[0] >= 4 )); then
+  BASH_XTRACEFD=3
+  PS4='+ fixture pid=${BASHPID:-$$} line=${LINENO}: '
+  set -x
+fi
 sleep 0.4 &
 PPROF_PID=$!
 joined_pid="$PPROF_PID"
 ( sleep 0.05; kill -TERM "$$" ) &
 signaler=$!
+printf 'fixture_children target=%s signaler=%s\n' "$joined_pid" "$signaler" >&3
+fixture_phase=join
 join_threshold_pprof_capture
+join_status=$?
+printf 'fixture_join status=%s child_status=%s\n' "$join_status" "$WAIT_CHILD_STATUS" >&3
+fixture_phase=signaler_wait
 wait "$signaler"
+signaler_status=$?
+printf 'fixture_signaler_wait status=%s\n' "$signaler_status" >&3
+fixture_phase=assertions
 if kill -0 "$joined_pid" 2>/dev/null; then
   exit 91
 fi
 printf 'signal_seen=%s\npprof_pid=%s\npprof_exit_status=%s\n' \
   "$signal_seen" "$PPROF_PID" "$PPROF_EXIT_STATUS"
 `
-	harnessPath := filepath.Join(t.TempDir(), "join-signal.sh")
-	if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	output, err := exec.CommandContext(ctx, "bash", harnessPath).CombinedOutput()
-	if err != nil || ctx.Err() != nil {
-		t.Fatalf("signal-safe join failed: %v/%v\n%s", err, ctx.Err(), output)
-	}
-	for _, want := range []string{"signal_seen=1", "pprof_pid=\n", "pprof_exit_status=0"} {
-		if !strings.Contains(string(output), want) {
-			t.Fatalf("signal-safe join output missing %q:\n%s", want, output)
+	// Retain the first failure from a bounded repeat; successful trace stays quiet.
+	// Each fixture keeps its original five-second deadline and unchanged signal.
+	for iteration := 0; iteration < 20; iteration++ {
+		if !t.Run(fmt.Sprintf("attempt_%02d", iteration+1), func(t *testing.T) {
+			runDir := t.TempDir()
+			harnessPath := filepath.Join(runDir, "join-signal.sh")
+			tracePath := filepath.Join(runDir, "trace.log")
+			if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "bash", harnessPath)
+			command.Env = append(os.Environ(), "WK_TEST_TRACE_PATH="+tracePath)
+			output, err := command.CombinedOutput()
+			if err != nil || ctx.Err() != nil {
+				t.Fatalf("signal-safe join failed: %v/%v\n%s\nfixture trace:\n%s", err, ctx.Err(), output, readSignalJoinFixtureTrace(tracePath))
+			}
+			for _, want := range []string{"signal_seen=1", "pprof_pid=\n", "pprof_exit_status=0"} {
+				if !strings.Contains(string(output), want) {
+					t.Fatalf("signal-safe join output missing %q:\n%s\nfixture trace:\n%s", want, output, readSignalJoinFixtureTrace(tracePath))
+				}
+			}
+		}) {
+			return
 		}
 	}
+}
+
+// readSignalJoinFixtureTrace bounds diagnostic output without mixing trace into
+// the fixture stdout used by existing assertions. A truncated trace stays explicit.
+func readSignalJoinFixtureTrace(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Sprintf("trace unavailable: %v", err)
+	}
+	defer file.Close()
+	const limit = 64 * 1024
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return fmt.Sprintf("trace read failed: %v", err)
+	}
+	if len(data) > limit {
+		return string(data[:limit]) + "\n[fixture trace truncated after 65536 bytes]\n"
+	}
+	return string(data)
 }
 
 func TestChatLifecycleMeasuredHostOverlapStatusSupportsBashWithoutBASHPID(t *testing.T) {
