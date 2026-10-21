@@ -4,6 +4,7 @@ package scripts_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -177,6 +178,9 @@ printf 'status=%s\ncleanup\n' "$status"
 
 func TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill(t *testing.T) {
 	root := repoRoot(t)
+	if len(originalActiveEmptyJob) != 104 || fmt.Sprintf("%x", sha256.Sum256([]byte(originalActiveEmptyJob))) != originalActiveEmptyJobSHA {
+		t.Fatal("original pre-kill public state fixture changed")
+	}
 	source := readFile(t, filepath.Join(root, "scripts/chat-lifecycle/stage-orchestrate.sh"))
 	start := strings.Index(source, "    stage_terminal_code=''\n")
 	if start < 0 {
@@ -207,6 +211,10 @@ func TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill(t *testing
 		{"terminal runtime", "stage_terminal_before_run_start", "ActiveState=failed\nJob=0\n", "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=runtime worker_runtime_code=engine_cpu_saturated preflight_code= report=unavailable", 0, 0},
 		{"terminal unknown summary", "stage_terminal_before_run_start", "ActiveState=failed\nJob=0\n", "secret-canary-do-not-publish", 0, 0},
 		{"actual deadline", "stage_readiness_deadline_elapsed", "ActiveState=active\nJob=0\n", "", 0, 0},
+		{"original active empty job", "stage_readiness_deadline_elapsed", originalActiveEmptyJob, "", 0, 0},
+		{"inactive empty job", "stage_terminal_before_run_start", "ActiveState=inactive\nJob=\n", "", 0, 0},
+		{"missing job", "stage_state_parse_failed", "ActiveState=active\n", "", 0, 0},
+		{"duplicate empty job", "stage_state_parse_failed", "ActiveState=active\nJob=\nJob=0\n", "", 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -219,7 +227,7 @@ set -eu
 case "$*" in
  *"reset-failed"*) printf 'start-secret-canary' >&2; exit "$START_EXIT";;
  *"sudo test -f"*) exit 1;;
- *"systemctl show"*) printf '%s' "$STATE_OUTPUT"; printf 'LoadState=loaded\nSubState=failed\nResult=exit-code\nExecMainCode=1\nExecMainStatus=2\n'; exit "$STATE_EXIT";;
+ *"systemctl show"*) printf '%s' "$UNIT_OUTPUT"; exit "$STATE_EXIT";;
  *"journalctl"*) printf '%s' "$SUMMARY_OUTPUT"; exit 0;;
  *"systemctl kill"*) test -s "$pre_clock_directory/diagnostic.json"; cp "$pre_clock_directory/diagnostic.json" "$pre_clock_directory/before-kill.json"; exit 0;;
  *) exit 93;;
@@ -248,7 +256,11 @@ stage_duration_seconds=7200
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "bash", "-c", body)
 			cmd.Dir = root
-			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "pre_clock_directory="+dir, "attempt_dir="+dir, "WK_CHAT_OUTPUT_DIR="+dir, "WK_CLOUD_SSH_CONFIG=fixture", "WK_CHAT_REQUEST_ID=fixture", "WK_CHAT_SOURCE_SHA="+strings.Repeat("a", 40), "deployment_control_sha="+strings.Repeat("b", 40), "bundle_digest=sha256:"+strings.Repeat("c", 64), "chat_stage=rehearsal", "deployment_generation=1", "CLOCK_MARKER="+filepath.Join(dir, "clock"), fmt.Sprintf("START_EXIT=%d", tc.startExit), fmt.Sprintf("STATE_EXIT=%d", tc.stateExit), "STATE_OUTPUT="+tc.state, "SUMMARY_OUTPUT="+tc.summary)
+			unitOutput := tc.state + "LoadState=loaded\nSubState=failed\nResult=exit-code\nExecMainCode=1\nExecMainStatus=2\n"
+			if tc.state == originalActiveEmptyJob {
+				unitOutput = tc.state
+			}
+			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "pre_clock_directory="+dir, "attempt_dir="+dir, "WK_CHAT_OUTPUT_DIR="+dir, "WK_CLOUD_SSH_CONFIG=fixture", "WK_CHAT_REQUEST_ID=fixture", "WK_CHAT_SOURCE_SHA="+strings.Repeat("a", 40), "deployment_control_sha="+strings.Repeat("b", 40), "bundle_digest=sha256:"+strings.Repeat("c", 64), "chat_stage=rehearsal", "deployment_generation=1", "CLOCK_MARKER="+filepath.Join(dir, "clock"), fmt.Sprintf("START_EXIT=%d", tc.startExit), fmt.Sprintf("STATE_EXIT=%d", tc.stateExit), "UNIT_OUTPUT="+unitOutput, "SUMMARY_OUTPUT="+tc.summary)
 			out, err := runPreClockFixture(cmd)
 			if err != nil || string(out) != "cleanup\n" {
 				t.Fatalf("actual loop failed: %v / %q", err, out)
@@ -276,6 +288,29 @@ stage_duration_seconds=7200
 			}
 			if tc.branch == "stage_state_parse_failed" && (receipt.Classifier == nil || *receipt.Classifier != 2) {
 				t.Fatalf("exact classifier rejection status lost: %s", b)
+			}
+			if tc.branch == "stage_terminal_before_run_start" || tc.branch == "stage_readiness_deadline_elapsed" {
+				if receipt.Classifier == nil || *receipt.Classifier != 0 {
+					t.Fatalf("valid state must not trigger parse failure: %s", b)
+				}
+			}
+			if tc.state == originalActiveEmptyJob {
+				unitBytes, err := os.ReadFile(filepath.Join(dir, "unit.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var unit struct {
+					Valid      bool           `json:"valid"`
+					Bytes      int            `json:"bytes"`
+					SHA        string         `json:"sha256"`
+					Properties map[string]any `json:"properties"`
+				}
+				if err := json.Unmarshal(unitBytes, &unit); err != nil {
+					t.Fatal(err)
+				}
+				if !unit.Valid || unit.Bytes != 104 || unit.SHA != originalActiveEmptyJobSHA || unit.Properties["ActiveState"] != "active" || unit.Properties["Job"] != float64(0) {
+					t.Fatalf("original unit evidence must remain valid and exact: %s", unitBytes)
+				}
 			}
 			if tc.branch == "stage_terminal_before_run_start" {
 				t.Run("summary_command_and_classifier", func(t *testing.T) {

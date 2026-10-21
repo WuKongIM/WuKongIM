@@ -59,6 +59,9 @@ def reduce_stream(mode):
             continue
         if name in enums and text in enums[name]:
             values[name] = text
+        elif name == "Job" and text == "":
+            # systemctl renders no queued job as empty; keep its raw hash above.
+            values[name] = 0
         elif name in numbers and text.isascii() and text.isdecimal() and len(text) <= 10 and int(text) <= numbers[name]:
             values[name] = int(text)
         else:
