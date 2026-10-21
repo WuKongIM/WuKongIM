@@ -1,0 +1,287 @@
+{
+  "schema": "wukongim/offline-collector-probe/v1",
+  "fixture_only": true,
+  "actual_remote_calls": 0,
+  "cases": [
+    {
+      "mode": "normal",
+      "exit_code": 0,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T17:51:50Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 0,
+        "complete": true,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 49
+          },
+          {
+            "class": "metrics",
+            "name": "range",
+            "state": "collected",
+            "bytes": 42
+          }
+        ],
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "transport_call_kinds": [
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "metrics-targets",
+        "metrics-range"
+      ],
+      "worker_evidence_requested": false,
+      "worker_evidence_retained": false,
+      "range_retained": true,
+      "range_temporary_retained": false,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    {
+      "mode": "oversized",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T17:51:51Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 26
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 49
+          },
+          {
+            "class": "metrics",
+            "name": "range",
+            "state": "oversized",
+            "bytes": 4194305
+          }
+        ],
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "transport_call_kinds": [
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "other-terminal-evidence",
+        "metrics-targets",
+        "metrics-range"
+      ],
+      "worker_evidence_requested": false,
+      "worker_evidence_retained": false,
+      "range_retained": false,
+      "range_temporary_retained": false,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    }
+  ],
+  "desired_worker_retention_assertion": "FAIL: existing collector never requests the available worker-evidence fixture",
+  "production_message_loss_reproduced": false
+}

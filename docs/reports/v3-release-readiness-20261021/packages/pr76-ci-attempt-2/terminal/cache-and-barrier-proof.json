@@ -1,0 +1,166 @@
+{
+  "cache_cases": [
+    {
+      "case": "ubuntu-24.04-cache-A-first",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "5f01fd138580ca23b4e23c5e62293cfeeecf1ed36c5b3cd540650240a5beef7d"
+    },
+    {
+      "case": "ubuntu-24.04-cache-A-repeat",
+      "verified": true,
+      "same_generation_reuse_required": true,
+      "metadata_read_paths": [
+        "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+        "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+      ],
+      "target_download_sha256": "5f01fd138580ca23b4e23c5e62293cfeeecf1ed36c5b3cd540650240a5beef7d"
+    },
+    {
+      "case": "ubuntu-24.04-cache-B-target",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "726dbce3422eb2b5af661342adb3c46044252d7f8c9849efa57f7efa335ab9cc"
+    },
+    {
+      "case": "debian-13-cache-A-first",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "5f01fd138580ca23b4e23c5e62293cfeeecf1ed36c5b3cd540650240a5beef7d"
+    },
+    {
+      "case": "debian-13-cache-A-repeat",
+      "verified": true,
+      "same_generation_reuse_required": true,
+      "metadata_read_paths": [
+        "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+        "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+      ],
+      "target_download_sha256": "5f01fd138580ca23b4e23c5e62293cfeeecf1ed36c5b3cd540650240a5beef7d"
+    },
+    {
+      "case": "debian-13-cache-B-target",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "726dbce3422eb2b5af661342adb3c46044252d7f8c9849efa57f7efa335ab9cc"
+    },
+    {
+      "case": "rocky-linux-9-cache-A-first",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "83cd8838921a799b75bd67bf6cdcedf1816bb1f3d52c5bc5d737cd720ced53ee"
+    },
+    {
+      "case": "rocky-linux-9-cache-A-repeat",
+      "verified": true,
+      "same_generation_reuse_required": true,
+      "metadata_read_paths": [
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml.asc",
+        "dnf-cli-cache/wukongim-stable-filenames.solvx",
+        "dnf-cli-cache/wukongim-stable.solv"
+      ],
+      "target_download_sha256": "83cd8838921a799b75bd67bf6cdcedf1816bb1f3d52c5bc5d737cd720ced53ee"
+    },
+    {
+      "case": "rocky-linux-9-cache-B-target",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "62b49076857c196aee6c02525cddc1a36f9dd505f249e70a7523eeef9545fd97"
+    },
+    {
+      "case": "alma-linux-9-cache-A-first",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "83cd8838921a799b75bd67bf6cdcedf1816bb1f3d52c5bc5d737cd720ced53ee"
+    },
+    {
+      "case": "alma-linux-9-cache-A-repeat",
+      "verified": true,
+      "same_generation_reuse_required": true,
+      "metadata_read_paths": [
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml.asc",
+        "dnf-cli-cache/wukongim-stable-filenames.solvx",
+        "dnf-cli-cache/wukongim-stable.solv"
+      ],
+      "target_download_sha256": "83cd8838921a799b75bd67bf6cdcedf1816bb1f3d52c5bc5d737cd720ced53ee"
+    },
+    {
+      "case": "alma-linux-9-cache-B-target",
+      "verified": true,
+      "same_generation_reuse_required": false,
+      "metadata_read_paths": [],
+      "target_download_sha256": "62b49076857c196aee6c02525cddc1a36f9dd505f249e70a7523eeef9545fd97"
+    }
+  ],
+  "same_generation_read_proofs": 4,
+  "RPM_request_barriers": [
+    {
+      "case": "rocky-linux-9-A-to-B-request-barrier",
+      "serial": 24,
+      "A_audit_release_id": 4242,
+      "B_audit_release_id": 4243,
+      "B_mirror_position": 7,
+      "B_prefix_exact_A_payload_positions": [
+        8
+      ],
+      "exact_A_sha256": "83cd8838921a799b75bd67bf6cdcedf1816bb1f3d52c5bc5d737cd720ced53ee",
+      "all_response_writes_complete": true,
+      "matches_raw_request_log": true
+    },
+    {
+      "case": "alma-linux-9-A-to-B-request-barrier",
+      "serial": 35,
+      "A_audit_release_id": 4242,
+      "B_audit_release_id": 4243,
+      "B_mirror_position": 7,
+      "B_prefix_exact_A_payload_positions": [
+        8
+      ],
+      "exact_A_sha256": "83cd8838921a799b75bd67bf6cdcedf1816bb1f3d52c5bc5d737cd720ced53ee",
+      "all_response_writes_complete": true,
+      "matches_raw_request_log": true
+    }
+  ],
+  "cache_cleanup": [
+    {
+      "cache": "cache-ubuntu-24.04",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    },
+    {
+      "cache": "cache-debian-13",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    },
+    {
+      "cache": "cache-rocky-linux-9",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    },
+    {
+      "cache": "cache-alma-linux-9",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    }
+  ],
+  "raw_request_count": 268
+}

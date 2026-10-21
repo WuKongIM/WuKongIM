@@ -1,0 +1,25 @@
+=== RUN   TestChatLifecycleTerminalEvidenceRetention
+=== PAUSE TestChatLifecycleTerminalEvidenceRetention
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== PAUSE TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== CONT  TestChatLifecycleTerminalEvidenceRetention
+=== CONT  TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+--- PASS: TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor (2.22s)
+--- PASS: TestChatLifecycleTerminalEvidenceRetention (84.57s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	85.148s
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	0.275s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	1.376s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	1.109s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	1.647s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	0.844s [no tests to run]

@@ -1,0 +1,67 @@
+{
+  "collected_at": "2026-10-21T18:13:48.632994+00:00",
+  "run_id": 39644526993,
+  "run_attempt": 2,
+  "job_id": 119391226142,
+  "artifact": {
+    "id": 12368334945,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM2ODMzNDk0NQ==",
+    "name": "native-stable-four-clients-test-only",
+    "size_in_bytes": 140382,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12368334945",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12368334945/zip",
+    "expired": false,
+    "digest": "sha256:1be629819ad58afc52a9463de5088b0b477daab6494eef9c1406a9ab331b8af8",
+    "created_at": "2026-10-21T18:12:09Z",
+    "updated_at": "2026-10-21T18:12:09Z",
+    "expires_at": "2026-11-20T18:12:08Z",
+    "workflow_run": {
+      "id": 39644526993,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-provider",
+      "head_sha": "dded26afa12188d5f1c036af4b9c06c3cbddb46d"
+    }
+  },
+  "download": {
+    "bytes": 140382,
+    "sha256": "1be629819ad58afc52a9463de5088b0b477daab6494eef9c1406a9ab331b8af8",
+    "matches_GitHub_digest": true,
+    "matches_job_upload_log": true,
+    "CRC_all_members_verified": true
+  },
+  "files": [
+    {
+      "path": "artifacts/clients-A.json",
+      "zip_member": "clients-A.json",
+      "bytes": 6925,
+      "sha256": "b439a74c02e90b7b052a45f3c0936679416affb753241e2d3f4a979a52183cb6",
+      "crc32": "0040105c",
+      "crc_matches_zip": true
+    },
+    {
+      "path": "artifacts/clients-B.json",
+      "zip_member": "clients-B.json",
+      "bytes": 6925,
+      "sha256": "9662dc29c66dd1271189b5ec8a3a5241337680459aef241bc7506c0a76379484",
+      "crc32": "b9f48ea0",
+      "crc_matches_zip": true
+    },
+    {
+      "path": "artifacts/https-requests.jsonl",
+      "zip_member": "https-requests.jsonl",
+      "bytes": 109902,
+      "sha256": "470ec85e5615c227690c86015992cc1543575477fe36a0e5f72087aa5227b228",
+      "crc32": "e8e9e88d",
+      "crc_matches_zip": true
+    },
+    {
+      "path": "artifacts/native-stable-clients.json",
+      "zip_member": "native-stable-clients.json",
+      "bytes": 969337,
+      "sha256": "25a650d6796a7d1766578bf3931c5cdb4d4868e670635dd918f5bc1056318e18",
+      "crc32": "8c620c10",
+      "crc_matches_zip": true
+    }
+  ]
+}

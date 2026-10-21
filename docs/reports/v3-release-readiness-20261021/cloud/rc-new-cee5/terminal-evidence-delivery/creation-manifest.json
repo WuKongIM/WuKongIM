@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "path": "pr-body-draft.md",
+      "bytes": 2162,
+      "sha256": "bec3f315b2b0431559eae6f618eb6478e70befaee9682121df0f44e3a480c7bf"
+    },
+    {
+      "path": "pr-created.json",
+      "bytes": 3968,
+      "sha256": "bc6c7e4b0b4d41ce80827840c5c19d8901dad52901ccbededda334eee71d520c"
+    },
+    {
+      "path": "commit-source-binding.json",
+      "bytes": 1574,
+      "sha256": "6da5843d525be52961296e008e8cffba9c7d2ce23ccae810f038235efb07fe36"
+    }
+  ]
+}

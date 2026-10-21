@@ -1,0 +1,15 @@
+{
+  "replayed_helper_sha256": "dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf",
+  "corrected_fixture_sha256": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af",
+  "red": {
+    "file": "red-precision-real-response-results.json",
+    "failures": 8,
+    "errors": 0,
+    "cases": 11
+  },
+  "superseded_precision_red": [
+    "red-corrected.log",
+    "focused.log"
+  ],
+  "note": "Both older logs are retained; boundary metric mode collided with document padding in fake SSH. Exact-hash V1 replay now produces actual nonempty 152-155 byte responses and invalid boundary classifications, not unavailable. V2 helper unchanged by fixture repair."
+}

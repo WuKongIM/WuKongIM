@@ -1,0 +1,102 @@
+test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) ... 
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='start') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='end') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='start') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='end') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='start') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='end') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='start') ... FAIL
+  test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='end') ... FAIL
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='start')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(rc,0)
+    ~~~~~~~~~~~~~~~~^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='end')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 188, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(row['window']['epoch_end'],str(normalized))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1792602410.121277292' != '1792602410.121'
+- 1792602410.121277292
+?               ------
++ 1792602410.121
+
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='start')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 188, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(row['window']['epoch_end'],str(normalized))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1792602410.121777292' != '1792602410.122'
+- 1792602410.121777292
+?              ------
++ 1792602410.122
+
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='end')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(rc,0)
+    ~~~~~~~~~~~~~~~~^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='start')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 188, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(row['window']['epoch_end'],str(normalized))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1792602410.121500000' != '1792602410.122'
+- 1792602410.121500000
+?              ^^^^^^^
++ 1792602410.122
+?              ^
+
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='end')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(rc,0)
+    ~~~~~~~~~~~~~~~~^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='start')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 188, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(row['window']['epoch_end'],str(normalized))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1792602410.999777292' != '1792602411.000'
+- 1792602410.999777292
++ 1792602411.000
+
+
+======================================================================
+FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (fixture.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='end')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+    self.assertEqual(rc,0)
+    ~~~~~~~~~~~~~~~~^^^^^^
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 1 test in 12.291s
+
+FAILED (failures=8)

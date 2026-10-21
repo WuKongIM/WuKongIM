@@ -1,0 +1,8 @@
+=== RUN   TestChatLifecycleTerminalEvidenceRetention
+=== PAUSE TestChatLifecycleTerminalEvidenceRetention
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+--- PASS: TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor (1.22s)
+=== CONT  TestChatLifecycleTerminalEvidenceRetention
+--- PASS: TestChatLifecycleTerminalEvidenceRetention (44.99s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	46.562s

@@ -1,0 +1,1267 @@
+{
+  "tests_run": 1,
+  "failures": 0,
+  "errors": 0,
+  "cases": [
+    {
+      "case": "anchor-schema",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:18:45Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "terminal-anchor",
+            "state": "invalid",
+            "bytes": 0
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 0,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 0,
+          "retained_bytes": 0,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 2359,
+          "sha256": "48780fbf8fe49da1e1847f61f100775011bed6be8de0b1643349d5fb777fb2a4"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        }
+      ]
+    },
+    {
+      "case": "anchor-not-final",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:18:46Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "terminal-anchor",
+            "state": "invalid",
+            "bytes": 0
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 0,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 0,
+          "retained_bytes": 0,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 2359,
+          "sha256": "911af075dea845d1b48f3155265235b326ffb6acb2f21399419f6e3609f5792a"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        }
+      ]
+    },
+    {
+      "case": "anchor-missing-end",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:18:47Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "terminal-anchor",
+            "state": "invalid",
+            "bytes": 0
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 0,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 0,
+          "retained_bytes": 0,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 2359,
+          "sha256": "55752cb9f7a4c5bc3a27b7c58c119c498d9d0ba40b4798c0520919540be8a12d"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        }
+      ]
+    },
+    {
+      "case": "anchor-future",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:18:48Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "terminal-anchor",
+            "state": "invalid",
+            "bytes": 0
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 0,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 0,
+          "retained_bytes": 0,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 2359,
+          "sha256": "bde88def2f81f173bf5916c105b7cd2cb4314c0ae7ac359fb346607683b13720"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        }
+      ]
+    },
+    {
+      "case": "anchor-backward",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:18:49Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "terminal-anchor",
+            "state": "invalid",
+            "bytes": 0
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 0,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 0,
+          "retained_bytes": 0,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 2359,
+          "sha256": "9d36d18fa875cb704c4b7fcbb40e9f55bc218d7823c6c5878d567631c54a70bc"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        }
+      ]
+    }
+  ]
+}

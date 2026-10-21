@@ -1,0 +1,127 @@
+{
+  "schema": "wukongim.cloud_rc.pending_source/v1",
+  "observed_at": "2026-10-21T18:39:41.382119+00:00",
+  "candidate_pr": 1024,
+  "candidate_head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "candidate_tree": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "changed_files": [
+    "CHANGELOG.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+    "scripts/chat-lifecycle/terminal-evidence.py",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+    "scripts/chat_lifecycle_workflows_test.go",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "candidate_ci_status": "pending first Linux CI, per parent handoff; not refreshed in this task",
+  "candidate_merged": false,
+  "final_control_sha": null,
+  "final_product_source_sha": null,
+  "final_rules_freeze": false,
+  "candidate_observed_file_hashes": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284,
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960,
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf",
+      "bytes": 3772,
+      "git_blob": "3a3c9460d9b7546c7617f9b96dedaa571e3ac554"
+    },
+    {
+      "path": ".agents/skills/wukongim-chat-lifecycle/SKILL.md",
+      "sha256": "adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7",
+      "bytes": 6962,
+      "git_blob": "833f0ceee95a35a364f49d5d1272b6f2c42904c9"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034",
+      "bytes": 10785,
+      "git_blob": "39fa822d617caaeae4e65664c135faa34a17958f"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c",
+      "bytes": 16310,
+      "git_blob": "5866d61fb951e2d5dccf2b335964bc609ca00d00"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f",
+      "bytes": 34715,
+      "git_blob": "5d9d0b9bc4aa3d898087e3bbb274b2867218c7dc"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05",
+      "bytes": 31210,
+      "git_blob": "cbb7567e7b1bbab22f8f29c0851f8f174135c902"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62",
+      "bytes": 3747,
+      "git_blob": "2b5956181959bd70fc8caf7bc926c4a72bb8f73c"
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf",
+      "bytes": 14038,
+      "git_blob": "38ddcd1a767ba5bb9f1d2b65158d23b33345d219"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b",
+      "bytes": 1021,
+      "git_blob": "4634426955afd8861add69130b8d664130a2ac4e"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0",
+      "bytes": 1021,
+      "git_blob": "8ffc81f5b2d070ba4f2a98dd05a100312aaff1cc"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542",
+      "bytes": 4367,
+      "git_blob": "7714ea42ebafac57fb972aec53f52dd7aa5b6bd9"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/formal.yaml",
+      "sha256": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573",
+      "bytes": 4361,
+      "git_blob": "e530d74b6cfecc9524d41b9f66afe6131e0d7ea5"
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+      "bytes": 5736,
+      "git_blob": "453e077d4f9d045b31c485b64ec3e75374c9ef09"
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+      "bytes": 22737,
+      "git_blob": "368c3d23200b252aa42d490ee8350932d8114597"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492,
+      "git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01"
+    }
+  ],
+  "note": "Observed candidate hashes only. After parent supplies actual merge SHA, verify complete tree and freeze exact merged source/rules in a new generation. No repository working copy was edited."
+}

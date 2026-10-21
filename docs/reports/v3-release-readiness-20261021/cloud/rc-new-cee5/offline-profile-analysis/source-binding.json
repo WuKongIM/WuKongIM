@@ -1,0 +1,112 @@
+{
+  "finished_at_utc": "2026-10-21T18:18:20.574311+00:00",
+  "source_revision_for_interpretation": "cee5d51f325fb84033060f546337d326110adae5",
+  "profile_source_sha": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-profile-analysis/source-profiles.json",
+    "bytes": 1636,
+    "sha256": "0a3786a155946f9ca9513fb816dc3bceecb7893c2496a54afe8a6730649f86c8"
+  },
+  "rules_and_context": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/runtime/delivery/FLOW.md",
+      "bytes": 3273,
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/runtime/presence/FLOW.md",
+      "bytes": 2490,
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/infra/delivery/FLOW.md",
+      "bytes": 2635,
+      "sha256": "060a4a2e615f43bc0178d70aa5f069221ec1552379744dcee07c3462b2cd8363"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/usecase/presence/FLOW.md",
+      "bytes": 2626,
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/docs/adr/0024-protect-results-from-load-generator-saturation.md",
+      "bytes": 1019,
+      "sha256": "b4c7472900dc44e27f219386043073ea1867ff495bf18c8cd84a71c93ccf9792"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/docs/adr/0046-report-resource-saturation-as-a-capacity-warning.md",
+      "bytes": 654,
+      "sha256": "9c9752d1bded2e6f63161494d169051d292b9b21dea295e1995970dc89d2f036"
+    }
+  ],
+  "source_files": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/runtime/delivery/plan_queue.go",
+      "bytes": 5371,
+      "sha256": "47cb7c5ab5492e5755b1aa9e21c7722f55ec6a3a63ff9d7225ecd76360d5d5b1"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/runtime/delivery/runtime.go",
+      "bytes": 41754,
+      "sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/app/presence_touch.go",
+      "bytes": 15124,
+      "sha256": "ccba08987836caaaf43971a2e53d53546c99970a0bbae9fa37e1b11812009c26"
+    }
+  ],
+  "skill": {
+    "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "bytes": 9321,
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  },
+  "source_anchors": [
+    {
+      "file": "internal/runtime/delivery/plan_queue.go",
+      "lines": "142-151",
+      "meaning": "No runnable plan then select wait."
+    },
+    {
+      "file": "internal/runtime/delivery/runtime.go",
+      "lines": "264-274,473-480",
+      "meaning": "Workers dequeue plans; lifecycle goroutine joins worker group."
+    },
+    {
+      "file": "internal/app/presence_touch.go",
+      "lines": "181-221",
+      "meaning": "Presence watch/tick select on event, ticker or cancellation."
+    }
+  ],
+  "raw_private_output_not_allowlisted": true,
+  "processes_terminal": true,
+  "pprof_commands": 19,
+  "pprof_failures": 0,
+  "tests_or_workload_run": false,
+  "network_or_cloud_actions": false,
+  "no_historical_root_cause_proof": true
+}

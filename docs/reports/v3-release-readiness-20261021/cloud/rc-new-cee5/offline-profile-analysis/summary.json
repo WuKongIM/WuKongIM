@@ -1,0 +1,156 @@
+{
+  "method": "Bounded local Go pprof -symbolize=none using existing six profile members; no binary download or network/source load.",
+  "hypotheses": [
+    {
+      "id": 1,
+      "hypothesis": "Delivery/presence work remains blocked at capture.",
+      "result": "Not supported by these sampled stacks: delivery workers wait at dequeue, lifecycle waits for workers; presence only tick/watch select. Cannot exclude prior stalls."
+    },
+    {
+      "id": 2,
+      "hypothesis": "Heap allocation concentration identifies a bottleneck.",
+      "result": "Concentration observed in Pebble, similar across services. Abnormality, CPU cost, allocation rate and causation are not established without baseline/delta/CPU profile."
+    },
+    {
+      "id": 3,
+      "hypothesis": "The snapshots were taken after active workload paths became idle.",
+      "result": "Supported for the named call paths at capture; not evidence of the earlier run interval."
+    }
+  ],
+  "services": [
+    {
+      "service": 1,
+      "goroutine_time_utc_seconds": "2026-10-21T17:19:20+00:00",
+      "heap_time_utc_seconds": "2026-10-21T17:19:15+00:00",
+      "goroutine_profile_total": 3287,
+      "delivery_idle_dequeue_count": 320,
+      "delivery_lifecycle_wait_count": 1,
+      "presence_maintenance_select_count": 2,
+      "no_matching_delivery_plan_or_presence_lookup_execution_stack": true,
+      "heap_inuse_total": "504.64MB",
+      "heap_alloc_total": "53.84GB",
+      "pebble_inuse": {
+        "flat": "280.04MB",
+        "flat_percent": "55.49%",
+        "cumulative": "280.04MB",
+        "cumulative_percent": "55.49%",
+        "function": "github.com/cockroachdb/pebble/v2/internal/manual.New"
+      },
+      "pebble_alloc": {
+        "flat": "34.58GB",
+        "flat_percent": "64.23%",
+        "cumulative": "34.58GB",
+        "cumulative_percent": "64.23%",
+        "function": "github.com/cockroachdb/pebble/v2/internal/manual.New (inline)"
+      },
+      "delivery_process_plan_alloc": {
+        "flat": "0.12GB",
+        "flat_percent": "0.23%",
+        "cumulative": "0.86GB",
+        "cumulative_percent": "1.60%",
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan"
+      },
+      "presence_recovered_routes_inuse": {
+        "flat": "5.12MB",
+        "flat_percent": "1.02%",
+        "cumulative": "5.12MB",
+        "cumulative_percent": "1.02%",
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).InstallRecoveredRoutes"
+      }
+    },
+    {
+      "service": 2,
+      "goroutine_time_utc_seconds": "2026-10-21T17:19:39+00:00",
+      "heap_time_utc_seconds": "2026-10-21T17:19:34+00:00",
+      "goroutine_profile_total": 3366,
+      "delivery_idle_dequeue_count": 320,
+      "delivery_lifecycle_wait_count": 1,
+      "presence_maintenance_select_count": 2,
+      "no_matching_delivery_plan_or_presence_lookup_execution_stack": true,
+      "heap_inuse_total": "509.23MB",
+      "heap_alloc_total": "52.48GB",
+      "pebble_inuse": {
+        "flat": "275.26MB",
+        "flat_percent": "54.05%",
+        "cumulative": "275.26MB",
+        "cumulative_percent": "54.05%",
+        "function": "github.com/cockroachdb/pebble/v2/internal/manual.New"
+      },
+      "pebble_alloc": {
+        "flat": "34.05GB",
+        "flat_percent": "64.89%",
+        "cumulative": "34.05GB",
+        "cumulative_percent": "64.89%",
+        "function": "github.com/cockroachdb/pebble/v2/internal/manual.New (inline)"
+      },
+      "delivery_process_plan_alloc": {
+        "flat": "0.13GB",
+        "flat_percent": "0.24%",
+        "cumulative": "0.80GB",
+        "cumulative_percent": "1.53%",
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan"
+      },
+      "presence_recovered_routes_inuse": {
+        "flat": "3.59MB",
+        "flat_percent": "0.7%",
+        "cumulative": "3.59MB",
+        "cumulative_percent": "0.7%",
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).InstallRecoveredRoutes"
+      }
+    },
+    {
+      "service": 3,
+      "goroutine_time_utc_seconds": "2026-10-21T17:19:58+00:00",
+      "heap_time_utc_seconds": "2026-10-21T17:19:53+00:00",
+      "goroutine_profile_total": 3230,
+      "delivery_idle_dequeue_count": 320,
+      "delivery_lifecycle_wait_count": 1,
+      "presence_maintenance_select_count": 2,
+      "no_matching_delivery_plan_or_presence_lookup_execution_stack": true,
+      "heap_inuse_total": "500.70MB",
+      "heap_alloc_total": "53.13GB",
+      "pebble_inuse": {
+        "flat": "276.40MB",
+        "flat_percent": "55.20%",
+        "cumulative": "276.40MB",
+        "cumulative_percent": "55.20%",
+        "function": "github.com/cockroachdb/pebble/v2/internal/manual.New"
+      },
+      "pebble_alloc": {
+        "flat": "34.79GB",
+        "flat_percent": "65.47%",
+        "cumulative": "34.79GB",
+        "cumulative_percent": "65.47%",
+        "function": "github.com/cockroachdb/pebble/v2/internal/manual.New (inline)"
+      },
+      "delivery_process_plan_alloc": {
+        "flat": "0.12GB",
+        "flat_percent": "0.22%",
+        "cumulative": "0.80GB",
+        "cumulative_percent": "1.51%",
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan"
+      },
+      "presence_recovered_routes_inuse": {
+        "flat": "7.18MB",
+        "flat_percent": "1.43%",
+        "cumulative": "7.18MB",
+        "cumulative_percent": "1.43%",
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).InstallRecoveredRoutes"
+      }
+    }
+  ],
+  "limits": [
+    "Profiles sampled roughly 12.4-13.1 minutes after the 17:06:50.121277292Z failure cut; service snapshots are not simultaneous.",
+    "No CPU, mutex or block profile, no heap before/after pair, no load-worker profile.",
+    "alloc_space is sampled cumulative allocation through collection, including startup/bootstrap/post-failure activity; not live bytes or allocation during the 61.212-second window.",
+    "inuse_space is sampled live Go-heap allocation, not total RSS, reserved heap or proof of machine headroom.",
+    "The archived goroutine snapshot can identify current stack locations, not waiting duration or earlier transient congestion.",
+    "No unique attribution of the 1 expired message or historical cloud failure; original product_failure/message_loss stays unchanged."
+  ],
+  "public_sanitization": "Only counts, sizes, percent, times and function symbols; no raw profile, raw labels, addresses, identifiers or trace argument values.",
+  "tool_failures": [],
+  "local_observer_notes": [
+    "Initial broad-focus no_samples heuristic treated tiny percentage formatting inconsistently; replaced before sealing by explicit row parsing: exactly two matching maintenance goroutines on all services.",
+    "One read-only rg lookup used presence_touch_worker.go and returned file-not-found; discovery identified the existing presence_touch.go. No tests or retries of workload occurred."
+  ]
+}

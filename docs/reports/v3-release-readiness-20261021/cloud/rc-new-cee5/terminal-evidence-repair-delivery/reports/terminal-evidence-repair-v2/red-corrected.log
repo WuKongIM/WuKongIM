@@ -1,0 +1,370 @@
+=== RUN   TestChatLifecycleTerminalEvidenceRetention
+=== PAUSE TestChatLifecycleTerminalEvidenceRetention
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== PAUSE TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== CONT  TestChatLifecycleTerminalEvidenceRetention
+=== CONT  TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+--- PASS: TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor (2.14s)
+=== NAME  TestChatLifecycleTerminalEvidenceRetention
+    chat_lifecycle_terminal_evidence_integration_test.go:29: terminal evidence fixture: exit status 1
+        test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) ... 
+          test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='missing-end') ... ERROR
+        test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) ... ok
+        test_capacity_order_preserves_nanoseconds (__main__.CollectorTests.test_capacity_order_preserves_nanoseconds) ... ok
+        test_capacity_required_by_passing_formal_cannot_be_missing (__main__.CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing) ... ok
+        test_empty_optional_metric_family_has_explicit_zero_coverage (__main__.CollectorTests.test_empty_optional_metric_family_has_explicit_zero_coverage) ... ok
+        test_formal_before_capacity_is_explicitly_not_applicable (__main__.CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable) ... ok
+        test_formal_capacity_retains_both_stages (__main__.CollectorTests.test_formal_capacity_retains_both_stages) ... ok
+        test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) ... 
+          test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='product_failure') ... ERROR
+          test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='harness_invalid') ... ERROR
+          test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='infrastructure_failure') ... ERROR
+          test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='operator_stop') ... ERROR
+          test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='insufficient_evidence') ... ERROR
+          test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='passed_with_capacity_warning') ... FAIL
+        test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) ... 
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='unknown-outcome') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='unknown-cause') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='missing-cause') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='success-pair') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='failure-pair') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='rehearsal-success') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-only-cause') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='continuation') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-missing-completed') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-completed') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-lower-bound') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-rate') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-failed-rate') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-recovery') ... FAIL
+          test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-attribution') ... FAIL
+        test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) ... ok
+        test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) ... ok
+        test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) ... ok
+        test_partitions_retain_more_than_original_single_response_cap (__main__.CollectorTests.test_partitions_retain_more_than_original_single_response_cap) ... ok
+        test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) ... 
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='end') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='end') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='end') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='end') ... FAIL
+        test_rehearsal_retains_exact_terminal_documents_and_failure_window (__main__.CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window) ... FAIL
+        test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) ... ok
+        test_diagnostic_metric_names_are_exact_and_disjoint (__main__.HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint) ... ok
+        test_metric_deadline_stops_requests_and_retains_first_partition (__main__.HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition) ... ok
+        test_metric_total_transfer_budget_is_shared (__main__.HelperBoundsTests.test_metric_total_transfer_budget_is_shared) ... ok
+        test_selector_partition_is_disjoint_and_complete (__main__.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) ... ok
+        
+        ======================================================================
+        ERROR: test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='missing-end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 305, in test_bad_terminal_anchor_never_queries_now
+            rc,m,calls,_,_=self.run_case('anchor-'+label,report_mutation=change)
+                           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 131, in run_case
+            value['at' if name=='worker-evidence.json' else 'updated_at']=doc['window']['end']
+                                                                          ~~~~~~~~~~~~~^^^^^^^
+        KeyError: 'end'
+        
+        ======================================================================
+        ERROR: test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='product_failure')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 209, in test_formal_exemption_requires_legal_failure_and_phase_evidence
+            self.assertEqual(row['phase_evidence'],dict(stage='formal',mode='soak',outcome=outcome,cause=cause,capacity_attempted=False))
+                             ~~~^^^^^^^^^^^^^^^^^^
+        KeyError: 'phase_evidence'
+        
+        ======================================================================
+        ERROR: test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='harness_invalid')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 209, in test_formal_exemption_requires_legal_failure_and_phase_evidence
+            self.assertEqual(row['phase_evidence'],dict(stage='formal',mode='soak',outcome=outcome,cause=cause,capacity_attempted=False))
+                             ~~~^^^^^^^^^^^^^^^^^^
+        KeyError: 'phase_evidence'
+        
+        ======================================================================
+        ERROR: test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='infrastructure_failure')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 209, in test_formal_exemption_requires_legal_failure_and_phase_evidence
+            self.assertEqual(row['phase_evidence'],dict(stage='formal',mode='soak',outcome=outcome,cause=cause,capacity_attempted=False))
+                             ~~~^^^^^^^^^^^^^^^^^^
+        KeyError: 'phase_evidence'
+        
+        ======================================================================
+        ERROR: test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='operator_stop')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 209, in test_formal_exemption_requires_legal_failure_and_phase_evidence
+            self.assertEqual(row['phase_evidence'],dict(stage='formal',mode='soak',outcome=outcome,cause=cause,capacity_attempted=False))
+                             ~~~^^^^^^^^^^^^^^^^^^
+        KeyError: 'phase_evidence'
+        
+        ======================================================================
+        ERROR: test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='insufficient_evidence')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 209, in test_formal_exemption_requires_legal_failure_and_phase_evidence
+            self.assertEqual(row['phase_evidence'],dict(stage='formal',mode='soak',outcome=outcome,cause=cause,capacity_attempted=False))
+                             ~~~^^^^^^^^^^^^^^^^^^
+        KeyError: 'phase_evidence'
+        
+        ======================================================================
+        FAIL: test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) (outcome='passed_with_capacity_warning')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 214, in test_formal_exemption_requires_legal_failure_and_phase_evidence
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'capacity-terminal-anchor')['state'],'missing')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='unknown-outcome')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='unknown-cause')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='missing-cause')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='success-pair')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='failure-pair')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='rehearsal-success')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-only-cause')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='continuation')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-missing-completed')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-completed')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-lower-bound')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-rate')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-failed-rate')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-recovery')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) (label='capacity-attribution')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 239, in test_invalid_formal_verdict_or_capacity_proof_is_not_exempted
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_rehearsal_retains_exact_terminal_documents_and_failure_window (__main__.CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 166, in test_rehearsal_retains_exact_terminal_documents_and_failure_window
+            self.assertEqual(c['start'],'1792601510.121');self.assertEqual(c['end'],'1792602410.121');self.assertEqual(c['step'],'15')
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError: '1792601510.121277292' != '1792601510.121'
+        - 1792601510.121277292
+        ?               ------
+        + 1792601510.121
+        
+        
+        ----------------------------------------------------------------------
+        Ran 20 tests in 88.180s
+        
+        FAILED (failures=25, errors=6)
+    chat_lifecycle_terminal_evidence_integration_test.go:39: fixture did not write its artifact through the non-product environment variable: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleTerminalEvidenceRetention2122838434/001/terminal-evidence-results.json: no such file or directory
+--- FAIL: TestChatLifecycleTerminalEvidenceRetention (88.26s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	88.693s
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	0.620s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	0.714s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	0.501s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	0.930s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	0.831s [no tests to run]
+FAIL

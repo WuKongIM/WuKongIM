@@ -1,0 +1,54 @@
+{
+  "files": [
+    {
+      "path": "standards.md",
+      "bytes": 797,
+      "sha256": "33ce3113f3811a5979b9df79dbeccbca37c7c37a9108613eac4c563762997797"
+    },
+    {
+      "path": "standards-freeze.json",
+      "bytes": 13484,
+      "sha256": "d29590ec890d84e8ac4c00b500c25a1f812a15522cccaf2aaa0376410eb99cf0"
+    },
+    {
+      "path": "SHA256SUMS",
+      "bytes": 254,
+      "sha256": "5fff0d2e2f39819c2dffd87af273ef52bf66f2b4b83b70f27e8bcb448bff2fa1"
+    },
+    {
+      "path": "archive-sha256.json",
+      "bytes": 655,
+      "sha256": "adcc9b7be9d1e5e19de92e06ef3dc4c46c0be00e704addc886609cbda7462757"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 35,
+      "sha256": "b3ee724771e6e7a9bd8f754e764e9f3e727dd37966f185560caab1f86895addf"
+    },
+    {
+      "path": "spec.md",
+      "bytes": 725,
+      "sha256": "72b3ca359942dbfeb6c74d81ee737dd7c5f34d055f7a8265ad6bac4e0682c89a"
+    },
+    {
+      "path": "spec-freeze.json",
+      "bytes": 8121,
+      "sha256": "b05f7e8a70de76f893e533e72809955f701921d586b43c4d2d1b9ca1e2c253bf"
+    },
+    {
+      "path": "spec-probes/probe.py",
+      "bytes": 4795,
+      "sha256": "f28257c39649fd9bdfe8c45e39bf5cf80d2116c7986945bd92e2cd4127dfeebb"
+    },
+    {
+      "path": "spec-probes/results.json",
+      "bytes": 10499,
+      "sha256": "b3d1c41fb845fbfff86c9a20ec70a66af3605febf690db3e046678da9a57eb11"
+    },
+    {
+      "path": "combined-review.md",
+      "bytes": 1239,
+      "sha256": "08f6a981076414eef277e1818f5c7349f852ddc3ddc4991c808c583e7e705522"
+    }
+  ]
+}

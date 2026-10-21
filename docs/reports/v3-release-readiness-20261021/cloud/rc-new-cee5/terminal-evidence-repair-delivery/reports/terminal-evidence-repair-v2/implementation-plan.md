@@ -1,0 +1,17 @@
+# V2 correction plan
+
+Exact base cee5d51f325fb84033060f546337d326110adae5. V1 source/rules remain frozen in ../terminal-evidence-repair/review-source-freeze.json; V1 audit/review/first complete suite logs are preserved without overwriting.
+
+Corrections follow the v2 failure matrix and tests-first hashes. The first RED invocation failed before executing fixtures because repoRoot calls t.Parallel and the new test used t.Setenv. The test now injects its artifact destination only into command.Env; red-corrected is the behavioral RED generation, with no collector implementation changes in between.
+
+The range query will send explicit decimal millisecond bounds (nearest millisecond, positive epoch, 900 seconds/step 15 unchanged), and validation will require the closed same millisecond interval. The raw RFC3339 nanosecond end remains in each manifest row, and terminal document identity/capacity chronological comparison retain nanoseconds. The deployed Prometheus v3.13.1 API rounds numeric time arguments to milliseconds: https://raw.githubusercontent.com/prometheus/prometheus/v3.13.1/web/api/v1/api.go (parseTime). Canonical millisecond inputs avoid mixing API precision with report precision; no tolerance band is introduced.
+
+Capacity not_applicable will require a legal terminal failure pair from the existing producer vocabulary, formal/soak/final/non-continuing phase, and complete canonical not-attempted capacity fields. Pass and passed_with_capacity_warning require capacity artifacts. The collector validates only the evidence anchor and phase proof; it does not recompute or change the original product verdict, thresholds or workload decisions. Report source and phase evidence remain explicit.
+
+The optional test result destination becomes CHAT_LIFECYCLE_TERMINAL_EVIDENCE_TEST_ARTIFACT. The Go integration test verifies the output exists and contains successful fixture results; it never mutates the parent process environment. Full scripts regression uses this non-product namespace so unrelated child product processes do not reject it as an unknown WK_ configuration key.
+
+No cloud actions, product source changes, workflow/protected policy changes, commits or pushes. Existing bounded eight queries, 24 MiB shared observed-byte budget and 60-second shared deadline stay unchanged. v2 source will be frozen before both independent review and full scripts validation.
+
+V2 first focused generation preserved in focused.log/results: 20 methods, 79 process cases, eight failures, all from fake SSH metric boundary mode colliding with old document-padding mode. The fixture padding now applies only to document names. Corrected precision RED was replayed against a reconstructed helper verified byte-for-byte with V1 hash dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf; eight boundary-contract failures with nonempty actual response bytes and no fixture errors. The old unavailable responses are not claimed as valid precision RED. See precision-red-correction.json and red-precision-real-response-results.json. The live V2 helper did not change during this fixture correction.
+
+The Mac full integration supplement uses one 12-minute outer Go test watchdog with the same -parallel=2 and -count=1, because V1 took 528.792 seconds before the added process cases. This is not a pass of the protected scripts-integration named check. The original Linux policy command with its 9-minute watchdog is still required on the final PR. No protected policy, workflow or product threshold is changed.

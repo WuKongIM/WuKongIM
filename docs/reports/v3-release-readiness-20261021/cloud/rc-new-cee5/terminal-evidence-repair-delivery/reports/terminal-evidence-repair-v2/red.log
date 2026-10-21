@@ -1,0 +1,43 @@
+=== RUN   TestChatLifecycleTerminalEvidenceRetention
+=== PAUSE TestChatLifecycleTerminalEvidenceRetention
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== PAUSE TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== CONT  TestChatLifecycleTerminalEvidenceRetention
+=== CONT  TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+--- FAIL: TestChatLifecycleTerminalEvidenceRetention (0.00s)
+panic: testing: test using t.Setenv or t.Chdir can not use t.Parallel [recovered, repanicked]
+
+goroutine 25 [running]:
+testing.tRunner.func1.2({0x1017753c0, 0x1019d5550})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1872 +0x190
+testing.tRunner.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1875 +0x31c
+panic({0x1017753c0?, 0x1019d5550?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/panic.go:783 +0x120
+testing.(*T).checkParallel(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1736
+testing.(*T).Setenv(0x14000090ee8?, {0x10112de2c?, 0x14000090e38?}, {0x1400014a480?, 0x14000090f18?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1750 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.TestChatLifecycleTerminalEvidenceRetention(0x14000103500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/chat_lifecycle_terminal_evidence_integration_test.go:23 +0xa8
+testing.tRunner(0x14000103500, 0x1019cb330)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+FAIL	github.com/WuKongIM/WuKongIM/scripts	0.649s
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	0.919s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	1.251s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	0.288s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	1.608s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	1.957s [no tests to run]
+FAIL

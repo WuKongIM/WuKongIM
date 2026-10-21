@@ -1,0 +1,19 @@
+{
+  "schema": "wukongim.cloud_rc.diagnostic_limit/v1",
+  "source": "Parent task current evidence handoff; no additional MCP/SSH/provider attempt performed by this preparation",
+  "previous_live_analysis_attempts": 2,
+  "mcp_connection_established": false,
+  "second_attempt_existing_compatible_cli": "0.163",
+  "second_attempt_health_requests_timed_out": 12,
+  "timeout_cause": "unknown",
+  "previous_analysis_authorization": "closed",
+  "future_live_mcp_success_assumed": false,
+  "collector_repair_scope": "Retain existing failure samples/status and bounded metrics; no product runtime change and no proof of message-loss/expiration root-cause repair.",
+  "allowed_current_actions": "Read-only plan preparation and local public report writing only.",
+  "no_implicit_authorization_for": [
+    "A third diagnostic attempt",
+    "IAM/permission changes",
+    "New paid procurement",
+    "Changing runtime thresholds or product source"
+  ]
+}

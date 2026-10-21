@@ -1,0 +1,100 @@
+{
+  "services": [
+    {
+      "service": 1,
+      "filtered_stacks": [
+        {
+          "count": 320,
+          "functions": [
+            "runtime.gopark",
+            "runtime.selectgo",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1"
+          ]
+        },
+        {
+          "count": 1,
+          "functions": [
+            "runtime.gopark",
+            "runtime.goparkunlock (inline)",
+            "runtime.semacquire1",
+            "sync.runtime_SemacquireWaitGroup",
+            "sync.(*WaitGroup).Wait",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func2",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1"
+          ]
+        }
+      ],
+      "scope": "Functions matching internal/(runtime|infra|usecase)/(delivery|presence); labels omitted.",
+      "pprof_time_local": "2026-10-22 01:19:20 CST"
+    },
+    {
+      "service": 2,
+      "filtered_stacks": [
+        {
+          "count": 320,
+          "functions": [
+            "runtime.gopark",
+            "runtime.selectgo",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1"
+          ]
+        },
+        {
+          "count": 1,
+          "functions": [
+            "runtime.gopark",
+            "runtime.goparkunlock (inline)",
+            "runtime.semacquire1",
+            "sync.runtime_SemacquireWaitGroup",
+            "sync.(*WaitGroup).Wait",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func2",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1"
+          ]
+        }
+      ],
+      "scope": "Functions matching internal/(runtime|infra|usecase)/(delivery|presence); labels omitted.",
+      "pprof_time_local": "2026-10-22 01:19:39 CST"
+    },
+    {
+      "service": 3,
+      "filtered_stacks": [
+        {
+          "count": 320,
+          "functions": [
+            "runtime.gopark",
+            "runtime.selectgo",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1"
+          ]
+        },
+        {
+          "count": 1,
+          "functions": [
+            "runtime.gopark",
+            "runtime.goparkunlock (inline)",
+            "runtime.semacquire1",
+            "sync.runtime_SemacquireWaitGroup",
+            "sync.(*WaitGroup).Wait",
+            "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func2",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1"
+          ]
+        }
+      ],
+      "scope": "Functions matching internal/(runtime|infra|usecase)/(delivery|presence); labels omitted.",
+      "pprof_time_local": "2026-10-22 01:19:58 CST"
+    }
+  ]
+}

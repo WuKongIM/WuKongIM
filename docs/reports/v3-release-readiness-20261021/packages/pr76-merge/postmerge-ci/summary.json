@@ -1,0 +1,71 @@
+{
+  "recorded_at": "2026-10-21T18:21:38.629228+00:00",
+  "head": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "all_runs_terminal": true,
+  "all_validations_passed": true,
+  "natural_push_only": true,
+  "attempt": 1,
+  "runs": [
+    {
+      "id": 39651432004,
+      "name": "Safety Automation - Verify Object Storage SDK Contracts",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39651432004",
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "event": "push",
+      "head_sha": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T18:17:51Z",
+      "updated_at": "2026-10-21T18:18:13Z"
+    },
+    {
+      "id": 39651431863,
+      "name": "Safety Automation - Deploy Package Repository Bootstrap",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39651431863",
+      "path": ".github/workflows/pages.yml",
+      "event": "push",
+      "head_sha": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T18:17:51Z",
+      "updated_at": "2026-10-21T18:19:54Z"
+    }
+  ],
+  "Pages": {
+    "job": 119400470757,
+    "tests": 567,
+    "skips": 0,
+    "contracts": 4,
+    "conclusion": "success",
+    "deployment_job": 119401548760,
+    "deployment_conclusion": "skipped",
+    "deployment_reason": "preview is enabled; immutable Pages workflow sets deploy_bootstrap=false",
+    "Pages_artifacts": 0,
+    "site_published_by_this_run": false
+  },
+  "SDK": {
+    "job": 119400471277,
+    "tests": 22,
+    "inputs": 10,
+    "skips": 0,
+    "conclusion": "success",
+    "hash_locked_install": "success",
+    "receipt": {
+      "sha256": "f42bc067e04d540df887377b1cb5d84a3f76ce3a3d3e4596fc19e04d710a66f4",
+      "bytes": 1845
+    },
+    "artifact_id": 12370266347,
+    "artifact_SHA_and_CRC_verified": true
+  },
+  "native_workflow": "No natural postmerge native run found for this exact commit; premerge native attempt2 remains separate evidence, not a new postmerge execution.",
+  "test_log_note": "Two printed passed=false/cases=0 preflight JSON fixture outputs follow unittest OK; the full Pages job is success. They are not native drill runs or hidden test failures.",
+  "retained_limits": [
+    "Original Standards tests-after-code P2 remains disclosed.",
+    "Original native attempt1 failure remains preserved and not uniquely attributed.",
+    "No production activation, live provider success, public release, or complete new D2 production-shaped native closure claimed."
+  ],
+  "actions": "GET-only plus bounded local public evidence writes; no dispatch/retry/cancel/source edit/provider/credential access. All collector commands terminal."
+}

@@ -1,0 +1,40 @@
+[
+  {
+    "id": 22025013,
+    "name": "Native package audit tag creation",
+    "target": "tag",
+    "source_type": "Repository",
+    "source": "WuKongIM/packages",
+    "enforcement": "active",
+    "node_id": "RRS_lACqUmVwb3NpdG9yec5QnxguzgFQEzU",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/WuKongIM/packages/rulesets/22025013"
+      },
+      "html": {
+        "href": "https://github.com/WuKongIM/packages/rules/22025013"
+      }
+    },
+    "created_at": "2026-09-01T23:27:22.296+08:00",
+    "updated_at": "2026-09-01T23:27:22.370+08:00"
+  },
+  {
+    "id": 22025014,
+    "name": "Native package audit tag immutability",
+    "target": "tag",
+    "source_type": "Repository",
+    "source": "WuKongIM/packages",
+    "enforcement": "active",
+    "node_id": "RRS_lACqUmVwb3NpdG9yec5QnxguzgFQEzY",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/WuKongIM/packages/rulesets/22025014"
+      },
+      "html": {
+        "href": "https://github.com/WuKongIM/packages/rules/22025014"
+      }
+    },
+    "created_at": "2026-09-01T23:27:23.671+08:00",
+    "updated_at": "2026-09-01T23:27:23.715+08:00"
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "recorded_at": "2026-10-21T18:16:10.341331+00:00",
+  "attempt1_payload_count": 71,
+  "attempt1_manifest": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/final-manifest.json",
+    "bytes": 11864,
+    "sha256": "e886bc88254f70e7d1cf60842a20199ec1b00711f75dfd3a57df0374dad94bbf"
+  },
+  "attempt1_archive": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/public-evidence.tar.gz",
+    "bytes": 251497,
+    "sha256": "220dca46914f6f46e7f9169a30fb2bcca839eb6c224cabc13007282a89229089"
+  },
+  "all_attempt1_payload_unchanged": true,
+  "attempt2_stage_files_unchanged": 12,
+  "stage_manifest": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-attempt-2/stage-freeze-handoff.json",
+    "bytes": 1994,
+    "sha256": "ae66ef9552c610bffed46ebcf2a230e0ccc8fa0bb2dd6202c8de219c213a7508"
+  }
+}

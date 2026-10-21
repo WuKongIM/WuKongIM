@@ -1,0 +1,104 @@
+[
+  {
+    "service": 1,
+    "command": [
+      "go1.25.11",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=30",
+      "-symbolize=none",
+      "-focus=Presence|presence|processPlan|executePlan|pushLocal|PushOwner",
+      "service-1-goroutine.pprof"
+    ],
+    "exit_code": 0,
+    "stdout_bytes": 1114,
+    "stderr_bytes": 0,
+    "summary": [
+      "Type: goroutine",
+      "Time: 2026-10-22 01:19:20 CST",
+      "Showing nodes accounting for 2, 0.061% of 3287 total"
+    ],
+    "matched_goroutines": 2,
+    "symbols": [
+      "runtime.gopark",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func1",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func2",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).tick",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).watch",
+      "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+      "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+      "runtime.selectgo",
+      "runtime/pprof.Do"
+    ],
+    "interpretation": "Only presenceTouchWorker tick/watch parked on select; no sampled delivery processPlan or presence lookup stack."
+  },
+  {
+    "service": 2,
+    "command": [
+      "go1.25.11",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=30",
+      "-symbolize=none",
+      "-focus=Presence|presence|processPlan|executePlan|pushLocal|PushOwner",
+      "service-2-goroutine.pprof"
+    ],
+    "exit_code": 0,
+    "stdout_bytes": 1114,
+    "stderr_bytes": 0,
+    "summary": [
+      "Type: goroutine",
+      "Time: 2026-10-22 01:19:39 CST",
+      "Showing nodes accounting for 2, 0.059% of 3366 total"
+    ],
+    "matched_goroutines": 2,
+    "symbols": [
+      "runtime.gopark",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func1",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func2",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).tick",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).watch",
+      "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+      "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+      "runtime.selectgo",
+      "runtime/pprof.Do"
+    ],
+    "interpretation": "Only presenceTouchWorker tick/watch parked on select; no sampled delivery processPlan or presence lookup stack."
+  },
+  {
+    "service": 3,
+    "command": [
+      "go1.25.11",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=30",
+      "-symbolize=none",
+      "-focus=Presence|presence|processPlan|executePlan|pushLocal|PushOwner",
+      "service-3-goroutine.pprof"
+    ],
+    "exit_code": 0,
+    "stdout_bytes": 1114,
+    "stderr_bytes": 0,
+    "summary": [
+      "Type: goroutine",
+      "Time: 2026-10-22 01:19:58 CST",
+      "Showing nodes accounting for 2, 0.062% of 3230 total"
+    ],
+    "matched_goroutines": 2,
+    "symbols": [
+      "runtime.gopark",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func1",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func2",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).tick",
+      "github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).watch",
+      "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+      "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+      "runtime.selectgo",
+      "runtime/pprof.Do"
+    ],
+    "interpretation": "Only presenceTouchWorker tick/watch parked on select; no sampled delivery processPlan or presence lookup stack."
+  }
+]

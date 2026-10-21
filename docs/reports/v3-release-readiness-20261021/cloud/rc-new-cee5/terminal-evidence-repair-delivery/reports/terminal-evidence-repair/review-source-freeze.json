@@ -1,0 +1,75 @@
+{
+  "schema": "wukongim/terminal-evidence-repair-source-freeze/v1",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "branch": "codex/v3-rc-terminal-evidence",
+  "observed_at": "2026-10-21T18:06:17.997551+00:00",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 190888,
+      "sha256": "56ff78a8d86e5a2937ebcabb7f021493996c9846191b5053b588b7d5c5eef890"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 143816,
+      "sha256": "f24f10fbbf880a3932bfdf33c7e686bb9dc7fceadf68c62774d9ab695a930fb4"
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "bytes": 5736,
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe"
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "bytes": 19394,
+      "sha256": "dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf"
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "bytes": 86902,
+      "sha256": "093fba46e7c04b00395e15669fa3d3fe2d61f02454863926f8dd2db9f975e64f"
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "bytes": 4047,
+      "sha256": "792ea796aef342b9663611ceb5949bf647c73d141b9c46de86624d82fb49469e"
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "bytes": 21910,
+      "sha256": "37ddfcfe708a4764a7b17e885e9b4ab080df7268df67c52710c84fc85d0446b8"
+    }
+  ],
+  "rules": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    }
+  ],
+  "metrics_context": [
+    {
+      "path": "pkg/metrics/presence.go",
+      "bytes": 9618,
+      "sha256": "c5757d6fff7347f05326dbdecea2274433c5a787d01c9c922283631350d7e128"
+    },
+    {
+      "path": "pkg/metrics/delivery.go",
+      "bytes": 20878,
+      "sha256": "eb2911416a981cf70b07b83bc52f9ccff13c44af2d81ec7adeec2ae79687943d"
+    }
+  ],
+  "pkg_metrics_flow": "No FLOW.md in pkg or pkg/metrics at exact source",
+  "protected_paths_changed": false
+}

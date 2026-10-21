@@ -1,0 +1,13 @@
+{
+  "original_tip": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "target": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "original_tip_is_ancestor": false,
+  "tracked_untracked_status": "",
+  "ignored_paths": [
+    "scripts/__pycache__/compose-package-site.cpython-313.pyc",
+    "scripts/__pycache__/validate-control.cpython-313.pyc",
+    "scripts/__pycache__/validate-signing-material.cpython-313.pyc",
+    "scripts/__pycache__/verify-source-attestations.cpython-313.pyc"
+  ],
+  "action": "Retain original branch/worktree because rebased original tip is not target ancestor; no force delete."
+}

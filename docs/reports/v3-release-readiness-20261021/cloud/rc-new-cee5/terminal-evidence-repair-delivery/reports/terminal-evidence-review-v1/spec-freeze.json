@@ -1,0 +1,164 @@
+{
+  "schema": "wukongim.independent-spec-review.v1",
+  "reviewed_at": "2026-10-21T18:12:03.053446+00:00",
+  "axis": "Spec",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "head": "cee5d51f325fb84033060f546337d326110adae5",
+  "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "commit_list": [],
+  "scope": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-review-v1/scope.json",
+    "bytes": 1726,
+    "sha256": "0209b33d90232efc2171032b533c1532421981b74fad9143f7624b050975b21a"
+  },
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 190888,
+      "sha256": "56ff78a8d86e5a2937ebcabb7f021493996c9846191b5053b588b7d5c5eef890",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 143816,
+      "sha256": "f24f10fbbf880a3932bfdf33c7e686bb9dc7fceadf68c62774d9ab695a930fb4",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "bytes": 5736,
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "bytes": 19394,
+      "sha256": "dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "bytes": 4047,
+      "sha256": "792ea796aef342b9663611ceb5949bf647c73d141b9c46de86624d82fb49469e",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "bytes": 86902,
+      "sha256": "093fba46e7c04b00395e15669fa3d3fe2d61f02454863926f8dd2db9f975e64f",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "bytes": 21910,
+      "sha256": "37ddfcfe708a4764a7b17e885e9b4ab080df7268df67c52710c84fc85d0446b8",
+      "before_equals_scope": true,
+      "after_equals_scope": true
+    }
+  ],
+  "scope_complete": true,
+  "source_unchanged": true,
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    }
+  ],
+  "flow_scope_note": "No applicable FLOW for scripts/chat-lifecycle, scripts/testdata or root documentation. Benchmark FLOW files read for referenced success-verdict code. Standards report not read.",
+  "spec_sources": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair/implementation-plan.md",
+      "bytes": 3186,
+      "sha256": "c95be99b94bddf3c5f54a214b53dac8163c0bb4e6b085855fd08830c5f1b64ac"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair/failure-matrix.md",
+      "bytes": 1990,
+      "sha256": "3f1f904f8c15056efbb2e0cdb80b1780eca02cb1017d5bffe84dbd5d0cdc22e8"
+    }
+  ],
+  "findings": [
+    {
+      "id": "SPEC-1",
+      "priority": "P2",
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "line": 293,
+      "spec": "failure-matrix.md:8 preserve original selector coverage and step; authorized actual report end anchors 900 seconds.",
+      "evidence": "Normal range first sample 1792601510.121 rejected against exact start 1792601510.121277292; millisecond control accepts both samples. Valid nonempty range partitions can be discarded.",
+      "fix_direction": "Preserve exact report binding; normalize effective query/validation bounds to actual Prometheus resolution, without wall-clock fallback."
+    },
+    {
+      "id": "SPEC-2",
+      "priority": "P2",
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "line": 370,
+      "end_line": 374,
+      "spec": "failure-matrix.md:4 explicit stage evidence, never false required/missing.",
+      "evidence": "Pure main-path probe accepts passed_with_capacity_warning/infrastructure_capacity and arbitrary invalid outcome/cause with attempted=false as formal_failed_before_capacity. checkpoint.go:388-391 defines the former as successful.",
+      "fix_direction": "Require validated closed outcome/cause and explicit failure-before-capacity phase; successful or malformed states cannot be waived."
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "spec.md",
+      "bytes": 690,
+      "sha256": "7d004eeaefe1a6f91989416d36410b4270dd16ab41031b6f4435697452defe8b"
+    },
+    {
+      "path": "spec-probes/probe.py",
+      "bytes": 1890,
+      "sha256": "7ff141dd893864928bbd9fb3515920c094ba042dd59b9f6f2811db7a1cf12b25"
+    },
+    {
+      "path": "spec-probes/results.json",
+      "bytes": 2772,
+      "sha256": "e805277f0ecc1113199589284d28132cecd6aef3216c3b579b275894ed6a37db"
+    }
+  ],
+  "timestamp_support": {
+    "independently_read_local_source": {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/common@v0.42.0/model/time.go",
+      "bytes": 8565,
+      "sha256": "685b92ae07265983ae03eb43367e7a1c9790ade2ef91853b04b1255eb1f6ae86",
+      "observation": "Prometheus model Time uses millisecond ticks."
+    },
+    "exact_toolchain": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/cloud-deployment/toolchain.env",
+      "bytes": 359,
+      "sha256": "75801f1b4d969c41468abcedc061f2d419841d4949c86d413e5ea120de78b243",
+      "version": "3.13.1"
+    },
+    "root_provided_primary_source_confirmation": {
+      "api": "https://raw.githubusercontent.com/prometheus/prometheus/v3.13.1/web/api/v1/api.go",
+      "api_lines": "2106-2110 parseTime rounds decimal seconds to milliseconds",
+      "timestamp": "https://raw.githubusercontent.com/prometheus/prometheus/v3.13.1/model/timestamp/timestamp.go",
+      "timestamp_lines": "19-21 FromTime uses UnixMilli",
+      "provenance": "Parent read exact-version official sources and supplied observations; not fetched by Spec reviewer."
+    }
+  },
+  "validation": {
+    "independent_probe": "Pure helper validation/main logic; capture functions replaced with no-I/O functions. No product/cloud.",
+    "full_tests_rerun": false,
+    "author_results_observed": "16 methods / 42 fixture cases green attempt 3; default scripts passed. Full integration pass not claimed.",
+    "parent_update": "Full integration encountered inherited WK_TERMINAL_EVIDENCE_TEST_ARTIFACT configuration conflict and was still running elsewhere; source unchanged. Not an independently reviewed third finding.",
+    "all_reviewer_processes_terminal": true,
+    "source_edits": false
+  }
+}

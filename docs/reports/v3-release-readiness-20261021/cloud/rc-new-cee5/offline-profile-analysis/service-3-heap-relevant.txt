@@ -1,0 +1,31 @@
+Type: inuse_space
+Time: 2026-10-22 01:19:53 CST
+Active filters:
+Showing nodes accounting for 7.81MB, 1.56% of 500.70MB total
+Showing top 25 nodes out of 38
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%     7.18MB  1.43%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets
+    7.18MB  1.43%  1.43%     7.18MB  1.43%  github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).InstallRecoveredRoutes
+         0     0%  1.43%     7.18MB  1.43%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets
+         0     0%  1.43%     7.18MB  1.43%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1 (inline)
+         0     0%  1.43%     7.18MB  1.43%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceAuthorityRPC
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+         0     0%  1.43%     7.16MB  1.43%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+         0     0%  1.43%     7.16MB  1.43%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+         0     0%  1.43%     6.15MB  1.23%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handlePresenceEndpointsByTargets
+         0     0%  1.43%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1
+         0     0%  1.43%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2
+         0     0%  1.43%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1
+         0     0%  1.43%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func2
+         0     0%  1.43%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0%  1.43%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0%  1.43%     1.02MB   0.2%  runtime/pprof.Do
+         0     0%  1.43%     0.63MB  0.13%  github.com/WuKongIM/WuKongIM/internal/app.(*App).wireDelivery
+         0     0%  1.43%     0.63MB  0.13%  github.com/WuKongIM/WuKongIM/internal/app.New
+         0     0%  1.43%     0.63MB  0.13%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.NewRuntime
+    0.63MB  0.13%  1.56%     0.63MB  0.13%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.newOrderedPlanQueue (inline)

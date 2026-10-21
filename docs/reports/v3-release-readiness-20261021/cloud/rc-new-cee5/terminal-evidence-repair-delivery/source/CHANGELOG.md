@@ -1,0 +1,1285 @@
+# Changelog
+
+WuKongIM release notes are maintained here. User-visible pull requests add
+their entries under `Unreleased`; before a tag is created, release maintainers
+move those entries into a version section named for that exact tag.
+
+## [Unreleased]
+
+### 📚 Documentation / 文档
+
+- Add a prominent online Demo home entry to both project READMEs, alongside
+  the local launcher instructions. / 中英文项目 README 明确提供在线 Demo 首页入口，
+  同时保留本地启动指南。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Retain bounded cloud chat-lifecycle worker failure examples and terminal status,
+  and collect presence/delivery metrics in fixed partitions anchored to the
+  terminal report. Partial collection stays explicit and preserves the original
+  workload verdict. / 云端聊天生命周期验收保留有界的工作节点失败样本与终态状态，
+  按终态报告时间分片收集在线路由和投递指标；采集不完整仍明确记录并保留原始负载结论。
+
+- Wait for protocol readiness in original-v2 migration acceptance after the
+  first imported-history check, and retain connection-failure diagnostics.
+  / 原 v2 迁移验收先核对导入历史，再等待协议就绪后验证原凭证，保留连接失败诊断。
+
+- Preserve pending readiness when a history recovery barrier is locally durable
+  and all missing voters explicitly need replica catch-up; keep ambiguous and
+  conflicting failures closed. / 历史恢复屏障在本地已持久化且缺失副本均明确需要
+  追赶时保留未就绪状态，未知故障和冲突仍严格拒绝。
+
+- Allow a new cloud chat-lifecycle request to lower its budget ceiling while
+  preserving the cleanup reserve through rehearsal, formal execution and remote
+  cost guards. / 新云端聊天生命周期请求可向下调整预算上限，预演、正式运行和远端
+  费用守卫保持同一预算及清理预留，不扩展既有请求的续跑权限。
+
+- Accept systemd's empty `Job=` as no queued job during cloud chat-lifecycle
+  startup, while rejecting missing or malformed state fields consistently on
+  Bash 3 and Bash 5. / 云端聊天生命周期启动兼容 systemd 用空 `Job=` 表示无排队
+  任务，避免误停正常运行的服务；Bash 3/5 均明确拒绝缺失或畸形状态字段。
+
+- Preserve the full prior cloud Quote reserve when explicitly restarting a
+  released pre-clock rehearsal, authenticate its cleanup and producer evidence,
+  and carry that reserve through formal qualification without blocking cleanup.
+  / 显式接续已释放的计时前预演失败时，核验前序身份与清零证据并继承完整报价预留，
+  正式验收继续累计该费用；证明失败不阻碍已有资源清理。
+
+- Verify the exact open tracking Issue before cloud chat-lifecycle procurement,
+  and preserve bounded exit evidence when workload preparation stops before its
+  measurement clock starts. / 云端聊天生命周期验收在采购前检查对应的开放跟踪 Issue，
+  并在负载计时前退出时保留有界的退出证据。
+
+- Complete Analysis close and local cleanup after failures on Bash 5, and join
+  active chat-lifecycle steps after operator signals while preserving the
+  original exit status. / 修复 Bash 5 下失败退出时跳过 Analysis 关闭和本地清理、
+  操作员发出信号后未等待聊天生命周期活动步骤结束的问题，保留原始退出码。
+
+- Raise the local chat-lifecycle shakeout's default SEND budget to 500/s so its
+  2,500-user bootstrap can complete mandatory conversation activity before
+  expiry; retain all latency and correctness thresholds. / 本地聊天生命周期预检
+  默认发送预算提高至 500 条/秒，使 2,500 用户的启动会话活动能在到期前完成；
+  延迟和正确性门槛保持不变。
+
+- Stop nested MQTT subscription cleanup when the original caller is canceled,
+  before further contention reads or source sealing; preserve owner fencing
+  and deadlines. / MQTT 订阅清理的嵌套操作及时检查原始调用方取消，停止后续争用
+  读取和源封口，保留 Owner 栅栏与原有期限。
+
+- Return a retryable history-read response while Channel quorum recovery is
+  incomplete after restart, including migrated clusters; preserve local storage
+  errors and reject reads/writes until recovery is proven. / 集群重启后（包括迁移
+  集群），频道 quorum 恢复未完成时，历史读取返回可重试响应；保留本地存储错误，
+  恢复证明完成前不放行读写。
+
+- Separate Channel lifecycle from Leader runtime activity in Manager; idle
+  channels display as inactive, and listing channels no longer wakes cold
+  runtimes. / 管理台分开显示频道生命周期与 Leader 运行时活跃状态，空闲卸载后显示
+  非活跃，查询频道列表不再唤醒冷频道。
+
+- Let chat-lifecycle startup health checks converge within a shared 30-second
+  deadline, and report bounded, redacted probe outcomes. Remove a GNU awk
+  warning from host I/O summaries. / 聊天生命周期压测启动前使用共享的 30 秒期限
+  等待健康检查收敛，记录有界脱敏诊断，并消除主机 I/O 摘要的 GNU awk 警告。
+
+- Export storage commit batch histograms from one consistent snapshot so active
+  metric scrapes preserve qualification baselines. / 存储提交批次直方图使用一致快照导出，
+  避免活跃写入期间采集到跨时刻计数而丢失压测基线。
+
+- Keep compatible queued storage writes in one bounded commit batch after a
+  collection timer expires during a scheduler pause, avoiding unnecessary
+  synchronous commits. / 提交线程调度暂停导致收集计时器到期后，继续有界合并已排队的
+  兼容写入，减少不必要的同步提交。
+
+- Preserve seeded subsecond arrivals in chat-lifecycle benchmarks instead of
+  releasing each second's entire SEND budget together, and show the terminal
+  diagnostic summary directly in Action logs. / 聊天生命周期压测按固定种子保留
+  秒内消息到达时间，避免每秒发送预算集中释放，并在 Action 日志直接显示终态诊断摘要。
+
+- Combine concurrent SEND permission facts before fresh quorum reads, with bounded
+  collection and independent cancellation, to reduce repeated RPC work. / 在新的
+  quorum 读取前有界合并并发 SEND 权限事实，保留独立取消，减少重复 RPC 工作。
+
+- Size bounded fresh-permission read admission for clustered SEND arrivals to
+  reduce queueing before quorum reads. / 调整有界权限读取准入容量，减少集中到达的
+  SEND 在 quorum 读取前的排队等待。
+
+- Limit cold Channel metadata collection to 20 ms so first group SENDs and
+  following messages avoid a fixed 500 ms initialization delay. / 将冷频道元数据
+  收集窗口限制为 20ms，避免群聊首次发送及后续消息固定等待 500ms 初始化。
+
+- Reduce concurrent SEND permission-read overhead by combining queued Slot
+  reads into one fresh quorum confirmation, while preserving cancellation,
+  leadership and durable-apply checks. / 合并同批排队的 Slot 权限读取，减少并发
+  SEND 的重复 quorum 确认开销，保留取消、领导权及持久化应用检查。
+
+- Restore Stream Demo connection recovery after expired test credentials, show
+  both-peer connection readiness and readable errors, and bound WebSocket
+  handshakes. / 流式 Demo 在旧测试凭据失效后可重新创建会话，显示双端就绪状态和
+  清楚的错误提示，并限制 WebSocket 握手等待时间。
+
+- Select test-account credential creation by default in the Chat Demo, while
+  allowing existing-token login by unchecking it; public deployments can pin a
+  separate chat UI revision. / 聊天 Demo 默认勾选创建或更新测试账号凭据，取消勾选可使用
+  已有 Token；公网部署支持单独固定聊天前端版本。
+
+- Pin the public Demo deployment example to the beta.24 image and matching source
+  so new deployments include the self-chat fix. / 公网 Demo 配置示例固定到 beta.24
+  镜像与对应源码，新部署直接包含自聊修复。
+
+## [v3.0.0-beta.24] - 2026-10-03
+
+### 🐛 Bug Fixes / 问题修复
+
+- Project one UID membership for self-chat so MQTT-enabled clusters can complete
+  its directory preparation without blocking other person messages in the same
+  Slot batch. / 自聊只投影一条 UID 成员记录，修复开启 MQTT 后自聊及同批单聊发送超时。
+
+- Add configurable public Demo deployment with all business backends and correct
+  WebSocket forwarding while retaining loopback one-command defaults. / 公网 Demo
+  部署差异配置化，补齐业务后端与 WebSocket 转发，保留本地一键启动默认行为。
+
+- Serialize exact-digest release image copies over HTTPS with HTTP/1.1,
+  upload Alibaba Cloud layers in bounded chunks, and protect existing tags,
+  avoiding interrupted bulk transfers. / 发布镜像按精确摘要串行同步，使用 HTTPS 与
+  HTTP/1.1，对阿里云镜像层分块上传并保护已有标签，避免大层传输中断。
+
+## [v3.0.0-beta.23] - 2026-10-02
+
+### 🚀 New Features / 新功能
+
+- Add a live product-launch Demo to the one-command catalog, with real SDK
+  barrage and likes, host announcements, per-room viewer mute/unmute, and current
+  state recovery without offline barrage replay. / 一键 Demo 首页新增新品发布会
+  直播场景，支持真实 SDK 弹幕与点赞、主播公告、房间禁言/解除，重连恢复当前状态而不补播旧弹幕。
+- Add MQTT 5 over WebSocket for direct browser clients, with an independent
+  listener, negotiated `mqtt` subprotocol and binary messaging. / 新增 MQTT 5
+  WebSocket 接入，浏览器可直连独立监听器，协商 `mqtt` 子协议并使用二进制消息。
+- Add the MQTT smart-store Demo to the one-command catalog: simulate a freezer
+  alarm, issue a cooling command, observe device receipts and recovery, resume
+  offline alerts, and collaborate with an IM colleague. / 一键 Demo 首页新增 MQTT
+  智能门店场景，体验冷柜告警、远程制冷、设备回执与恢复、离线告警和 IM 同事协作。
+
+## [v3.0.0-beta.22] - 2026-10-02
+
+### 🚀 New Features / 新功能
+
+- Add bilingual MQTT development-preview guides for authentication, topics, messages,
+  persistent sessions, Wills, HTTP/SDK interoperability and troubleshooting, with a
+  pinned Node.js first-message example. / 新增 MQTT 开发预览中英双语专题及固定版本
+  Node.js 收发示例，覆盖认证、Topic、消息、持久会话、遗嘱、互通与排障。
+
+- Keep main's send-policy/stream RPC and Slot command identities when integrating
+  MQTT: metadata/owner RPCs use 106/107 and Session/subscription/cursor commands use 80/81/82.
+  Pre-integration MQTT development Raft logs are not an upgrade source; start from
+  pre-MQTT data or a separately verified data migration. / MQTT 集成保留主线已有的
+  发送策略和流事件编号：元数据/Owner RPC 使用 106/107，会话/订阅/游标命令使用 80/81/82。
+  集成前开发候选的 MQTT Raft 日志不支持直接升级；需使用启用 MQTT 前的数据，
+  或经过单独验证的数据迁移。
+
+- Bound MQTT shared replay responsibilities by node and cluster storage capacity,
+  preserve accepted replay at exhaustion, and reopen admission after proved
+  retirement. Recovery barriers no longer appear as MQTT messages. Matched cluster
+  nodes/tools and a cold rollout are required. / MQTT 共享回放增加节点与集群容量上限，
+  容量满时保留已接收消息，确认回收后恢复接收；重启恢复记录不再误投递为 MQTT 消息。
+  部署需使用匹配版本的节点和工具，并停机升级。
+
+- Reclaim MQTT Will capacity after an unissued Started attempt is durably sealed
+  and current permission is revoked. Preserve unknown issued/legacy effects;
+  matched cluster runtimes and tools are required. / MQTT Will 已进入 Started
+  但尚未签发追加许可时，可在持久封口且当前权限明确撤销后安全终止并释放容量；
+  已签发或旧格式的未知结果继续保留，集群运行时与工具需使用匹配版本。
+
+- Recover MQTT Wills interrupted after admission but before append submission using a durable origin submission fence; keep already-issued and older-version unknown attempts pending. / MQTT Will 在准入后、append 提交前中断时，可凭持久化提交栅栏安全恢复；已获提交许可及旧版未知执行继续待确认。
+
+- Reclaim retained MQTT Will dispatch records on journal capacity pressure only after fresh Slot evidence proves terminal or superseded execution, preserving current and uncertain recovery records. / MQTT Will 派发日志容量不足时，凭新的 Slot 终态或更新执行代次证据有界回收残留记录，保留当前任务和未知结果的恢复证明。
+
+- Recover MQTT Wills interrupted after Started and before dispatch when their exact executor supplies durable sealed non-dispatch proof. Preserve original committed identity and keep admitted unknown effects pending; matched cluster nodes are required. / MQTT Will 在 Started 后、派发前中断时，可凭原执行器的持久封存未派发证明恢复；保留已提交消息身份，已准入但结果未知的任务继续待确认，集群需使用匹配版本。
+
+- Admit restores and release their exact archive lease in one transaction, so later cleanup cannot report a confirmed job as failed. Preserve unknown commit outcomes and foreign lease authority. / 恢复任务准入与其归档租约释放合并为一次事务，避免后续清理把已提交任务误报为失败；未知提交仍保持未知，不清除其他操作的租约。
+
+- Reduce first MQTT group subscription waits by retaining completed preparation within one request, using its fresh replay plan for one fenced copy/anchor, and confirming replicas through a bounded joined cohort. Every replica and final authority remain required within the existing packet deadline. / 首次 MQTT 群订阅在同一请求内复用已完成的准备，使用本轮新规划进行一次受栅栏保护的复制与 anchor 提交，并有界并发确认副本；仍要求全部副本和最终权威确认，保持既有报文期限。
+
+- MQTT automatically reactivates after backup restore without a process restart, using fresh Owner registries and workers while preserving persistent subscriptions and unfinished QoS 1 exchanges. Maintenance keeps connections fenced and old callbacks bound to their original runtime. / MQTT 备份恢复后可自动重新启用，无需重启进程；重建 Owner 注册表和工作器，保留持久订阅及未完成 QoS 1 交换，恢复期间关闭连接准入，旧回调仍绑定原运行时。
+
+- MQTT unsubscribe keeps the same removal pending when a definite source sealing CAS loses to verified progress or an identical seal, preserving the first boundary and unfinished exchanges. Unknown commits and changed ownership/intent still fail closed. / MQTT 退订封口遇到明确 CAS 拒绝时，若新证据确认仅有进度推进或同意图封口，则保留待清理状态，保持原边界与未完成交换；未知提交及所有权、意图变化仍失败关闭。
+
+- Combine MQTT delivery replay planning and anchored original reads under one fresh Channel authority, reducing repeated Slot barriers while retaining final ownership/permission checks and bounded read admission. Matched cluster binaries are required. / 合并 MQTT 投递的 replay 规划与锚定原文读取，减少重复 Slot 屏障，同时保留最终所有权、权限校验和有界读取准入；集群需使用匹配版本。
+
+- Avoid MQTT disconnects during concurrent fanout and resubscription: retain nested recovery pressure as pending, bound preparation retries under exact intent/Owner checks, and yield on valid newer drain snapshots. Unknown outcomes remain failures. / 修复并发投递与重新订阅时的 MQTT 断连：嵌套恢复背压保留待确认状态，准备阶段在完整意图和 Owner 检查下有限重试，退订遇到有效新快照时保留待清理状态；未知结果仍失败关闭。
+
+- MQTT subscription activation and removal tolerate bounded Session revision contention from renewal or progress, while preserving exact subscription/Owner checks and rejecting unknown commit outcomes. / MQTT 订阅激活和移除可在既有边界内处理续租或进度写入导致的明确版本拒绝；保留完整订阅与 Owner 检查，未知提交结果仍失败关闭。
+
+- Group member preparation overlaps ordinary UID membership projection with eight bounded Slot proposal workers, preserving durable completion and cancellation cleanup. / 群成员准备通过最多 8 个受控 Slot 提案提交者并行投影 UID 成员索引，保留持久化确认和取消清理语义。
+- Reduce idle MQTT delivery reads with bounded quiet hints, and wake interested connections after durable Channel commits and confirmed replay anchors. Full refresh and receive authorization remain enforced. / MQTT 空闲投递轮次通过有界提示减少读取，频道持久提交及 replay anchor 确认后定向唤醒连接；保留定期权威复查和发送授权检查。
+- Add `wukongim_slot_read_barrier_duration_seconds{result}` to show how long Slot linearizable reads wait for ReadIndex and durable apply, labeled only by a fixed result set. / 新增 `wukongim_slot_read_barrier_duration_seconds{result}`，按固定结果类别展示 Slot 线性一致读等待 ReadIndex 与持久应用的耗时。
+- Removed MQTT source bindings are now actually retired by background maintenance; previously they left the recovery index and were never rediscovered. Unprovable retirements back off from 1 second up to 10 minutes. / 后台维护现在会真正回收已移除的 MQTT 来源绑定；此前这些行离开恢复索引后不会再被发现。暂时无法证明可回收时，从 1 秒起退避，最长 10 分钟。
+
+- Concurrent MQTT SUBSCRIBE requests to the same group no longer disconnect with an unclassified failure; per-request Channel metadata application now waits for a contended shard lock within the request deadline instead of failing as not ready. / 多个客户端同时订阅同一群时，不再因未分类错误被断开；按请求应用频道元数据时，遇到分片锁竞争会在请求时限内等待，而不是直接返回未就绪。
+
+- Persistent MQTT Sessions now resume immediately after the owning node process crashes (SIGKILL, OOM, power loss) and restarts; a data-directory lock proves the previous boot is gone. A second process on the same data directory cannot start MQTT. / 持有 MQTT 持久会话的节点进程崩溃（SIGKILL、OOM、断电）重启后，会话可立即恢复；数据目录锁用于证明上一个进程已退出，同一数据目录的第二个进程无法启动 MQTT。
+
+- Automatically reclaim ended MQTT Session children through the bounded consumer task pool, confirming exact-owner isolation when required and preserving successor lifetimes. Preserve cleanup markers on reconnect and tolerate definite same-owner disconnect races within the original acquisition bound. Add fixed aggregate backfill/completion metrics. / 已结束 MQTT 会话子记录可由有界消费者任务池自动回收，必要时确认准确 Owner 已停止执行，并保留新代会话；重连保留回收标记，并在原准入边界内处理同一 Owner 断开引起的明确版本冲突；新增固定维度补建及完成指标。
+
+- Add resumable MQTT reclamation-index backfill and authoritative bounded discovery, including historical Sessions; incomplete coverage cannot appear empty. Matched writers are required and automatic scheduling remains under development. / MQTT 回收索引支持持久补建进度和有界权威发现，覆盖历史会话，未完成补建不会被当成空结果；要求匹配版本写入节点，自动调度仍在开发。
+
+- Add bounded, replicated cleanup of ended MQTT Session children with a durable completion marker, retaining ClientID binding, newer lifetimes, source fences and independent Wills. Automatic scheduling remains under development. / 新增已结束 MQTT 会话子记录的有界复制清理及持久完成标记，保留 ClientID 绑定、新代会话、来源屏障和独立 Will；自动调度仍在开发。
+
+- MQTT subscription preparation now waits within its existing bound when read-only replay planning is temporarily unready or backpressured; cancellation still stops the request and all-replica confirmation remains required. / MQTT 订阅准备遇到只读回放规划暂未就绪或容量压力时，在既有时限内等待；取消仍会终止请求，且保持全部副本确认要求。
+
+- MQTT now exposes fixed SUBSCRIBE/UNSUBSCRIBE failure counters to distinguish closure paths without recording client identities or message content.
+- MQTT 新增固定分类的订阅/退订失败计数，便于定位断连路径，不记录客户端身份或消息内容。
+
+- Keep MQTT PUBACK progress through ordinary Session renewal or neighboring acknowledgements using bounded retries after definite version rejection, while preserving exact exchange identity and rejecting unknown write outcomes. / MQTT PUBACK 与会话续租或相邻确认并发时，仅对明确的版本拒绝做有界重试，保留原交换身份，未知写入结果仍停止处理。
+
+- Automatically finish interrupted MQTT inbox/group subscription setup after disconnect, retaining prepared starts and rechecking permission before activation. Expose bounded background confirmation metrics. / MQTT 收件箱和群订阅建立中断后，可在断线状态自动续作，保留原消息起点并在激活前重检权限；新增后台完成确认聚合指标。
+
+- Preserve the captured MQTT owner throughout inbox subscription preparation, rejecting takeover inside nested source work. Add offline group/inbox preparation for pending recovery. / MQTT 收件箱订阅准备全程绑定已捕获的 Owner，嵌套来源准备中发生接管时拒绝沿用新身份；新增离线群订阅和收件箱准备能力。
+
+- Keep MQTT subscription setup waiting for native replica checkpoints, and retry definite unsubscribe CAS rejection only under unchanged intent and ownership. / MQTT 订阅建立有界等待副本原生提交水位；退订 CAS 明确拒绝后，仅在意图和所有权均未变化时做有限重试。
+
+- Expose background MQTT subscription-removal confirmations as a fixed aggregate metric, including retries without client identity labels. / 新增 MQTT 后台退订完成确认的固定维度聚合指标，包含重试确认且不携带客户端身份标签。
+
+- Automatically finish interrupted MQTT unsubscribe for inbox and group subscriptions after disconnect, including preparation before the first binding. Bounded recovery preserves unacknowledged exchanges and retries final state writes. Full crash and scale acceptance remains in progress. / MQTT 私聊收件箱和群订阅退订中断后可在断线状态自动续作，包括首条绑定写入前的中断；有界恢复保留未确认交换并重试最终状态写入。完整崩溃和容量验收仍在进行。
+
+- Automatically sweep expired MQTT owner reservations and retry incomplete transport cleanup with bounded work and joined shutdown. Aggregate metrics retain visibility of unresolved effects. / MQTT 自动清理到期的连接所有权预留，并有界重试未完成的传输关闭；停止时等待任务结束，聚合指标保留未决副作用状态。
+
+- Retire MQTT inbox qualifications after explicit Session ending or replacement through bounded background maintenance, preserving new lifetimes and independent source obligations. / MQTT 会话明确结束或被新代次替换后，有界后台维护会移除旧收件资格的候选索引，并保留新会话及独立的来源责任。
+
+- Enforce MQTT Session quotas while clients are offline or their receive window is full, and maintain source completion through bounded background work. Fixed aggregate metrics expose progress; complete crash recovery, cleanup and scale acceptance remain in progress. / MQTT 客户端离线或接收窗口满时通过有界后台任务执行会话配额，并推进来源完成与清理；提供固定维度进度指标。完整崩溃恢复、清理与容量验收仍在进行。
+
+- Drain MQTT owners before stopping Gateway transport, and persist proved graceful boot retirement for persistent-session restart. Preserve normal DISCONNECT during open/delivery cleanup to avoid spurious Wills. Abrupt-crash recovery remains under development. / MQTT 会话清理先于 Gateway 传输停止，保存正常退出凭据以恢复持久会话；修复连接初始化、投递清理竞态导致正常断连误发 Will 的问题。异常崩溃恢复仍在开发。
+
+- Schedule due MQTT Wills through a bounded worker cohort, and preserve normal DISCONNECT intent when EOF cancels packet dispatch. Full crash recovery and MQTT acceptance remain in progress. / MQTT 到期 Will 已接通有界后台发布；修复 EOF 取消报文处理时正常 DISCONNECT 可能被误判为异常断线的问题。完整崩溃恢复及 MQTT 验收仍在进行。
+
+- Add a default-off MQTT 5 TCP entry with bounded TOML/environment configuration, durable token authentication and MQTT/WK person-message interoperability. Full recovery, Will scheduling, restore reactivation and scale acceptance remain under development. / 新增默认关闭的 MQTT 5 TCP 入口，支持有界 TOML/环境变量配置、持久设备令牌鉴权及 MQTT/WK 私聊互通；完整恢复、Will 调度、备份恢复后重建和容量验收仍在开发。
+
+- Accept empty MQTT PUBLISH and Will bodies through shared message admission, including explicit empty Webhook replacements, while preserving native payload validation. Full MQTT product access remains under development. / MQTT PUBLISH 与 Will 的空正文已可通过共享消息入口，Webhook 可显式替换为空；原生消息校验保持不变，完整 MQTT 产品接入仍在开发。
+
+- Freeze MQTT Will hook output before publication so recovery preserves the actual body and original receipt without repeating transformations. Preparation can resume after lost replies; uncertain dispatch and complete MQTT access remain under development. / MQTT Will 发布前持久保存钩子处理后的正文，恢复时保留实际正文与原始回执，不重复改写消息；准备阶段可在丢回包后续作，未知发布结果的安全重试和完整接入仍在开发。
+
+- Preserve Channel authority generations across physical runtime deletion and recreation, rejecting stale prepared writes and retiring old person-directory work atomically. MQTT recovery can read runtime and retirement from one authoritative snapshot. Matched cluster binaries are required; full MQTT access remains under development. / 频道运行时物理删除、重建后保留并推进权威代次，拒绝旧追加请求，并原子撤销旧单聊目录任务；MQTT 恢复可在同一权威快照中读取运行时与删除代次。集群需使用匹配版本；完整 MQTT 接入仍在开发。
+
+- Add bounded MQTT Will first-dispatch and committed-result recovery through existing message policy and cluster authority. Lost observations preserve original identity/time even after permission revocation; uncertain redispatch and product access remain under development. / MQTT Will 接通有界首次发布和已提交结果恢复，复用消息权限与集群权威；观察结果丢失且后续撤权时仍恢复原身份和时间，未知结果的重发及产品接入仍在开发。
+
+- Route retained MQTT Will receipt queries through fresh Slot and recovered Channel authority, preserving original identity after history cleanup and restart and rejecting isolated warm readers. Queries are bounded and respect maintenance; Will execution and product access remain under development. / MQTT Will 回执查询接通最新 Slot 与已恢复频道权威，历史清理及重启后保留原身份，失去多数派的节点不能返回缓存结果；查询有界并遵循维护隔离，Will 执行和产品接入仍在开发。
+
+- Expose retained MQTT Will receipts through the Channel storage adapter after leader/follower apply, history cleanup and reopen; committed-checkpoint and lifecycle checks remain mandatory. Cluster routing and Will execution remain under development. / 频道存储适配器支持读取主副本写入后保留的 MQTT Will 回执，历史清理及重开后仍可查询，并保留提交水位与生命周期校验；集群路由和 Will 执行仍在开发。
+
+- Retain compact MQTT Will publication receipts when ordinary message history is trimmed, preserving identity and original time through restart and binary backup v4. Restore rejects conflicting proof before writing. Matched writers/tools are required; Will execution and product access remain under development. / 普通消息历史清理后保留 MQTT Will 的精简发布回执，重启和 v4 二进制备份恢复保留原消息身份及时间；恢复前拒绝冲突证明。要求匹配版本的写入节点和工具，Will 执行与产品接入仍在开发。
+
+- Remove MQTT inbox subscriptions through bounded, resumable source draining: release unadmitted backlog while retaining QoS 1 exchanges and ACKs. Independent checkpoints survive Slot snapshots and owner takeover; matched writers/tools are required. Product access and automatic cleanup remain under development. / MQTT 收件箱退订支持有界、可恢复的来源清理，释放未发送积压并保留 QoS 1 交换及 ACK。独立进度支持 Slot 快照和所有者接管；要求匹配版本的写入节点和工具。产品接入及自动清理仍在开发。
+
+- Establish MQTT inbox subscriptions through durable UID qualification and bounded existing-channel discovery, preserving confirmed progress across retries and owner takeover. Real single-node cluster coverage joins existing and future offline sources without qualification fixtures; product access remains under development. / MQTT 收件箱订阅先持久化 UID 资格，再分页准备已有频道；重试与所有者接管保留已确认进度。真实单节点集群验证已有频道和离线新来源，无需模拟资格记录；产品接入仍在开发。
+
+- Preserve MQTT inbox scan progress for every supported directory ID up to 4096 bytes, including snapshot restore. Matched readers and tools are required for long checkpoints; product access remains under development. / MQTT 收件箱扫描进度支持目录允许的最长 4096 字节频道 ID，并在快照恢复后保留；长游标需要匹配版本的读取节点和工具，产品接入仍在开发。
+
+- Prepare MQTT inbox sources automatically before ordinary persistent person writes through the shared appender, with bounded waiting and exact append fencing. Real single-node cluster coverage verifies offline first-message replay/accounting; complete MQTT product access remains under development. / 普通持久个人消息通过统一写入入口自动准备 MQTT 收件箱来源，等待有界并校验精确追加版本。真实单节点集群验证离线首条消息回放与计量；完整 MQTT 产品接入仍在开发。
+
+- Preserve exact prepared-append authority through fresh cluster routing, forwarding and durable queues; person-directory deletion now advances the append fence atomically. MQTT automatic admission and product access remain under development. / 消息追加可携带准备时的精确版本，经过集群读取、转发和持久化队列仍保留校验；删除个人频道目录时原子推进追加版本。MQTT 自动准入和产品接入仍在开发。
+
+- Prepare future MQTT inbox sources in bounded, resumable turns after native UID directory projection completes. Inconsistent candidate indexes fail closed; real single-node cluster validation covers offline first-message replay/accounting. Automatic append fencing and product access remain under development. / 复用原生 UID 目录投影完成状态，以有界、可续跑的轮次准备 MQTT 新收件箱来源；候选索引不一致时拒绝继续。真实单节点集群已验证离线首条消息回放与计量，自动写入隔离及产品接入仍在开发。
+
+- Persist resumable MQTT inbox source-admission progress with Slot-authoritative reads and runtime-incarnation fencing across deletion, recreation and snapshot restore. Matching runtimes are required; automatic first-write admission and product access remain under development. / MQTT 收件箱来源准入进度支持持久化续跑、Slot 权威读取及跨删除、重建、快照恢复的代次隔离。要求匹配运行时；首次写入自动准入和产品接入仍在开发。
+
+- Prepare new MQTT inbox person sources while their durable Session is offline, preserving fixed boundaries through lost replies and same-lifetime takeover. Real single-node cluster coverage verifies the first native message reaches shared replay and offline accounting. Automatic future-source admission and product access remain under development. / MQTT 持久会话离线时可准备新的个人消息源，丢回包及同代接管保留既定边界；真实单节点集群验证首条原生消息进入共享回放并计入离线积压。自动新来源准入及产品接入仍在开发。
+
+- Add bounded, Slot-authoritative MQTT inbox directory discovery over existing membership primary keys. Personal conversation visibility and activation do not change scan order; matched nodes are required for read kind 20. Inbox admission and product access remain under development. / MQTT 收件箱目录发现复用成员表稳定主键，支持有界分页与 Slot 权威读取；个人会话可见性及活跃排序不影响扫描。读取类型 20 需要匹配节点，收件箱准入与产品接入仍在开发。
+
+- Handle MQTT SUBSCRIBE/UNSUBSCRIBE with ordered per-filter reasons, QoS/options and subscription identifiers. Bounded pending completion preserves uncertain intents; unsubscribe retains exchanges awaiting PUBACK. Real Paho group coverage passes; inbox and product listener wiring remain under development. / MQTT 接入 SUBSCRIBE/UNSUBSCRIBE，按原顺序返回过滤器结果，保存 QoS、选项及订阅标识；有界等待保留未确认意图，退订保留等待 PUBACK 的交换。真实 Paho 群订阅已验证，收件箱和产品监听仍在开发。
+
+- Prepare MQTT group subscriptions before the first business message by reusing bounded Channel runtime initialization and freshly checking source authority. Denied subscriptions create no runtime; product access remains under development. / MQTT 群订阅可在首条业务消息之前准备完成，复用有界 Channel 运行时初始化并重新核验消息源权威；拒绝的订阅不创建运行时，产品接入仍在开发。
+
+- Bind MQTT connection open to automatic delivery, wake sending after committed PUBACK, and expedite cleanup after disconnect while retaining unfinished work. Real TCP/Paho coverage verifies takeover retransmission and receive credit; product listener and subscription entry remain under development. / MQTT 连接打开后自动注册投递，PUBACK 提交后唤醒发送，断开后加速清理并保留未完成工作；真实 TCP/Paho 验证接管重发与接收额度，产品监听和订阅入口仍在开发。
+
+- Automatically discover existing MQTT subscription sources, account protected backlog and schedule sending after old-exchange recovery; quota reply loss and accounting-time revocation preserve exact-owner cleanup. Product listener and offline scheduling remain under development. / MQTT 可自动发现既有订阅消息源、计量受保护积压，并在恢复旧交换后调度发送；超限回包丢失及计量时撤权均保留精确 owner 清理。产品监听与离线调度仍在开发。
+
+- Add bounded MQTT connection delivery scheduling with fair turns, coalesced wakes, retry backoff and joined shutdown. Automatic source discovery and product listener wiring remain under development. / MQTT 增加有界连接投递调度，支持公平轮转、唤醒合并、失败退避和等待任务退出的停止流程；自动消息源发现与产品监听接入仍在开发。
+
+- Refresh committed replay progress on idle voters during anchored planning, preventing a new MQTT subscriber from waiting indefinitely for another message. / 锚点规划会刷新空闲投票副本的已提交进度，避免新 MQTT 订阅必须等到下一条消息才能完成恢复。
+
+- Use fresh Slot-authoritative MQTT receive checks with one coherent channel/member snapshot. Group removal or rejoin invalidates old subscriptions and exchanges; send mutes preserve receiving. RPC 91 read kind 19 requires matched nodes; product access remains under development. / MQTT 接收权限改用 Slot 权威的一致频道/成员快照；退群或重加入使旧订阅与交换失效，发送禁言不影响接收。RPC 91 读取类型 19 要求匹配节点，产品接入仍在开发。
+
+- Preserve stable subscriber join identities across retries, rejoin, channel recreation and backup/JSONL transfer, preparing MQTT receive authorization to reject old membership grants. Matching writers/tools are required; product MQTT access remains under development. / 成员加入代次可跨重试、退群重加、删群重建和备份/JSONL 迁移保存，为 MQTT 拒绝旧成员授权提供依据；要求匹配版本的写入节点和工具，产品接入仍在开发。
+
+- Add bounded MQTT connection sending with old-exchange-first recovery, send-time permission checks, revocation ending and QoS 0 completion across concurrent ACK/renewal. Gateway sink preserves receive credit and PUBACK identity; product scheduling remains under development. / MQTT 增加有界连接发送编排，先恢复旧交换，再检查当前权限发送；撤权结束会话，QoS 0 完成可跨 ACK/续租版本变化核对。网关出口保留接收额度及 PUBACK 身份，产品调度仍在开发。
+
+- Add exact-owner MQTT Session ending for revocation, source loss and explicit cleanup, preserving unfinished delivery and Will state and requiring a fresh lifetime on reconnect. Automatic triggers and product wiring remain under development. / MQTT 增加撤权、源丢失及显式清理的精确 owner 会话结束路径，保留未完成投递和 Will 状态，重连使用新生命周期；自动触发及产品接入仍在开发。
+
+- Prevent original MQTT/Will QoS 0 from being retried after a crash or takeover by consuming its source position before returning a send candidate. QoS 1 downgraded to QoS 0 keeps post-enqueue accounting. Product sending remains under development. / 原始 MQTT/Will QoS 0 在返回发送候选前消费源位置，防止崩溃或接管后重复发送；QoS 1 降为 QoS 0 仍保留入队后计量。产品发送仍在开发。
+
+- Prepare existing MQTT exchanges in original send order from authoritative replay content, preserving packet identity and frozen options across unsubscribe/replacement while rejecting changed receive permissions. Autonomous reconnect sending remains under development. / MQTT 旧交换可按原发送顺序从权威回放原文准备，退订或同名订阅替换后仍保留包身份与既定选项，并拒绝已变化的接收权限；自动重连发送仍在开发。
+
+- Add MQTT QoS 0 enqueue without consuming QoS 1 receive credit, preserve original native/Will expiry, and reserve bounded output space for server-added properties. Product send/recovery scheduling remains under development. / MQTT QoS 0 发送入队不占用 QoS 1 接收额度，保留原生及 Will 过期时钟，并为服务端附加属性预留有界出站空间；产品发送及恢复调度仍在开发。
+
+- Prepare MQTT delivery from anchored original messages, confirm durable QoS 1 exchanges before returning them, and preserve queued charges when subscriptions downgrade to QoS 0 until enqueue completion. Product sending and recovery scheduling remain under development. / MQTT 投递准备读取已提交锚点内原文，QoS 1 入窗后回读确认持久交换；订阅降为 QoS 0 时保留积压计量，直至发送入队完成后扣减。产品发送和恢复调度仍在开发。
+
+- Compute MQTT online/offline backlog from committed original replay messages, preserving publication QoS, No Local and expiry while rejecting stale ownership, changed permissions and incomplete source evidence. Product scheduling and delivery remain under development. / MQTT 在线及离线积压改由已提交原始回放消息计算，保留发布 QoS、No Local 和过期语义，拒绝陈旧所有权、权限变化及不完整源证明；产品调度和投递仍在开发。
+
+- Preserve exact MQTT backlog charges across subscription-option and expiry changes, with bounded atomic debit and resumable unsubscribe cleanup. Slot command 82 operation 4 and metadata read kind 18 require matching nodes/tools; product MQTT delivery remains under development. / MQTT 保存原始积压条数与字节计量，支持订阅选项或过期变化后的精确扣减及分批退订清理；Slot 命令 82 操作 4、读取类型 18 要求匹配节点和工具，产品投递仍在开发。
+
+- Bind MQTT outbound QoS 1 packets to exact durable exchanges, respect Receive Maximum, and commit PUBACK through current Session ownership. Reconnect preserves packet identity; failed writes/confirmations retain durable recovery. Product MQTT delivery remains under development. / MQTT 下行 QoS 1 绑定精确持久交换并遵守 Receive Maximum，PUBACK 通过当前 Session 所有权提交；重连保留包身份，写入或确认失败仍保留持久恢复。产品 MQTT 投递仍在开发。
+
+- Preserve original MQTT delivery fields and identify internal controls from committed native log proofs when reading shared content; reject incomplete proofs and malformed pages. Internal RPC 102 now requires v2; product delivery remains under development. / 共享内容读取保留原始投递字段，并依据已提交原生日志证明识别内部控制记录；证明缺失或分页损坏时拒绝读取。内部 RPC 102 现要求 v2，产品投递仍在开发。
+
+- Read bounded MQTT shared-content pages through current cluster routing after original-history trim, with committed-anchor checks and independent read backpressure. Internal RPC 102 requires matching nodes; product MQTT delivery remains under development. / 原始历史裁剪后，MQTT 共享内容可通过当前集群路由分页读取，核验已提交锚点并独立限制读取并发；内部 RPC 102 要求匹配节点，产品投递仍在开发。
+
+- Compose durable MQTT group subscription establishment with shared-replay confirmation on every eligible replica and current-owner/permission checks; incomplete recovery keeps the subscription pending. Product MQTT access remains under development. / MQTT 群订阅建立接入所有候选副本的共享回放确认及当前所有者、权限检查；恢复未完成时保留准备状态，产品接入仍在开发。
+- Seal MQTT unsubscribe ranges and release unadmitted backlog without discarding inflight exchanges; interrupted preparations can be cancelled explicitly, including failures before their first binding commit. Slot command 82 operation 3 requires matching nodes; product MQTT access remains under development. / MQTT 退订固定处理区间并释放未发送积压，保留已发送未确认交换；中断的准备流程支持显式取消，包括首次绑定写入前失败的情况。Slot 命令 82 操作 3 要求匹配节点，产品接入仍在开发。
+
+- Complete MQTT consumer-binding removal with separately committed source acknowledgements, fresh end/drain proof and recoverable tombstones. Lost replies and subscription replacement preserve responsibilities; product MQTT access remains under development. / MQTT 消费绑定移除新增独立提交的源端确认，重新核验会话终止或处理完成证明，并保留可恢复 tombstone；回包丢失与订阅换代不会丢失责任，产品接入仍在开发。
+
+- Preserve MQTT replay cleanup discovery after the last consumer leaves by paging retained source-binding tombstones. No new table/index is needed; RPC 91 read kind 17 requires matching nodes. Product MQTT access remains under development. / MQTT 最后一个消费者退出后仍可通过保留的绑定 tombstone 发现回放清理任务，无需新表或索引；RPC 91 读取类型 17 要求匹配节点，产品接入仍在开发。
+
+- Schedule MQTT replay retirement alongside bounded copy/recovery, and resume learner replication after original-prefix trim only with matching durable identity. Three-node reopen verifies applied retirement; product MQTT access remains under development. / MQTT 回放后台轮转复制、恢复与回收；原始前缀裁剪后，learner 仅在持久身份匹配时续传。三节点重开验证回收边界已应用，产品 MQTT 接入仍在开发。
+
+- Connect ordered MQTT consumer progress to bounded retirement selection and replicated decisions; ACK gaps and unknown registrations prevent unsafe reclamation. Automatic scheduling and product MQTT access remain under development. / MQTT 消费者水位接入有界回收选择和复制决策，乱序 ACK 缺口及未知订阅阻止越界回收；自动调度及产品接入仍在开发。
+
+- Propagate committed MQTT replay retirement to idle voters without waiting for another message; retries renew bounded native repair and preserve authority checks. Product MQTT access remains under development. / MQTT 回放回收提交后主动向空闲投票副本传播，幂等重试补发有界修复并保留权威校验，无需等待后续消息；产品接入仍在开发。
+
+- Route bounded MQTT retirement selection and commits through fresh Slot authority and the Channel append queue; retries preserve durable identities and started commits survive observer cancellation. RPCs 100/101 require matching nodes; no storage format changes. Product wiring remains under development. / MQTT 有界回收选择与提交接入新鲜 Slot 权威及 Channel 追加队列；重试保留持久身份，观察者取消不撤销已开始的提交。RPC 100/101 需要匹配节点，无存储格式变化；产品接入仍在开发。
+
+- Keep idle MQTT replay sources from repeatedly copying anchor/retirement controls by verifying bounded maintenance-only tails; later business resumes contiguous copying. Product access remains under development. / MQTT 回放核验有界维护记录尾部，避免空闲时反复复制锚点和回收记录；新业务到达后继续连续复制，产品接入仍在开发。
+
+- Apply committed MQTT replay retirement before replica recovery requests donor content, with bounded cleanup and restart continuation. RPC 99 v3 is explicit; product MQTT access remains under development. / MQTT 副本恢复在索取消息前应用已提交回收决策，支持分批清理和重启续作；RPC 99 v3 显式启用，产品接入仍在开发。
+
+- Add durable MQTT replay retirement baselines and bounded storage cleanup, preserving suffix recovery and pruned version-3 backups; restore publishes replay coverage only after content installation. Product admission and scheduling remain under development. / MQTT 回放新增持久回收基线和有界存储清理，保留后缀恢复与 version-3 备份；恢复仅在内容写完后发布覆盖进度。产品准入与调度仍在开发。
+
+- Persist MQTT replay-retirement decisions as explicit proposal format 6 with independently verified anchor references, replicated journals and backup preservation; bounded historical selection rounds consumer floors down to complete anchors. Matching replicas/tools are required; product admission and physical shared-content GC remain under development. / MQTT 回放回收决策新增显式 proposal format 6，独立核验锚点引用并保留复制日志及备份；有界历史选择将消费者水位向前取整到完整锚点。需要匹配副本与工具，产品准入及共享内容物理回收仍在开发。
+
+- Validate MQTT consumer retention floors in a strict snapshot, capturing accepted replay anchors before reading obligations so concurrent subscriptions cannot be skipped. Physical shared-content GC and product access remain under development. / MQTT 消费者保留水位采用严格一致快照，先固定已提交回放锚点、再读取消息责任，避免跳过并发订阅；共享内容物理回收及产品接入仍在开发。
+
+- Project durable MQTT consumer completion into source bindings while preserving ACK gaps and pending removal after Session termination. No new storage format is required; shared-content GC and product access remain under development. / MQTT 持久消费进度接入源绑定，保留乱序 ACK 缺口及会话结束后的清理责任；无需新增存储格式，共享内容回收与产品接入仍在开发。
+
+- Automatically release original MQTT source prefixes after background recovery verifies committed replay coverage on each replica. Explicit RPC 99 v2 acknowledgements retain fresh authority checks; shared-content GC and product access remain under development. / 后台恢复逐副本验证已提交回放内容后，自动推进原始消息清理水位；RPC 99 v2 显式确认释放并核验最新权威，共享内容回收与产品接入仍在开发。
+
+- Add a storage boundary for releasing original MQTT source messages only after verifying a committed replay anchor and local content coverage; preserve protection across cleanup, restart and backup restore. Automatic release and product access remain under development. / 新增原始 MQTT 消息安全清理的存储接口，核验已提交回放锚点和本地内容覆盖后才推进水位，并验证清理、重启及备份恢复；自动释放与产品接入仍在开发。
+
+- Refresh a cached Channel leader once when its RPC dial fails, allowing sends to resume after failover without changing uncertain-send recovery. Verify MQTT replay recovery with the old leader stopped. / 修复旧 Leader 停止后发送仍停留在缓存路由的问题：明确拨号失败时刷新路由并重试一次，未决发送恢复规则保持不变；已验证旧 Leader 停止后的 MQTT 回放恢复。
+
+- Require local MQTT replay coverage before planned Channel cutover and migration fence clearing; temporary catch-up stays runnable. Repair leader checkpoint propagation and graceful-drain fence application. Product MQTT access remains under development. / 频道计划迁移切换与解除写入封禁前核验 MQTT 本地回放覆盖，暂时落后可继续恢复；修复 Leader 检查点传播及排空前封禁应用，产品 MQTT 接入仍在开发。
+
+- Allow MQTT replay planning and background replica recovery under a stable migration write fence, while keeping new copying and business writes fenced. Product MQTT admission remains under development. / MQTT 回放规划与后台副本恢复可在稳定迁移写入栅栏下继续执行，新复制和业务写入仍受阻；产品 MQTT 接入仍在开发。
+
+- Expose replica-local MQTT replay coverage in active migration probes, distinguishing a caught-up native log from complete replay content. Migration admission and product MQTT access remain under development. / 主动迁移探测新增 MQTT 副本回放覆盖证据，区分原生日志追平与回放内容齐全；迁移准入和产品 MQTT 接入仍在开发。
+
+- Add managed background MQTT replay scheduling with bounded per-Slot state, rotating source/replica work and joined restart. Three-node automatic learner recovery is verified; full product MQTT admission remains under development. / 新增 MQTT 回放后台调度，按 Slot 限制状态、轮转消息源与副本，并在停止排空后重启；三节点自动补齐 learner 已验证，完整产品入口仍在开发。
+
+- Coordinate bounded MQTT replay copying and replica recovery with resumable per-replica progress and fair retries. Three-node composition is verified; automatic scheduling and product MQTT admission remain under development. / MQTT 回放新增有界复制与副本恢复编排，保留各副本续传进度并公平轮转失败任务；三节点装配已验证，自动调度及产品入口仍在开发。
+
+- Discover MQTT replay sources once per source generation using bounded authoritative pages, avoiding scans through every subscriber of a large group. Preparing and removing obligations remain discoverable; automatic scheduling and product MQTT admission remain under development. / MQTT 回放新增有界、权威的按源代次分页发现，避免逐个遍历大群订阅者，保留准备中和撤销中的处理义务；自动调度及产品接入仍在开发。
+
+- Add target-owned MQTT replay recovery steps with bounded donor rotation, resumable progress and fresh cluster fencing. Verified across replica restart; background scheduling and the product MQTT listener remain under development. / MQTT 回放新增目标副本自主恢复步骤，支持有界供数轮转、进度续传和最新集群权威校验；已验证副本重启，后台调度及产品监听仍在开发。
+
+- Select bounded MQTT recovery intervals from durable replica progress, validating scan continuations and preserving recovery after cleanup and restart. Automatic runtime scheduling and the product MQTT listener remain under development. / MQTT 恢复新增基于副本持久进度的有界区间规划，校验续扫游标并支持清理及重启后的恢复；后台运行时调度和 MQTT 产品监听仍在开发。
+
+- Repair shared MQTT content across current replicas with bounded internal RPC 98 and independent committed-anchor checks, including learner recovery and restart retries. Matching peers are required; automatic repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 内容新增有界内部 RPC 98 跨副本修复，独立核验已提交锚点，支持 learner 恢复及重启重试；要求节点版本匹配，自动修复调度和 MQTT 产品监听仍在开发。
+
+- Verify shared MQTT replay repairs against the receiver's own committed content anchor, preserving recovery after original-history cleanup and restart. Network repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 回放恢复改由接收方自身已提交内容锚点校验，支持原始历史清理及重启后的恢复；网络修复调度和 MQTT 产品监听仍在开发。
+
+- Plan MQTT replay from a coherent committed source/anchor view through fresh cluster routing and bounded RPC 97; resume from accepted progress after restart and avoid copying idle anchor tails. Source release and the product MQTT listener remain under development. / MQTT 回放规划已接入一致的已提交源/锚点视图、最新集群路由和有界 RPC 97，重启后从已接受进度续传并跳过纯锚点空闲尾部；源释放和 MQTT 产品监听仍在开发。
+
+- Route MQTT replay anchor commits through fresh Slot authority and bounded internal RPC 96, preserving exact retries after Channel leader changes and restart. Fix Controller Raft pointer publication racing inbound messages during restart. The product MQTT listener remains under development. / MQTT 回放证明提交已接入最新 Slot 权威与有界内部 RPC 96，换主和重启后保留精确重试；修复 Controller 重启时 Raft 指针发布与入站消息竞争。MQTT 产品监听仍在开发。
+
+- Route MQTT replay anchor admission through bounded Channel workers and ordinary append ordering, retaining durable progress after caller cancellation and exact proofs across restart. Fresh cluster routing and the MQTT product listener remain under development. / MQTT 回放证明准入接入有界 Channel worker 与普通追加顺序，调用取消后仍保留已提交进度，重启后继续复用证明；新鲜集群路由及 MQTT 产品监听仍在开发。
+
+- Serialize MQTT replay anchor acceptance with Channel writes, validate current-voter copy evidence, and preserve exact retries across restart and leader changes. Reactor/cluster entry wiring and automatic source release remain under development. / MQTT 回放证明接入 Channel 串行提交器，校验当前副本复制回执并支持重启、换主后的精确重试；reactor/集群入口及自动源释放仍在开发。
+
+- Persist MQTT replay content anchors through Channel quorum replication, recovery and backups, retaining verifiable proofs after original history cleanup. New format-5 controls require matching runtimes/tools; MQTT admission and automatic release remain unavailable. / MQTT 回放内容证明已支持 Channel 多数派复制、恢复和备份，原始历史清理后仍可核验；新增 format-5 控制记录要求运行时及工具版本匹配，MQTT 入口和自动释放尚未开放。
+
+- Add current-quorum confirmation for shared MQTT replay, with independent full-content checks on each voter and bounded internal RPC 95. Copy receipts do not release source history; the MQTT product listener remains unavailable. / 新增共享 MQTT 回放的当前多数副本确认，各副本独立校验完整内容，使用有界内部 RPC 95；复制回执不释放原始历史，MQTT 产品入口仍未开放。
+
+- Route shared MQTT replay preparation through fresh cluster authority, preserving content across Channel leader changes and restart while rejecting isolated cached routes. Internal RPC 94 requires matching peers; replicated-copy coordination and product MQTT admission remain under development. / 共享 MQTT 回放准备接入新鲜集群权威，换主和重启保持内容一致并拒绝孤立节点缓存路由；内部 RPC 94 需匹配节点，复制确认编排及产品 MQTT 入口仍在开发。
+
+- Prepare shared MQTT replay through recovered Channel leader admission and bounded workers, preserving short-page retries and original-source protection across restart. Distributed copying and product MQTT admission remain under development. / 共享 MQTT 回放准备接入已恢复 Channel leader 的准入与有界 worker，重启后保留短页重试和原始源保护；跨节点复制及产品 MQTT 入口仍在开发。
+
+- Add bounded shared MQTT replay recovery with atomic imports, committed-log validation and an independently accepted full-content digest, preserving retries after original-body cleanup and restart. Distributed recovery and product MQTT admission remain under development. / 新增共享 MQTT 回放的有界恢复与原子导入，核对已提交日志及独立确认的完整内容摘要，支持原文清理和重启后的重试；跨节点恢复及产品 MQTT 入口仍在开发。
+
+- Preserve group MQTT consumption start positions while preparing durable source bindings and cursors, including lost commit replies and cross-node Session takeover. Complete subscription recovery and product MQTT admission remain under development. / 群 MQTT 源绑定与消费游标准备过程中保留首次起点，覆盖提交回复丢失和跨节点会话接管；完整订阅恢复及产品 MQTT 入口仍在开发。
+
+- Route MQTT source protection to the current Channel leader with fresh Slot quorum checks, preserving protection across leader changes and restart and rejecting isolated cached authority. Internal source RPC 93 requires matching peers; product MQTT access remains under development. / MQTT 源保护按当前 Channel leader 路由，使用新鲜 Slot 多数派确认，换主和重启保留保护并拒绝孤立节点的缓存权威；内部 RPC 93 需匹配节点，产品 MQTT 接入仍在开发。
+
+- Add fenced Channel admission for MQTT source protection, preserving message ordering and confirming a durable committed boundary before returning. Existing protection avoids repeated activation records; the product MQTT listener remains under development. / 新增 MQTT 源保护的 Channel 准入，保持消息顺序并在返回前确认持久提交边界；已有保护不重复追加激活记录，产品 MQTT 监听仍在开发。
+
+- Replicate MQTT source activation through the Channel quorum log, retaining pending protection and restoring it across restart, leader recovery and learner catch-up. Matching format-4 replicas/tools are required; product MQTT admission remains under development. / MQTT 源保护激活接入 Channel 多数派日志，保留未决保护并覆盖重启、换主恢复及 learner 追赶；须使用支持格式 4 的副本和工具，产品 MQTT 入口仍在开发。
+
+- Prevent protected MQTT source loss through checkpoint regression, missing-checkpoint recreation or concurrent suffix truncation. Distributed MQTT activation remains under development. / 修复检查点回退、丢失检查点重建及并发截断绕过 MQTT 消息源保护的问题；跨节点 MQTT 激活仍在开发。
+
+- Add recoverable MQTT subscription intent orchestration with owner fencing, bounded subscription admission and safe removal ordering. Distributed source activation and product MQTT admission remain under development. / 新增可恢复的 MQTT 订阅意图编排，按连接 owner 校验、有界接纳订阅并保留撤销顺序；跨节点源保护激活及产品入口仍在开发。
+
+- Add MQTT gateway handshake, authenticated publishing and asynchronous disconnect handling, including normal DISCONNECT followed immediately by TCP close. Verified with Paho against a single-node cluster; product MQTT admission remains under development. / 新增 MQTT 网关握手、认证发布和异步断连处理，正确保留发送 DISCONNECT 后立即关闭 TCP 的正常退出意图；已用 Paho 对单节点集群验证，产品 MQTT 入口仍在开发。
+
+- Add bounded MQTT connection renewal and asynchronous disconnect scheduling, preserving original disconnect timing through retries and joined shutdown. Product MQTT admission remains under development. / 新增有界 MQTT 连接续租与异步断连调度，重试保留原始断连时刻，停止等待已接纳任务完成；产品 MQTT 入口仍在开发。
+
+- Add the authenticated MQTT PUBLISH adapter over existing IM permissions and durable sends, with committed QoS 1 acknowledgments and takeover fencing for uncertain writes. Product MQTT admission and uncertain-write recovery remain under development. / MQTT 发布适配复用现有 IM 权限与持久消息链路，QoS 1 提交后确认；未决写入阻止接管产生错误隔离证明。产品 MQTT 入口与未决写入恢复仍在开发。
+
+- Add bounded MQTT Session/Will deadline scanning across locally led hash slots, with fair paging and joined shutdown/restart. Product MQTT admission remains under development. / 新增按本节点负责 hash slot 执行的有界 MQTT 会话与 Will 到期扫描，支持公平分页及等待任务退出的停止/重启；产品 MQTT 入口仍在开发。
+
+- Reconcile MQTT Session and Will deadlines through current cluster authority, preserving detached Will obligations and rejecting stale-owner cleanup. Product MQTT access remains under development. / MQTT 会话及 Will 到期处理复用当前集群权威，保留独立发布义务并拒绝旧 owner 清理；产品 MQTT 接入仍在开发。
+
+- Validate MQTT Will setup against current IM publish permissions without using cached grants or creating messages; product MQTT access remains under development. / MQTT Will 配置复用当前 IM 发布权限，绕过缓存授权且不产生消息；产品 MQTT 接入仍在开发。
+
+- Add authenticated MQTT Session acquisition, bounded local renewal and atomic disconnect/Will orchestration through cluster metadata, including exact-owner takeover RPC. Product MQTT admission and unavailable-owner recovery remain under development. / 新增经集群元数据编排的 MQTT 会话认证获取、有界本地续租、断连与 Will 原子处理，并接入精确 owner 接管 RPC；产品 MQTT 入口及失联 owner 恢复仍在开发。
+
+- Add an optional gateway physical-close receipt for safe connection isolation, independently of business cleanup. TCP/WebSocket use completed transport close callbacks; canceled waits share the same close request. MQTT product wiring remains incomplete. / 网关新增独立于业务清理的物理连接关闭确认，TCP/WebSocket 以底层关闭完成回调为准，取消等待后仍复用同一次关闭请求；MQTT 产品装配尚未完成。
+
+- Add bounded MQTT connection-owner admission, lease-expiry fencing and exact-owner quiescence RPC 92. Product wiring remains under development; the MQTT listener stays unavailable. / 新增有界 MQTT 连接 owner 准入、租约到期隔离及精确 owner 静默确认 RPC 92；产品装配仍在开发，MQTT 入口尚未开放。
+
+- Add authoritative cluster access for MQTT session metadata, with coherent recovery pages and committed conditional-write results. Internal read RPC 91 requires matching peers; the MQTT listener remains unavailable. / 新增 MQTT 会话元数据的集群权威访问、一致恢复分页和已提交条件写入结果；内部读取 RPC 91 要求匹配节点，MQTT 入口仍未开放。
+
+- Add shared MQTT replay storage with bounded range accounting and backup version 2, preserving content after source-history cleanup without duplicate message-ID entries. Replay backups require matching tools; distributed MQTT access remains under development. / 新增共享 MQTT 回放存储、有界范围计量和二进制备份 v2，源历史清理后仍保留正文且不重复占用消息 ID 索引；回放备份须使用匹配工具，跨节点 MQTT 接入仍在开发。
+
+- Add replica storage guards for MQTT source retention and bounded original-content reads, preserving protection through binary backups. Replicated activation and shared replay remain under development; MQTT access stays unavailable. / 新增 MQTT 消息源保留的副本存储保护及有界原文读取，二进制备份保留保护状态；复制激活与共享回放仍在开发，MQTT 入口尚未开放。
+
+- Add a separate durable Will identity index and committed retry lookup, preserving client message numbers and reserving publication identity space during setup. Keyed Will records require matching runtimes/tools; the MQTT product listener remains unavailable. / 新增 Will 独立持久幂等索引与已提交重试查询，保留客户端消息号并在配置时预留发布身份空间；带服务端身份的 Will 数据要求匹配的运行时和工具，MQTT 产品入口仍未开放。
+
+### 🔧 Improvements / 改进
+
+- Redesign the bilingual README with a new banner, current screenshots captured from all four demos and Manager, one-command demo startup, current chat credential steps, focused SDK and deployment guides, and clear WuKongIM HTTP API naming. / 重新设计中英文 README，更新 banner 与四个 Demo、Manager 的当前实拍截图，增加一键体验入口、当前聊天凭据操作与清晰的 SDK、部署指南，并明确使用 WuKongIM HTTP API 名称。
+
+- Feature TangSengDaoDao in the bilingual README as an application built with WuKongIM, with product, architecture, and source links. / 中英文 README 增加唐僧叨叨应用案例，说明 WuKongIM 的通信职责，并提供产品官网与开源架构入口。
+
+- Unify bilingual documentation, navigation, OpenAPI titles, and examples under the WuKongIM HTTP API name. / 中英文文档、导航、OpenAPI 标题与示例统一使用 WuKongIM HTTP API 名称。
+
+- Clarify bilingual v2-to-v3 migration with five-step, multi-node and acceptance diagrams, task-based reference lookup and expandable commands; correct physical hash-slot versus logical Slot Group terminology while keeping cutover, retry and rollback gates visible. / 中英文 v2 到 v3 迁移文档增加五步、多节点与验收流程图，参考按任务查阅、完整命令按需展开；统一物理哈希槽与逻辑 Slot Group 术语，切换、重试和回滚边界保持可见。
+
+- Preserve optional publication metadata in offline message inspection and JSONL transfer; validation and comparison now detect invalid or changed metadata while native rows retain their previous format. / 离线消息查看和 JSONL 导入导出保留可选发布元数据，校验与对比能够识别无效或变化的元数据，原生消息行格式保持兼容。
+
+- Owner-push RPC 2 preserves publication metadata, message settings and the original timestamp across nodes. Upgrade recipient owners together; extended envelopes, including native sends with timestamps, cannot fall back to older peers. / owner-push RPC 2 保留跨节点投递的发布元数据、消息设置和原始时间戳；接收连接所在节点须同步升级，含扩展字段的消息（包括带时间戳的原生消息）不会降级转发给旧节点。
+
+- Preserve publication metadata through send commands and forwarding, and verify retries against original committed content so later message edits cannot cause false conflicts. The MQTT product listener remains unavailable. / 发送命令与转发保留发布元数据，重试使用原始已提交内容校验，避免后续消息编辑造成错误冲突；MQTT 产品入口仍未开放。
+
+- Channel quorum exchange now requires matched version-6 peers, including native traffic before MQTT is enabled. Upgrade replicas together; older data-bearing exchanges are rejected. / Channel 多数派复制协议升级为 exchange 6，MQTT 尚未启用时的原生消息流量同样要求各副本版本一致；须同步升级副本，旧版数据交换将被拒绝。
+
+- Add bounded MQTT 5 codec and reusable gateway packet support, including negotiated Keep Alive and packet limits, plus owner-fenced session/subscription storage, per-source backlog accounting, a durable QoS 1 window, source-owned subscription projections and atomic Session/Will storage transitions, plus versioned publication metadata storage and lossless Channel replication/RPC, as groundwork for MQTT IM access; the product listener remains unavailable while durable session support is under development. / 新增有界 MQTT 5 编解码及网关 packet 接口，支持协商心跳和包长限制，以及受 owner 保护的会话/订阅存储、按消息源计算的积压计量、持久 QoS 1 窗口、源端订阅关系及 Will 存储与会话生命周期原子变更，并补充发布元数据的版本化存储与 Channel 复制/RPC 传播；完整持久会话仍在开发，产品 MQTT 入口尚未开放。
+- Preserve bounded native-package bootstrap progress, PID 1, systemd jobs and boot journal diagnostics before removing a failed lifecycle container. / 原生包生命周期验证失败时，清理容器前保留有界安装阶段、PID 1、systemd 作业及启动日志诊断。
+
+- Simplify bilingual Controller and Slot architecture guides with compact materialization, staged-task, key-routing and metadata-write diagrams; retain complete references in disclosures while keeping physical/logical Slot, observed authority, single-node Raft/FSM, proof, recovery and bounded-capacity rules visible. / 中英文 Controller 与 Slot 架构文档增加简洁的物化、阶段任务、键路由与元数据写入图；完整参考按需展开，物理槽/逻辑 Group、实时权威、单节点 Raft/FSM、证明、恢复与有界容量规则保持可见。
+
+- Simplify bilingual connection routing and Transport guides with short activation, delivery and reconnect diagrams plus separate client/node network views; retain complete technical references in disclosures and keep lease, Session identity, device-conflict, backpressure, timeout, commit and private-network boundaries visible. / 中英文用户连接路由与 Transport 文档增加简洁的激活、投递、重连图和客户端/节点网络对照；完整技术参考按需展开，租约、Session 身份、设备冲突、背压、超时、提交与私网边界保持可见。
+
+- Simplify bilingual architecture onboarding with responsibility cards, separate durable-send and post-commit delivery diagrams, and a compact ISR/HW replication flow; retain complete diagrams and references in disclosures while keeping authority, NoPersist, ordering, backpressure and failover limits visible. / 中英文架构入门增加职责卡片、独立的持久化发送与提交后投递图，以及简洁 ISR/HW 复制流程；完整架构图与参考按需展开，权威、NoPersist、顺序、背压与故障切换边界保持可见。
+
+- Simplify bilingual benchmark and diagnostic tutorials with bounded run/profile diagrams, task entries and expandable complete references; keep load, preflight, delivery, cleanup and MCP access limits visible, and correct the implemented report command. / 中英文压测与诊断教程增加有界运行/采集图、任务入口和可展开完整参考；负载、预检、送达、清理与 MCP 访问限制保持可见，并修正已实现的 report 命令说明。
+
+- Simplify bilingual tool selection, wkcli, and offline database tutorials with task cards, bounded inspection and import diagrams, and expandable complete commands; keep write, offline, format, and restore gates visible and correct the physical/logical Slot names in the tools overview. / 中英文工具首页、wkcli 和离线数据库教程增加任务卡片、有界检查与导入图，完整命令按需展开；写入、离线、格式与恢复门槛保持可见，并修正工具首页物理哈希槽与逻辑 Slot 的名称。
+
+- Illustrate bilingual cluster, storage, and observability configuration with join-model and hash-slot diagrams, exclusive-storage examples, tuning steps, and monitoring/diagnostic layers; retain complete references in disclosures and keep readiness, persistence, GC, and access limits visible. / 中英文节点集群、存储和可观测性配置增加加入方式与哈希槽关系图、独占存储示意、调优步骤和监控诊断分层；完整参考可展开，就绪、持久化、GC 与访问限制保持可见。
+
+- Make bilingual configuration guides task-oriented with four common-setting entries, a TOML-to-restart flow, and separate CONNECT/Manager/Product HTTP trust diagrams; preserve complete defaults and examples in disclosures while keeping override, authentication, and validation rules visible. / 中英文配置教程增加四类常用任务、TOML 到重启流程及独立 CONNECT、Manager、产品 HTTP 鉴权图，完整默认值与示例可展开，覆盖、鉴权和验收规则保持可见。
+
+- Simplify bilingual Linux deployment, networking, and multi-node guides with compact connection flows, expected results, and expandable complete commands/configurations; keep readiness, private access, address rules, and three-node failure limits visible. / 中英文 Linux 部署、网络接入与多节点教程改为简洁连接图、预期结果和可展开完整命令配置，就绪、内网访问、地址规则与三节点故障限制保持可见。
+
+- Turn bilingual backup/restore, scaling, and upgrade guides into compact illustrated flows with expected outcomes and expandable full actions; keep archive verification, safe node removal, compatibility, rollback, and traffic-admission gates visible. / 中英文备份恢复、扩缩容与升级教程改为简洁流程图、预期结果和可展开完整步骤，保留归档验证、安全移除、版本兼容、回滚与接流条件。
+
+- Make bilingual health checks and troubleshooting easier to follow with compact readiness diagrams, recorded Manager captures, six symptom paths, and expandable commands/PromQL; show a five-step operations change flow while keeping readiness, data safety, and stop conditions visible. / 中英文健康检查与排障改为简洁判断图、已记录 Manager 实图、六类故障入口和可展开命令/PromQL；运维首页增加五步变更图，保留就绪、数据安全与停止条件。
+
+- Simplify bilingual push and AI/IoT tutorials into illustrated tasks with expandable requests, separate AI and device learning paths, and six scenario cards; restore large-group section links and improve dark-theme text contrast while keeping delivery, recovery, and execution limits visible. / 精简中英文推送与 AI/IoT 教程，采用图示步骤与可展开请求，分开 AI 和设备学习路径，场景首页改为六张目标卡片；修复大群章节链接并提高深色文字对比度，保留送达、恢复和执行边界。
+
+- Make bilingual Webhook, direct-chat, and group tutorials easier to follow with compact task diagrams, verified chat/recovery captures, explicit expected results, and expandable code and large-group details; keep callback trust, event loss, and partial membership changes visible. / 中英文 Webhook、单聊与群聊教程新增简洁步骤图、实测收发与恢复截图、预期结果和可展开代码，大群说明按需查看，回调信任、事件丢失和成员部分完成等关键限制保持可见。
+
+- Simplify bilingual authentication, messaging, and release checks with illustrated steps and SDK-specific recovery criteria; document backend-owned token expiry and align OpenAPI with all 48 Product HTTP operations, including four send-ban endpoints. / 精简中英文身份认证、消息收发与上线检查，采用图示步骤并按 SDK 验收恢复能力；明确 Token 有效期由业务后端管理，OpenAPI 补齐四个禁言接口，与全部 48 个 Product HTTP 操作对齐。
+
+- Illustrate bilingual Channel and Conversation concepts, shorten the Web EasySDK tutorial with expandable code and verified example captures, and add a three-step Manager guide that distinguishes logical Slots from 256 Hash Slots. / 中英文频道与会话增加概念图，Web EasySDK 教程采用可展开代码与实测截图，Manager 改为三步图文并区分逻辑 Slot 与 256 个 Hash Slot。
+
+- Simplify bilingual onboarding around Docker → Chat Demo → SDK, with current-source chat screenshots, a four-Demo launcher guide, Web SDK recovery illustrations, and expandable advanced details. / 精简中英文入门路线为 Docker → Chat Demo → SDK，补充最新版聊天截图、四个 Demo 一键启动指南与 Web SDK 恢复图示，高级细节按需展开。
+
+- Redesign the bilingual documentation homepage with a messaging code preview, platform shortcuts, guided first-message steps and common references, with responsive light and dark themes. / 重新设计中英文文档首页，新增消息代码预览、平台快捷入口、首条消息引导和常用参考，适配移动端及深浅主题。
+- Add a separate opt-in permission fixed-load diagnostic with bounded per-connection queues, monotonic arrival-to-ACK timing and complete configuration/metrics artifacts; retain historical failed verdicts and performance thresholds. / 新增独立权限固定负载诊断：每连接有界排队、单调时钟到达至 ACK 计时及完整配置/指标证据，保留历史失败结论和性能门槛。
+
+- Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
+
+- Start all four Demos with `node demo/start.mjs`, including an isolated single-node cluster, automatic dependency preparation, readiness checks, free ports and coordinated shutdown. / 新增 `node demo/start.mjs` 一键启动四个 Demo：独立单节点集群、自动准备依赖、就绪检查、空闲端口与统一退出。
+
+- Add a unified Demo homepage at `/demos/` with visual previews and entrances for chat, streaming, support and Agent scenarios; the Product HTTP root opens this catalog. / 新增统一 Demo 首页 `/demos/`，通过界面预览介绍聊天、流式、客服和 Agent 四种场景；访问 Product HTTP 根地址即可进入首页。
+
+- Add an Agent task Demo with visible tool calls, explicit todo approval, pause/cancel, real model tool calling and SDK streaming/history recovery. / 新增 Agent 任务 Demo：可见工具调用、待办确认、暂停取消、真实模型工具调用及 SDK 流式回复与历史恢复。
+
+- Add a customer support Demo with AI streaming, multiple visitor conversations, manual handoff, read-only closed history and new consultations; the separate loopback business backend fences AI writes before human acceptance. / 新增在线客服 Demo：AI 流式接待、多访客会话、手动接管、结束后只读历史与重新咨询；独立本机业务后端在人工接入前关闭 AI 写入。
+
+- Refresh the chat demo with responsive conversation navigation, a compact tools menu, preserved history reading position and same-identity send retries. / 优化聊天 Demo：适配电脑与手机、收拢演示工具、保留历史阅读位置，并支持复用消息标识重试发送。
+
+- Add a bilingual developer topic for Agent streaming replies with WuKongEasySDK-JS, real model integration, terminal states, and offline recovery. / 新增中英文 Agent 流式回复开发者专题，讲解 WuKongEasySDK-JS、真实模型接入、终态与离线恢复。
+
+- Add an independent EasySDK streaming chat demo at `/streamdemo/`, with configurable OpenAI-compatible models, a local model proxy, real online EVENT delivery, completion/cancellation/failure and offline history recovery; remove streaming UI from the chat demo. / 新增独立 EasySDK 流式聊天演示 `/streamdemo/`，可配置 OpenAI 兼容模型并通过本地代理调用，支持真实在线事件、完成/取消/失败与离线历史恢复；聊天 Demo 移除流式界面。
+
+- Add source-linked interactive diagrams for the system architecture, message sending, and multi-node replication and online delivery, with validated specifications and browser evidence. / 新增带源码引用的系统架构、消息发送及多节点复制与在线投递交互图，附验证后的图形规格和浏览器检查记录。
+
+- Safely publish Controller Raft and state-sync resources while transport is already receiving traffic, preventing startup and restart data races. / 传输已接收流量时安全发布 Controller Raft 与状态同步资源，修复启动和重启期间的数据竞争。
+
+- Publish reconciled cluster readiness and committed node health before Controller task progress writes, and run subsequent tasks through the existing bounded background owner so slow writes cannot block startup readiness. / 集群就绪状态与已提交的节点健康信息先于 Controller 任务进度写入发布，后续任务由现有有界后台执行者处理，避免慢写入阻塞启动就绪检查。
+
+- Atomically reserve Channel worker ownership through queued, executing and unpublished work so concurrent SENDs and blocked quorum completion callbacks retain the configured budget. / 频道 worker 从入队到结果发布结束原子持有统一预算，避免并发 SEND 和被阻塞的 quorum 完成回调超额准入。
+
+- Record structured user/channel send-ban management audits with authenticated Manager attribution, atomic old/new values and versions, and explicit unknown outcomes; omit credentials, payloads and raw errors. / 用户及频道禁言管理写入新增结构化审计，记录 Manager 已认证操作者、原子旧新值及版本；不确定结果明确标记，排除凭据、消息内容和原始错误。
+
+- `wukongim config init` now writes `node.data_dir = "/var/lib/wukongim/data"` so node data no longer shares the package state root with the service home and plugin directories; the stricter data-format check otherwise rejects that root as unregistered existing data on first start. Existing configurations are unchanged. / `wukongim config init` 生成的 `node.data_dir` 改为 `/var/lib/wukongim/data`，节点数据不再与服务主目录、插件目录共用软件包状态根目录，否则更严格的数据格式检查会在首次启动时把该根目录当作未登记的已有数据而拒绝。已有配置不受影响。
+
+- Bound Slot startup snapshot installation memory with verified streaming and crash-retry fencing; print throttled recovery stages, byte/record progress, and committed-log replay completion. / Slot 启动快照采用校验后的流式分批安装，降低恢复内存峰值并保护中断重试；输出限频的恢复阶段、字节/条目进度和已提交日志重放完成信息。
+- Reuse certified Slot metadata on restart after verifying database continuity and exact Raft history; fall back to snapshot restoration when evidence is incompatible and log the selected recovery path. / 重启时校验数据库连续性及准确的 Raft 历史，复用有持久化证明的 Slot 元数据；证明不匹配时回退快照恢复，并记录所选恢复路径。
+
+- Export Pebble write-stall, WAL fsync latency and slow-disk metrics (`wukongim_storage_pebble_write_stall*`, `wukongim_storage_pebble_wal_fsync_*`, `wukongim_storage_pebble_disk_slow_*`) with Grafana panels. New `cluster.storage_disk_slow_threshold` (`WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD`, default `1s`) sets when message-DB disk operations count as slow; observation only, durability is unchanged. / 导出 Pebble 写停顿、WAL fsync 延迟和慢盘指标，并新增 Grafana 面板。新增配置 `cluster.storage_disk_slow_threshold`（环境变量 `WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD`，默认 `1s`），用于判定消息库磁盘慢操作；仅用于观测，不改变持久化语义。
+
+- Add SENDACK reason code `ReasonSystemBusy` (30). An overflowing gateway SEND (async send queue or shard full) and a saturated permission-read admission now return it instead of closing the connection or reporting `ReasonNodeNotMatch`; a stopping or missing executor still closes the session. Clients should retry with backoff by ClientMsgNo; ordering across a rejected SEND is not preserved by the gateway. Older clients see an unknown reason code. / 新增 SENDACK 原因码 `ReasonSystemBusy`（30）。网关异步发送队列或分片已满、权限读准入繁忙时返回该码，不再断开连接或返回 `ReasonNodeNotMatch`；执行器停止或缺失时仍关闭会话。客户端应按 ClientMsgNo 退避重试，网关不保证被拒消息前后的顺序；旧客户端会看到未知原因码。
+
+- Pipeline gateway SEND preparation and durable completion, coalescing queued independent appends within existing batch targets while preserving fresh permissions, Channel order and per-session ACK order; configured admission budgets now retain executing and unpublished SEND records, and shutdown/restore join them before replacing dependencies. / 网关发送准备与持久化完成分离，按现有批次上限合并排队中的独立追加，保留最新权限、频道顺序和会话 ACK 顺序；准入预算持续覆盖执行中及尚未发布的消息，停机和恢复维护会先排空这些任务。
+
+- Release send-permission waiting positions atomically when handing off execution permits, preventing false busy responses before an assigned caller resumes; cancellation and existing capacity limits remain enforced. / 发送权限执行名额移交时原子释放等待位置，避免已获准请求恢复执行前误报 busy，并保留取消和现有容量限制。
+
+- Avoid retaining duplicate message payloads in the legacy pull cache after durable-quorum commits; replication and repair remain owned by the quorum runtime. / quorum 持久化提交后不再向旧拉取缓存重复保留消息，复制与修复仍由 quorum 运行时负责。
+
+- Stop replication workers from repeatedly scheduling empty batches while their Channels are already in flight; wake blocked work when exchanges complete, retaining ordering and capacity limits. / 复制队列中的频道均在交换中时不再反复调度空批次；交换完成后唤醒等待工作，保留顺序和容量限制。
+
+- Absorb send-permission read bursts with at most 1024 waiting envelopes (16 MiB of queued request bytes) and a 2 s wait bound, with at most 64 executing envelopes (256 Slot workers), caller cancellation and fresh authority checks. Overflow still fails closed with `ReasonSystemBusy`. / 发送权限读取最多排队 1024 个请求（排队字节上限 16 MiB）、最长等待 2 s 以吸收突发；执行最多 64 个信封（256 个 Slot worker），保留取消和最新权威读取，超限继续以 `ReasonSystemBusy` 拒绝。
+
+- Preserve ready gateway SEND prefixes as batches, retaining directory barriers, hook order, per-Channel append order and session ACK order to avoid per-message durable waits in the use case. / 网关已就绪的连续 SEND 保持批量提交，保留目录屏障、hook 顺序、同频道追加顺序和会话 ACK 顺序，避免用例层逐条等待持久化。
+
+- Expose fixed transport lane payload-byte counters to distinguish Raft from other cluster traffic without changing aggregate byte metrics. / 新增按固定传输优先级划分的 payload 字节指标，区分 Raft 与其他集群流量，并保留原有总字节指标。
+
+- Batch ordinary membership projections by physical Slot to reduce large-group setup proposals, preserving ownership, durability, source versions and bounded concurrency. Matching cluster binaries are required. / 普通成员索引按物理 Slot 批量提交，减少大群创建提案数，保留所有权、持久化、版本与并发边界；集群须使用匹配版本。
+
+- Preserve backup management read-your-writes when a forwarded Controller mutation precedes local replica visibility; report temporary send-permission authority/admission failures as retryable. Fresh data roots may contain a pre-mounted backup repository, while unregistered live databases remain rejected. / 备份管理等待已成功转发的修改在本机可见，避免读旧状态遗漏操作锁；发送权限路由变化和临时过载返回可重试错误。新数据目录允许预挂载备份仓库，仍拒绝未登记的旧业务数据库。
+
+- Separate user-wide and source-channel send bans, add versioned management APIs, and batch fresh permission reads by leader node. Person-channel bans affect both directions; credential changes preserve bans. Requires data format 2 and matching server/CLI binaries; no old-data migration or mixed-version deployment is supported. / 用户全局禁发与实际频道禁发分离，新增带版本的管理接口，按 Leader 节点聚合权威权限查询；私聊频道禁发双向生效，凭证更新保留禁令。要求数据格式 2 及配套服务端/CLI，不支持旧数据迁移或新旧版本混部。
+
+- Bound cloud deployment readiness commands by the shared deadline and publish consistent failure receipts for local repair and GitHub Actions, including interrupted probes. / 本地修复与 GitHub Actions 共用部署执行入口，readiness 命令受统一截止时间约束，中断与失败均保留一致的结构化结果。
+
+- Add bounded Linux host/network sampling and monotonic RPC timeline correlation, with explicit missing data and sampling overhead. / 新增有界 Linux 主机、网络采样与 RPC 单调时钟对齐，显式保留缺失指标和采样开销。
+
+- Add a bounded native Linux RPC diagnostic with dual-process resource accounting and an explicit same-version repeatability gate. / 新增有界原生 Linux RPC 诊断工具，记录双端资源并按同版本重复性门槛验收测试环境。
+
+- Reduce queue-listener allocations for internal RPCs without a caller time budget, while preserving cancellation, independent mutation completion, and admission limits. / 无调用方时间预算的内部 RPC 复用队列取消入口，减少监听分配，并保留取消、写操作独立完成及准入边界。
+
+- Reuse the execution context when linking service shutdown for cancellable read RPCs, reducing lifecycle allocations while preserving caller deadlines and independent mutation completion. / 可取消读 RPC 复用执行上下文响应服务停机，减少生命周期分配，并保留调用方截止时间及写操作独立完成语义。
+
+- Reduce internal RPC cancellation-callback memory by capturing the request owner, preserving cancellation and queue ownership rules. / 内部 RPC 取消回调复用请求所有权对象中的引用，减少回调占用内存，并保留取消和队列归属规则。
+
+- Reuse one queue-deadline timer per internal RPC service while preserving per-request cancellation, FIFO deadlines, and admission bounds. / 内部 RPC 每个服务复用一个排队截止时间定时器，保留逐请求取消、FIFO 截止时间和准入边界。
+
+- Reuse internal RPC queue ownership for executor tasks, eliminating one per-request allocation while preserving cancellation and admission bounds. / 内部 RPC 执行任务复用队列所有权对象，减少每次请求一次分配，并保留取消及准入边界。
+
+- Keep benchmark status polling independent of latency-history size by reading counters and gauges directly; reports retain exact latency summaries and error evidence. / 压测状态轮询直接读取计数器和当前值，不再反复整理历史延迟样本；报告保留精确延迟统计和错误证据。
+
+- Avoid an intermediate internal RPC response copy by encoding borrowed handler bytes synchronously; asynchronous replies retain independent payloads. / 内部 RPC 同步编码借用的处理结果，省去一次中间响应复制，异步回复仍保留独立数据。
+
+- Reduce benchmark snapshot CPU cost with typed latency sorting while retaining exact percentile and SLO results. / 压测快照使用类型化时延排序，降低 CPU 开销，保留精确分位数和 SLO 判定。
+
+- Keep benchmark metric writes moving while report snapshots sort historical latency samples, preserving consistent snapshots and exact percentiles. / 压测报告在锁外排序历史时延样本，降低指标写入阻塞，并保留快照一致性及精确分位数。
+
+- Honor `random_online` in group benchmarks using the scenario seed and logical message indexes, instead of silently reusing the first online member. / 群聊压测的 `random_online` 按场景种子和逻辑消息索引选择发送者，修复此前始终使用首个在线成员的问题。
+
+- Add bounded benchmark timing for scheduling, SEND submission, SENDACK waiting and full operations; expose planned/dispatched shortfalls, stop batch admission at the deadline, and avoid expired-window timer spinning during drain. / 压测增加有界分段计时并展示计划发送缺口，修复批量派发越过截止时间及排空期间过期定时器空转。
+
+- Reduce per-request RPC queue allocations by reusing caller cancellation and arming a queue timer only for an earlier deadline, preserving timeout and ownership bounds. / RPC 排队复用调用方取消信号，仅在队列截止时间更早时创建定时器，减少逐请求分配并保留超时和资源归属边界。
+
+- Preserve long backup/restore and maximum-duration remote profile operations under RPC budgets; retain typed remote timeout and admission failures for existing retry handling. / RPC 预算保留长时备份恢复和最大时长远程采样，跨节点保留超时及准入失败类型。
+- Reduce internal RPC idle latency and pooled-buffer memory overhead; keep backing-byte admissions until handlers finish, aggregate transport counters with sampled latency, and negotiate request budgets/cancellation with older-peer fallback. Started mutations preserve completion semantics. / 降低内部 RPC 空闲延迟和缓冲池内存开销，处理完成前保留实际内存准入，聚合通信计数并采样延迟；协商请求预算与取消能力并兼容旧节点，已开始的写操作保留完成语义。
+
+- Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Refuse JSONL exports containing persistent MQTT bindings, replay, Will or capacity evidence before touching the output directory; preserve the source and existing bundles. Use matching native backup/restore tools for MQTT data. / JSONL 导出在写入或覆盖输出目录前拒绝含 MQTT 持久绑定、回放、遗嘱或容量证明的数据，保留原数据与已有导出文件；MQTT 数据需使用匹配版本的原生备份恢复工具。
+
+- Include MQTT maintenance, storage and subscription-closure metrics plus Slot read-barrier latency in the runtime/storage Grafana dashboard. / 运行与存储 Grafana 面板补齐 MQTT 维护、容量、订阅关闭指标及 Slot 读屏障延迟。
+
+- Rebuild Node-owned Slot proposal, task and quorum RPC dependencies after Stop or failed startup, preserving injected adapters and durable messages across repeated starts. / 停机或启动失败后重新构建 Node 自建的 Slot 提案、任务及 quorum RPC 依赖，保留注入适配器与消息持久化状态，修复同一 Node 重复启动无法写入的问题。
+
+- Return a plugin host RPC error with the public SEND reason when a plugin-origin message is rejected, including user/channel send bans, instead of acknowledging success with a zero message ID. / 插件发送被用户或频道禁令等规则拒绝时，返回带协议原因码的宿主 RPC 错误，修复成功状态携带零消息 ID 的误导反馈。
+
+- Preserve message settings, including read-receipt flags, topics, and expiration during online delivery for persistent and non-persistent messages. / 修复持久化和非持久化消息在线下发时丢失 setting（含已读回执标记）、topic 和 expire 的问题。
+
+- Allow v2 archive import to reuse its preparation workspace without a checkpoint conflict, preserving independent archive verification and the original export seal. / v2 归档导入可复用准备阶段工作目录，保留独立归档校验与原始导出校验信息，避免检查点冲突。
+
+- Keep backup credentials on the receiving node: export, repository probes and restore RPCs now carry only exact repository references. Upgrade all cluster nodes together before backup operations; older backup request formats are rejected. / 备份导出、仓库探测与恢复 RPC 仅传递精确仓库引用，凭据在接收节点解析；执行备份操作前须升级所有节点，旧版备份请求将被拒绝。
+
+- Preserve a bounded rolling execution trace and aligned one-second counters from the original mixed SEND qualification when a latency cohort breaches 400 ms. / mixed SEND 原始验证出现延迟超标时，保留有限滚动执行 trace 与对齐的逐秒计数器。
+
+- Preserve cancellation during benchmark metrics/profile response reads so normal workload shutdown can retain terminal evidence. / 保留压测指标及 profile 响应读取期间的取消信号，避免正常停止丢失终止证据。
+
+- Retain an independent hot SENDACK latency profile with bounded I/O context when an earlier throughput alarm has already collected profiles. / 早期吞吐告警已采集 profile 后，仍为热点 SENDACK 延迟超标保留一次独立采集及有限 I/O 上下文。
+
+- Retain failed 500-QPS warmup accounting and bounded failure categories, including mixed SEND pressure counters. / 保留 500 QPS 预热失败计数、有限错误分类及 mixed SEND 压力证据。
+
+- Reuse 500-QPS performance results for documentation/Demo-only changes only after three matching clean main qualifications; unavailable or failed evidence keeps fresh checks mandatory. / 纯文档或 Demo 改动仅在三次 main 基线验证成功且性能输入一致时复用结果；证据缺失或失败时仍执行完整检查。
+
+- Prevent large-group delivery from blocking unrelated Channels that previously shared a worker hash shard, while preserving per-Channel FIFO and bounded queues. / 避免大群投递阻塞原先哈希到同一 worker 的无关频道，保留频道内顺序与队列边界。
+
+- Run messaging correctness independently of 500-QPS performance gates, and include arrival queueing, underload and dropped requests in sustained performance results. / 消息正确性与 500 QPS 性能门禁独立执行，持续压测结果包含请求排队、发压不足和丢弃。
+- Preserve confirmed chat-lifecycle failures that terminate measurement early instead of obscuring them as incomplete-duration evidence. / 聊天生命周期测试提前终止时保留已证实的失败原因，避免被测量时长不足掩盖。
+
+## [v3.0.0-beta.21] - 2026-09-19
+
+### 🔧 Improvements / 改进
+
+- Reuse unchanged durable retention state in bounded Channel storage caches, with invalidation around retention changes, truncation and restore/import. / Channel 有界存储缓存复用未变化的持久化保留状态，在保留变更、截断及恢复导入前后失效，减少会话查询的重复读取。
+
+- Retain bounded host and per-second arrival evidence in the original conversation release gate, including rejected windows, without changing its load or acceptance policy. / 会话发布门禁保留原始运行中有界的主机与逐秒请求证据（包括失败窗口），不改变负载和验收标准。
+
+- Overlap up to eight independent Slot message-edit read groups per query, retaining fresh quorum/apply barriers, aligned pages, cancellation and byte bounds. / 单次查询最多并行读取八组独立 Slot 消息编辑数据，保留新的多数派与应用屏障、分页对齐、取消和字节上限。
+
+
+### 🐛 Bug Fixes / 问题修复
+
+- Include the Controller restart recovery prepared in beta.19–20: verify legacy pruned WAL prefixes against node identity, snapshots, metadata and the complete committed suffix, then restore a newer snapshot before replay when materialized state lags. Real corruption remains fatal. / 包含 beta.19–20 中准备的 Controller 重启恢复修复：核验旧 WAL 清理前缀后的节点身份、快照、元数据及完整提交后缀；状态文件落后时先恢复较新的快照再重放。真实损坏仍拒绝启动。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- beta.17–20 did not complete publication. This release includes their message-edit functionality, query improvements and Controller recovery changes. Deploy matching server versions and follow the SDK edit/restore merge contract described below. / beta.17–20 未完成发布；本版本包含这些版本准备的消息编辑功能、查询优化和 Controller 恢复修复。各节点须部署一致版本，并遵循下文的 SDK 编辑与恢复合并协议。
+
+- Back up every node's complete data directory before upgrading. Validated legacy WAL recovery is automatic; do not delete WAL or edit checksums. Once a new-format segment is written, rollback requires restoring the pre-upgrade data backup as well as the old image. / 升级前备份各节点完整数据目录。通过核验的旧 WAL 会自动恢复，无需删除日志或修改校验和。写入新格式日志段后，回退必须同时恢复升级前数据备份和旧镜像。
+
+## [v3.0.0-beta.20] - 2026-09-19
+
+### 🔧 Improvements / 改进
+
+- Reuse bounded transport-observer state and delivery buffers, reducing query-time metrics overhead while preserving latest-state revisions and shutdown draining. / 运输层指标复用有界状态与投递缓冲区，降低查询期间的指标开销，同时保留最新状态版本及关闭排空语义。
+
+- Retain bounded per-second timing and slow-arrival evidence in the fixed mixed-query diagnostic, without changing release workloads or thresholds. / 固定混合查询诊断保留有界的逐秒耗时与慢请求调度证据，不改变发布负载或门槛。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Include the Controller WAL restart recovery introduced in beta.19: recover the legacy pruned-prefix CRC defect only after verifying snapshots, metadata, node identity and the complete committed suffix. Corrupted records still fail closed; new WAL segments require an upgraded runtime. / 包含 beta.19 的 Controller WAL 重启恢复修复：仅在快照、元数据、节点身份及完整提交后缀验证通过后恢复旧格式前缀清理造成的 CRC 断链；真实损坏仍拒绝启动，新日志段须由升级后的程序读取。
+
+- Restore a newer Controller snapshot before committed-log replay when the materialized state file lags compaction, preserving restart recovery after readiness probes. / 状态文件落后于快照时，先恢复较新的 Controller 快照再重放提交日志，保证就绪探测与日志清理后的重启恢复。
+
+## [v3.0.0-beta.19] - 2026-09-19
+
+### 🔧 Improvements / 改进
+
+- Avoid repeated sparse-index reads when a channel has no SyncOnce records, with bounded ownership, write/import invalidation and closed-storage checks. / 频道没有 SyncOnce 记录时避免重复读取稀疏索引，保留有界存储、写入与导入失效及存储关闭检查。
+
+- Reuse owned message-page storage during history and conversation sync, reducing copying and allocations while preserving custom-reader isolation and bounded pagination. / 历史与会话同步复用已独立持有的消息页存储，减少复制及内存分配，保留自定义读取器隔离与有界分页。
+
+- Avoid copying replica lists when query metadata batches only need a Slot number, preserving foreground lifecycle and observed-Leader checks. / 查询元数据批次仅需 Slot 编号时不再复制副本列表，保留前台生命周期与已观测 Leader 校验。
+
+- Share one pinned database view within each bounded Slot message-update read batch, reducing per-channel snapshot work while preserving fresh read barriers and byte limits. / 每个有界 Slot 消息更新读取批次共用一个数据库快照，减少逐频道快照开销，保留新鲜读取屏障与字节上限。
+
+- Read conversation lifecycle and runtime routing metadata together at the Slot owner, reducing duplicate query RPCs while keeping remote Leader validation and read deadlines. / 会话查询在 Slot 所属节点合并读取频道状态与运行路由元数据，减少重复 RPC，保留远端 Leader 校验与读取时限。
+
+- Read only the disk frontier for persisted conversation previews and transfer already-owned message pages through local/remote Channel reads, avoiding unused checkpoint reads and duplicate page copies. / 持久化会话预览仅读取落盘尾序号，本地与跨节点频道读取直接转交已有独立所有权的消息页，减少无用检查点读取及重复复制。
+
+- Reuse bounded decoded runtime metadata during conversation queries, with mutation/restore generation fences and independently owned replica lists. / 会话查询复用有容量限制的运行元数据解码结果，写入与恢复通过版本失效保证新鲜度，副本列表保持调用方独立所有权。
+
+- Transfer independently decoded message payloads through conversation/history read adapters, avoiding redundant copies while preserving caller ownership after storage closure. / 会话与历史读取直接转交独立解码的消息正文，减少重复复制，保持存储关闭后的调用方所有权。
+
+- Expose bounded read-stage timings for conversation list/sync responses, head hydration, and message-edit barrier/storage reads. / 增加会话列表与同步响应、摘要补齐、消息修改屏障及存储读取的固定维度耗时指标。
+
+- Read the first surviving sparse ordinal directly for zero-floor conversation counts, avoiding a redundant predecessor seek while preserving retained-history and corruption checks. / 会话计数下界为零时直接读取首条存活稀疏索引，减少一次无效前驱查找，保留历史清理基线与损坏检查。
+
+- Construct Channel message storage keys in one owned allocation, reducing repeated allocation during conversation preview reads while preserving the existing on-disk encoding. / 频道消息存储键使用一次独立分配构造，减少会话预览读取中的重复分配，保持原有存储编码兼容。
+
+- Transfer retired Channel storage warm state without an extra large-struct allocation or interface copies, reducing persisted conversation-read lease churn while preserving independent leases and cache bounds. / 频道存储暖状态回收后直接转移，避免额外大结构分配和接口值复制，减少持久化会话读取的租约开销，同时保留独立租约与缓存容量限制。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Restore a newer Controller snapshot before replaying the committed suffix when the materialized state file lags compaction, avoiding restart failures after readiness probes. / 状态文件落后于快照时先恢复较新的 Controller 快照再重放提交后缀，避免就绪探测与日志清理后重启失败。
+
+- Keep Controller WAL recoverable after snapshot cleanup and restart. Upgrades recover the legacy pruned-prefix CRC defect only after snapshot, metadata, node-identity and complete committed-log verification; corrupted records still fail closed. Newly rotated WAL segments use independent checksums and require this version or newer to reopen. / 修复 Controller WAL 快照清理后重启报 CRC 错误；升级时仅在快照、元数据、节点身份及完整提交日志验证通过后兼容恢复旧格式断链，真实损坏仍拒绝启动。新轮转日志段采用独立校验，写入后须使用本版本或更新版本启动。
+
+- Refresh Controller state on watch notifications and reject older snapshots after newer state is applied, avoiding obsolete startup task replay and routing/maintenance rollback during concurrent readiness probes. / Controller 通知触发当前状态读取，已应用较新状态后拒绝旧快照，避免重复执行过时启动任务，以及并发就绪探测导致的路由与维护状态回退。
+
+- Preserve temporary dependency failures across Channel read RPC so connection loss during failover returns retryable unavailability for ordinary history, exact lookup and conversation queries. / 频道读取 RPC 保留临时依赖故障类型，故障切换中的连接中断在普通历史、精确查询和会话查询中返回可重试的不可用状态。
+
+- Capture bounded system, scheduler/GC, physical commit and sampled replication counters in the first PR append gate, preserving evidence when it fails before mixed SEND starts. / 前置 PR append 门禁保留有界系统、调度/GC、物理提交及采样复制计数，覆盖混合 SEND 开始前即失败的窗口。
+
+- Retain bounded CPU, disk, scheduler/GC, storage and replication counter snapshots from the original PR mixed SEND gate on success or failure, without profiling or changing its 400 ms limit. / PR 混合 SEND 原始门禁无论成功或失败均保留有界的 CPU、磁盘、调度/GC、存储和复制计数快照，不启用 profile，也不改变 400 ms 门槛。
+
+- Add an opt-in fixed-host Linux SEND diagnostic that retains the original 400 ms verdict and collects bounded CPU, execution-trace, storage and replication evidence during measured traffic. / 增加可手动启用的固定 Linux 主机 SEND 诊断，保留原始 400 ms 判定，并采集正式压测期间有界的 CPU、执行 trace、存储和复制证据。
+
+- Exclude setup and completed warmup from mixed SEND benchmark stage statistics, report measured sample counts, and preserve an unbounded histogram tail instead of reporting a false finite P99 upper bound. / 混合 SEND 基准的分段统计排除初始化和已完成的预热，显示正式窗口样本数，并避免将超出直方图范围的长尾误报为有限的 P99 上界。
+
+- Decode all registered Slot commands in Raft log views, including read progress, ordinary/CMD memberships, channel updates, latest-message metadata, and directory/migration tasks; omit message bodies and distinguish unsupported inspection or versions from corrupt log data. / 槽位 Raft 日志支持展示全部已注册命令，涵盖已读进度、普通/CMD 成员关系、频道更新、最新消息元数据及目录/迁移任务；隐藏消息正文，并区分暂不支持展示或版本与日志数据损坏。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- Back up each node’s complete data directory before upgrading. Validated legacy Controller WAL prefixes are admitted automatically and recorded durably; no WAL deletion or manual checksum edits are needed. After this version writes a new WAL segment, use this version or newer; rollback requires restoring the pre-upgrade backup. / 升级前备份各节点完整数据目录。旧版 Controller WAL 前缀通过完整验证后自动恢复并持久化验证结果，无需删除 WAL 或手工修改校验和。新版本写入新日志段后须使用本版本或更新版本；回退须恢复升级前备份。
+
+## [v3.0.0-beta.18] - 2026-09-15
+
+### 🔧 Improvements / 改进
+
+- Encode batched conversation heads and recent-message responses in one pre-sized buffer, reducing allocation and copying while preserving all supported wire formats and read consistency. / 会话摘要和最近消息的批量响应使用预分配缓冲区编码，减少内存分配与复制，保持协议兼容和读取一致性。
+
+- Reduce runtime metadata decoding allocations by canonicalizing owned replica sets and decoding directly from verified row bytes; preserve corruption checks and caller-owned inputs. / 运行时元数据直接从已校验行解码并原地规范化自有副本集合，减少分配，同时保留损坏校验与调用方数据所有权。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- Includes the ordinary-message editing and EVENT integration changes prepared in beta.17, whose artifact publication was blocked by the release performance gate. Deploy matching server binaries and adopt the SDK edit/restore merge contract; CMD and stream messages remain non-editable. / 包含 beta.17 中准备的普通消息编辑与 EVENT 接入功能；beta.17 的产物发布被性能门禁阻断。请部署版本一致的服务端，并使用遵循编辑与恢复合并协议的 SDK；CMD、流消息仍不可编辑。
+
+## [v3.0.0-beta.17] - 2026-09-15
+
+### 🚀 New Features / 新功能
+
+- Add ordinary durable-message payload editing with version/restore-epoch checks, idempotent retries, single-channel incremental sync, and opt-in online EVENT hints. History, exact lookup, `/conversation/list`, and `/conversation/sync` read the latest content without changing message order or unread counts; CMD and stream messages remain non-editable. New metadata requires matching server binaries; SDKs must adopt the edit/restore merge contract. / 新增普通持久化消息修改、版本与恢复代数校验、幂等重试、单频道增量同步及按连接协商的 EVENT 提示；历史、精确查询和两个会话接口均返回最新内容，不改变消息顺序或未读。CMD、流消息不允许修改；新元数据要求节点版本一致，SDK 需适配编辑与恢复合并协议。
+
+### 🔧 Improvements / 改进
+
+- Batch message-edit recipient Presence lookups by authoritative node and overlap up to four independent notifications during ready dispatch and durable repair, reducing RPC amplification and backlog while retaining durable progress, bounded queues, and recovery scans. / 消息编辑接收人的在线状态按权威节点批量查询，最多并行派发四条独立通知（覆盖就绪派发及持久化补偿），减少 RPC 放大与积压，保留持久化进度、有界队列和恢复扫描。
+
+- Wake the existing message-edit notification worker after a successful commit through a bounded, coalescing identity queue, reducing cold-channel hint delay while retaining durable recovery scans and cluster-authoritative delivery. / 消息编辑提交成功后通过有界身份队列唤醒现有通知 worker，合并重复任务，缩短冷频道提示等待，同时保留持久化补偿扫描与集群权威投递。
+
+- Coalesce concurrent readiness write probes and reuse successful proof for up to two seconds, reducing Slot Raft noop entries while retaining live Slot, placement and authority checks. / 合并并发就绪写入探针，并在两秒内复用成功证明，减少 Slot Raft 空操作条目，同时保留实时槽位、放置能力与路由权威检查。
+
+- Turn the bilingual v2-to-v3 migration guide into a practical single-node cluster walkthrough, with advanced procedures in a separate reference. / 将中英文 v2 → v3 迁移教程改为单节点集群实战步骤，多节点、插件与异常处理独立为参考页。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Add Grafana panels for persisted conversation-read admission, in-flight batches and shared limit, sampled occupancy, slot hold time, and batch size, restoring coverage of all six exported metrics. / Grafana 补齐会话持久化读取的准入速率、在途批次与共享上限、采样占用、执行占用时长和批次大小面板，恢复六项已导出指标的覆盖。
+
+- Retry a message-edit notification once when its ready-dispatch wave budget expires, avoiding unnecessary cold-slot rediscovery delays while preserving bounded retries and durable recovery. / 消息编辑通知因就绪派发整轮预算耗尽而失败时保留一次有界重试，减少重新扫描冷槽位造成的额外等待，并保留持久化恢复。
+
+- Preserve device identity when routing message-edit EVENT hints so opted-in real clients pass the final session fence and receive updates. / 消息修改 EVENT 提示路由保留完整设备身份，修复真实客户端已协商能力却因会话校验而收不到提示的问题。
+
+- Return HTTP 503 with `code: unavailable` for temporary failures in ordinary history, exact message lookup and both conversation read APIs, preserving legacy error fields so clients can retry the same cursor without parsing error text. / 普通历史、消息精确查询和两个会话查询接口的临时故障统一返回 HTTP 503 与 `code: unavailable`，保留旧错误字段，客户端无需解析错误文本即可重试原游标。
+
+- Inject the release version and commit into Docker server and CLI binaries so Manager node versions report the image release instead of `dev`. / Docker 服务端与 CLI 注入发布版本和提交信息，修复 Manager 节点版本始终显示 `dev` 的问题。
+
+## [v3.0.0-beta.16] - 2026-09-13
+
+### ⚠️ Breaking Changes / 破坏性变更
+
+- Read `/conversation/sync` heads and recent messages from current-Leader persisted storage without activating Channel runtimes; retain legacy fields and cursor rules, and fail the entire request on read errors or response-budget exhaustion. / `/conversation/sync` 的摘要和最近消息改为读取当前 Leader 已落盘数据，不激活频道运行时；保留旧版字段和游标规则，读取失败或响应预算超限时整次请求失败。
+
+- Read conversation-list previews from current-Leader persisted messages without activating Channel runtimes; failed SENDs may still appear. Any read error fails the whole page. Remove `/conversation/retry` and `unresolved`; retry the original list request and cursor. / 会话列表直接读取当前 Leader 已落盘消息，不激活频道运行时，发送失败的消息也可显示；任一读取错误则整页失败。删除 `/conversation/retry` 和 `unresolved`，失败后用原请求、原游标重试。
+
+### 🔧 Improvements / 改进
+
+- Avoid intermediate storage-decoding copies while preserving checksum validation and independently owned decoded messages and metadata. / 存储解码减少中间复制，保留校验和验证及消息、元数据结果的独立所有权。
+
+- Reduce conversation batch allocations by sharing request-scoped authoritative metadata across local read descriptors; preserve wire formats and Leader fences. / 会话批量读取共享本次请求解析出的权威元数据，减少对象分配，保持通信格式及 Leader 校验。
+
+- Add a bounded Linux AMD64 diagnostic workflow for mixed conversation reads, retaining host counters and separate driver/server profiles without changing release gates. / 新增 Linux AMD64 会话混合读取诊断工作流，保留主机指标及独立压测端、服务端剖析，不改变发布门禁。
+
+- Extend release QPS gates with simultaneous conversation list/sync traffic and exact hidden-page checks. / 发布 QPS 门禁增加会话 list/sync 混合负载及隐藏会话准确分页校验。
+
+- Sort bounded legacy membership metadata before limiting `/conversation/sync` preview reads to the requested page prefix; preserve variable-length Channel ID ordering, visibility and post-page filters. / `/conversation/sync` 先排序有界成员元数据，再按目标页读取摘要；保留不同长度频道 ID 的排序、可见性及分页后过滤规则。
+
+- Reduce conversation preview read overhead by reading an exact persisted tail record directly, preserving missing-sequence fallback and read failures. / 会话预览按准确落盘序号直接读取尾消息，减少范围扫描开销，保留序号缺失时的回溯和读取失败语义。
+
+- Expose bounded persisted-conversation read admission, occupancy and hold-time metrics to distinguish backpressure from routing latency. / 增加会话落盘读取准入、占用量和持有时长指标，用于区分读取背压与路由延迟。
+
+- Reduce conversation unread-count CPU and allocations by sharing one bounded persisted-index iterator across both range boundaries. / 会话未读计数的两个范围边界共用一次有界落盘索引迭代，减少 CPU 和内存分配。
+
+- Batch `/conversation/sync` membership and channel-state reads through current Slot leaders to reduce cross-node RPCs while preserving visibility and whole-request failures. / `/conversation/sync` 通过当前 Slot Leader 批量读取成员关系和频道状态，减少跨节点 RPC，保持可见性规则及整次请求失败语义。
+
+- Add opt-in sustained conversation QPS diagnosis with per-node CPU/RPC metrics and separate execution traces. / 新增会话接口持续负载诊断，采集各节点 CPU、RPC 指标及独立执行跟踪。
+- Reuse immutable message-storage keys within bounded caches and remove redundant legacy-sync payload copies to reduce conversation read allocations. / 有界复用消息存储 Key，并去除旧版会话同步的重复 Payload 复制，降低会话读取的内存分配。
+- Reduce conversation preview allocations by reading only the newest record on ordinary tails while retaining bounded scans over internal records. / 会话预览优先只读取最新一条记录，减少无用消息解码和内存分配，内部消息仍采用有界回溯。
+- Gate Docker and binary releases on fixed `/conversation/list` and `/conversation/sync` QPS/P99 and per-request allocation tests in single-node and three-node clusters, including complete responses and zero Channel activation. / Docker 与二进制发布新增会话接口 QPS/P99 与每请求分配量门禁，覆盖单节点和三节点集群，并验证响应完整及零频道激活。
+
+- Auto-detect direct clients and PROXY protocol v1/v2 on TCP and WebSocket Gateway listeners by default, with bounded preface parsing and timeout. Optional trusted CIDRs restrict header sources; omitted or empty accepts unverified client address assertions from any peer. / Gateway TCP 和 WebSocket 默认自动识别直连与 PROXY v1/v2，并限制协议头大小与等待时间；可选可信 CIDR 限制协议头来源，省略或为空时接受任意对端声明的未验证客户端地址。
+
+- Show the configured `guest` username and password on the Manager login page. / Manager 登录页在配置 guest 账号时展示其账号和密码。
+
+- Clarify that Manager message deletion includes the selected message and all earlier messages in the same channel, with explicit bulk deletion confirmation. / 管理台消息删除明确标注“此条及更早消息”，并在批量删除确认中说明同频道、包含未展示历史消息的影响范围。
+
+- Sample rejected WebSocket handshakes as informational diagnostics instead of listener-error stack traces; genuine listener faults remain errors. / WebSocket 握手拒绝改为限频 INFO 诊断，避免扫描请求刷出 ERROR 堆栈，真实监听器故障仍完整记录。
+
+- Exclude normal Slot scheduling coalescing and rescheduling from Manager runtime admission errors; show observed zero errors as normal while preserving missing-data status. / Manager 运行时准入错误排除正常 Slot 调度合并及重新调度，有采集且错误为零时显示正常，无数据仍保持未知。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Track plugin batch channel-owner initialization in the goroutine supervisor while preserving its 16-task concurrency bound and error cancellation. / 插件批量频道归属初始化接入 goroutine 统一托管，保留 16 并发上限和出错取消行为。
+
+## [v3.0.0-beta.14] - 2026-09-12
+
+### 🚀 New Features / 新功能
+
+- Add bounded batch CMD discovery binding for stable source channels and exact request-scoped recipients, sharing one committed start boundary across the batch. / CMD 发现绑定支持有上限的源频道成员批次和精确临时接收者范围，一批共用已提交起始边界。
+
+- Expose `cluster.start_timeout` / `WK_CLUSTER_START_TIMEOUT` for measured cold-recovery readiness budgets, retaining the 30s default and all write, quorum, and placement checks. / 支持配置冷恢复的启动就绪等待期限，默认仍为 30 秒，保留写入、多数派和放置检查。
+
+- Support reviewed transitive duplicate resolution, archive independent v2 unread counters, and preserve absent conversation lists without deleting history; hidden memberships require matching cluster binaries. / 支持获准的去重替代链解析、原独立未读计数归档，以及保留历史访问权限的会话列表隐藏；隐藏成员状态要求集群使用配套程序。
+
+- Support explicitly approved preservation of conversations beyond the original v2 list cap and exact, hash-bound recovery of conflicting conversation states from their original unique indexes. / 支持明确批准后保留原 v2 列表上限之外的会话，并按原行哈希绑定的唯一索引记录恢复冲突会话状态。
+
+- Add exact-row, operator-approved v2 quarantine with immutable original archives, dependent-index proofs, and independently rebuilt omitted-position mappings. / 增加按原记录精确授权的 v2 异常隔离，保留完整原始归档，验证关联索引并独立重建被排除位置的映射。
+
+- Support offline mapping of the exact original search plugin with verified history-rebuild seeds on every target; document the required runtime catch-up upgrade for leader changes. / 支持原搜索插件的精确离线映射，为全部目标生成经过验证的历史索引重建种子，并明确 Leader 变化所需的运行时增量补齐升级。
+
+- Add read-only migration access for Pebble format 19 while preserving legacy source support, source locks, and business compatibility checks; document development-build and plugin checks before downtime. / 迁移读取器增加 Pebble 格式 19 只读支持，保留旧格式读取、源文件锁与业务兼容检查，并补充停机前的开发版本和插件核对说明。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Refresh old empty-number conversation previews even when a legacy client cursor has advanced, preserving unread and visibility boundaries. / 旧客户端游标已前移时仍可刷新空编号历史会话摘要，保留未读和可见范围边界。
+
+- Restore legacy previews for historical messages with empty client numbers using stable read-only aliases, preserving stored records and indexed lookup support. / 历史空客户端编号消息返回稳定的只读兼容编号，恢复会话摘要并支持索引查询，原始记录不改写。
+
+- Restore generated client message numbers for HTTP sends that omit the field, and return the number with the send result so legacy clients can resolve conversation previews. / HTTP 发送省略客户端消息编号时恢复自动生成，并随发送结果返回，避免旧客户端会话摘要为空。
+
+- Keep offline CMD synchronization available after a bound source Channel is disbanded; skip only confirmed terminal sources and retain explicit failures for unavailable reads. / 已绑定源频道解散后，离线 CMD 同步继续读取其他频道；仅跳过已确认的终止源，读取不可用仍明确报错。
+
+- Keep CMD synchronization working when an explicitly bound source has not produced its first persistent command; unavailable reads remain errors. / 显式绑定的频道尚未产生首条持久 CMD 时，按空记录处理，避免阻断其他命令同步；读取不可用仍返回错误。
+
+- Restore legacy `POST /messages` exact lookup by message ID, sequence, and client message number, using committed indexes with membership and retention checks.
+
+- Fix group CMD delivery to use current source-group subscribers for persistent and transient commands, including after membership changes.
+
+- Allow a connected plugin readiness handshake to use the remaining startup budget, avoiding repeated premature timeouts when the node is CPU throttled. / 插件就绪握手使用剩余启动等待期限，避免 CPU 限流时反复提前超时导致启动失败。
+
+- Confirm retried sends against current Leader committed history before returning success; a local durable proposal alone no longer produces a successful send acknowledgment. / 重试发送必须由当前 Leader 的已提交历史确认，避免将仅本地落盘的提议误报为发送成功。
+
+- Preserve committed channel migration task chains across Slot replay batch boundaries, preventing older Leader metadata from reappearing after restart. / 修复 Slot 日志重放批次边界导致后续频道迁移任务被误跳过，避免重启后恢复出旧 Leader 状态。
+
+- Preserve the canonical Controller Raft 100ms tick through the runtime facade, avoiding an unintended 200ms election floor during cold recovery. / Controller 统一使用 100ms 默认 tick，避免上层覆盖后将选举等待下限缩短为 200ms，导致冷恢复期间频繁重新选举。
+
+- Refresh older loaded channel authority during committed history and conversation reads, then require fresh quorum recovery before serving messages. / 历史和会话读取遇到旧频道运行状态时重新加载当前权威信息，完成多数派恢复后再返回数据。
+
+- Preserve the failed channel migration task and phase in bounded worker diagnostics, including when a later tick deadline expires. / 频道迁移日志保留失败任务和阶段，避免后续超时覆盖原始错误。
+
+- Keep healthy Slot replay ranges batched when conditional metadata conflicts occur, preserving Raft order and durable stale-entry watermarks while reducing synchronous commits. / Slot 日志回放遇到条件冲突时继续批量提交无冲突区间，保留 Raft 顺序及过期操作的持久化进度，减少同步落盘次数。
+
+- Resolve plugin channel ownership from current Slot metadata after leader changes, preventing requests from repeatedly forwarding to a stopped node. / 频道 Leader 变化后，插件从当前 Slot 元数据解析所属节点，避免请求持续转发到已停止的节点。
+
+- Exclude internal recovery and SyncOnce records from unread badges and set-unread boundaries; keep legacy unread-history pulls and deleted conversation visibility correct after failover. / 未读计数及设置未读边界排除内部恢复与 SyncOnce 记录，修复故障切换后旧客户端未读历史拉取和已删除会话的显示。
+
+- Keep imported hidden conversations absent during cluster recovery; only a newer business message or explicit activation reveals them. / 集群恢复时保持迁入的隐藏会话不可见，仅新业务消息或明确激活后显示。
+
+- Bind reviewed conversation replica choices and archive-only decisions to every original copy, including absence; preserve the full source archive. / 会话副本选择及仅归档决定绑定全部原副本和缺失状态，保留完整源归档。
+
+- Prevent offline migration index joins from exhausting their read cache when write memtables grow. / 修复离线迁移写入内存表增长后耗尽读缓存、导致索引校验反复读取数据块的问题。
+
+- Preserve original message Expire values through v2 migration, native appends, reads, restart, and replica recovery; bind lifetimes in versioned quorum proposals and reject lossy older RPC encodings. / v2 迁移及原生写入、读取、重启和副本恢复保留消息 Expire 原值，以版本化提案校验有效期，并拒绝会丢失该字段的旧 RPC 编码。
+
+- Restore the legacy `/plugins/:plugin_no/*path` Product HTTP route through the existing plugin usecase, with bounded bodies/timeouts and maintenance fencing, so business backends can call search plugins after upgrading. / 恢复经现有插件用例处理的 Product HTTP 插件路由，限制请求体与调用时长并保留维护屏障，使业务后端升级后仍可调用搜索插件。
+
+### 🔧 Improvements / 改进
+
+- Reuse verified duplicate-chain suffixes within each offline migration pass and count terminals on disk, avoiding quadratic history lookups while retaining original edge proofs. / 离线迁移在每次重建内复用已核实的去重链后缀，以磁盘索引统计终点，避免重复遍历，保留完整原始替代证据。
+
+- Overlap bounded authoritative permission checks during batch history and conversation synchronization to reduce reconnect latency for accounts with many conversations. / 会话及历史批量同步以有限并发检查权威权限，降低多会话账号的重连等待。
+
+- Batch offline CMD reads across bound channels to reduce reconnect latency for users in many groups, preserving acknowledgement boundaries and complete-result failure handling. / 离线 CMD 按频道批量读取，降低多群用户重连耗时，保持确认边界和完整结果的错误处理。
+
+- Batch plugin channel-owner lookups through current Slot authority, sharing metadata reads and bounding concurrent cold-channel initialization during global search. / 插件按当前 Slot 权威批量查询频道所属节点，合并元数据读取，并以有上限的并发处理冷频道初始化。
+
+- Avoid per-row key-range allocations during Slot snapshot restore while retaining the same ownership and namespace checks. / Slot 快照恢复时避免逐行重复分配键范围，保持所属 hash slot 和命名空间校验不变。
+
+- Report bounded channel-repair progress, blocked examples, and worker errors instead of silently discarding failed background ticks. / 以限频日志报告频道修复进度、阻塞示例和后台任务错误，避免静默丢弃失败信息。
+
+- Reuse sealed migration preparation during export while rechecking source freshness and all exported bytes; compute invariant lookup-policy digests once per selection. Independent import and verification still rebuild original records. / 导出复用带摘要的迁移准备结果，重新核对来源和全部导出字节；会话选择仅计算一次固定策略摘要。导入和独立验证继续从原记录重建。
+
+- Merge sorted source indexes during migration validation to avoid per-index point lookups, and report preparation stage durations without weakening missing, conflicting, or orphaned-index checks. / 迁移校验采用有序索引归并，减少逐条查询，并输出准备阶段耗时，保留缺失、错指与孤立索引检查。
+
+- Distinguish existing-channel quorum service from new-channel placement readiness during three-node migration fault tests. / 区分三节点迁移故障演练中的已有频道多数派服务与新频道放置就绪条件。
+
+### 📚 Documentation / 文档
+
+- Align static documentation publication checks, navigation counts, and overview tests with the source-backed Product HTTP operation registry, including legacy message lookup. / 文档发布产物检查、导航数量及总览测试以源码对应的 Product HTTP 接口注册表为准，包含旧版消息查询接口。
+
+- Correct migration terminology: 12 physical Slots own the 256 logical hash slots. / 修正迁移教程术语：12 个物理 Slot 承载 256 个逻辑 hash slot。
+
+- Document explicit CMD binding and disconnected-recipient acceptance as prerequisites for v2 migration cutover. / 补充 v2 迁移切换前的 CMD 显式绑定适配和离线接收者验收要求。
+
+- Clarify v2 migration timeout budgeting and safe preparation retries after interruption. / 补充 v2 迁移任务的超时预算与预检中断后的安全重试说明。
+
+- Provide reusable v2 migration steps with an explicit reader baseline, release capability checks, generic plugin guidance and optional search-index rebuilding, host resource budgets, and separately captured stage logs. / v2 迁移教程提供通用步骤，明确来源读取基线与版本能力，补充通用插件指引、可选搜索索引重建和宿主机资源预算，并分别保存阶段日志。
+
+- Clarify three-node Compose migration addresses, independent bind mounts, Slot counts, and validation before container startup. / 明确三节点 Compose 迁移的容器通信地址、独立绑定目录、Slot 数量和启动前校验要求。
+
+- Document v2 migration configuration semantics for person whitelists, TCP PROXY protocol, and business data-source synchronization. / 补充 v2 迁移中单聊白名单、TCP PROXY 协议和业务数据源同步的配置差异。
+
+- Document business-database sequence mapping during v2 migration, including deletion boundaries and message references that client cache resets cannot repair. / 补充 v2 迁移时业务数据库的序号映射要求，涵盖清理客户端缓存无法修复的删除边界与消息引用。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- Use matching beta.14 server and wkcli binaries on every target node for the new expiration, hidden-conversation, and indexed-RPC formats. Keep a complete cold backup and rehearse v2 migration before switching; a source-build verification does not replace validation of your own data. / 新的有效期、隐藏会话和索引 RPC 格式要求各目标节点使用配套的 beta.14 服务端与 wkcli。切换前保留完整冷备并演练 v2 迁移；源码构建验证不能替代对自身数据的校验。
+
+## [v3.0.0-beta.13] - 2026-09-09
+
+### 🔧 Improvements / 改进
+
+- Add immutable DATA-FORMAT.json identity to fresh v3 node directories and migration outputs, reject unsupported formats before startup, and expose read-only `wkcli db info`; existing unmarked directories remain unregistered. / 全新 v3 节点目录和迁移产物增加不可变 DATA-FORMAT.json 版本标识，启动前拒绝不支持的格式，并提供只读 wkcli db info；已有无标识目录保持未登记。
+
+- Allow v2 migration plans to omit `source_commit`, defaulting to the supported reader schema while retaining format checks and legacy plan/archive identity; operators no longer need to identify their deployed binary commit. / v2 迁移计划允许省略 source_commit，默认使用支持的读取规则并保留格式检查及旧计划、归档身份，部署者无需查询旧二进制提交号。
+
+- Require automatic installed `wkcli` identity and offline functional acceptance on all four signed-package client distributions before a new release is complete. / 新版本签名包发布增加四种 Linux 系统的 wkcli 安装身份与离线功能自动验收，全部通过后才算交付完成。
+
+### 📚 Documentation / 文档
+
+- Simplify the bilingual v2 → v3 migration guide into four steps, with explicit multi-server file collection and distribution and expandable troubleshooting and data policies; use 12 logical Slots and explain source revision compatibility. / 将中英文 v2 → v3 迁移指南精简为四步，明确多服务器冷备汇总与目标分发，排障和数据策略按需展开，计划示例采用 12 个逻辑 Slot 并说明来源提交字段的兼容写法。
+
+- Automatically check compatible Web EasySDK npm releases, verify the bilingual tutorial in Chromium, and propose reviewed documentation upgrades. / 自动检查兼容的 Web EasySDK npm 新版本，在 Chromium 验证中英文教程后创建文档升级 PR，交由维护者审核。
+
+- Keep EasySDK tutorial versions and installation pins in one shared manifest so compatible upgrades synchronize bilingual instructions and download links. / EasySDK 教程版本及安装引用集中到统一清单，兼容升级可同步中英文安装说明和下载链接。
+
+- Document released wkcli installation, paired server/CLI version checks, and installed-command examples in both languages; complete the migration tool navigation. / 补齐中英文 wkcli 发布版安装、服务端与工具版本核对、已安装命令示例及迁移工具导航。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Fix dual-architecture Docker release verification and recovery by pulling each platform through its immutable child manifest. / 修复 Docker 双架构发布校验与恢复流程，按不可变子清单分别拉取各架构镜像。
+
+## [v3.0.0-beta.12] - 2026-09-09
+
+### 🔧 Improvements / 改进
+
+- Consolidate operator tools into `wkcli bench`, `wkcli db`, and `wkcli migrate`; remove the separate `wkbench`, `wkdb`, and `wkmigrate` executables, migrate repository callers, and include version-matched `wkcli` in binary archives and native packages. External scripts must adopt the new subcommands. / 运维工具统一为 `wkcli bench/db/migrate`，移除旧独立程序并迁移仓库调用；二进制归档与原生安装包包含同版本 `wkcli`，外部脚本需切换新子命令。
+
+- Align the complete Product HTTP reference with all 42 runtime routes, including event projection sync and the native send `header.red_dot` flag. / 将完整 Product HTTP 文档对齐全部 42 个运行时接口，补齐事件投影同步和发送请求的原生 `header.red_dot` 字段。
+
+- Add a bilingual v2 → v3 offline migration guide covering plans, data policies, independent verification, client cutover, and rollback boundaries. / 新增中英文 v2 → v3 离线迁移指南，覆盖迁移计划、数据处理、独立校验、客户端切换与回退边界。
+
+- Add an isolated Docker rehearsal for a delivered v2 migration package, with fresh targets, archive-only import/verification, exact import retry and bounded resource guards. / 增加迁移交付包的隔离 Docker 演练脚本，覆盖空目标、仅依赖归档的导入与校验、重复导入和资源保护。
+
+- Restructure all eight EasySDK quickstarts and examples in Chinese and English around first-message integration, move historical validation into engineering reference, and pin Web installation to 2.0.5. / 重整八个平台的中英文 EasySDK 入门与示例，统一首次收发流程，将历史验证移入工程文档，并将 Web 安装版本更新为 2.0.5。
+
+- Use current health, retain fair Channel repair scan progress, and activate authoritative cold replicas from consistent durable frontiers for migration probes after node loss; allow fenced leader recovery while keeping business writes closed. / 频道修复使用最新健康状态、保留公平扫描进度，并按权威元数据和一致持久化状态加载冷副本；写入栅栏内可完成新 leader 恢复，业务写入仍保持关闭。
+
+- Document C# EasySDK application endpoint replacement and optional three-node reproduction, with server blockers tracked separately. / 补充 C# EasySDK 应用侧地址切换与三节点手动复现说明，单独记录服务端阻塞。
+
+- Document Python EasySDK group examples and installed-package membership/permission acceptance, including the required server cache fix. / 补充 Python EasySDK 群聊示例、正式包成员与权限验收，以及所需的服务端缓存修复说明。
+
+- Document Rust EasySDK released-package three-node messaging, permissions and same-endpoint ingress crash recovery acceptance. / 补充 Rust EasySDK 正式包三节点通信、权限与接入节点崩溃后原地址重连验收。
+
+- Document Rust EasySDK weak-network and resource-boundary acceptance, including SEND ambiguity, backpressure, observer lag and repeated cleanup. / 补充 Rust EasySDK 弱网与资源边界验收，覆盖发送结果未知、背压、监听器落后和反复清理。
+
+- Document C++ EasySDK released-package three-node WSS recovery acceptance and clarify uncertain SEND outcomes and same-endpoint reconnect behavior. / 补充 C++ EasySDK 正式包三节点 WSS 恢复验收，明确 SEND 结果不确定性与原地址重连边界。
+
+- Make Manager JavaScript preload ordering reproducible while preserving stylesheet order, so rebuild verification is stable. / 固定 Manager JavaScript 预加载顺序并保留样式顺序，避免重建校验因依赖遍历顺序变化失败。
+
+- Document independent Python EasySDK three-node WSS fault recovery and bounded stability acceptance. / 补充 Python EasySDK 三节点 WSS 故障恢复与限时稳定性验收说明。
+
+- Document Rust EasySDK group messaging and released-package checks for member fanout, permissions, membership changes and reconnect. / 补充 Rust EasySDK 群聊用法及正式包成员投递、权限、成员变更与重连验收。
+
+- Clarify the pending C++ EasySDK submission to the default vcpkg catalog and retain the working custom-registry setup in both languages. / 补充 C++ EasySDK 申请进入 vcpkg 默认目录的待收录状态，中英文接入说明继续保留可用的自定义 registry 配置。
+
+- Document WuKongEasySDK-Python 0.1.0 PyPI installation, matching examples, and published-package verification. / 更新 WuKongEasySDK-Python 0.1.0 的 PyPI 安装、配套示例与正式包验证说明。
+
+- Document Rust EasySDK 0.1.0 public-package WSS recovery acceptance and stabilize the ready-key scheduler regression test with deterministic synchronization. / 补充 Rust EasySDK 0.1.0 正式包 WSS 恢复验收，并使用确定性同步稳定调度器就绪 Key 回归测试。
+
+- Publish Rust EasySDK 0.1.0 installation instructions for crates.io, with bilingual examples and separately identified package and WSS recovery verification. / 更新 Rust EasySDK 0.1.0 的 crates.io 正式包安装文档，提供双语示例并分别记录包校验与 WSS 恢复验收。
+
+- Increase the initial logical Slot count in `wukongim init` and shipped single-node/three-node cluster configurations from 10 to 12. Hash slots remain 256; existing clusters retain their persisted Slot count. / `wukongim init` 及随仓库提供的单节点、三节点集群配置将初始逻辑 Slot 数从 10 调整为 12；Hash Slot 保持 256，已有集群继续使用持久化的 Slot 数。
+
+- Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Update the embedded Prometheus gRPC dependency to v1.83.2 to address CVE-2026-84445. / 将内嵌 Prometheus 的 gRPC 依赖升级至 v1.83.2，修复 CVE-2026-84445。
+
+- Fix release archive validation to include the unified `wkcli` executable, and use the official Go module proxy in hosted image builds. / 修复发布归档校验遗漏统一 `wkcli` 的问题，并在托管镜像构建中使用官方 Go 模块代理。
+
+- Fix Channel follower replacement stalling before the spare joins ISR: copy the committed log in bounded pages, refresh durable follower progress, and keep temporary catch-up lag retryable without reducing quorum. / 修复 Channel 副本替换在备用节点加入 ISR 前停滞的问题：分页同步已提交日志、刷新持久化进度，并保留暂时落后任务的重试能力，不降低仲裁要求。
+- Migration verification accepts valid empty-sender messages while checking their existing exact client index; history continuation reads respect the remaining page demand. Recovery rechecks all observed tails, and timed-out migration tasks yield without skipping peers.
+
+- Reconstruct online routes from current gateway owners after Slot authority changes, preventing an empty rebuilding directory from skipping acknowledged messages. / Slot 权威切换后按连接所属节点重建在线路由，避免空目录将已确认消息的在线接收者误判为离线。
+- Recover consecutive Channel failures by proving compatible durable tails, copying missing immutable entries, and rechecking quorum without truncating acknowledged messages; rotate migration tasks so one waiting recovery cannot starve others. / 连续节点故障时验证日志前缀、补齐缺失记录并重新确认 quorum，保留已确认消息；轮转迁移任务，避免单个恢复任务阻塞其他频道。
+- Synchronize benchmark RECVACK counter assertions with completed accounting under race instrumentation. / 修复 race 模式下 RECVACK 计数测试过早断言的问题。
+
+- Restore online delivery for ordinary `no_persist=1, sync_once=0` HTTP and WKProto sends, returning a transient message ID with sequence zero and preserving the receive flag without writing message history. / 修复普通频道 `no_persist=1, sync_once=0` 的 HTTP 与 WKProto 消息成功返回却不在线投递的问题；分配瞬时消息 ID、保持序号为零并保留接收标志，不写入消息历史。
+
+- Refresh group recipient versions from the current Slot leader before routed sends so membership changes through another ingress exclude removed users and include new members. / 群消息发送前从当前 Slot Leader 读取成员版本，修复跨入口变更成员后被移除用户仍收消息、新成员漏收的问题。
+
+- Bundle Prometheus binaries built from pinned source with dependency security fixes in Linux amd64/arm64 Docker images so enabling the managed Prometheus process starts successfully and persists metrics on the existing data volume. / Docker 镜像为 Linux amd64/arm64 内嵌从固定源码构建并修复依赖漏洞的 Prometheus 二进制，修复开启内置进程后启动失败、容器反复重启的问题，指标随现有数据卷持久化。
+
+- Preserve queued WebSocket payloads across subsequent reads, preventing corrupted JSON-RPC messages and unexpected client disconnections. / 修复 WebSocket 入队数据被后续读取覆盖导致的 JSON-RPC 消息损坏与客户端异常断开。
+
+- WebSocket handshake rejection logs now include peer addresses, HTTP status, and bounded requested/expected paths for path mismatches without URL query parameters. Manager parses console log fields and shows the error and listener without expanding details. / 完善 WebSocket 握手拒绝日志，补充来源地址、HTTP 状态和路径不匹配时的实际/期望路径，不记录 URL 查询参数；Manager 支持解析 console 日志字段并直接显示错误原因和监听器。
+
+- Fix JavaScript/Web quickstart reconnect history occasionally appearing empty while person membership is still being projected after SENDACK; the example backend now retries empty latest pages within its existing finite budget. / 修复 JavaScript/Web 示例重连时偶发空历史：后端在既有有限预算内等待最新空页的单聊成员投影。
+
+- Read device credentials from the current Slot leader so newly written or rotated Tokens authenticate consistently through any ingress, including nodes outside the Slot replica set. This uses promoted internal RPC 87; upgrade all cluster nodes together before relying on cross-node authentication.
+- Fix benchmark Token preparation to persist device credentials through the user use case before chat-lifecycle CONNECT, restoring authenticated three-node workloads without disabling Gateway authentication.
+- Restore Manager browser smoke validation with Gateway Token authentication enabled by using all-node HTTP readiness before authenticated browser navigation.
+- Restore the documentation browser acceptance runner and pinned Chromium dependency; validate BFF-issued credentials with Gateway Token authentication enabled, including bidirectional messaging and reconnect recovery.
+- Fix transient person-channel command sends rejecting valid system senders or deriving recipients and client channel IDs with the command suffix. Preserve the command flag on delivered packets.
+
+- 修复内部控制记录导致普通历史分页提前结束的问题：单次与批量同步、插件读取在有界扫描内按可见消息数量判断 `more`，整页控制记录不再遮住更早历史；聊天 Demo 沿用调用方页大小，并支持在没有滚动条时手动加载更早消息。
+
+- 恢复后的旧 Channel Leader 若本机日志已进入更高任期，会按有效持久化证据刷新失效路由，避免首条发送误报日志冲突；真正的同任期冲突仍拒绝。
+
+- 原生频道故障转移在每轮五秒预算内连续推进同一任务的有限步骤，并轮转读取积压任务，避免不可达目标或阶段间空等阻塞其他频道恢复；存储格式不变。
+
+- 修复大量频道下健康报告过期后漏掉已扫描频道的及时故障切换：节点失去可用资格时重新开始有界扫描，状态不变时继续原游标，页数与任务预算不变。
+
+- 原生频道恢复取得可用多数派及精确日志证明后不再等待暂停副本的探测超时；已到达的冲突／更长尾部仍参与校验，迟到响应保持有界回调所有权。
+
+- 修复故障换主在写入隔离续期后误等待排空不可用旧主的问题：重新核验存活目标副本，避免阻塞后续频道修复。
+
+- 修复副本不可达时重复发送可能永久占住频道待提交项的问题：本地确定冲突直接进入持久化幂等校验，保留原消息 ID 和序号，后续消息可继续写入。
+
+- 原生频道换主恢复保留已观察到的尾部，对同链落后副本复制缺失的原提案后重新证明多数提交，支持三副本中一个 Leader 暂停时继续写入；本地恢复不覆盖已有记录，内容冲突仍阻断。
+
+- 修复节点进程暂停后旧频道写入长期等待失联 Leader 的问题：转发尝试有界超时并刷新路由，仅对持久化且带原幂等键的消息重试；频道修复扫描跨轮次保留游标并轮转 Slot，避免后续频道长期得不到故障切换。
+
+- Chat Demo 默认使用已有 Web Token 登录，不重写服务端凭据；凭据保存在当前标签页而非 URL，刷新或重新同步时重建消息/会话缓存。创建演示凭据须显式选择，退出会清除本标签页凭据。
+- 修复 Chat Demo 向前翻页时文本和订单卡片显示错位；有未发送草稿时禁用重新同步，并保留明确的凭据错误提示。
+
+- 修复原生恢复过程中的错误隔离：独立元数据请求不再继承同批请求的校验错误；副本尚未提升时 Leader 故障可撤销旧补建任务后重新选主；追加转发连接不可用返回可重试错误。
+
+- 修复原生频道替换副本无法追平的问题：通过有界后台任务复制已提交历史，新副本不计入写入 quorum；修复恢复检查读取已加载副本的过期进度。
+
+- `wkmigrate prepare` 遇到活动插件时继续执行独立的源业务副本检查，失败时输出已完成的检查证据并保持退出码 1；插件未兼容时仍不生成可转换、可导出的准备结果。
+
+- 迁移候选同步 main 已有的空会话兼容修复：授权成员读取尚无消息的频道时返回空数组，保留成员限制和真实故障；补充全流消息排除后的 HTTP 同步、未读操作及重启追加验收。
+
+- Recover cold quorum Channel leaders before history and conversation reads, including restarted empty replicas; return errors while recovery is unavailable instead of incomplete successful pages. Keep uncommitted messages invisible when reverse-reading a zero committed watermark. / 修复多节点重启后历史末条消息或会话遗漏：读取前完成原生 quorum 恢复，并阻止倒序读取暴露未提交消息。
+
+- Fix read-only message catalog pagination across different-length channel keys so diagnostics and migration verification do not omit channels at page boundaries.
+- Recover native cold Channel replicas for leader failover and allow quorum verification while a transfer write fence remains active; business writes remain fenced until cutover validation finishes.
+- Preserve native `SyncOnce` in Channel RPC v8 so remote history reads keep recovery barriers and CMD records filtered; reject lossy legacy-codec fallbacks without changing storage.
+- Preserve original message `red_dot` in the existing v3 stored flag and through ordinary send, history reads, replication and recovery; do not archive or clear it during v2 migration. Target nodes require Channel RPC v8 / Exchange v4 and a coordinated all-node upgrade.
+
+- `wkmigrate authority` 识别旧 v2 原样保存配置版本的规则；仅在所有所属 Slot 副本的前后命令、完整配置字段及消息历史均匹配时，识别历史 Leader 指向自己的无成员变更标记。缺失证据仍阻止候选判定，不改写原库，也不放行未证实的状态。
+
+- 迁移输出遵守现有 v3 消息存储与复制约束；不再引入迁移专用摘要格式或历史前缀恢复分支。无法完整保留的协议字段、非 1 起始历史及重复 ID 明确阻止迁移，不改写标识或额外丢弃数据。
+
+- 迁移预检核对原插件绑定的主键与用户、插件双向业务索引，避免把原账号旧插件字段为空误判为无绑定；插件运行及配置兼容门槛仍保持。
+
+- 迁移预检按原版语义保留零配置版本和非空 ID 的类型 0 源频道配置；仍按所属 Slot 核对副本一致性，不改写版本，也不放宽消息、会话和频道策略的身份检查。
+- 迁移工具无损保留原 v2 会话及频道配置中的非 UTF-8 标识，按原字节关联、路由和校验，避免 JSON 替换字符合并不同身份；更新工具后须使用新的工作空间和归档。
+- 迁移预检识别原 v2 独立写入的频道成员计数，并从原用户、设备解析个人权限频道；完整保留黑名单及原始计数，避免误报缺失频道身份或凭计数创建频道属性。无法解析的实际权限和空身份记录仍拒绝。
+- 迁移配置比较保留原始历史离线统计作为证据，但不再将各节点的离线次数、离线时间差异误判为权威配置冲突；Leader、任期、副本及复制日志检查保持严格。
+- 迁移预检按原版 v2 恢复语义处理空用户 ID 的会话缓存：完整归档并记录数量，不再误报为无效已读位置，也不创建空用户会话。
+
+- 恢复原版 `/message/eventsync` 的持久事件投影读取，保留事件序号、分页及可见性过滤行为。
+
+### 🚀 New Features / 新功能
+
+- Show selected-node startup configuration as redacted TOML with effective defaults, full-document search/copy, and optional detailed Chinese/English comments; older nodes report unsupported TOML inspection explicitly. / 节点配置页改为脱敏 TOML，补齐生效默认值，支持全文搜索、复制和可选中英文详细说明，并明确提示旧节点不支持的情况。
+
+- Add opt-in synchronous `msg.before_send` Webhooks for payload replacement or rejection, independent timeout/error policies, bounded concurrency, and business rejection codes 128–255 through SENDACK and HTTP. / 新增可选同步发送前 Webhook，支持内容修改、拒绝发送、独立超时及错误策略、有界并发和业务拒绝码透传。
+- Add `message.cmd_channel_suffix` (`WK_MESSAGE_CMD_CHANNEL_SUFFIX`), defaulting to `____cmd`, consistently across command send, delivery, sync, plugins and Manager filtering. All nodes must agree; changing the suffix does not migrate existing command channels or bindings.
+
+- `wkmigrate` 支持按捕获摘要、用户／频道身份和保留消息尾序号限定补齐缺失会话，将已核验历史设为已读；原生历史可见范围保持完整，未批准或证据变化的情况仍拒绝。
+
+- `wkmigrate` 可显式接受经完整消息前缀、正式副本多数和已应用配置日志证明的源副本落后；保留当前 Leader 原历史并在归档重建时重新核验，默认仍阻断空 Leader、同任期换主及内容冲突。另可按显式恢复决定选取空 Leader 频道的一份完整正式多数副本，绑定捕获、完整诊断和消息摘要；未知异常仍阻断。
+
+- `wkmigrate` 支持插件程序分块归档、离线重建、原生目录安装及独立文件校验；显式兼容规则仅接受已审计的 AI 示例 Linux/amd64 原程序、Receive 注册和统一配置。未知程序仍阻断，精确重试拒绝程序被替换或权限漂移。
+
+- `wkmigrate` 可显式将原用户创建／更新时间完整留档，以适配没有对应字段的 v3 原生用户表；报告绑定每个节点的原值，归档重建重新核对，用户身份、插件绑定及设备凭据仍严格比较。
+
+- Add explicit offline stream-message exclusion with source archives, continuous per-channel sequences, mapped read/delete boundaries, and native append/restart validation. / 离线迁移支持显式排除流消息，完整归档源行、连续编号频道消息并映射读删位置，验证原生追加与重启接续。
+
+- `wkmigrate dedupe-plan` 报告 v3 新增按节点的消息字段影响统计，区分排除 CMD、去重后的保留消息与排除消息，并提供有界样本；不修改协议字段、不放宽兼容检查，需使用新的规划工作空间。
+
+- 迁移计划新增 `plugin_configs`，可让指定插件统一采用某源节点的有效配置，同时保留各节点启用状态、时间戳和全部原配置。导入配置纳入批次完整性检查，离线校验从原始归档独立重算并拒绝缺失、篡改或多余配置；业务兼容检查仍保留。
+
+- 新增插件迁移的单节点/三节点隔离验收，串联原绑定导入、默认程序扫描、节点配置、真实消息落库，并在两次完整重启后、发送新消息前核对全部已有消息和回复；发现逐节点配置会影响自动回复内容时，仍阻止业务兼容放行，支持对已批准的指定插件显式选择统一配置来源。
+
+- 迁移工具支持把原 `PluginUser` 绑定按 UID 重新分配到 v3 原生表，并从源归档独立核对绑定字段、副本数量和双向查询；原纳秒时间保留在归档，目标沿用原生毫秒精度。插件程序、配置及业务行为仍须通过兼容验收。
+
+- 迁移计划可显式指定 `plugin_nodes`，为每个目标选择配置来源，支持同一来源扩展到多个目标及缩容时明确选择来源；全部原配置留档，保持所选启用状态和时间戳。遗漏或重复目标、未知来源时拒绝，归档重建独立重算；该步骤不解除插件业务兼容检查。
+
+- `wkmigrate diagnose` 的插件兼容问题新增各节点的配置、方法及原记录指纹，可识别节点配置差异且不输出配置值；诊断结果不代表插件已兼容，也不放宽迁移检查。
+
+- 迁移工具可按原唯一索引与当前 Slot Leader 列表核对重复会话，保留已读、删除位置及列表版本，并检查去重前数量上限；空频道管理记录仅在无业务引用、正式副本及原配置日志一致时完整归档。两项均须显式启用，归档重建重新验证，默认仍严格拒绝。
+
+- `wkmigrate` 新增显式 `metadata.device_lookup=v2_cold_start` 选项，按原版冷启动登录的 UID 索引保留最小设备 ID 的完整凭据；原始重复记录留档，归档重建重新选择并验证。默认拒绝重复凭据，不推断停机前缓存，也不放宽副本一致性或会话检查。
+
+- `wkmigrate prepare` 从原始捕获的 Slot 配置命令和完整消息历史重建来源证明，支持有充分证据的补副本状态及历史 Leader 自指标记；归档携带命令并独立重验，缺失、改动或错位命令仍拒绝，不改变原库或 v3 放置与存储逻辑。
+
+- `wkmigrate` 支持显式排除 CMD 消息、保留最新重复消息并压紧剩余序号；同步映射普通会话的已读/删除位置，省略旧 CMD 同步位置，生成可校验序号映射，支持 `export-map` 从归档重建。原始记录完整归档，跨频道冲突及不确定来源仍拒绝，不改变 v3 存储逻辑。
+
+- 新增 `wkmigrate dedupe-plan`：按频道内原序号规划重复 MessageID 或发送者 ClientMsgNo 的最新记录保留，输出每条候选删除记录、保留依据及连续序号影响；源数据保持不变，跨频道身份冲突与相互淘汰的保留记录明确阻止规划通过。
+
+- 新增 `wkmigrate authority` 专项核验：只读核对带迁移标记的源频道配置、已保留的 Slot 配置日志及逐序号副本消息，输出校验和绑定的分类证据；不清除迁移标记、不选择或修改业务数据，也不放宽迁移门槛。
+
+- 新增 `wkmigrate diagnose` 全量源诊断：收集所有可读节点的兼容问题，以磁盘排序统计重复 ID/索引冲突，输出分节点数量、有限样例和带校验和的完整明细；扫描不完整时明确标记，诊断结果不能作为迁移通过凭据。
+
+- `wkmigrate` 支持显式排除升级遗留的旧流分片及元数据，保留主消息及原序号；排除项完整归档并列出数量和校验摘要，默认仍拒绝，插件兼容检查不受影响。
+- 新增 `wkmigrate prepare/export/import/verify` 离线迁移命令，读取未经升级的固定 v2 源版本，导入全新 v3 集群，并校验业务字段、消息索引、摘要链、初始化快照与副本记录数量。相同计划支持中断恢复；拒绝不兼容业务插件、关键源索引损坏和超出原生恢复预算的单条消息，不覆盖已有业务目标。大规模性能验收尚未完成。
+
+### 📚 Documentation / 文档
+
+- Update C# EasySDK documentation with published npm `easyjssdk 2.0.5` interoperability evidence for Node and Chromium/WSS.
+
+- Document C#/Chromium WSS acceptance with certificate rejection controls and separately pinned JavaScript native-WebSocket recovery source. / 补充 C#/Chromium WSS 验收、证书拒绝检查与独立固定版本的 JS 原生 WebSocket 恢复修复记录。
+
+- Document C++ SDK 0.1.0 prebuilt archives for Windows x64, macOS arm64 and Linux x64, including offline CMake integration, compatibility, checksums and upgrades. / 补充 C++ SDK 0.1.0 三平台预编译包的离线 CMake 接入、兼容要求、校验和升级说明。
+
+- Add C#/JavaScript EasySDK interoperability evidence for public NuGet and candidate source, including pinned dependencies, recovery scenarios, and Node/ws transport scope. / 补充 C#/JavaScript EasySDK 正式包与源码互通验证记录，明确固定依赖、故障恢复场景和 Node/ws 传输范围。
+
+- Add bilingual WuKongEasySDK-Python quickstarts, source installation, asyncio lifecycle guidance, and Python/JavaScript interoperability evidence. / 新增 WuKongEasySDK-Python 中英文接入教程、源码安装、asyncio 生命周期说明与 Python/JavaScript 互通验证记录。
+
+- Document the C++ EasySDK vcpkg Git registry with automatic dependency installation and a minimal CMake consumer. / 新增 C++ EasySDK vcpkg Git registry 接入文档，支持自动安装依赖和最小 CMake 消费端示例。
+
+- Add bilingual WuKongEasySDK-Rust quickstarts with pinned Git installation, Tokio lifecycle, bounded queues, and Rust/JavaScript interoperability examples. / 新增 WuKongEasySDK-Rust 中英文接入文档，覆盖固定 Git 版本安装、Tokio 生命周期、有界队列与 Rust/JavaScript 互通示例。
+
+- Document the public WuKongEasySDK C# NuGet 1.0.0 installation and its independent package verification in both languages. / 更新 C# WuKongEasySDK 中英文文档，提供 NuGet 1.0.0 正式包安装与独立发布验证记录。
+
+- Align the Manager and internal transport documentation inventories with the startup TOML route and RPC 88, restoring documentation publication checks. / 补齐启动 TOML 接口与 RPC 88 的文档清单，恢复文档发布检查。
+
+- Add bilingual C# WuKongEasySDK integration, console example, async lifecycle, and pinned-source installation guidance for the new `WuKongEasySDK-CSharp` repository. / 新增 C# WuKongEasySDK 中英文接入文档，覆盖固定源码安装、控制台示例、异步生命周期和验证边界。
+- Add bilingual WuKongEasySDK-CPP documentation for pinned C++17 source, CMake integration, WS/WSS, messaging, thread cleanup, and real C++/JS interoperability evidence. / 新增 WuKongEasySDK-CPP 中英文文档，覆盖固定 C++17 源码、CMake、WS/WSS、消息收发、线程清理与真实 C++/JS 互通凭据。
+
+- 中英文 Docker 部署文档补充阿里云镜像地址，说明中国大陆用户如何在 `docker run` 和 Docker Compose 中切换仓库，并保持镜像版本同步。
+
+- Add a directly runnable, standard-library Go before-send Webhook example with allow/replace/reject rules, bilingual setup instructions, and real-process send/history validation. / 新增可直接运行的 Go 发送前 Webhook 示例，支持放行、改写及拒绝，并附中英文接入说明和真实进程验证。
+
+- Add a reproducible local three-node Webhook acceptance guide covering Token authentication, failure policies, overload isolation, recovery, and observable results. / 新增本机三节点 Webhook 验收指南，覆盖 Token 鉴权、失败策略、过载隔离、恢复及观测结果。
+
+- Document synchronous before-send Webhook configuration, request/response contracts, failure policies, business rejection codes, and cluster behavior in Chinese and English. / 补充同步发送前 Webhook 的中英文接入、配置及协议文档。
+
+<!--
+Use only the non-empty categories that apply: `⚠️ Breaking Changes /
+破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
+`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
+`🔒 Security / 安全`, `📚 Documentation / 文档`, and
+`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
+
+Every category must contain at least one "- " list entry. Release headings use
+the exact form: ## [v3.0.0-beta.5] - 2026-09-01
+-->
+
+## [v3.0.0-beta.9] - 2026-09-07
+
+### 🐛 Bug Fixes / 问题修复
+
+- 修复 Demo 打开尚无消息的单聊时历史同步和未读清零返回 400 的问题：单条及批量同步返回空消息数组，缺失会话的未读操作幂等成功，不创建成员关系；群成员校验、已移除成员限制和真实存储/路由故障仍保持有效。
+- 未配置客户端对外地址时，默认公网 `/route` 和 `/route/batch` 会用请求主机名补全 Gateway 的通配监听地址，修复标准 Docker 部署中 Demo 连接 `ws://0.0.0.0:5200` 失败的问题；显式地址、Linux 回环监听、内网查询和指定节点路由保持原有行为。
+- `/message/send` 现在会在 `from_uid` 与兼容别名 `sender_uid` 均为空时使用系统账号，并支持通过 `message.system_uid` / `WK_MESSAGE_SYSTEM_UID` 配置该账号（默认 `____system`），恢复 Demo 命令消息的旧版兼容行为。
+
+### 🔧 Improvements / 改进
+
+- 内嵌聊天 Demo 新增中英文界面，根据浏览器语言偏好自动选择，未匹配支持语言时默认使用英文；可通过 `?lang=en` 或 `?lang=zh` 分享固定语言的体验入口。
+- 频道消息同步、旧会话同步与插件读取共用分页规则，继续保持各入口原有的可见范围、返回顺序和错误语义。
+
+- Manager 消息诊断页现在会在集群节点未启用 diagnostics 时显示 TOML 与环境变量配置指引、标出受影响节点并禁用无效的追踪操作，不再直接暴露内部错误文本。
+- Manager 节点列表现在显示每个节点当前运行的 WuKongIM 程序版本，便于识别滚动升级期间的版本差异。
+
+### 📚 Documentation / 文档
+
+- 补充原版 v2 数据迁入指定三节点 v3 测试目录的部署验收报告，记录旧环境备份、真实 SDK 缓存重置、插件回复、完整重启和监控检查。
+
+- Document the legacy stream-parent audit and the explicit decision to omit stream messages while preserving continuous sequences. / 记录旧流主消息语义核对及本次排除流消息、保持连续序号的明确范围。
+- 中英文 README 现以业务开发者的首次接入为主线，提供 Linux 软件包安装、systemd 启动、SSH 转发与双用户收发步骤，并提供 Docker 部署指南入口，更新 SDK 选型入口，明确业务后端和 Product HTTP 认证边界；英文版采用英文 Demo 操作说明与真实截图。
+
+- 中英文文档补齐 Web 双用户接入闭环，统一教程文本消息与 Manager 访问方式，并提供可下载的监控告警、压测配置及结果解读。
+
+- 文档站“资源”菜单的聊天演示与 Manager 演示入口已切换到新的 HTTPS 域名。
+- Product HTTP API 参考现在统一完整合同与窄 Profile 的信任等级和示例，补齐响应字段说明、可执行条件 Schema、节点本地与分阶段写入语义，并明确 HTTP 200 后仍需检查的业务结果。
+- Docker 部署文档补充配置文件权限要求，明确官方镜像的 `10001:10001` 非 root 身份、推荐的 `0640` 权限，以及仅 root 可读导致容器启动失败的诊断信息。
+- 文档站的当前发布版本现在从根 Changelog 的最新版本标题构建期注入，并在不可变二进制发布成功后自动部署；后续发布无需再手工同步中英文 Linux、Docker 示例及其测试。
+
+## [v3.0.0-beta.8] - 2026-09-04
+
+### ⚠️ Breaking Changes / 破坏性变更
+
+- Gateway 现在默认启用 CONNECT Token 鉴权，并按 UID 与设备类别精确校验 `/user/token` 持久化的设备凭据；升级前必须先为客户端准备 Token，或仅在受控兼容迁移期间设置 `gateway.token_auth_on=false`。
+
+### 🐛 Bug Fixes / 问题修复
+
+- 频道消息同步现在会在应用成员可见性下限时保留“最新一页”的零边界语义，消息超过单页时不再误返回最早一页。
+
+### 📚 Documentation / 文档
+
+- 项目根目录恢复 Apache License 2.0 正文，并将中英文 README 的许可证声明链接到仓库内文件。
+- Product HTTP API 文档现已逐一对齐 41 个运行时路由的请求 DTO 与校验语义，为所有查询和 JSON 请求参数补充中英文解释，并修正空白字符串与 `null` 的兼容约束。
+- 服务端部署与运维文档改为面向初学者的精简实操指南，快速开始统一使用 Linux 软件包与 systemd，并修复已移除页面的链接。
+- 中英文 Linux 部署与配置参考现已将 `v3.0.0-beta.7` 作为签名 Preview 软件源版本，并以 `sudo wukongim init` 作为默认初始化入口，同时保留显式路径兼容命令；Docker 部署示例也同步固定到同一版本。
+
+## [v3.0.0-beta.7] - 2026-09-03
+
+### 🚀 New Features / 新功能
+
+- 原生 Linux 安装新增 `sudo wukongim init` 快捷入口，默认安全生成 `/etc/wukongim/wukongim.toml`，同时保留原有显式路径命令用于兼容和自定义位置。
+- 签名 Linux Preview 软件源新增 `wukongim-archive-keyring` 与 `wukongim-release` 引导包，首次配置后可直接通过 APT 或 DNF/YUM 安装和升级 WuKongIM，并由包管理器自动接收后续公开签名证书更新。
+
+### 🐛 Bug Fixes / 问题修复
+
+- 文档 CDN 现在仅对静态导出的页面 RSC `index.txt` 从缓存键删除 `_rsc`，并在构建期验证每个已发布路由都有独立静态载荷；章节跳转不再因一次性 RSC 查询值反复触发高延迟回源，同时保留图片及其他查询参数的缓存隔离。
+- 文档 Pages 自定义域名迁移与回滚现在会先暂存已验证产物，在域名绑定变化后立即重新部署，并以绕过 CDN 的根路径、双语首页、深层页面及搜索真实 GET 作为内容就绪门禁；证书批准或 API `204` 不再被误当作站点可用。
+- Manager 精确查询频道运行时元数据时，现在会按频道 Leader 路由最大消息序号读取；非 Slot 副本节点不再因本地缺少元数据而误报 404。
+- 多副本频道 Leader 重启后，最近会话重试会在持久化提交 checkpoint 落后于本地日志时按当前元数据激活冷 runtime 并恢复 quorum 高水位，不再把仍存在的会话返回为空。
+- 多副本频道的消息拉取现在会在持久化 checkpoint 落后时使用活动 Leader 已确认的提交高水位，发送成功后的首条消息可立即出现在频道与最近会话同步结果中。
+- 文档 CDN 证书检查现在根据显式公网路由模式和多个公共解析器的直接 CNAME 答案决定是否验证阿里云边缘证书，不再将供应商 `DomainCnameStatus` 误当作公网切流证明。
+- 文档 CDN 证书检查现在正确接受“已安装证书且暂无需续期”以及强制初始化时“尚未安装证书”的布尔结果，同时仍会拒绝缺失或类型错误的状态字段。
+- 文档 CDN 证书轮换现在兼容阿里云已启用的手动上传证书省略 `Status` 字段的响应，同时仍会拒绝免费或未知类型的空状态以及尚未生效的证书状态。
+- 文档 CDN 的 ACME 账户初始化现在使用固定生产端点和已审阅条款的账户专用流程，不再因合法邮箱或 Let's Encrypt 省略可选联系人字段而失败，也不会在初始化账户时误发起证书申请。
+- WKProto 编解码器现在会安全处理空输入并拒绝未知帧类型编码，避免畸形输入触发越界崩溃或静默产出空报文。
+- 插件热重载监视器现在在启动后立即停止时保持完成信号的稳定引用，避免并发清理将其置空后引发 `close of nil channel` 崩溃。
+- Issue Agent 验证器现在会在判定工作目录越界前规范化 checkout 根路径，避免 macOS 上 `/var` 与 `/private/var` 别名导致合法子目录被误拒。
+- JSON-RPC 解码器现在会将未知通知方法统一归类为 `ErrUnknownMethod`，与未知请求的错误分类保持一致，便于调用方稳定识别协议错误。
+- JSON-RPC subscribe/unsubscribe 请求现在会在协议适配层转换为带正确 action 的 `SUB` 帧，并将可用的 `SUBACK` 关联到原请求；当前 Product Gateway 仍未发布 `SUB` 入站能力。
+- 权限元数据批量读取现在会在进入 Slot 代理前拒绝未知读取类型，并保持其余合法结果的原始对齐，避免无效类型被下游结果覆盖或污染整批授权证据。
+- Controller Slot 副本迁移与 Leader 转移在运行时未启动时现在统一 fail closed 为 `ErrNotStarted`，不再根据空状态返回误导性的业务校验错误。
+- Slot FSM 现在会为确定性的过期元数据提案持久化已应用水位，节点重启后不再重复回放已经判定为无操作的 Raft 日志。
+- 元数据存储关闭后清理终态频道迁移任务现在返回关闭错误，不再因访问已释放的底层数据库而触发空指针崩溃。
+- 消息恢复后缀替换现在会在写入前校验保留边界的 Proposal 与 Entry 身份一致性，检测到损坏时拒绝替换并保留原有后缀。
+- 元数据备份与恢复现在拒绝夹带运行时或迁移状态、跨注册 span 乱序及重复键的快照，并在完整性预检失败时保留目标端原有数据。
+- 完整备份发布现在会在写入任何仓库对象前校验全部 256 个 Hash Slot 的完成进度，避免不完整任务提前绑定空仓库或留下发布副作用。
+- Controller Raft 启动时若物化状态文件丢失且无可用快照，现在会从保留 WAL 重建；若日志已压缩且快照数据缺失则拒绝启动，避免以空状态继续运行。
+- 集群节点停止时现在会撤销路由、Slot 与频道就绪状态，并阻止在途控制快照在停止后重新发布就绪，避免停机窗口暴露错误健康状态。
+- 应用启动失败回滚现在会先关闭已开放的 Prometheus、Manager 与 API 入口，再停止备份调度运行时，避免回滚窗口继续接受新的管理请求。
+- 阿里云 Lease 盘点、主机创建与身份移除现在会拒绝子资源角色冲突、跨实例磁盘响应及无法由 SDK 错误码证明已删除的身份资源。
+- 阿里云仿真账户 Bootstrap 现在会安全处理官方 SDK 错误响应，并仅依据结构化错误码判断资源不存在，避免错误路径崩溃或把普通服务与传输故障误判为已删除。
+- 阿里云只读权限探针现在兼容官方 SDK 的两种结构化 403 错误类型，合法 RAM 拒绝不再被误判为探针失败。
+- 消息备份流回放现在会拒绝 `log_start_offset` 超过提交高水位的非法 checkpoint，避免校验和合法但语义损坏的快照进入恢复流程。
+- 云部署离线文件适配器现在会拒绝负数读取与清单上限，并正确处理最大整数读取边界，避免非法参数触发 panic 或把已有文件静默读成空内容。
+- Slot 代理现在会沿包装错误链识别“Slot 不存在”，避免上游附加上下文后被误分类为“暂无 Leader”并返回错误的 RPC 路由状态。
+- WKDB bundle 导出现在会拒绝无法表示为 `int64` 的无符号 inspect 字段，并保留非法频道目录状态的 `ErrValidation` 分类，避免损坏或类型异常的数据被静默回绕或失去可识别的验证错误。
+- Cloud View 现在会按原始文件大小严格拒绝超过 256 KiB 的配置和超过 64 KiB 的运行状态，即使超量部分仅为尾随空白，也无法再绕过文件上限。
+- Cloud Simulation 现在会在创建任何付费资源前校验完整的 Run Locator 参数，并按原始输入大小拒绝超过 64/128 KiB 的请求与阿里云配置，避免无效命令留下资源或通过尾随空白绕过上限。
+- Cloud Host 在线与离线安装现在都会在执行任何主机副作用前拒绝无效的远程根目录前缀，避免参数错误导致部分安装状态残留。
+- Cloud Bundle 现在会按完整输入大小拒绝超过 128 KiB 的部署 spec，合法 JSON 后追加尾随空白也无法再绕过上限。
+- Gateway 会话的 `LoadOrStoreValue` 现在保留已存储的 `nil`，并在并发初始化保留热键时只允许一个调用方取得写入权，避免会话状态被后续竞争者覆盖。
+- Cloud Analysis Bridge 现在会拒绝固定 PEM 证书前的非空白数据，避免额外内容被 PEM 解析器静默忽略。
+- Review Agent GitHub 适配器现在保留取消与超时错误身份，并严格限制写操作响应体大小，避免上层误判重试语义或读取过量响应数据。
+- Cloud Analysis 诊断结果现在会拒绝 NaN 和无穷大置信度，确保分类一直满足 `[0,1]` 约束。
+- `wkcli bench` 现在会拒绝无法安全表示的超大 payload 尺寸，并将帮助与错误文本写入命令注入的对应输出流。
+- Raft 日志现在会将 `leader lost` 归类为 `leader_change` 事件，避免 Leader 丢失信号被误计入普通日志。
+
+### 🔧 Improvements / 改进
+
+- 文档静态构建现在生成并校验固定域名、排序唯一且有数量上限的 RSC `index.txt` URL 清单，为后续精确刷新设计提供可审计输入；当前发布流程仍只刷新原有四个 URL，不新增预热、权限或 TTL 变更。
+- 原生 Linux 包 CI 现在会在 Ubuntu 24.04、Debian 12、Rocky Linux 9 与 AlmaLinux 9 的真实 systemd 环境中验证配置初始化、健康检查、显式启停/重启、活动卸载、状态保留及重装不自动激活。
+- 文档发布新增默认关闭的阿里云 CDN 定点刷新与 Let's Encrypt DNS-01 边缘证书轮换支持；两条路径使用独立的 GitHub OIDC 角色，不在仓库保存长期阿里云凭据，且在完成外部配置和切流前不会改变现有 GitHub Pages 服务。
+- Chat Lifecycle 正式演练启动器、正式收尾器和通用 Cloud Lease 回收扫描现在仅在存在 transition、handoff、付费资源生产者或云端库存期间启用；取得完整空闲与零库存证明后会自动停用，并在下一次 transition、停止请求、精确清理或付费 Acquire 前安全恢复；完整 Artifact 盘点会重试短暂的 GitHub API 分页错误。
+
+### 🔒 Security / 安全
+
+- 二进制发布的手动恢复现在必须从目标版本的精确 tag ref 启动，并同时绑定事件提交与 Workflow 提交；从 `main` 为其他 tag 生成无法被软件源信任的 provenance 会在构建前失败。
+
+### 📚 Documentation / 文档
+
+- Linux 服务端部署文档将软件源安装收敛为统一的 `curl -fsSL https://packages.githubim.com/repo | sudo sh` 添加源入口，再显式更新索引并按包名安装；首次添加后不再手工下载特定版本的 WuKongIM deb/rpm。
+- Linux 软件源引导脚本明确只添加签名软件源，不会更新索引、安装 WuKongIM 或启动服务；文档继续保留首次 HTTPS 信任边界、底层 APT/RPM 引导包和固定主密钥指纹说明。
+- Linux 服务端部署文档现提供 `v3.0.0-beta.6` 签名 Preview 软件源的 APT 与 DNF/YUM 安装流程，并在写入专用 keyring 前固定核对仓库主密钥指纹。
+- 中英文 v3 文档站现由仓库内 GitHub Pages 工作流执行完整静态验收后发布到 `docs.githubim.com`，发布产物与通过验收的 `docs-site/out` 保持一致。
+- WuKongEasySDK 中英文文档现固定 Web `2.0.4`、Android `1.0.5`、iOS `1.1.1` 与 Flutter `1.1.0` 正式包，并补充四端 example 与正式包的独立验收回执及可复现流程。
+- Docker 服务端部署现在提供精简的 `docker run` 与 Docker Compose 两种流程，共用最小 `wukongim.toml`、持久数据卷和完整配置参考；中英文教程删除远程一键安装脚本及其自动版本解析说明，保持两步完成启动和就绪验证。
+- 服务端配置文档新增独立的中英文常用配置页，以表格解释最常用的 10 个配置项；配置参考改写为可搜索的逐字段手册，为全部公开 TOML 与 `WK_*` 配置补充用途，并标明关键默认值、`0` 值、互斥、敏感和迁移说明。
+- 文档站资源菜单移除官网链接，并使用聊天演示与 Manager 演示当前可用的 HTTP 地址。
+- 中英文公共文档新增可访问的 Mermaid 架构与流程图，精简产品、指南和部署导航，并将已撤下的 Kubernetes 页面重定向到受支持的部署入口。
+
+## [v3.0.0-beta.6] - 2026-09-01
+
+### 🐛 Bug Fixes / 问题修复
+
+- 服务端二进制现在内置 IANA 时区数据库，官方最小 Docker 运行时可在 Manager 中保存 `Asia/Shanghai` 等非 UTC 备份计划，不再因运行镜像缺少 `zoneinfo` 返回无效请求。
+- 二进制发布恢复流程不再使用 Actions `GITHUB_TOKEN` 无权访问的仓库管理接口，并可从精确工作流提交取得旧标签缺失的 Release Notes 解析器；不可变 Release 设置改由管理员在发布前外部核验，流程仍在发布后强制验证 Release 已封存为不可变。
+
+### 🔧 Improvements / 改进
+
+- GitHub Release 正文现由人工维护的 Changelog 生成，并在二进制文件与三个 Docker 镜像仓库的版本身份、摘要和平台验证完成后再公开发布。
+
+### 📚 Documentation / 文档
+
+- Docker 服务端部署文档已切换到三仓库同摘要的 `v3.0.0-beta.5` 非 root 镜像，并同步更新预发布风险说明。
+
+## [v3.0.0-beta.5] - 2026-09-01
+
+### 🚀 New Features / 新功能
+
+- GitHub Release 新增未签名的 Linux amd64 DEB/RPM 安装包，并与四个平台的压缩包共用校验和与构建来源证明；软件源发布仍保持关闭。
+
+### 🔧 Improvements / 改进
+
+- Chat Lifecycle 演练收尾定时器现在仅在付费演练或待清理 handoff 存在期间启用，取得全局空闲与零库存证明后自动停用，避免仓库空闲时持续产生 GitHub Actions 运行。
+- Chat Lifecycle handoff 发现现在可安全穷尽最多 20,000 个保留 Artifact，仓库中超过 5,000 个无关 Artifact 时不再阻塞空闲定时器停用。
+- 官方 Docker 镜像新增 `/readyz` 健康检查和 `SIGTERM` 优雅停止契约，并显著缩小 Docker 构建上下文。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- 官方 Docker 镜像默认改为 UID/GID `10001:10001` 非 root 用户；命名卷可直接使用，自定义宿主机绑定目录需在升级前授予该 UID/GID 写权限。
+
+### 🔒 Security / 安全
+
+- Docker 运行时升级并固定到受支持的 Alpine 3.24.1 摘要，构建基础镜像同步固定摘要，镜像内 Go 安全相关依赖完成升级。
+- Docker 发布流程现在会分别扫描 amd64 和 arm64 候选镜像；发现 Critical 或 High 漏洞时阻止发布，恢复发布也会重新扫描现有规范摘要。
+
+### 📚 Documentation / 文档
+
+- 中英文 Docker 服务端部署文档改为 Compose 优先的可验证单节点集群流程，补充固定镜像、随机凭据、端口保护、持久化、健康检查、日常运维和 `docker run` 备用路径。

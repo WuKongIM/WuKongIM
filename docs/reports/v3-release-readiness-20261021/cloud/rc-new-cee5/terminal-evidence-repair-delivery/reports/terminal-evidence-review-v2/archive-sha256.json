@@ -1,0 +1,25 @@
+{
+  "schema": "standards-review/v1",
+  "files": [
+    {
+      "path": "standards.md",
+      "bytes": 797,
+      "sha256": "33ce3113f3811a5979b9df79dbeccbca37c7c37a9108613eac4c563762997797"
+    },
+    {
+      "path": "standards-freeze.json",
+      "bytes": 13484,
+      "sha256": "d29590ec890d84e8ac4c00b500c25a1f812a15522cccaf2aaa0376410eb99cf0"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 35,
+      "sha256": "b3ee724771e6e7a9bd8f754e764e9f3e727dd37966f185560caab1f86895addf"
+    },
+    {
+      "path": "SHA256SUMS",
+      "bytes": 254,
+      "sha256": "5fff0d2e2f39819c2dffd87af273ef52bf66f2b4b83b70f27e8bcb448bff2fa1"
+    }
+  ]
+}

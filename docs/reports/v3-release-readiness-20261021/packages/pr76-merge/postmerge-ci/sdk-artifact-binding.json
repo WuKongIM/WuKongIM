@@ -1,0 +1,17 @@
+{
+  "collected_at": "2026-10-21T18:19:16.584355+00:00",
+  "artifact_id": 12370266347,
+  "run_id": 39651432004,
+  "run_attempt": 1,
+  "archive_sha256": "9b313ab725a2d198dbe2a1d32fc92163de79e53665bc8171cfa145afa7b85620",
+  "archive_size": 1032,
+  "GitHub_digest_matches": true,
+  "CRC_verified": true,
+  "receipt_sha256": "f42bc067e04d540df887377b1cb5d84a3f76ce3a3d3e4596fc19e04d710a66f4",
+  "receipt_size": 1845,
+  "receipt_crc32": "a32eb2ea",
+  "checkout_sha": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "checkout_tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "tests": 22,
+  "skips": 0
+}

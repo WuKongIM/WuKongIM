@@ -1,0 +1,31 @@
+Type: inuse_space
+Time: 2026-10-22 01:19:34 CST
+Active filters:
+Showing nodes accounting for 4.59MB, 0.9% of 509.23MB total
+Showing top 25 nodes out of 42
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceAuthorityRPC
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+         0     0%     0%     4.07MB   0.8%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+         0     0%     0%     4.07MB   0.8%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+         0     0%     0%     3.59MB   0.7%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets
+    3.59MB   0.7%   0.7%     3.59MB   0.7%  github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).InstallRecoveredRoutes
+         0     0%   0.7%     3.59MB   0.7%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets
+         0     0%   0.7%     3.59MB   0.7%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1 (inline)
+         0     0%   0.7%     3.59MB   0.7%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage
+         0     0%   0.7%     2.56MB   0.5%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handlePresenceEndpointsByTargets
+         0     0%   0.7%     1.53MB   0.3%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0%   0.7%     1.53MB   0.3%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0%   0.7%     1.53MB   0.3%  runtime/pprof.Do
+         0     0%   0.7%     1.51MB   0.3%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).RegisterRoute
+         0     0%   0.7%     1.51MB   0.3%  github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).RegisterRoute
+    0.50MB 0.098%   0.8%     1.51MB   0.3%  github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*authoritySlot).registerLocked
+         0     0%   0.8%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1
+         0     0%   0.8%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2
+         0     0%   0.8%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1
+         0     0%   0.8%     1.02MB   0.2%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func2
+    0.50MB 0.099%   0.9%     1.01MB   0.2%  github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*authoritySlot).upsertActiveLocked

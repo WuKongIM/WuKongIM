@@ -1,0 +1,97 @@
+{
+  "recorded_at": "2026-10-21T18:24:08.727611+00:00",
+  "revision": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "source_files": [
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60",
+      "bytes": 14213
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "bytes": 13654
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "bytes": 26015
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "bytes": 11718
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+      "bytes": 24964
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+      "bytes": 87886
+    },
+    {
+      "path": "tests/test_object_storage_delivery.py",
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b",
+      "bytes": 33155
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "bytes": 15586
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+      "bytes": 42889
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "8d7a8a003e6ff0df51f75834a89ea2e9d19c76237102360f9cca35acc2bff314",
+      "bytes": 70172
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "bytes": 27
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579
+    }
+  ],
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md",
+      "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+      "bytes": 77878
+    }
+  ],
+  "tracked_package_AGENTS_FLOW": [],
+  "scope": "read-only three-minute minimal plan, no implementation/tests/cloud",
+  "uncertainties": [
+    "Complete native preview+stable composite fixture export feasibility not fully checked.",
+    "Positive production-shape fresh v2 authentication with genuine helper verification not yet demonstrated.",
+    "No live wire semantics or current resources/permissions observed.",
+    "Remote protected-path classification requires exact pre-implementation check."
+  ]
+}

@@ -1,0 +1,4 @@
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorIsBoundedAndComplete
+--- PASS: TestChatLifecycleTerminalEvidenceCollectorIsBoundedAndComplete (1.10s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	1.821s

@@ -1,0 +1,18 @@
+{
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "implementation_unchanged_from_v1": true,
+  "files": {
+    "scripts/chat-lifecycle/terminal-evidence.py": "dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "83cae747a63155fd5d4979e0d75dd2c10ea17148a2f603b76fd5e6ca9cefa334",
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/bench/chatlifecycle/report.go": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+    "internal/bench/chatlifecycle/verdict.go": "7796e085ff8d718dc3b49ba1f9a842241a96e59f8cd46fca375f2caa21d18589",
+    "internal/bench/chatlifecycle/checkpoint.go": "aea78c57780fa71013ddb27446c9ead3a528283e2b33633ee84f43c3e3aa8988"
+  },
+  "matrix_sha256": "b34d0b65d7e59628a4a90614a9fc94b1e7b9a5bc0fbed38cf11b3039759078b5",
+  "fixture_correction": "repoRoot calls t.Parallel, so pass optional artifact env only to child command instead of t.Setenv. Initial red.log preserves panic before scenarios executed."
+}

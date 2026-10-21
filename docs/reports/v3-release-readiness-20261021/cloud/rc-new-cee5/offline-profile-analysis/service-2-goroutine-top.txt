@@ -1,0 +1,36 @@
+Type: goroutine
+Time: 2026-10-22 01:19:39 CST
+Showing nodes accounting for 3357, 99.73% of 3366 total
+Dropped 137 nodes (cum <= 16)
+Showing top 30 nodes out of 49
+      flat  flat%   sum%        cum   cum%
+      3357 99.73% 99.73%       3357 99.73%  runtime.gopark
+         0     0% 99.73%       1000 29.71%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 99.73%        320  9.51%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1
+         0     0% 99.73%        320  9.51%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker
+         0     0% 99.73%        320  9.51%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue
+         0     0% 99.73%         16  0.48%  github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook.(*Worker).Start.func1
+         0     0% 99.73%         16  0.48%  github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook.(*Worker).runWorker
+         0     0% 99.73%       1716 50.98%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0% 99.73%       1716 50.98%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 99.73%         20  0.59%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).runWorker
+         0     0% 99.73%         20  0.59%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).start.func1
+         0     0% 99.73%         20  0.59%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runWorker
+         0     0% 99.73%         20  0.59%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.newApplyPipeline.func1
+         0     0% 99.73%         22  0.65%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).acceptLoop.func1
+         0     0% 99.73%         22  0.65%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).untrackConnWhenDone
+         0     0% 99.73%         45  1.34%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+         0     0% 99.73%         45  1.34%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0% 99.73%         70  2.08%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).nextRequest
+         0     0% 99.73%         70  2.08%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).pump
+         0     0% 99.73%         70  2.08%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.newService.func1
+         0     0% 99.73%         45  1.34%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched.(*Scheduler).WaitBatchInto
+         0     0% 99.73%         45  1.34%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.ReadFrame
+         0     0% 99.73%        522 15.51%  github.com/panjf2000/ants/v2.(*goWorker).run.func1
+         0     0% 99.73%        851 25.28%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+         0     0% 99.73%         32  0.95%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.[]github.com/WuKongIM/WuKongIM/pkg/workqueue.boundedBatchPoolTask[github.com/WuKongIM/WuKongIM/pkg/channel/replication.localDurabilityItem]]).run.func1
+         0     0% 99.73%        125  3.71%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.[]github.com/WuKongIM/WuKongIM/pkg/workqueue.boundedBatchPoolTask[github.com/WuKongIM/WuKongIM/pkg/channel/worker.queuedTask]]).run.func1
+         0     0% 99.73%         32  0.95%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.struct { github.com/WuKongIM/WuKongIM/pkg/workqueue.item func(); github.com/WuKongIM/WuKongIM/pkg/workqueue.enqueuedAt time.Time }]).run.func1
+         0     0% 99.73%         16  0.48%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.struct { github.com/WuKongIM/WuKongIM/pkg/workqueue.item github.com/WuKongIM/WuKongIM/pkg/gateway/core.asyncAuthTask; github.com/WuKongIM/WuKongIM/pkg/workqueue.enqueuedAt time.Time }]).run.func1
+         0     0% 99.73%         18  0.53%  github.com/panjf2000/ants/v2.(*poolCommon).ticktock
+         0     0% 99.73%         50  1.49%  internal/poll.(*FD).Read

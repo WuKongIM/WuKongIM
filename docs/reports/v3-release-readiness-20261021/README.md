@@ -385,3 +385,11 @@ immutable publication and signed native-package public-client acceptance.
 - [RECV队列机制探针](cloud/rc-new-cee5/offline-recv-probe/README.md)及[独立复核](cloud/rc-new-cee5/offline-recv-probe-review/report.md)：最终8普通/8race通过，保留首工具链/race失败，不能归因历史云端样本。
 - [采集缺口复现](cloud/rc-new-cee5/offline-collector-analysis/README.md)与[修复首轮双轴审查](cloud/rc-new-cee5/terminal-evidence-review-v1/combined-review.md)：Spec两项P2待修；完整integration还暴露fixture WK_变量冲突，未计通过。
 - [#76首失败完整封存](packages/pr76-ci-generation-1/README.md)及[唯一受限复验决定](packages/pr76-ci-attempt-2-dispatch/decision.json)：原Alma600秒超时永久保留，同SHA失败job第二次状态success，完整终态收据待核。
+
+- [六份失败后profile](cloud/rc-new-cee5/offline-profile-analysis/README.md)：采样时投递队列worker空闲，Pebble分配占主导但无基线，不能归因原消息过期。
+- [#76唯一复验终态](packages/pr76-ci-attempt-2/terminal/README.md)、[普通合并](packages/pr76-merge/README.md)与[后置CI](packages/pr76-merge/postmerge-ci/README.md)：49/49及清理通过，合并be32同验收tree；后置567零skip+4、SDK22/input10首次通过，部署跳过，首失败仍保留。
+
+- [D2后最小方案](packages/provider-after-d2-plan/README.md)：仅只读设计，真实native-v2/SDK离线接线未实施；preview/fresh来源接缝未核完，外部资源未授权。
+
+- [采集修复完整封存](cloud/rc-new-cee5/terminal-evidence-repair-delivery/README.md)、[v2双轴复核](cloud/rc-new-cee5/terminal-evidence-review-v2/combined-review.md)与[#1024提交绑定](cloud/rc-new-cee5/terminal-evidence-delivery/commit-source-binding.json)：79进程场景、Mac完整补充回归通过；Linux原9m和三节点首次CI待终态。
+- [D3独立可行性审查](packages/provider-after-d2-plan-review/report.md)：四文件范围未证明，必须先补真实preview canonical audit fixture；未实施或调用云。

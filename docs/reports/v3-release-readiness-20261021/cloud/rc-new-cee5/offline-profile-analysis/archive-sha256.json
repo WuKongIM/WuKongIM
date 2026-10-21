@@ -1,0 +1,130 @@
+{
+  "schema": "bounded-offline-profile-analysis/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1187,
+      "sha256": "fa01bcde289b8cb5ca671cc00e78a98e5ff9a692c481ee01a959d9cdb0bfcac8"
+    },
+    {
+      "path": "active-path-check.json",
+      "bytes": 3705,
+      "sha256": "8ffef3feeb63cdd247333cf57bcdff2660cf0914c5d1b124ca7032d2f8cd3fae"
+    },
+    {
+      "path": "delivery-goroutine-aggregates.json",
+      "bytes": 4043,
+      "sha256": "77d789166146365dc5910070d5a06ab9cda32ca14db3271ab2783d1533362c51"
+    },
+    {
+      "path": "local-cleanup.json",
+      "bytes": 369,
+      "sha256": "99da2058be1c8b5c531fa073f01d56311d95fe958c5b9d1625c75035e3e49457"
+    },
+    {
+      "path": "service-1-goroutine-active.txt",
+      "bytes": 969,
+      "sha256": "fb81fda1d4d3f8916b4e8cd1012b9d2ec7ddda62d92ad3ceceaac3851a1f7367"
+    },
+    {
+      "path": "service-1-goroutine-top.txt",
+      "bytes": 4189,
+      "sha256": "8e3275e9d42d955b7e0d5ffb54206cc45c3ea22004018cb1f3f9d288124c7a11"
+    },
+    {
+      "path": "service-1-heap-alloc.txt",
+      "bytes": 3059,
+      "sha256": "6a7195ddef08c0a567dd61f91bf912298cf320d8fb305dabffea29ee183e9c8d"
+    },
+    {
+      "path": "service-1-heap-inuse.txt",
+      "bytes": 3341,
+      "sha256": "a537fbc1de4aa7c4bc4af7ee242d5821549327814b525e25efbb9a22079dfb07"
+    },
+    {
+      "path": "service-1-heap-relevant.txt",
+      "bytes": 3413,
+      "sha256": "eab6a6841fdedfa4a1abbf5f6aa04ca1e9a1331976c0d33e3dc611ae38945149"
+    },
+    {
+      "path": "service-2-goroutine-active.txt",
+      "bytes": 969,
+      "sha256": "f81c784973b80509aa7d81cb720bccec2e80b86c37a73ab8713a60dde80831f7"
+    },
+    {
+      "path": "service-2-goroutine-top.txt",
+      "bytes": 4189,
+      "sha256": "db8ecdc52c358b888899a976ce260cc3d8db008c5012ad3305a7198a7d87bf67"
+    },
+    {
+      "path": "service-2-heap-alloc.txt",
+      "bytes": 3015,
+      "sha256": "fdac5a9dfc52dd37c070c86f21e359c7b279eda0c4b23d7b1c4221033ab6bdfc"
+    },
+    {
+      "path": "service-2-heap-inuse.txt",
+      "bytes": 3382,
+      "sha256": "d858ec4983b19b32c5d1a122f827e5d76159aa895a7654d452792c5a4e4eaffd"
+    },
+    {
+      "path": "service-2-heap-relevant.txt",
+      "bytes": 3387,
+      "sha256": "ad026e519e954d978019f791044b21d9b1011478929ee8d78d278f011ea33e67"
+    },
+    {
+      "path": "service-3-goroutine-active.txt",
+      "bytes": 969,
+      "sha256": "b02757f3809a77f2624157d1edde76c990b0aa6695f478a1a3da8669b66bac25"
+    },
+    {
+      "path": "service-3-goroutine-top.txt",
+      "bytes": 4189,
+      "sha256": "590f8d39d00a04409969f081c889a554adda4fc6e7eea037dfa56537b5f7971b"
+    },
+    {
+      "path": "service-3-heap-alloc.txt",
+      "bytes": 3018,
+      "sha256": "6241226c024026ac8fe582b2dd77e58f9ec9d9b9b70da0c0fe073539fed78b38"
+    },
+    {
+      "path": "service-3-heap-inuse.txt",
+      "bytes": 3411,
+      "sha256": "068dea3b1c505156240aa481ee266e46522ee2bcf12a7b3a4cd4224d130a0d4f"
+    },
+    {
+      "path": "service-3-heap-relevant.txt",
+      "bytes": 3290,
+      "sha256": "6f989a392d3dbb130f6c51c6fddb321ddcd1fb70a5f3c88ded9c07a19cf456ca"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 4792,
+      "sha256": "5d5adcf8743ec4c9625aaaeb68c47dbf70772b8742b419ef6020323c16fc1005"
+    },
+    {
+      "path": "source-profiles.json",
+      "bytes": 1636,
+      "sha256": "0a3786a155946f9ca9513fb816dc3bceecb7893c2496a54afe8a6730649f86c8"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 7031,
+      "sha256": "b9866b4fdd59d6fa07a1d607bb241dc2f8b87b198e6a1955d95de38478e2275b"
+    },
+    {
+      "path": "tool-execution.json",
+      "bytes": 7186,
+      "sha256": "a9172aaac7a074d310822b0f1e63be5b216b5cb3725af235941abf9638b82b15"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 572,
+      "sha256": "32f9ef57e96ae4d017fbae412a961f68f9145eddb5179cec9ce322978ae39a28"
+    },
+    {
+      "path": "SHA256SUMS",
+      "bytes": 2177,
+      "sha256": "7a2bf6e527debd98501a826b2e80340da9ef8ab346ed85e9ba8e7311f9b56c5b"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+test_bad_terminal_anchor_never_queries_now (fixture.CollectorTests.test_bad_terminal_anchor_never_queries_now) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 4.289s
+
+OK

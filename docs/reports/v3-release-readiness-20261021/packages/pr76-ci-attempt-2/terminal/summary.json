@@ -1,0 +1,81 @@
+{
+  "recorded_at": "2026-10-21T18:16:10.341331+00:00",
+  "run": 39644526993,
+  "attempt": 2,
+  "conclusion": "success",
+  "stable_job": 119391226142,
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "actual_checkout": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "stable_cases": {
+    "expected": 49,
+    "passed": 49,
+    "failed": 0,
+    "not_reached": 0,
+    "negative_cases": 30
+  },
+  "installed_cli_acceptances": 8,
+  "cache_cases": 12,
+  "same_generation_cache_read_proofs": 4,
+  "cache_directories_removed": 4,
+  "reader_cleanup_verified": true,
+  "final_cleanup_verified": true,
+  "control_tree_mutation_check": "success",
+  "Pages_inherited_attempt1": {
+    "tests": 567,
+    "skips": 0,
+    "contracts": 4
+  },
+  "SDK_inherited_attempt1": {
+    "SDK": 22,
+    "inputs": 10,
+    "skips": 0
+  },
+  "signed_native_inherited_attempt1_success": true,
+  "latest_check_runs": [
+    {
+      "id": 119391228348,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 119391226142,
+      "name": "TEST ONLY stable four clients and A/B",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 119377618666,
+      "name": "Deploy complete Pages snapshot",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 119376461851,
+      "name": "provider-contract",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 119376460783,
+      "name": "Validate complete Pages snapshot",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "CI_merge_assessment": "CI evidence supports merging this exact previously reviewed head/tree under the existing parent authorization. No new CI blocker is found; this is not a production release/activation verdict and collector does not merge.",
+  "history_retained": [
+    "Attempt1 failed at first baseline; 0 passed/1 failed/48 unreached.",
+    "First Alma deadline root cause remains unknown; attempt2 success is not first-attempt success.",
+    "One historical Standards P2 remains: two original HTTP wiring unit tests followed implementation."
+  ],
+  "not_claimed": [
+    "production activation or live provider success",
+    "complete new D2 production-shaped v2/native-signature integration",
+    "public release publication/origin acceptance"
+  ],
+  "all_collection_commands_terminal": true,
+  "no_third_attempt": true,
+  "no_source_change_or_push_or_merge": true
+}

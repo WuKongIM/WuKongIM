@@ -1,0 +1,134 @@
+=== RUN   TestChatLifecycleTerminalEvidenceRetention
+=== PAUSE TestChatLifecycleTerminalEvidenceRetention
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== PAUSE TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+=== CONT  TestChatLifecycleTerminalEvidenceRetention
+=== CONT  TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+--- PASS: TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor (1.30s)
+=== NAME  TestChatLifecycleTerminalEvidenceRetention
+    chat_lifecycle_terminal_evidence_integration_test.go:29: terminal evidence fixture: exit status 1
+        test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) ... ok
+        test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) ... ok
+        test_capacity_order_preserves_nanoseconds (__main__.CollectorTests.test_capacity_order_preserves_nanoseconds) ... ok
+        test_capacity_required_by_passing_formal_cannot_be_missing (__main__.CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing) ... ok
+        test_empty_optional_metric_family_has_explicit_zero_coverage (__main__.CollectorTests.test_empty_optional_metric_family_has_explicit_zero_coverage) ... ok
+        test_formal_before_capacity_is_explicitly_not_applicable (__main__.CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable) ... ok
+        test_formal_capacity_retains_both_stages (__main__.CollectorTests.test_formal_capacity_retains_both_stages) ... ok
+        test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) ... ok
+        test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) ... ok
+        test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) ... ok
+        test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) ... ok
+        test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) ... ok
+        test_partitions_retain_more_than_original_single_response_cap (__main__.CollectorTests.test_partitions_retain_more_than_original_single_response_cap) ... ok
+        test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) ... 
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='end') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='end') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='end') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='start') ... FAIL
+          test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='end') ... FAIL
+        test_rehearsal_retains_exact_terminal_documents_and_failure_window (__main__.CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window) ... ok
+        test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) ... ok
+        test_diagnostic_metric_names_are_exact_and_disjoint (__main__.HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint) ... ok
+        test_metric_deadline_stops_requests_and_retains_first_partition (__main__.HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition) ... ok
+        test_metric_total_transfer_budget_is_shared (__main__.HelperBoundsTests.test_metric_total_transfer_budget_is_shared) ... ok
+        test_selector_partition_is_disjoint_and_complete (__main__.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) ... ok
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121277292', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121777292', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='121500000', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='start')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) (suffix='999777292', boundary='end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 185, in test_prometheus_millisecond_closed_window_and_raw_anchor
+            self.assertEqual(rc,0)
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ----------------------------------------------------------------------
+        Ran 20 tests in 82.471s
+        
+        FAILED (failures=8)
+    chat_lifecycle_terminal_evidence_integration_test.go:42: invalid fixture artifact: <nil> / {TestsRun:20 FailureCount:8 ErrorCount:0 FixtureOnly:true}
+--- FAIL: TestChatLifecycleTerminalEvidenceRetention (82.56s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	83.128s
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	0.161s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	0.636s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	0.284s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	0.859s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	0.754s [no tests to run]
+FAIL

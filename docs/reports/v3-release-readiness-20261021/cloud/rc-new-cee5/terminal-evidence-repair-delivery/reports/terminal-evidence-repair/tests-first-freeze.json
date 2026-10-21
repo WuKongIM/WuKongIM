@@ -1,0 +1,53 @@
+{
+  "source": "cee5d51f325fb84033060f546337d326110adae5",
+  "at": "2026-10-21T17:59:44.204834+00:00",
+  "implementation_helper_absent": true,
+  "collector_still_source_blob": true,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    {
+      "path": "pkg/metrics/presence.go",
+      "sha256": "c5757d6fff7347f05326dbdecea2274433c5a787d01c9c922283631350d7e128",
+      "bytes": 9618
+    },
+    {
+      "path": "pkg/metrics/delivery.go",
+      "sha256": "eb2911416a981cf70b07b83bc52f9ccff13c44af2d81ec7adeec2ae79687943d",
+      "bytes": 20878
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "sha256": "dd9bf9127e2c5d7a7da06139498229543fab44c02702f43a6e4c2ea0586ccf98",
+      "bytes": 5572
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "sha256": "064b8a68ff81d2800546d7c4de7d03f3d849fb462bae06e356c1d823f01411a5",
+      "bytes": 90233
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "sha256": "61915a491b51defe894f8bcde402642362dde2ac82320e1c752fc2631e2183ef",
+      "bytes": 699
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "sha256": "28f4de87d2c8695e3a879006f4e76aeac8a08baa436e09781f88189cac7391e5",
+      "bytes": 21720
+    }
+  ]
+}

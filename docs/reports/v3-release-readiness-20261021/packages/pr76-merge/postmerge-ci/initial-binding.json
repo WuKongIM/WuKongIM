@@ -1,0 +1,11 @@
+{
+  "started_at": "2026-10-21T18:18:39.769169+00:00",
+  "scope": "Natural postmerge CI only; exact merge commit; GET only",
+  "head": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "expected_tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "expected_event": "push",
+  "expected_attempt": 1,
+  "no_dispatch_retry_cancel": true,
+  "no_source_changes_credentials_or_provider": true,
+  "unrelated_main_runs_excluded": true
+}

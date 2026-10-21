@@ -1,0 +1,462 @@
+=== RUN   TestChatLifecycleTerminalEvidenceRetention
+=== PAUSE TestChatLifecycleTerminalEvidenceRetention
+=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor
+    chat_lifecycle_workflows_test.go:1596: terminal evidence collector accepted missing terminal anchor
+--- FAIL: TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor (0.75s)
+=== CONT  TestChatLifecycleTerminalEvidenceRetention
+    chat_lifecycle_terminal_evidence_integration_test.go:23: terminal evidence fixture: exit status 1
+        test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) ... 
+          test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='schema') ... FAIL
+          test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='not-final') ... FAIL
+          test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='missing-end') ... FAIL
+          test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='future') ... FAIL
+          test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='backward') ... FAIL
+        test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) ... 
+          test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='worker-evidence.json', extra=0) ... FAIL
+          test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='worker-evidence.json', extra=1) ... FAIL
+          test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='diagnostic-status.json', extra=0) ... FAIL
+          test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='diagnostic-status.json', extra=1) ... FAIL
+        test_capacity_required_by_passing_formal_cannot_be_missing (__main__.CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing) ... FAIL
+        test_formal_before_capacity_is_explicitly_not_applicable (__main__.CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable) ... FAIL
+        test_formal_capacity_retains_both_stages (__main__.CollectorTests.test_formal_capacity_retains_both_stages) ... FAIL
+        test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) ... 
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='missing') ... FAIL
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='empty') ... FAIL
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='malformed') ... FAIL
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='oversized') ... FAIL
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='unavailable') ... FAIL
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='partial') ... FAIL
+          test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='timeout') ... FAIL
+        test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) ... 
+          test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='wrong-run') ... FAIL
+          test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='wrong-cut') ... FAIL
+          test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='raw-field') ... FAIL
+          test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='wrong-sequence') ... FAIL
+        test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) ... 
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='oversized') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='unavailable') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='partial') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='timeout') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='malformed') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='wrong-type') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='wrong-family') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='error') ... FAIL
+          test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='empty') ... FAIL
+        test_partitions_retain_more_than_original_single_response_cap (__main__.CollectorTests.test_partitions_retain_more_than_original_single_response_cap) ... FAIL
+        test_rehearsal_retains_exact_terminal_documents_and_failure_window (__main__.CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window) ... FAIL
+        test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) ... 
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='schema') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='run') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='at') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='worker-duplicate') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='generation') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='sequence') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='raw-field') ... FAIL
+          test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='bad-example') ... FAIL
+        setUpClass (__main__.HelperBoundsTests) ... ERROR
+        
+        ======================================================================
+        ERROR: setUpClass (__main__.HelperBoundsTests)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 245, in setUpClass
+            cls.helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.helper)
+                                                             ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+          File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+          File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+          File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+        FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/chat-lifecycle/terminal-evidence.py'
+        
+        ======================================================================
+        FAIL: test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='schema')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 219, in test_bad_terminal_anchor_never_queries_now
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='not-final')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 219, in test_bad_terminal_anchor_never_queries_now
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='missing-end')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 219, in test_bad_terminal_anchor_never_queries_now
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='future')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 219, in test_bad_terminal_anchor_never_queries_now
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) (label='backward')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 219, in test_bad_terminal_anchor_never_queries_now
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='worker-evidence.json', extra=0)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 205, in test_byte_caps_accept_exact_and_reject_next_byte
+            row=self.capture(m,'rehearsal-'+filename.removesuffix('.json'))
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 133, in capture
+            self.assertEqual(len(found),1,'missing capture '+name)
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError: 0 != 1 : missing capture rehearsal-worker-evidence
+        
+        ======================================================================
+        FAIL: test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='worker-evidence.json', extra=1)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 204, in test_byte_caps_accept_exact_and_reject_next_byte
+            self.assertEqual(rc==0,extra==0)
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+        AssertionError: True != False
+        
+        ======================================================================
+        FAIL: test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='diagnostic-status.json', extra=0)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 205, in test_byte_caps_accept_exact_and_reject_next_byte
+            row=self.capture(m,'rehearsal-'+filename.removesuffix('.json'))
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 133, in capture
+            self.assertEqual(len(found),1,'missing capture '+name)
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError: 0 != 1 : missing capture rehearsal-diagnostic-status
+        
+        ======================================================================
+        FAIL: test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) (filename='diagnostic-status.json', extra=1)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 204, in test_byte_caps_accept_exact_and_reject_next_byte
+            self.assertEqual(rc==0,extra==0)
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+        AssertionError: True != False
+        
+        ======================================================================
+        FAIL: test_capacity_required_by_passing_formal_cannot_be_missing (__main__.CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 195, in test_capacity_required_by_passing_formal_cannot_be_missing
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_formal_before_capacity_is_explicitly_not_applicable (__main__.CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 156, in test_formal_before_capacity_is_explicitly_not_applicable
+            self.assertEqual(self.capture(m,'capacity-documents')['state'],'not_applicable')
+                             ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 133, in capture
+            self.assertEqual(len(found),1,'missing capture '+name)
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError: 0 != 1 : missing capture capacity-documents
+        
+        ======================================================================
+        FAIL: test_formal_capacity_retains_both_stages (__main__.CollectorTests.test_formal_capacity_retains_both_stages)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 163, in test_formal_capacity_retains_both_stages
+            for stage in ['formal','capacity']:self.assertIn('workload/'+stage+'/worker-evidence.json',files)
+                                               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError: 'workload/formal/worker-evidence.json' not found in {'manifest.json': b'{\n  "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",\n  "stage": "formal",\n  "observed_at": "2026-10-21T17:57:59Z",\n  "max_file_bytes": 4194304,\n  "capture_failures": 0,\n  "complete": true,\n  "captures": [\n    {\n      "class": "logs",\n      "name": "service-1",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "service-1",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-1-heap",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-1-goroutine",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "logs",\n      "name": "service-2",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "service-2",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-2-heap",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-2-goroutine",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "logs",\n      "name": "service-3",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "service-3",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-3-heap",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-3-goroutine",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "logs",\n      "name": "load",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "load",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "metrics",\n      "name": "targets",\n      "state": "collected",\n      "bytes": 48\n    },\n    {\n      "class": "metrics",\n      "name": "range",\n      "state": "collected",\n      "bytes": 138\n    }\n  ],\n  "diagnosis_references": {\n    "window": "../diagnosis-window.json",\n    "result": "../diagnosis-result.json",\n    "optional": true\n  }\n}\n', 'metrics/prometheus-range.json': b'{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {"__name__": "up"}, "values": [[1792602410.1212773, "1"]]}]}}', 'metrics/prometheus-targets.json': b'{"status":"success","data":{"activeTargets":[]}}', 'system/load.txt': b'fixture terminal capture\n', 'system/service-3.txt': b'fixture terminal capture\n', 'system/service-2.txt': b'fixture terminal capture\n', 'system/service-1.txt': b'fixture terminal capture\n', 'logs/service-2.log': b'fixture terminal capture\n', 'logs/service-3.log': b'fixture terminal capture\n', 'logs/service-1.log': b'fixture terminal capture\n', 'logs/load.log': b'fixture terminal capture\n', 'profiles/service-2-heap.pprof': b'fixture terminal capture\n', 'profiles/service-3-goroutine.pprof': b'fixture terminal capture\n', 'profiles/service-2-goroutine.pprof': b'fixture terminal capture\n', 'profiles/service-3-heap.pprof': b'fixture terminal capture\n', 'profiles/service-1-heap.pprof': b'fixture terminal capture\n', 'profiles/service-1-goroutine.pprof': b'fixture terminal capture\n'}
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='missing')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='empty')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='malformed')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='oversized')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='unavailable')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='partial')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) (mode='timeout')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 170, in test_invalid_or_missing_diagnostic_files_stay_incomplete
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='wrong-run')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 212, in test_invalid_status_is_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-diagnostic-status')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='wrong-cut')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 212, in test_invalid_status_is_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-diagnostic-status')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='raw-field')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 212, in test_invalid_status_is_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-diagnostic-status')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) (label='wrong-sequence')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 212, in test_invalid_status_is_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-diagnostic-status')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='oversized')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='unavailable')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='partial')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='timeout')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='malformed')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='wrong-type')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='wrong-family')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='error')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) (mode='empty')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 234, in test_partial_metrics_keep_successful_siblings
+            self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_partitions_retain_more_than_original_single_response_cap (__main__.CollectorTests.test_partitions_retain_more_than_original_single_response_cap)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 225, in test_partitions_retain_more_than_original_single_response_cap
+            self.assertEqual(rc,0);self.assertTrue(m['complete'])
+            ~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 1 != 0
+        
+        ======================================================================
+        FAIL: test_rehearsal_retains_exact_terminal_documents_and_failure_window (__main__.CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 140, in test_rehearsal_retains_exact_terminal_documents_and_failure_window
+            path='workload/rehearsal/'+name;self.assertIn(path,files)
+                                            ~~~~~~~~~~~~~^^^^^^^^^^^^
+        AssertionError: 'workload/rehearsal/worker-evidence.json' not found in {'manifest.json': b'{\n  "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",\n  "stage": "rehearsal",\n  "observed_at": "2026-10-21T17:58:20Z",\n  "max_file_bytes": 4194304,\n  "capture_failures": 0,\n  "complete": true,\n  "captures": [\n    {\n      "class": "logs",\n      "name": "service-1",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "service-1",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-1-heap",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-1-goroutine",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "logs",\n      "name": "service-2",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "service-2",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-2-heap",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-2-goroutine",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "logs",\n      "name": "service-3",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "service-3",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-3-heap",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "profiles",\n      "name": "service-3-goroutine",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "logs",\n      "name": "load",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "system",\n      "name": "load",\n      "state": "collected",\n      "bytes": 25\n    },\n    {\n      "class": "metrics",\n      "name": "targets",\n      "state": "collected",\n      "bytes": 48\n    },\n    {\n      "class": "metrics",\n      "name": "range",\n      "state": "collected",\n      "bytes": 138\n    }\n  ],\n  "diagnosis_references": {\n    "window": "../diagnosis-window.json",\n    "result": "../diagnosis-result.json",\n    "optional": true\n  }\n}\n', 'metrics/prometheus-range.json': b'{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {"__name__": "up"}, "values": [[1792602410.1212773, "1"]]}]}}', 'metrics/prometheus-targets.json': b'{"status":"success","data":{"activeTargets":[]}}', 'system/load.txt': b'fixture terminal capture\n', 'system/service-3.txt': b'fixture terminal capture\n', 'system/service-2.txt': b'fixture terminal capture\n', 'system/service-1.txt': b'fixture terminal capture\n', 'logs/service-2.log': b'fixture terminal capture\n', 'logs/service-3.log': b'fixture terminal capture\n', 'logs/service-1.log': b'fixture terminal capture\n', 'logs/load.log': b'fixture terminal capture\n', 'profiles/service-2-heap.pprof': b'fixture terminal capture\n', 'profiles/service-3-goroutine.pprof': b'fixture terminal capture\n', 'profiles/service-2-goroutine.pprof': b'fixture terminal capture\n', 'profiles/service-3-heap.pprof': b'fixture terminal capture\n', 'profiles/service-1-heap.pprof': b'fixture terminal capture\n', 'profiles/service-1-goroutine.pprof': b'fixture terminal capture\n'}
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='schema')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='run')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='at')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='worker-duplicate')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='generation')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='sequence')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='raw-field')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ======================================================================
+        FAIL: test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) (label='bad-example')
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 190, in test_wrong_identity_schema_and_unsafe_fields_are_rejected
+            self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
+            ~~~~~~~~~~~~~~~~~~~^^^^^^
+        AssertionError: 0 == 0
+        
+        ----------------------------------------------------------------------
+        Ran 11 tests in 39.705s
+        
+        FAILED (failures=42, errors=1)
+--- FAIL: TestChatLifecycleTerminalEvidenceRetention (39.79s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	40.921s
+FAIL

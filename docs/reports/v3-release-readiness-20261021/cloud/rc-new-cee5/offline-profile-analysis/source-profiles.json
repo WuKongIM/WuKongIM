@@ -1,0 +1,44 @@
+{
+  "archive_bytes": 855906,
+  "archive_sha256": "a74b828be1a383d34bb8779bba4ed7473e51461ef6826c2d6d1a22afef415ccf",
+  "selected_profile_members": [
+    {
+      "member": "evidence/profiles/service-1-goroutine.pprof",
+      "bytes": 11218,
+      "sha256": "f5bf72dc74992f22178fec4620f11341f9b8de60f628b541bfff644a568c645f",
+      "crc32": "1db36962"
+    },
+    {
+      "member": "evidence/profiles/service-1-heap.pprof",
+      "bytes": 270529,
+      "sha256": "8418e1ac06761a0e3b743f24294bcb8d11c04642089743f65ef3c98ed0074bec",
+      "crc32": "ff7b58fd"
+    },
+    {
+      "member": "evidence/profiles/service-2-heap.pprof",
+      "bytes": 259634,
+      "sha256": "f9d38d76eccf789474534c30caf162e108461615d166fb9d50bd1a4f360bb554",
+      "crc32": "d6293dde"
+    },
+    {
+      "member": "evidence/profiles/service-2-goroutine.pprof",
+      "bytes": 10895,
+      "sha256": "2713cfd98b9813b18ac5adee88e9f0f13f67aea4deb4b67e55fab4ebe1a9612e",
+      "crc32": "624eb603"
+    },
+    {
+      "member": "evidence/profiles/service-3-goroutine.pprof",
+      "bytes": 10892,
+      "sha256": "a8c92dca328efe821b6e02acad57b5fc38689b4808e0d0f7bfc8bfb0fd2cc115",
+      "crc32": "b11df489"
+    },
+    {
+      "member": "evidence/profiles/service-3-heap.pprof",
+      "bytes": 257703,
+      "sha256": "0f056e0f277d0036105cdde32adc1819affe5a67284e0e1d6143f562e776a031",
+      "crc32": "97e87520"
+    }
+  ],
+  "notes": "Selected members decompressed with CRC verified. No non-profile members extracted.",
+  "validation": "Full ZIP SHA256 recomputed; six selected profile members decompressed with CRC verified. Other entries not extracted or analyzed."
+}

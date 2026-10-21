@@ -1,0 +1,133 @@
+{
+  "recorded_at": "2026-10-21T18:31:22.393658+00:00",
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "plan_revision": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "plan_tree_matches": true,
+  "source_binding_verified": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/object-storage-delivery.md",
+      "bytes": 14213,
+      "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/stable-audit-transport.md",
+      "bytes": 13654,
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/prepare-object-storage-delivery.py",
+      "bytes": 26015,
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/verify-object-storage-delivery-inputs.py",
+      "bytes": 11718,
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py",
+      "bytes": 24964,
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/validate-production-package-clients.py",
+      "bytes": 87886,
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/test_object_storage_delivery.py",
+      "bytes": 33155,
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/test_object_storage_delivery_inputs.py",
+      "bytes": 15586,
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/native_stable_candidate_drill.py",
+      "bytes": 42889,
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/native_stable_clients_drill.py",
+      "bytes": 70172,
+      "sha256": "8d7a8a003e6ff0df51f75834a89ea2e9d19c76237102360f9cca35acc2bff314"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/.github/workflows/object-storage-provider-contract.yml",
+      "bytes": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/.github/CODEOWNERS",
+      "bytes": 27,
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    }
+  ],
+  "additional_sources": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/test_plan_object_storage_publication.py",
+      "bytes": 28251,
+      "sha256": "96320d5bb6ec063763bc893e9963a35caf6de1567eb99411d010b39e18f6b2d1"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/plan-object-storage-publication.py",
+      "bytes": 38978,
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/package-audit-receipt.py",
+      "bytes": 71340,
+      "sha256": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/native_stable_seal_transport_drill.py",
+      "bytes": 8555,
+      "sha256": "fba5187558f2b8808e0faf4c966732f0a71859560490eed62ffcd953b93b72c3"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 15073,
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    }
+  ],
+  "plan_inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan/README.md",
+      "bytes": 7722,
+      "sha256": "2008eba29bb0c62cd05635bcce93bcc94d8c90d1411bb741dd0bffae95e1c7f4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan/failure-matrix.md",
+      "bytes": 2767,
+      "sha256": "98b602dd0de5dd99ba0d32fa6fa2438740a665320e00bbb11845eb210d7a2d49"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan/source-binding.json",
+      "bytes": 3529,
+      "sha256": "c2cbe000f1142feb8bfd710a1e69180966676a6a077fcade95ced97d6e46c9bd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan/public-manifest.json",
+      "bytes": 683,
+      "sha256": "390eb4aa51f4132e3b4d613d5031cdc17af37d56dbb299d14461813915fce702"
+    }
+  ],
+  "limitations": [
+    "3 minute read-only feasibility review",
+    "No tests, containers, network, cloud, credentials or source changes",
+    "Initial discovery referenced two absent guessed test filenames; command exit 2 retained as discovery error, no validation claimed"
+  ]
+}

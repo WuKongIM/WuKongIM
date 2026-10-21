@@ -1,0 +1,13 @@
+{
+  "recorded_at": "2026-10-21T18:21:38.629228+00:00",
+  "merged_commit": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "same_tree_as_reviewed_PR_head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "GitHub_commit_API_tree_verified": true,
+  "both_checkout_logs_contain_exact_head": true,
+  "SDK_receipt_exact_head_tree": true,
+  "SDK_lock_sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+  "workflow_source_blob": "320114760a530bf160c424735fc418043665e011",
+  "channels_source_blob": "c65f94118e00077656721b0daee17b61f5970dda",
+  "read_scope": "Only natural postmerge push runs on this exact commit. No unrelated main run collected."
+}

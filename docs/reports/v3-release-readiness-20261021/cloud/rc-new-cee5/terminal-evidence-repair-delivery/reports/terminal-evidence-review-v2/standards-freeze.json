@@ -1,0 +1,326 @@
+{
+  "axis": "Standards only",
+  "reviewed_at_utc": "2026-10-21T18:25:54.258829+00:00",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "head": "cee5d51f325fb84033060f546337d326110adae5",
+  "commit_list": [],
+  "scope": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/review-source-freeze.json",
+    "bytes": 3159,
+    "sha256": "cdc393656f874d1455f7380b839f433adc1accf8768d3987b0cbb05e0019957b"
+  },
+  "previous_independent_standards": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-review-v1/standards.md",
+    "bytes": 690,
+    "sha256": "27a723a40ef7059bf52c718cdcc830e5aa5cf63f903b06b3479b06a790ae2256"
+  },
+  "previous_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-review-v1/standards-freeze.json",
+    "bytes": 10153,
+    "sha256": "ce187324e3c9aa8886a97377fdf869fd389f70037856f864baf40c8c52023b95"
+  },
+  "tracked_diff_sha256": "aec989f2e01663b0bff6fc8ae18cc4f398c76c1dad179ef51980fa44c0eae407",
+  "untracked_files_fully_read": [
+    "scripts/chat-lifecycle/terminal-evidence.py",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "v2_changed_files_vs_v1": [
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "scripts/chat-lifecycle/terminal-evidence.py",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "helper_v1_matches_prior_freeze": true,
+  "helper_delta_sha256": "30ac1ee1f39cebeb1813eee70c1637d0d7af69affcff7d00d379a1b667d7017a",
+  "files_checked_before_after": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 190888,
+      "sha256": "56ff78a8d86e5a2937ebcabb7f021493996c9846191b5053b588b7d5c5eef890"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 144245,
+      "sha256": "21fde090008184a67423a284dc9d6045ba338ce9123b110720a51248d9c5cf75"
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "bytes": 5736,
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe"
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "bytes": 22737,
+      "sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a"
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "bytes": 86902,
+      "sha256": "093fba46e7c04b00395e15669fa3d3fe2d61f02454863926f8dd2db9f975e64f"
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "bytes": 4854,
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "bytes": 28540,
+      "sha256": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af"
+    }
+  ],
+  "rules_checked_before_after": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    }
+  ],
+  "extra_standards_sources": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 144245,
+      "sha256": "21fde090008184a67423a284dc9d6045ba338ce9123b110720a51248d9c5cf75"
+    }
+  ],
+  "applicable_flows_for_changed_paths": [],
+  "flow_note": "scripts/cloud-deployment/FLOW.md is outside scope; bench FLOWS are unchanged contextual sources used by author, not rules governing these scripts.",
+  "working_agreements": "User-provided current working agreements apply. No external mutation or permission request needed.",
+  "skill": {
+    "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+    "bytes": 7201,
+    "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+  },
+  "smell_baseline_considered": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "judgement": "Explicit closed-schema validation stays local to the existing helper; no abstraction is demanded for small case tables. Repository standards override heuristics. Tool-enforced formatting checks not repeated.",
+  "hard_violations": [],
+  "possible_smells": [],
+  "protected_paths_changed": false,
+  "test_history_inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/failure-matrix.md",
+      "bytes": 1958,
+      "sha256": "b34d0b65d7e59628a4a90614a9fc94b1e7b9a5bc0fbed38cf11b3039759078b5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/tests-first-freeze.json",
+      "bytes": 1362,
+      "sha256": "68a695742246c04574cc5f71c4882777f476b957f7eff72ea5377340982f12ab"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/tests-first-corrected-freeze.json",
+      "bytes": 1548,
+      "sha256": "f967c44fc4c9962996425cb303291d8b2f5184e1f34e4f016d332e88ab576957"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/tests-first-final-freeze.json",
+      "bytes": 1685,
+      "sha256": "49f009d8ebadf0c667dedad96d936b40c66267fe40fbdcdfd56f5dfae128edc4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red.log",
+      "bytes": 2563,
+      "sha256": "06974056575dcf3b105ef822aa31f9671c367947f0fed182b9ee1a8e46722970"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red-corrected.log",
+      "bytes": 35447,
+      "sha256": "e1cf9682ee933cda68c636f138a7c62d97695ac56228be985f4527474f8ec6d9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red-fixture-anchor.log",
+      "bytes": 215,
+      "sha256": "7f41ab0ea8bf2f7e7f9364ebac76d17cf0d4888ed8cf4d0c7bccbfc0e01c770f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red-precision-real-response.log",
+      "bytes": 7724,
+      "sha256": "27d13da87e09d2c2d35bca6980085aa728d67eaf1d1bf48b4ca511558e87012d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red-precision-real-response-results.json",
+      "bytes": 209193,
+      "sha256": "cd51f2af38a16deddcf7cfd512167dc80a4c5ed3d6932599c60a16261561b5e7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/precision-red-correction.json",
+      "bytes": 676,
+      "sha256": "b8ed7538f7c1b0e45b19df5a0d952c68d20109a3ab842bcb94fb5bb4763b9e55"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused.log",
+      "bytes": 12056,
+      "sha256": "cde41d741859755cd306869d0103b1dcd9255de01bc52778651fa3345fd5bbfd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected.log",
+      "bytes": 1199,
+      "sha256": "02e3bc18abdb59795c4ea0d40e6f3afdf797a8dfe7d4a1efec21d5443fd3a17f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected-results.json",
+      "bytes": 1268612,
+      "sha256": "963e69ea7998670b2e587985f35db8ba36d939e9433781b4abcf11d338277411"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/implementation-plan.md",
+      "bytes": 3526,
+      "sha256": "b9d16b952cc34162b5e601fc34aa556e7c4d0ef123811f0f6b7a92e9057c6314"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/v1-full-suite-result.json",
+      "bytes": 5372,
+      "sha256": "c6d5cb31a8f88351ba58f18ae7e9f4a0c1102c090ee104714821b1c79e830891"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/execution-receipt.json",
+      "bytes": 812,
+      "sha256": "9133a274dd302389c52bf168497d7cac1634e832f3363ad32c6215b0f47909fc"
+    }
+  ],
+  "focused_result": {
+    "go_entries": 2,
+    "python_methods": 20,
+    "process_cases": 79,
+    "failure_count": 0,
+    "error_count": 0
+  },
+  "precision_red_boundary": {
+    "prior_bad_fixture_retained": true,
+    "valid_red_replay_after_fixture_correction": true,
+    "helper_sha256": "dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf",
+    "cases": 11,
+    "failures": 8,
+    "errors": 0,
+    "not_a_claim_original_bad_fixture_was_valid": true
+  },
+  "full_validation_readonly_snapshot": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/full-default.jsonl",
+      "bytes_at_read": 647612,
+      "sha256_at_read": "8193db32e1503fd385b1ef752b548e040a460411f028494c6a63d78c5f594da3",
+      "live_log_not_frozen": true,
+      "package_terminals": [
+        {
+          "Time": "2026-10-22T02:23:58.998341+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+          "Elapsed": 0.864
+        },
+        {
+          "Time": "2026-10-22T02:23:59.204728+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+          "Elapsed": 1.07
+        },
+        {
+          "Time": "2026-10-22T02:23:59.323032+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+          "Elapsed": 1.188
+        },
+        {
+          "Time": "2026-10-22T02:23:59.483098+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+          "Elapsed": 1.349
+        },
+        {
+          "Time": "2026-10-22T02:23:59.741833+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+          "Elapsed": 1.607
+        },
+        {
+          "Time": "2026-10-22T02:24:30.497393+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 32.363
+        }
+      ],
+      "test_failures": []
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/full-integration.jsonl",
+      "bytes_at_read": 792184,
+      "sha256_at_read": "c1fc450b854ad30d5861eec1508f8f025a9c170853da6fd11f279990c7472763",
+      "live_log_not_frozen": true,
+      "package_terminals": [
+        {
+          "Time": "2026-10-22T02:24:00.224953+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+          "Elapsed": 1.491
+        },
+        {
+          "Time": "2026-10-22T02:24:00.514357+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+          "Elapsed": 1.78
+        },
+        {
+          "Time": "2026-10-22T02:24:00.565688+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+          "Elapsed": 1.8319999999999999
+        },
+        {
+          "Time": "2026-10-22T02:24:00.684178+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+          "Elapsed": 1.95
+        },
+        {
+          "Time": "2026-10-22T02:24:00.982693+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+          "Elapsed": 2.249
+        }
+      ],
+      "test_failures": []
+    }
+  ],
+  "validation_limit": "Mac 12m integration supplement is not the scripts-integration protected 9m named check. Linux final-source PR run remains required. Pending logs are not success.",
+  "reviewer_local_read_note": "One compact JSON inspector assumed failure_count for the replay-specific results schema and got KeyError; corrected read used its actual failures/errors keys. No test execution or source mutation.",
+  "report": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-review-v2/standards.md",
+    "bytes": 797,
+    "sha256": "33ce3113f3811a5979b9df79dbeccbca37c7c37a9108613eac4c563762997797"
+  },
+  "other_axis_read": false,
+  "executed_tests_cloud_or_product": false
+}

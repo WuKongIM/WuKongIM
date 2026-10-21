@@ -1,0 +1,64 @@
+{
+  "first_attempt": {
+    "case": "baseline-A-four-download-and-installed-cli",
+    "passed_cases": 0,
+    "failed_cases": 1,
+    "not_reached": 48,
+    "Alma_installed_command": {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "19b3f8ee2b604110cc5abf6acdaf975e5e5d72b5773d15e1ff920e04ac720a91"
+      ],
+      "elapsed_seconds": 600.218,
+      "exit_code": 124,
+      "output_limit": false,
+      "output_sha256": "96e5026bf40eecc597bdcaae3e6dd2833809e50f3fab0aea1c85d808a5c2b4d8",
+      "output_size": 137,
+      "output_tail": "/candidate.rpm: OK\n/candidate.rpm: digests signatures OK\nAlmaLinux 9 - AppStream                          85 kB/s |  30 MB     05:59    \n",
+      "stage": "installed-client",
+      "timed_out": false
+    }
+  },
+  "second_attempt": {
+    "passed_cases": 49,
+    "failed_cases": 0,
+    "not_reached": 0,
+    "Alma_A_installed_command": {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "e597199e97af3656b9cd53ec5634b135523c7af6a484902be220986fcce3dbc9"
+      ],
+      "elapsed_seconds": 23.267,
+      "exit_code": 0,
+      "output_limit": false,
+      "output_sha256": "0a03856436b9f9c0652298741365adfee5217a02aa100b09529d8ea500bf9e0c",
+      "output_size": 2710,
+      "output_tail": "/candidate.rpm: OK\n/candidate.rpm: digests signatures OK\nAlmaLinux 9 - AppStream                          16 MB/s |  30 MB     00:01    \nAlmaLinux 9 - BaseOS                            7.1 MB/s |  49 MB     00:06    \nAlmaLinux 9 - Extras                             73 kB/s |  33 kB     00:00    \nPackage python3-3.9.25-7.el9_8.x86_64 is already installed.\nDependencies resolved.\n================================================================================\n Package           Arch        Version                  Repository         Size\n================================================================================\nInstalling:\n wukongim          x86_64      3.0.0-1                  @commandline       37 M\nUpgrading:\n python3           x86_64      3.9.25-7.el9_8.3         baseos             26 k\n python3-libs      x86_64      3.9.25-7.el9_8.3         baseos            7.5 M\n\nTransaction Summary\n================================================================================\nInstall  1 Package\nUpgrade  2 Packages\n\nTotal size: 44 M\nTotal download size: 7.6 M\nDownloading Packages:\n(1/2): python3-3.9.25-7.el9_8.3.x86_64.rpm       90 kB/s |  26 kB     00:00    \n(2/2): python3-libs-3.9.25-7.el9_8.3.x86_64.rpm 8.4 MB/s | 7.5 MB     00:00    \n--------------------------------------------------------------------------------\nTotal                                           7.6 MB/s | 7.6 MB     00:00     \nRunning transaction check\nTransaction check succeeded.\nRunning transaction test\nTransaction test succeeded.\nRunning transaction\n  Preparing        :                                                        1/1 \n  Upgrading        : python3-libs-3.9.25-7.el9_8.3.x86_64                   1/5 \n  Upgrading        : python3-3.9.25-7.el9_8.3.x86_64                        2/5 \n  Installing       : wukongim-3.0.0-1.x86_64                                3/5 \n  Cleanup          : python3-3.9.25-7.el9_8.x86_64                          4/5 \n  Cleanup          : python3-libs-3.9.25-7.el9_8.x86_64                     5/5 \n  Running scriptlet: python3-libs-3.9.25-7.el9_8.x86_64                     5/5 \n  Verifying        : wukongim-3.0.0-1.x86_64                                1/5 \n  Verifying        : python3-3.9.25-7.el9_8.3.x86_64                        2/5 \n  Verifying        : python3-3.9.25-7.el9_8.x86_64                          3/5 \n  Verifying        : python3-libs-3.9.25-7.el9_8.3.x86_64                   4/5 \n  Verifying        : python3-libs-3.9.25-7.el9_8.x86_64                     5/5 \n\nUpgraded:\n  python3-3.9.25-7.el9_8.3.x86_64      python3-libs-3.9.25-7.el9_8.3.x86_64     \nInstalled:\n  wukongim-3.0.0-1.x86_64                                                       \n\nComplete!\n",
+      "stage": "installed-client",
+      "timed_out": false
+    },
+    "Alma_B_installed_command": {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "a976188e2e31b5a62d387bf0926caf21c5add59558a1b6e76faa65c98fb33f54"
+      ],
+      "elapsed_seconds": 84.235,
+      "exit_code": 0,
+      "output_limit": false,
+      "output_sha256": "07fb3a2fb4a49c4c24ce874b05ceaa938fab44b40b0afcaac000ff8e51d3164b",
+      "output_size": 2710,
+      "output_tail": "/candidate.rpm: OK\n/candidate.rpm: digests signatures OK\nAlmaLinux 9 - AppStream                         462 kB/s |  30 MB     01:06    \nAlmaLinux 9 - BaseOS                             16 MB/s |  49 MB     00:03    \nAlmaLinux 9 - Extras                             83 kB/s |  33 kB     00:00    \nPackage python3-3.9.25-7.el9_8.x86_64 is already installed.\nDependencies resolved.\n================================================================================\n Package           Arch        Version                  Repository         Size\n================================================================================\nInstalling:\n wukongim          x86_64      3.0.1-1                  @commandline       37 M\nUpgrading:\n python3           x86_64      3.9.25-7.el9_8.3         baseos             26 k\n python3-libs      x86_64      3.9.25-7.el9_8.3         baseos            7.5 M\n\nTransaction Summary\n================================================================================\nInstall  1 Package\nUpgrade  2 Packages\n\nTotal size: 44 M\nTotal download size: 7.6 M\nDownloading Packages:\n(1/2): python3-3.9.25-7.el9_8.3.x86_64.rpm      111 kB/s |  26 kB     00:00    \n(2/2): python3-libs-3.9.25-7.el9_8.3.x86_64.rpm 9.1 MB/s | 7.5 MB     00:00    \n--------------------------------------------------------------------------------\nTotal                                           8.2 MB/s | 7.6 MB     00:00     \nRunning transaction check\nTransaction check succeeded.\nRunning transaction test\nTransaction test succeeded.\nRunning transaction\n  Preparing        :                                                        1/1 \n  Upgrading        : python3-libs-3.9.25-7.el9_8.3.x86_64                   1/5 \n  Upgrading        : python3-3.9.25-7.el9_8.3.x86_64                        2/5 \n  Installing       : wukongim-3.0.1-1.x86_64                                3/5 \n  Cleanup          : python3-3.9.25-7.el9_8.x86_64                          4/5 \n  Cleanup          : python3-libs-3.9.25-7.el9_8.x86_64                     5/5 \n  Running scriptlet: python3-libs-3.9.25-7.el9_8.x86_64                     5/5 \n  Verifying        : wukongim-3.0.1-1.x86_64                                1/5 \n  Verifying        : python3-3.9.25-7.el9_8.3.x86_64                        2/5 \n  Verifying        : python3-3.9.25-7.el9_8.x86_64                          3/5 \n  Verifying        : python3-libs-3.9.25-7.el9_8.3.x86_64                   4/5 \n  Verifying        : python3-libs-3.9.25-7.el9_8.x86_64                     5/5 \n\nUpgraded:\n  python3-3.9.25-7.el9_8.3.x86_64      python3-libs-3.9.25-7.el9_8.3.x86_64     \nInstalled:\n  wukongim-3.0.1-1.x86_64                                                       \n\nComplete!\n",
+      "stage": "installed-client",
+      "timed_out": false
+    }
+  },
+  "inner_deadline_600s_unchanged_all_11_install_sandboxes": true,
+  "test_only_fixture_regenerated": true,
+  "causal_limit": "Attempt 2 did not reproduce the deadline. This does not establish a unique network/root cause or erase first failure."
+}

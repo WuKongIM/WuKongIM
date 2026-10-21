@@ -1,0 +1,313 @@
+{
+  "tool_version": "go version go1.25.11 darwin/arm64",
+  "network_disabled_environment": [
+    "GOPROXY=off",
+    "GOSUMDB=off",
+    "GOTOOLCHAIN=local"
+  ],
+  "local_profile_only": true,
+  "symbolize": "none",
+  "timeout_per_command_seconds": 25,
+  "commands": [
+    {
+      "service": 1,
+      "kind": "goroutine-top",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=30",
+        "service-1-goroutine.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.451,
+      "stdout_bytes": 4204,
+      "stderr_bytes": 0,
+      "published_top_lines": 36
+    },
+    {
+      "service": 1,
+      "kind": "goroutine-relevant",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-traces",
+        "-focus=internal/(runtime|infra|usecase)/(delivery|presence)",
+        "service-1-goroutine.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.448,
+      "stdout_bytes": 1335,
+      "stderr_bytes": 0,
+      "published_top_lines": 2
+    },
+    {
+      "service": 1,
+      "kind": "heap-inuse",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=20",
+        "-sample_index=inuse_space",
+        "service-1-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.506,
+      "stdout_bytes": 3356,
+      "stderr_bytes": 0,
+      "published_top_lines": 26
+    },
+    {
+      "service": 1,
+      "kind": "heap-alloc",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=20",
+        "-sample_index=alloc_space",
+        "service-1-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.472,
+      "stdout_bytes": 3074,
+      "stderr_bytes": 0,
+      "published_top_lines": 26
+    },
+    {
+      "service": 1,
+      "kind": "heap-relevant",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-cum",
+        "-nodecount=25",
+        "-sample_index=inuse_space",
+        "-focus=internal/(runtime|infra|usecase)/(delivery|presence)",
+        "service-1-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.299,
+      "stdout_bytes": 3490,
+      "stderr_bytes": 0,
+      "published_top_lines": 31
+    },
+    {
+      "service": 2,
+      "kind": "goroutine-top",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=30",
+        "service-2-goroutine.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.232,
+      "stdout_bytes": 4204,
+      "stderr_bytes": 0,
+      "published_top_lines": 36
+    },
+    {
+      "service": 2,
+      "kind": "goroutine-relevant",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-traces",
+        "-focus=internal/(runtime|infra|usecase)/(delivery|presence)",
+        "service-2-goroutine.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.226,
+      "stdout_bytes": 1335,
+      "stderr_bytes": 0,
+      "published_top_lines": 2
+    },
+    {
+      "service": 2,
+      "kind": "heap-inuse",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=20",
+        "-sample_index=inuse_space",
+        "service-2-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.263,
+      "stdout_bytes": 3397,
+      "stderr_bytes": 0,
+      "published_top_lines": 26
+    },
+    {
+      "service": 2,
+      "kind": "heap-alloc",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=20",
+        "-sample_index=alloc_space",
+        "service-2-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.378,
+      "stdout_bytes": 3030,
+      "stderr_bytes": 0,
+      "published_top_lines": 26
+    },
+    {
+      "service": 2,
+      "kind": "heap-relevant",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-cum",
+        "-nodecount=25",
+        "-sample_index=inuse_space",
+        "-focus=internal/(runtime|infra|usecase)/(delivery|presence)",
+        "service-2-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.225,
+      "stdout_bytes": 3464,
+      "stderr_bytes": 0,
+      "published_top_lines": 31
+    },
+    {
+      "service": 3,
+      "kind": "goroutine-top",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=30",
+        "service-3-goroutine.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.196,
+      "stdout_bytes": 4204,
+      "stderr_bytes": 0,
+      "published_top_lines": 36
+    },
+    {
+      "service": 3,
+      "kind": "goroutine-relevant",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-traces",
+        "-focus=internal/(runtime|infra|usecase)/(delivery|presence)",
+        "service-3-goroutine.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.258,
+      "stdout_bytes": 1335,
+      "stderr_bytes": 0,
+      "published_top_lines": 2
+    },
+    {
+      "service": 3,
+      "kind": "heap-inuse",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=20",
+        "-sample_index=inuse_space",
+        "service-3-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.284,
+      "stdout_bytes": 3426,
+      "stderr_bytes": 0,
+      "published_top_lines": 26
+    },
+    {
+      "service": 3,
+      "kind": "heap-alloc",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-nodecount=20",
+        "-sample_index=alloc_space",
+        "service-3-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.414,
+      "stdout_bytes": 3033,
+      "stderr_bytes": 0,
+      "published_top_lines": 26
+    },
+    {
+      "service": 3,
+      "kind": "heap-relevant",
+      "command": [
+        "go1.25.11",
+        "tool",
+        "pprof",
+        "-symbolize=none",
+        "-top",
+        "-cum",
+        "-nodecount=25",
+        "-sample_index=inuse_space",
+        "-focus=internal/(runtime|infra|usecase)/(delivery|presence)",
+        "service-3-heap.pprof"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.202,
+      "stdout_bytes": 3367,
+      "stderr_bytes": 0,
+      "published_top_lines": 31
+    }
+  ]
+}

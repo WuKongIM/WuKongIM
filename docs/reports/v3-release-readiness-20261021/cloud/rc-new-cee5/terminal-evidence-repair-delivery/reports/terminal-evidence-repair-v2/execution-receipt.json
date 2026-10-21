@@ -1,0 +1,25 @@
+{
+  "focused": {
+    "exit_code": 0,
+    "log": "focused-corrected.log",
+    "artifact": "focused-corrected-results.json",
+    "python_methods": 20,
+    "process_cases": 79
+  },
+  "full_default": {
+    "status": "passed",
+    "command": "GOWORK=off go test ./scripts/... -count=1 -timeout=9m -json",
+    "exit_code": 0,
+    "summary": "full-default-summary.json"
+  },
+  "full_integration_mac_supplement": {
+    "status": "passed",
+    "command": "GOWORK=off CHAT_LIFECYCLE_TERMINAL_EVIDENCE_TEST_ARTIFACT=<artifact> go test -tags=integration ./scripts/... -count=1 -timeout=12m -parallel=2 -json",
+    "does_not_satisfy_protected_named_check": true,
+    "linux_original_9m_check": "still required on final PR",
+    "exit_code": 0,
+    "summary": "full-integration-summary.json"
+  },
+  "source_freeze_sha256": "cdc393656f874d1455f7380b839f433adc1accf8768d3987b0cbb05e0019957b",
+  "final_freeze": "final-freeze-verification.json"
+}

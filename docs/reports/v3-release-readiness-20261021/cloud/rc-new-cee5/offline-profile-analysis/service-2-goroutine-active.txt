@@ -1,0 +1,12 @@
+Type: goroutine
+Time: 2026-10-22 01:19:39 CST
+Showing nodes accounting for 2, 0.059% of 3366 total
+         2 0.059% 0.059%          2 0.059%  runtime.gopark
+         0     0% 0.059%          1  0.03%  github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func1
+         0     0% 0.059%          1  0.03%  github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).Start.func2
+         0     0% 0.059%          1  0.03%  github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).tick
+         0     0% 0.059%          1  0.03%  github.com/WuKongIM/WuKongIM/internal/app.(*presenceTouchWorker).watch
+         0     0% 0.059%          2 0.059%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0% 0.059%          2 0.059%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 0.059%          2 0.059%  runtime.selectgo
+         0     0% 0.059%          2 0.059%  runtime/pprof.Do

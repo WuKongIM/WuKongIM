@@ -1,0 +1,107 @@
+{
+  "v1_integration_exit": 1,
+  "elapsed_seconds": 528.792,
+  "test_actions": {
+    "run": 1305,
+    "output": 3120,
+    "pass": 1293,
+    "pause": 247,
+    "cont": 247,
+    "skip": 11,
+    "fail": 1
+  },
+  "failed_tests": [
+    "TestChatLifecycleShakeoutScriptIntegration"
+  ],
+  "skips": [
+    {
+      "test": "TestDockerImageRuntimeContract",
+      "output": [
+        "=== RUN   TestDockerImageRuntimeContract",
+        "docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract",
+        "--- SKIP: TestDockerImageRuntimeContract (0.00s)"
+      ]
+    },
+    {
+      "test": "TestDockerImageEmbeddedPrometheus",
+      "output": [
+        "=== RUN   TestDockerImageEmbeddedPrometheus",
+        "docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate",
+        "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)"
+      ]
+    },
+    {
+      "test": "TestEasySDKReadinessSerialDelayFixture",
+      "output": [
+        "=== RUN   TestEasySDKReadinessSerialDelayFixture",
+        "easysdk_readiness_schedule_integration_test.go:35: subprocess scheduling fixture only",
+        "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)"
+      ]
+    },
+    {
+      "test": "TestNativePackageLifecycle",
+      "output": [
+        "=== RUN   TestNativePackageLifecycle",
+        "native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation",
+        "--- SKIP: TestNativePackageLifecycle (0.00s)"
+      ]
+    },
+    {
+      "test": "TestNativePackageSignedRepository",
+      "output": [
+        "=== RUN   TestNativePackageSignedRepository",
+        "native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation",
+        "--- SKIP: TestNativePackageSignedRepository (0.00s)"
+      ]
+    },
+    {
+      "test": "TestNativePackageRepositoryDeadlineFixture",
+      "output": [
+        "=== RUN   TestNativePackageRepositoryDeadlineFixture",
+        "native_package_repository_output_integration_test.go:92: subprocess fixture only",
+        "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)"
+      ]
+    },
+    {
+      "test": "TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk",
+      "output": [
+        "=== RUN   TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk",
+        "wukongim_three_node_chat_lifecycle_script_test.go:444: GNU awk is not installed",
+        "--- SKIP: TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier (0.00s)"
+      ]
+    }
+  ],
+  "cause": "Test invocation globally set WK_TERMINAL_EVIDENCE_TEST_ARTIFACT; shakeout product strict configuration rejects unknown WK_ variable. Preserve failure; v2 uses non-product namespace."
+}

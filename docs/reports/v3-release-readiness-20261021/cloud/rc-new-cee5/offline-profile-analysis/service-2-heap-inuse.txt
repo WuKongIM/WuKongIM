@@ -1,0 +1,26 @@
+Type: inuse_space
+Time: 2026-10-22 01:19:34 CST
+Showing nodes accounting for 449.59MB, 88.29% of 509.23MB total
+Dropped 392 nodes (cum <= 2.55MB)
+Showing top 20 nodes out of 232
+      flat  flat%   sum%        cum   cum%
+  275.26MB 54.05% 54.05%   275.26MB 54.05%  github.com/cockroachdb/pebble/v2/internal/manual.New
+   24.75MB  4.86% 58.91%    24.75MB  4.86%  go.etcd.io/raft/v3/raftpb.(*Entry).Unmarshal
+   19.84MB  3.90% 62.81%    19.84MB  3.90%  github.com/WuKongIM/WuKongIM/internal/observability/diagnostics.NewStore
+   17.16MB  3.37% 66.18%    17.16MB  3.37%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).Propose
+   17.14MB  3.37% 69.54%    17.14MB  3.37%  github.com/WuKongIM/WuKongIM/pkg/channel/reactor.NewMailbox
+   12.01MB  2.36% 71.90%    12.01MB  2.36%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*idempotencyMembershipFilter).add
+   10.04MB  1.97% 73.87%    11.54MB  2.27%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelRegistry).retainWarmLocked
+    9.62MB  1.89% 75.76%     9.62MB  1.89%  github.com/WuKongIM/WuKongIM/pkg/workqueue.NewShardedMailbox[go.shape.struct { github.com/WuKongIM/WuKongIM/pkg/gateway/core.state *github.com/WuKongIM/WuKongIM/pkg/gateway/core.sessionState; github.com/WuKongIM/WuKongIM/pkg/gateway/core.replyToken string; github.com/WuKongIM/WuKongIM/pkg/gateway/core.frame github.com/WuKongIM/WuKongIM/pkg/protocol/frame.Frame; github.com/WuKongIM/WuKongIM/pkg/gateway/core.packet *github.com/WuKongIM/WuKongIM/pkg/gateway/protocol.InboundPacket; github.com/WuKongIM/WuKongIM/pkg/gateway/core.enqueuedAt time.Time }]
+    8.58MB  1.68% 77.45%     8.58MB  1.68%  github.com/WuKongIM/WuKongIM/pkg/workqueue.(*mailboxShard[go.shape.struct { github.com/WuKongIM/WuKongIM/pkg/gateway/core.state *github.com/WuKongIM/WuKongIM/pkg/gateway/core.sessionState; github.com/WuKongIM/WuKongIM/pkg/gateway/core.replyToken string; github.com/WuKongIM/WuKongIM/pkg/gateway/core.frame github.com/WuKongIM/WuKongIM/pkg/protocol/frame.Frame; github.com/WuKongIM/WuKongIM/pkg/gateway/core.packet *github.com/WuKongIM/WuKongIM/pkg/gateway/protocol.InboundPacket; github.com/WuKongIM/WuKongIM/pkg/gateway/core.enqueuedAt time.Time }]).collectBatch
+    8.10MB  1.59% 79.04%     9.10MB  1.79%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*channelMetaCache).selectResolved
+    7.50MB  1.47% 80.51%     7.50MB  1.47%  github.com/WuKongIM/WuKongIM/pkg/db/message.newMessageKey
+       7MB  1.37% 81.89%        7MB  1.37%  github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec.ReadString
+    6.43MB  1.26% 83.15%     6.43MB  1.26%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.subscriberCache.clone
+    4.71MB  0.93% 84.08%     4.71MB  0.93%  github.com/WuKongIM/WuKongIM/pkg/raftlog.replaceCachedEntriesFromIndex
+    4.50MB  0.88% 84.96%     4.50MB  0.88%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.newChannelState
+    3.59MB   0.7% 85.66%     3.59MB   0.7%  github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*Directory).InstallRecoveredRoutes
+    3.53MB  0.69% 86.36%     4.59MB   0.9%  compress/flate.NewWriter
+    3.50MB  0.69% 87.04%     3.50MB  0.69%  github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec.AppendString
+    3.34MB  0.66% 87.70%     3.34MB  0.66%  go.etcd.io/raft/v3.(*MemoryStorage).Append
+       3MB  0.59% 88.29%        3MB  0.59%  container/list.(*List).insertValue (inline)

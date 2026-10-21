@@ -1,0 +1,13 @@
+{
+  "owned_processes_running": 0,
+  "private_extracted_profile_copies_removed": [
+    "service-1-goroutine.pprof",
+    "service-1-heap.pprof",
+    "service-2-goroutine.pprof",
+    "service-2-heap.pprof",
+    "service-3-goroutine.pprof",
+    "service-3-heap.pprof"
+  ],
+  "original_archive_modified": false,
+  "private_raw_pprof_text_retained_outside_allowlist": true
+}

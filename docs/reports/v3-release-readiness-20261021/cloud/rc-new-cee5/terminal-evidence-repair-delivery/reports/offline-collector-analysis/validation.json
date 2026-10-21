@@ -1,0 +1,30 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "executions": [
+    {
+      "command": "GOWORK=off go test ./scripts -run '^TestChatLifecycleTerminalEvidenceCollectorIsBoundedAndComplete$' -count=1 -v",
+      "exit_code": 0,
+      "passed": 1,
+      "meaning": "Current collector contract passes; it expects 16 captures and does not test worker evidence retention."
+    },
+    {
+      "command": "GOWORK=off go test ./internal/bench/chatlifecycle -run '^(TestLiveDiagnosticRecorderRetainsTerminalFailureExamples|TestTerminalWorkerEvidenceRetainsMaximumBoundedSamples)$' -count=1 -v",
+      "exit_code": 0,
+      "passed": 2,
+      "meaning": "Producer writes bounded redacted evidence at terminal cut in isolated current tests; not proof of historical cloud write."
+    },
+    {
+      "command": "python3 probe-collector.py EXACT_SOURCE_WORKTREE --expect-worker-retained",
+      "exit_code": 1,
+      "meaning": "Actual collector script with deterministic fake transport fails desired available worker-evidence retention; no product or cloud process started."
+    }
+  ],
+  "product_message_loss_reproduced": false,
+  "cloud_actions": 0,
+  "source_edits": 0,
+  "unknowns": [
+    "historical remote worker-evidence file existence/content",
+    "actual full metric response size or family distribution",
+    "root cause of sampled correlation expiration"
+  ]
+}

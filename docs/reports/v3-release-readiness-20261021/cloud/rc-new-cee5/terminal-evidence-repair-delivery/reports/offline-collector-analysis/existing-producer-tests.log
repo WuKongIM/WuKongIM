@@ -1,0 +1,6 @@
+=== RUN   TestLiveDiagnosticRecorderRetainsTerminalFailureExamples
+--- PASS: TestLiveDiagnosticRecorderRetainsTerminalFailureExamples (0.05s)
+=== RUN   TestTerminalWorkerEvidenceRetainsMaximumBoundedSamples
+--- PASS: TestTerminalWorkerEvidenceRetainsMaximumBoundedSamples (0.02s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	1.317s

@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan-review/report.md",
+      "bytes": 1843,
+      "sha256": "5f0a7e53d102b4b0a9f64a94b1a076124cde82b437af205830e9b0ca86d3bd20"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan-review/source-binding.json",
+      "bytes": 6382,
+      "sha256": "f8244c93a226f189e68c3d86c50b601fd0d1f1a30931ef1380f20b1c90535582"
+    }
+  ]
+}

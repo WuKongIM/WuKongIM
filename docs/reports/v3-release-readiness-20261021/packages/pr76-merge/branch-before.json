@@ -1,0 +1,106 @@
+{
+  "name": "main",
+  "commit": {
+    "sha": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+    "node_id": "C_kwDOUJ8YLtoAKDE4MjljMzgxM2Q2YjIxZGNmZWIxMjM4YTY0MDYwNGE0NjkxODE1YmQ",
+    "commit": {
+      "author": {
+        "name": "tt",
+        "email": "tangtaoit@githubim.com",
+        "date": "2026-10-21T17:09:24Z"
+      },
+      "committer": {
+        "name": "WuKongIM",
+        "email": "tangtaoit@githubim.com",
+        "date": "2026-10-21T17:22:23Z"
+      },
+      "message": "test: retain selected RPM metadata across DNF teardown",
+      "tree": {
+        "sha": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+        "url": "https://api.github.com/repos/WuKongIM/packages/git/trees/2119196cef38a159f23a8f5c47f8878e4fde8399"
+      },
+      "url": "https://api.github.com/repos/WuKongIM/packages/git/commits/1829c3813d6b21dcfeb1238a640604a4691815bd",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/WuKongIM/packages/commits/1829c3813d6b21dcfeb1238a640604a4691815bd",
+    "html_url": "https://github.com/WuKongIM/packages/commit/1829c3813d6b21dcfeb1238a640604a4691815bd",
+    "comments_url": "https://api.github.com/repos/WuKongIM/packages/commits/1829c3813d6b21dcfeb1238a640604a4691815bd/comments",
+    "author": {
+      "login": "tangtaoit",
+      "id": 3895878,
+      "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/tangtaoit",
+      "html_url": "https://github.com/tangtaoit",
+      "followers_url": "https://api.github.com/users/tangtaoit/followers",
+      "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+      "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+      "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+      "repos_url": "https://api.github.com/users/tangtaoit/repos",
+      "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "tangtaoit",
+      "id": 3895878,
+      "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/tangtaoit",
+      "html_url": "https://github.com/tangtaoit",
+      "followers_url": "https://api.github.com/users/tangtaoit/followers",
+      "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+      "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+      "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+      "repos_url": "https://api.github.com/users/tangtaoit/repos",
+      "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "11739048e27da3ab9279893600ab244cc9158b60",
+        "url": "https://api.github.com/repos/WuKongIM/packages/commits/11739048e27da3ab9279893600ab244cc9158b60",
+        "html_url": "https://github.com/WuKongIM/packages/commit/11739048e27da3ab9279893600ab244cc9158b60"
+      }
+    ]
+  },
+  "_links": {
+    "self": "https://api.github.com/repos/WuKongIM/packages/branches/main",
+    "html": "https://github.com/WuKongIM/packages/tree/main"
+  },
+  "protected": true,
+  "protection": {
+    "enabled": true,
+    "required_status_checks": {
+      "enforcement_level": "everyone",
+      "contexts": [
+        "Validate complete Pages snapshot"
+      ],
+      "checks": [
+        {
+          "context": "Validate complete Pages snapshot",
+          "app_id": 15368
+        }
+      ]
+    }
+  },
+  "protection_url": "https://api.github.com/repos/WuKongIM/packages/branches/main/protection"
+}

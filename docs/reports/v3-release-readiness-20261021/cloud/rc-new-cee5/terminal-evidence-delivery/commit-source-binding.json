@@ -1,0 +1,44 @@
+{
+  "head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "tree": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+  "parent": "cee5d51f325fb84033060f546337d326110adae5",
+  "source_freeze_sha256": "cdc393656f874d1455f7380b839f433adc1accf8768d3987b0cbb05e0019957b",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 190888,
+      "sha256": "56ff78a8d86e5a2937ebcabb7f021493996c9846191b5053b588b7d5c5eef890"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 144245,
+      "sha256": "21fde090008184a67423a284dc9d6045ba338ce9123b110720a51248d9c5cf75"
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "bytes": 5736,
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe"
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "bytes": 22737,
+      "sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a"
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "bytes": 86902,
+      "sha256": "093fba46e7c04b00395e15669fa3d3fe2d61f02454863926f8dd2db9f975e64f"
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "bytes": 4854,
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "bytes": 28540,
+      "sha256": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af"
+    }
+  ],
+  "all_committed_bytes_match_review": true
+}

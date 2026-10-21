@@ -1,0 +1,40 @@
+{
+  "schema": "public-evidence-allowlist/v1",
+  "state": "pending",
+  "created_at": "2026-10-21T18:40:03.655128+00:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4401,
+      "sha256": "0f0cee7d217392d1133ab6adbc147a9e2a8073a90d2e384155d1d43ea5297e65"
+    },
+    {
+      "path": "budget.json",
+      "bytes": 1412,
+      "sha256": "8d29f17843cfff870fa1c2ec0c28056f3313ff920626db19650fe7d75267e5e6"
+    },
+    {
+      "path": "candidate-source-observation.json",
+      "bytes": 5243,
+      "sha256": "8e3adc28a4e689a1e6345288c16d704245572ca6f37689d031a9194f3e2d9f8b"
+    },
+    {
+      "path": "diagnostic-limit.json",
+      "bytes": 940,
+      "sha256": "3aa4a65e3d052fd29633e1a1dafa34def6dc7b86fb06f9eb2d7fd245408fcf27"
+    },
+    {
+      "path": "pending-plan.json",
+      "bytes": 3590,
+      "sha256": "dcaa801f429b42f0262e7726b3be90b133f949b95a7446bf55cead14e8912813"
+    },
+    {
+      "path": "prior-evidence.json",
+      "bytes": 3351,
+      "sha256": "089ea812e826390353d47228121ef3d6d08356e102624753632b4089541981ff"
+    }
+  ],
+  "payload_bytes": 18937,
+  "paid_operations": 0,
+  "provider_calls": 0
+}

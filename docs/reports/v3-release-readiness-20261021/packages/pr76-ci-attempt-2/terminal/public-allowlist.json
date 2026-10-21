@@ -1,0 +1,43 @@
+{
+  "schema": "bounded-public-evidence-allowlist/v1",
+  "scope": "PR76 native run39644526993 attempt2; inherited logs explicitly identified",
+  "payload_paths": [
+    "README.md",
+    "collection-requests.json",
+    "run-final.json",
+    "attempt2-final.json",
+    "attempt1-final.json",
+    "jobs-attempt2.json",
+    "jobs-attempt1.json",
+    "artifacts-final.json",
+    "pr-final.json",
+    "stable-job.log",
+    "retained-signed-job.log",
+    "pages-job.log",
+    "sdk-job.log",
+    "artifact-binding.json",
+    "native-stable-four-clients-test-only-attempt2.zip",
+    "artifacts/clients-A.json",
+    "artifacts/clients-B.json",
+    "artifacts/https-requests.jsonl",
+    "artifacts/native-stable-clients.json",
+    "head-check-runs.json",
+    "merge-commit.json",
+    "verify-terminal-evidence.py",
+    "prior-evidence-preservation.json",
+    "source-binding.json",
+    "installed-cli-proof.json",
+    "cache-and-barrier-proof.json",
+    "cleanup-proof.json",
+    "attempt-boundary-comparison.json",
+    "retained-job-proof.json",
+    "summary.json"
+  ],
+  "sealing_paths": [
+    "public-allowlist.json",
+    "final-manifest.json",
+    "public-evidence.tar.gz",
+    "public-archive-binding.json"
+  ],
+  "excluded": "No private keys, package trees, environments, credentials, source mutations or unlisted files. Original attempt1 and stage files remain separate immutable references."
+}

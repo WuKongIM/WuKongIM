@@ -1,0 +1,56 @@
+{
+  "schema": "wukongim/offline-collector-analysis-manifest/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 10280,
+      "sha256": "497406a264cb67d6159df98b0561484252f021398fbeaf47695e0b5b5dd9bf32"
+    },
+    {
+      "path": "allowlist.txt",
+      "bytes": 179,
+      "sha256": "1ab9b166d4f4db8166df3c9e1897f047a507890c74eb2b005a7b8d1c3132dbb1"
+    },
+    {
+      "path": "artifact-observation.json",
+      "bytes": 7402,
+      "sha256": "0773043b5f8acf99087587a04cc12251e33cd0e79f8e9887b0fa77addda6a347"
+    },
+    {
+      "path": "existing-collector-test.log",
+      "bytes": 208,
+      "sha256": "e97378bf7bdf4ca39a2ab98228dca202ee21bf8b6a299efa144a9d2ad2ba83ea"
+    },
+    {
+      "path": "existing-producer-tests.log",
+      "bytes": 355,
+      "sha256": "f659cbe9af59b741c5ad4c21e95d94e26e85a15877d8c9c3889245d3bb20cfc0"
+    },
+    {
+      "path": "probe-collector.py",
+      "bytes": 4311,
+      "sha256": "5f6af400ba711432e43b8476f3fd75a80fb6e488d79f07fcb5c8e67d4f00ef44"
+    },
+    {
+      "path": "probe-red.log",
+      "bytes": 272,
+      "sha256": "5c3ea210bd670be39bb301b9318d8be378b5c2a17c2332ef1e8b47923ef2aef0"
+    },
+    {
+      "path": "probe-results.json",
+      "bytes": 7689,
+      "sha256": "689cdfb34950795a0f6e02312a8da91ec9498ca336765a7bdfb1ad009833916f"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 4078,
+      "sha256": "95611de64fe19a53fa408830afec8a7acfc7b77434fe1ff62fd015ade411c4dc"
+    },
+    {
+      "path": "validation.json",
+      "bytes": 1374,
+      "sha256": "d1c1d3b9050418d38590aff83b346209d2ddd19d2b9696b092b462c486740a48"
+    }
+  ],
+  "raw_cloud_logs_profiles_or_credentials_included": false
+}

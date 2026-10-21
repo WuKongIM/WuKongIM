@@ -1,0 +1,240 @@
+{
+  "schema": "wukongim.independent-spec-review.v2",
+  "reviewed_at": "2026-10-21T18:27:03.406951+00:00",
+  "axis": "Spec",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "head": "cee5d51f325fb84033060f546337d326110adae5",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "commit_list": [],
+  "source_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/review-source-freeze.json",
+    "bytes": 3159,
+    "sha256": "cdc393656f874d1455f7380b839f433adc1accf8768d3987b0cbb05e0019957b"
+  },
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 190888,
+      "sha256": "56ff78a8d86e5a2937ebcabb7f021493996c9846191b5053b588b7d5c5eef890",
+      "before_matches": true,
+      "after_matches": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 144245,
+      "sha256": "21fde090008184a67423a284dc9d6045ba338ce9123b110720a51248d9c5cf75",
+      "before_matches": true,
+      "after_matches": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "bytes": 5736,
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+      "before_matches": true,
+      "after_matches": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "bytes": 22737,
+      "sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+      "before_matches": true,
+      "after_matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "bytes": 86902,
+      "sha256": "093fba46e7c04b00395e15669fa3d3fe2d61f02454863926f8dd2db9f975e64f",
+      "before_matches": true,
+      "after_matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "bytes": 4854,
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+      "before_matches": true,
+      "after_matches": true
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "bytes": 28540,
+      "sha256": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af",
+      "before_matches": true,
+      "after_matches": true
+    }
+  ],
+  "rules": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    }
+  ],
+  "spec_sources": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/failure-matrix.md",
+      "bytes": 1958,
+      "sha256": "b34d0b65d7e59628a4a90614a9fc94b1e7b9a5bc0fbed38cf11b3039759078b5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/implementation-plan.md",
+      "bytes": 3526,
+      "sha256": "b9d16b952cc34162b5e601fc34aa556e7c4d0ef123811f0f6b7a92e9057c6314"
+    }
+  ],
+  "findings": [],
+  "closed_findings": [
+    {
+      "id": "SPEC-1",
+      "prior_report": "terminal-evidence-review-v1/spec.md",
+      "status": "closed",
+      "lines": [
+        133,
+        138,
+        340,
+        341,
+        413
+      ],
+      "proof": "Nearest-millisecond down/up/tie/carry, valid first/last, invalid one-ms outside/sub-ms, raw end/hash retention, 900-second span and 1-ns reversed capacity end tested."
+    },
+    {
+      "id": "SPEC-2",
+      "prior_report": "terminal-evidence-review-v1/spec.md",
+      "status": "closed",
+      "lines": [
+        88,
+        108,
+        418,
+        425
+      ],
+      "proof": "v1 success/unknown reproduction now requires capacity or rejects invalid anchors. Five failure classes exempt only with valid phase/canonical zero capacity; malformed/continuing/wrong phase rejected."
+    }
+  ],
+  "producer_contract_references": [
+    "report.go:547-633",
+    "verdict.go:330-575,865-898",
+    "production_controller.go:508-525",
+    "checkpoint.go:388-391",
+    "capacity.go:110-115"
+  ],
+  "helper_delta": {
+    "changed": [
+      "main",
+      "read_report",
+      "validate_metric"
+    ],
+    "added": [
+      "validate_terminal_phase"
+    ],
+    "unchanged": [
+      "atomic_retain",
+      "capture",
+      "collect_ranges",
+      "connections",
+      "counters",
+      "document_capture",
+      "epoch",
+      "harness",
+      "identity",
+      "keys",
+      "metric_capture",
+      "require",
+      "strict_json",
+      "uint",
+      "validate_status",
+      "validate_worker"
+    ]
+  },
+  "non_product_artifact_env": "CHAT_LIFECYCLE_TERMINAL_EVIDENCE_TEST_ARTIFACT",
+  "independent_probes": {
+    "count": 52,
+    "failed": 0,
+    "scope": "Independent pure helper read_report/validate_metric/main probes; capture functions replaced with no-I/O implementations. No product, SSH, cloud or full tests."
+  },
+  "artifacts": [
+    {
+      "path": "spec.md",
+      "bytes": 725,
+      "sha256": "72b3ca359942dbfeb6c74d81ee737dd7c5f34d055f7a8265ad6bac4e0682c89a"
+    },
+    {
+      "path": "spec-probes/probe.py",
+      "bytes": 4795,
+      "sha256": "f28257c39649fd9bdfe8c45e39bf5cf80d2116c7986945bd92e2cd4127dfeebb"
+    },
+    {
+      "path": "spec-probes/results.json",
+      "bytes": 10499,
+      "sha256": "b3d1c41fb845fbfff86c9a20ec70a66af3605febf690db3e046678da9a57eb11"
+    }
+  ],
+  "author_evidence": {
+    "focused": {
+      "methods": 20,
+      "cases": 79,
+      "failures": 0,
+      "errors": 0
+    },
+    "valid_precision_red": {
+      "cases": 11,
+      "failures": 8,
+      "errors": 0,
+      "exact_v1_helper": {
+        "bytes": 19394,
+        "sha256": "dbe5faac34800831c43d8cb1b224c82011611b88ad7d7138236627b2b01f9bbf"
+      }
+    },
+    "early_precision_fixture_errors": "Preserved but excluded as behavioral red. Corrected fixture replay against exact V1 hash confirms contract failures.",
+    "immutable_evidence": [
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected.log",
+        "bytes": 1199,
+        "sha256": "02e3bc18abdb59795c4ea0d40e6f3afdf797a8dfe7d4a1efec21d5443fd3a17f"
+      },
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected-results.json",
+        "bytes": 1268612,
+        "sha256": "963e69ea7998670b2e587985f35db8ba36d939e9433781b4abcf11d338277411"
+      },
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/precision-red-correction.json",
+        "bytes": 676,
+        "sha256": "b8ed7538f7c1b0e45b19df5a0d952c68d20109a3ab842bcb94fb5bb4763b9e55"
+      },
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red-precision-real-response-results.json",
+        "bytes": 209193,
+        "sha256": "cd51f2af38a16deddcf7cfd512167dc80a4c5ed3d6932599c60a16261561b5e7"
+      },
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/red-precision-real-response.log",
+        "bytes": 7724,
+        "sha256": "27d13da87e09d2c2d35bca6980085aa728d67eaf1d1bf48b4ca511558e87012d"
+      },
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/full-default-summary.json",
+        "bytes": 1365,
+        "sha256": "3d8d97e10fb9b86ced63470ed98036f4a38d266f913ce27f9b85f6c1dde20d78"
+      }
+    ]
+  },
+  "limitations": [
+    "No full suite rerun by reviewer.",
+    "No final Mac integration result asserted; Linux original 9m gate still required.",
+    "Offline fixture/helper validation does not certify cloud behavior."
+  ],
+  "scope_complete": true,
+  "source_unchanged": true,
+  "standards_report_read": false,
+  "cloud_product_network_used": false,
+  "all_reviewer_processes_terminal": true
+}

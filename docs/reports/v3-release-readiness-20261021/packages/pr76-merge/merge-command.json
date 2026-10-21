@@ -1,0 +1,17 @@
+{
+  "command": [
+    "gh",
+    "pr",
+    "merge",
+    "76",
+    "--repo",
+    "WuKongIM/packages",
+    "--rebase",
+    "--match-head-commit",
+    "dded26afa12188d5f1c036af4b9c06c3cbddb46d"
+  ],
+  "start": "2026-10-21T18:17:45.008720+00:00",
+  "end": "2026-10-21T18:17:49.313483+00:00",
+  "exit_code": 0,
+  "authorization": "User standing authority to merge reviewed and validated task PRs; no admin bypass."
+}

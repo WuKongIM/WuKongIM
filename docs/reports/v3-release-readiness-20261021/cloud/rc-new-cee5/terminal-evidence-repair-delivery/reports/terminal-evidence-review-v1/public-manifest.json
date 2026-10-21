@@ -1,0 +1,50 @@
+{
+  "schema": "public-review-archive/v1",
+  "files": [
+    {
+      "path": "scope.json",
+      "bytes": 1726,
+      "sha256": "0209b33d90232efc2171032b533c1532421981b74fad9143f7624b050975b21a"
+    },
+    {
+      "path": "tracked.patch",
+      "bytes": 8932,
+      "sha256": "41208ae5fcf7e032d53b12042878f3375643b61e5cc8143eab0cf7556352f3b8"
+    },
+    {
+      "path": "standards.md",
+      "bytes": 690,
+      "sha256": "27a723a40ef7059bf52c718cdcc830e5aa5cf63f903b06b3479b06a790ae2256"
+    },
+    {
+      "path": "standards-freeze.json",
+      "bytes": 10153,
+      "sha256": "ce187324e3c9aa8886a97377fdf869fd389f70037856f864baf40c8c52023b95"
+    },
+    {
+      "path": "spec.md",
+      "bytes": 690,
+      "sha256": "7d004eeaefe1a6f91989416d36410b4270dd16ab41031b6f4435697452defe8b"
+    },
+    {
+      "path": "spec-freeze.json",
+      "bytes": 7349,
+      "sha256": "7a9ba3dd1ceb675aa984d54e0ae2bb6fcf4b1e8a1188be909b43707203448e02"
+    },
+    {
+      "path": "spec-probes/probe.py",
+      "bytes": 1890,
+      "sha256": "7ff141dd893864928bbd9fb3515920c094ba042dd59b9f6f2811db7a1cf12b25"
+    },
+    {
+      "path": "spec-probes/results.json",
+      "bytes": 2772,
+      "sha256": "e805277f0ecc1113199589284d28132cecd6aef3216c3b579b275894ed6a37db"
+    },
+    {
+      "path": "combined-review.md",
+      "bytes": 887,
+      "sha256": "7ab362ae0b6f431c6862a32e97006ff28f130be829a9358d4bbdb7d2ca4cfa31"
+    }
+  ]
+}

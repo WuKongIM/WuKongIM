@@ -1,0 +1,9 @@
+# V2 failure matrix — tests before corrections
+
+V1 evidence is immutable in ../terminal-evidence-repair. V1 Standards had zero findings; Spec found two P2 items. The first complete integration suite ended with one test failure caused by the artifact environment name using the product WK_ namespace. V2 changes only these proven collector/test defects.
+
+1. Prometheus v3.13.1 parses numeric range boundaries at nearest milliseconds. Test real collector requests with legitimate first/last points at that precision, down/up/tie/second-carry rounding, and reject one-millisecond-outside and sub-millisecond response points. Preserve the raw terminal report nanosecond timestamp and report hash; request/validate against a closed canonical millisecond interval, with unchanged 900-second span and 15-second step. Capacity ordering must remain nanosecond exact even when two ends round to the same millisecond.
+2. Formal capacity exemption requires a legal failure outcome/cause, final non-continuing formal soak, and complete zero/not-attempted capacity evidence. A successful pass or pass-with-warning still requires capacity; unknown/missing/crossed outcome/cause, wrong stage/mode, continuation, contradictory/incomplete capacity state must not become not_applicable. Cover product/harness/infrastructure/operator/insufficient failure classes and legal rehearsal/formal success vocabulary. Record phase evidence plus report hash on exemption.
+3. The fixture artifact destination must use CHAT_LIFECYCLE_TERMINAL_EVIDENCE_TEST_ARTIFACT, outside strict product WK_ configuration. Go integration fixture must verify the artifact was actually written under that new variable. Preserve prior invocation failure and repeat the full scripts suite with the corrected namespace after implementation.
+
+All existing V1 failure cases remain. New runtime scenarios remain integration-tagged. No cloud, product behavior, thresholds, workflows or protected policy edits.

@@ -1,0 +1,85 @@
+{
+  "latest_request": "chat-20261021T163850Z-4ccd7506",
+  "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "source": "cee5d51f325fb84033060f546337d326110adae5",
+  "terminal": {
+    "elapsed_seconds": 61.212052848,
+    "reported_outcome": "product_failure",
+    "reported_cause": "message_loss",
+    "losses": 1,
+    "root_cause_established": false,
+    "evidence_complete": false,
+    "collector_gap": "metrics/range oversized",
+    "formal_started": false
+  },
+  "stop_marker": {
+    "observed_at": "2026-10-21T17:39:39Z",
+    "outcome": "operator_stop",
+    "request_id": "chat-20261021T163850Z-4ccd7506",
+    "schema": "wukongim.chat_lifecycle.operator_stop/v1"
+  },
+  "zero": {
+    "selector": {
+      "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+      "request_id": "chat-20261021T163850Z-4ccd7506",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    "observed_at": "2026-10-21T17:43:09.4025176Z",
+    "scopes": [
+      "disk_attachments",
+      "disks",
+      "eip_associations",
+      "eips",
+      "enis",
+      "instances",
+      "nat_gateways",
+      "route_entries",
+      "security_group_rules",
+      "security_groups",
+      "vpcs",
+      "vswitches"
+    ],
+    "zero_inventory": true,
+    "release_run_id": 39646126395,
+    "release_artifact_id": 12366778108,
+    "cleanup_artifact_id": 12366858052,
+    "complete_artifact_id": 12367302003
+  },
+  "invoice_known": false,
+  "public_source_references": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/stop-release/readonly-observation/summary.json",
+      "sha256": "3bbbf898a469d4be0d849536345d69129081a606289f77ef5a097c7064568aa9",
+      "bytes": 6794
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/stop-release/readonly-observation/artifact-12366858052/cleanup.json",
+      "sha256": "f51fad6680972b2c7f9f4736c825fc2ea1b075c044e29a0b369d4944e1198163",
+      "bytes": 172
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/stop-release/readonly-observation/artifact-12366858052/zero-inventory.json",
+      "sha256": "0740da8b300367414c189b492e8102e38cb623644637234f2bd9173bcd767f51",
+      "bytes": 659
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/stop-release/readonly-observation/artifact-12367302003-selected/terminal/final.json",
+      "sha256": "80855a67613686c2860b9982564c516dd88f472537b8487290cd7d48ab966616",
+      "bytes": 23867
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/first-diagnosis-public-frozen/finalizer-39642565187/verified/quote.json",
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "bytes": 1842
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/next-request-after-pr1022-preparation/generation-3/source-and-budget.json",
+      "sha256": "237538c7cda2c2e157c2007cd3d0afc7f0d10e5c852dd3fa9034a9b8a5450d2c",
+      "bytes": 8248
+    }
+  ],
+  "verification_boundary": "Local retained public JSON/hash inspection only; no live provider or GitHub refresh. Existing selected complete-artifact coverage is not falsely described as a freshly downloaded whole ZIP."
+}

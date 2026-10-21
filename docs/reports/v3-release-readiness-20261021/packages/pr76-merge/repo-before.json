@@ -1,0 +1,16 @@
+{
+  "full_name": "WuKongIM/packages",
+  "default_branch": "main",
+  "allow_merge_commit": true,
+  "allow_squash_merge": true,
+  "allow_rebase_merge": true,
+  "permissions": {
+    "admin": true,
+    "maintain": true,
+    "push": true,
+    "triage": true,
+    "pull": true
+  },
+  "archived": false,
+  "disabled": false
+}

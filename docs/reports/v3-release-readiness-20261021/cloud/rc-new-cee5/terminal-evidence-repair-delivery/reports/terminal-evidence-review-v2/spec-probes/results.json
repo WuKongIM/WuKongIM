@@ -1,0 +1,543 @@
+{
+  "scope": "Independent pure helper read_report/validate_metric/main probes; capture functions replaced with no-I/O implementations. No product, SSH, cloud or full tests.",
+  "results": [
+    {
+      "case": "round-121277292",
+      "actual": "1792602410.121",
+      "expected": "1792602410.121",
+      "pass": true
+    },
+    {
+      "case": "raw-121277292",
+      "actual": [
+        "2026-10-21T17:06:50.121277292Z",
+        "7c71d4ae6ba4172601c4fea2c78128219d61c01b8f1fcead3ad12b057781b9b1"
+      ],
+      "expected": [
+        "2026-10-21T17:06:50.121277292Z",
+        "7c71d4ae6ba4172601c4fea2c78128219d61c01b8f1fcead3ad12b057781b9b1"
+      ],
+      "pass": true
+    },
+    {
+      "case": "900s-121277292",
+      "actual": "900.000",
+      "expected": "900.000",
+      "pass": true
+    },
+    {
+      "case": "metric-121277292-first",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-121277292-last",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-121277292-before",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-121277292-after",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-121277292-sub-ms",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "round-121777292",
+      "actual": "1792602410.122",
+      "expected": "1792602410.122",
+      "pass": true
+    },
+    {
+      "case": "raw-121777292",
+      "actual": [
+        "2026-10-21T17:06:50.121777292Z",
+        "1a9f39b85360e79cbb3ab32b0f7c38dc0338ea7ae64d51e065e4d164f9190363"
+      ],
+      "expected": [
+        "2026-10-21T17:06:50.121777292Z",
+        "1a9f39b85360e79cbb3ab32b0f7c38dc0338ea7ae64d51e065e4d164f9190363"
+      ],
+      "pass": true
+    },
+    {
+      "case": "900s-121777292",
+      "actual": "900.000",
+      "expected": "900.000",
+      "pass": true
+    },
+    {
+      "case": "metric-121777292-first",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-121777292-last",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-121777292-before",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-121777292-after",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-121777292-sub-ms",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "round-121500000",
+      "actual": "1792602410.122",
+      "expected": "1792602410.122",
+      "pass": true
+    },
+    {
+      "case": "raw-121500000",
+      "actual": [
+        "2026-10-21T17:06:50.121500000Z",
+        "4c74e200ab5e13e2d676a0efd88374614a1863db11c0d96465c14de4b228ae5d"
+      ],
+      "expected": [
+        "2026-10-21T17:06:50.121500000Z",
+        "4c74e200ab5e13e2d676a0efd88374614a1863db11c0d96465c14de4b228ae5d"
+      ],
+      "pass": true
+    },
+    {
+      "case": "900s-121500000",
+      "actual": "900.000",
+      "expected": "900.000",
+      "pass": true
+    },
+    {
+      "case": "metric-121500000-first",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-121500000-last",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-121500000-before",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-121500000-after",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-121500000-sub-ms",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "round-999777292",
+      "actual": "1792602411.000",
+      "expected": "1792602411.000",
+      "pass": true
+    },
+    {
+      "case": "raw-999777292",
+      "actual": [
+        "2026-10-21T17:06:50.999777292Z",
+        "989d21691965d974b0d75aa1b719778389560dff5cf892d608d627d4c1a12eb0"
+      ],
+      "expected": [
+        "2026-10-21T17:06:50.999777292Z",
+        "989d21691965d974b0d75aa1b719778389560dff5cf892d608d627d4c1a12eb0"
+      ],
+      "pass": true
+    },
+    {
+      "case": "900s-999777292",
+      "actual": "900.000",
+      "expected": "900.000",
+      "pass": true
+    },
+    {
+      "case": "metric-999777292-first",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-999777292-last",
+      "actual": true,
+      "expected": true,
+      "pass": true
+    },
+    {
+      "case": "metric-999777292-before",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-999777292-after",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "metric-999777292-sub-ms",
+      "actual": false,
+      "expected": false,
+      "pass": true
+    },
+    {
+      "case": "legal-failure-product_failure",
+      "actual": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "legal-failure-harness_invalid",
+      "actual": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "legal-failure-infrastructure_failure",
+      "actual": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "legal-failure-operator_stop",
+      "actual": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "legal-failure-insufficient_evidence",
+      "actual": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-documents",
+          "not_applicable"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "success-pass",
+      "actual": [
+        [
+          "capacity-terminal-anchor",
+          "missing"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-terminal-anchor",
+          "missing"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "success-passed_with_capacity_warning",
+      "actual": [
+        [
+          "capacity-terminal-anchor",
+          "missing"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-terminal-anchor",
+          "missing"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "unknown-outcome",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "unknown-cause",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "crossed-failure",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "success-cause-failure",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "missing-cause",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "continuing",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "wrong-stage",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "wrong-mode",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "incomplete-zero",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "contradictory-zero",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "capacity-cause-on-soak",
+      "actual": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "attempted-missing",
+      "actual": [
+        [
+          "capacity-terminal-anchor",
+          "missing"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-terminal-anchor",
+          "missing"
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "case": "raw-capacity-order",
+      "actual": [
+        [
+          "capacity-terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "expected": [
+        [
+          "capacity-terminal-anchor",
+          "invalid"
+        ]
+      ],
+      "pass": true
+    }
+  ],
+  "count": 52,
+  "failed": 0
+}

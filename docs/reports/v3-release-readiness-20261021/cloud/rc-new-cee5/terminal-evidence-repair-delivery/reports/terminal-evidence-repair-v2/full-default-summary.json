@@ -1,0 +1,53 @@
+{
+  "exit_code": 0,
+  "test_actions": {
+    "run": 680,
+    "output": 1383,
+    "pass": 679,
+    "pause": 11,
+    "cont": 11,
+    "skip": 1
+  },
+  "root_pass": 391,
+  "skips": [
+    "TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk"
+  ],
+  "packages": [
+    {
+      "Time": "2026-10-22T02:23:58.998341+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+      "Elapsed": 0.864
+    },
+    {
+      "Time": "2026-10-22T02:23:59.204728+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+      "Elapsed": 1.07
+    },
+    {
+      "Time": "2026-10-22T02:23:59.323032+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+      "Elapsed": 1.188
+    },
+    {
+      "Time": "2026-10-22T02:23:59.483098+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+      "Elapsed": 1.349
+    },
+    {
+      "Time": "2026-10-22T02:23:59.741833+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+      "Elapsed": 1.607
+    },
+    {
+      "Time": "2026-10-22T02:24:30.497393+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 32.363
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "exit_code": 0,
+  "mac_supplement_only": true,
+  "not_protected_linux_named_check": true,
+  "test_actions": {
+    "run": 1305,
+    "output": 3115,
+    "pass": 1294,
+    "pause": 247,
+    "cont": 247,
+    "skip": 11
+  },
+  "root_pass": 645,
+  "skips": [
+    {
+      "test": "TestDockerImageRuntimeContract",
+      "output": [
+        "=== RUN   TestDockerImageRuntimeContract",
+        "docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract",
+        "--- SKIP: TestDockerImageRuntimeContract (0.00s)"
+      ]
+    },
+    {
+      "test": "TestDockerImageEmbeddedPrometheus",
+      "output": [
+        "=== RUN   TestDockerImageEmbeddedPrometheus",
+        "docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate",
+        "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)"
+      ]
+    },
+    {
+      "test": "TestEasySDKReadinessSerialDelayFixture",
+      "output": [
+        "=== RUN   TestEasySDKReadinessSerialDelayFixture",
+        "easysdk_readiness_schedule_integration_test.go:35: subprocess scheduling fixture only",
+        "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)"
+      ]
+    },
+    {
+      "test": "TestNativePackageLifecycle",
+      "output": [
+        "=== RUN   TestNativePackageLifecycle",
+        "native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation",
+        "--- SKIP: TestNativePackageLifecycle (0.00s)"
+      ]
+    },
+    {
+      "test": "TestNativePackageSignedRepository",
+      "output": [
+        "=== RUN   TestNativePackageSignedRepository",
+        "native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation",
+        "--- SKIP: TestNativePackageSignedRepository (0.00s)"
+      ]
+    },
+    {
+      "test": "TestNativePackageRepositoryDeadlineFixture",
+      "output": [
+        "=== RUN   TestNativePackageRepositoryDeadlineFixture",
+        "native_package_repository_output_integration_test.go:92: subprocess fixture only",
+        "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)"
+      ]
+    },
+    {
+      "test": "TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk",
+      "output": [
+        "=== RUN   TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk",
+        "wukongim_three_node_chat_lifecycle_script_test.go:444: GNU awk is not installed",
+        "--- SKIP: TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero/gawk (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier (0.00s)"
+      ]
+    },
+    {
+      "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier",
+      "output": [
+        "=== RUN   TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier",
+        "chat_lifecycle_preclock_capture_integration_test.go:318: host regex does not support unchanged {1,512} cursor bound; summary SSH branch requires Linux CI",
+        "--- SKIP: TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier (0.00s)"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "Time": "2026-10-22T02:24:00.224953+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+      "Elapsed": 1.491
+    },
+    {
+      "Time": "2026-10-22T02:24:00.514357+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+      "Elapsed": 1.78
+    },
+    {
+      "Time": "2026-10-22T02:24:00.565688+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+      "Elapsed": 1.8319999999999999
+    },
+    {
+      "Time": "2026-10-22T02:24:00.684178+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+      "Elapsed": 1.95
+    },
+    {
+      "Time": "2026-10-22T02:24:00.982693+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+      "Elapsed": 2.249
+    },
+    {
+      "Time": "2026-10-22T02:34:56.340711+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 657.684
+    }
+  ]
+}

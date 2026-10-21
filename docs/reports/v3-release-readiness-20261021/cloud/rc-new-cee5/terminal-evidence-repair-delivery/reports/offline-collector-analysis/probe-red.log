@@ -1,0 +1,3 @@
+FAIL: worker-evidence fixture was available but collector did not retain it
+normal: complete=true, 16 captures, worker-evidence never requested (retention assertion RED)
+oversized: exit=1, complete=false, range=oversized/4194305 bytes, no retained range or temporary file

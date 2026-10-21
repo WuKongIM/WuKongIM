@@ -1,0 +1,27 @@
+{
+  "allowlist": [
+    "README.md",
+    "failure-matrix.md",
+    "source-binding.json"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 7722,
+      "sha256": "2008eba29bb0c62cd05635bcce93bcc94d8c90d1411bb741dd0bffae95e1c7f4"
+    },
+    {
+      "path": "failure-matrix.md",
+      "bytes": 2767,
+      "sha256": "98b602dd0de5dd99ba0d32fa6fa2438740a665320e00bbb11845eb210d7a2d49"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 3529,
+      "sha256": "c2cbe000f1142feb8bfd710a1e69180966676a6a077fcade95ced97d6e46c9bd"
+    }
+  ],
+  "no_source_changes": true,
+  "no_tests_or_cloud_or_provider_or_credentials": true,
+  "all_read_commands_terminal": true
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "bounded-public-evidence-allowlist/v1",
+  "payload_paths": [
+    "README.md",
+    "initial-binding.json",
+    "commit.json",
+    "runs-initial.json",
+    "checks-initial.json",
+    "pages-jobs-1.json",
+    "pages-jobs-2.json",
+    "pages-run-3.json",
+    "pages-jobs-3.json",
+    "pages-artifacts-final.json",
+    "sdk-jobs-final.json",
+    "sdk-artifacts-final.json",
+    "sdk-run-final.json",
+    "sdk-job.log",
+    "pages-job.log",
+    "pages-source.json",
+    "pages-source.yml",
+    "channels-source.json",
+    "channels.json",
+    "object-storage-sdk-contract.zip",
+    "provider-contract-receipt.json",
+    "sdk-artifact-binding.json",
+    "runs-final.json",
+    "checks-final.json",
+    "source-binding.json",
+    "summary.json",
+    "verify-and-seal.py",
+    "collector-first-failure.json"
+  ],
+  "sealing_paths": [
+    "public-allowlist.json",
+    "final-manifest.json",
+    "public-evidence.tar.gz",
+    "public-archive-binding.json"
+  ],
+  "scope": "Only be32 postmerge attempt1 exact two runs. No private material or unlisted files."
+}

@@ -1,0 +1,9 @@
+{
+  "recorded_at": "2026-10-21T18:21:38.600504+00:00",
+  "command": "python3 verify-and-seal.py",
+  "exit_code": 1,
+  "source_sha256": "c1d00bc2d7d7ff5183e183ca429c5c3f7ff002449b39cc8e93e00b504d3ad221",
+  "failure": "AssertionError at line 56: private-key marker scan matched the literal patterns in the collector source itself.",
+  "scope": "Local evidence collector only; CI results and artifacts unaffected. No private key was observed.",
+  "repair": "Build marker patterns from parts so the collector source does not itself contain complete markers; retain all public payload scanning. Record this failed collector attempt and rerun sealing only."
+}

@@ -1,0 +1,89 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1368,
+      "sha256": "d6a42806144916fa21d3eb711cfce83b4d92ace4c681f23eb6a0ffaec530bdf1"
+    },
+    {
+      "path": "body-final.md",
+      "bytes": 2818,
+      "sha256": "7e05a98103af9a53ab77115b779357bf717e6fe1cb8f9e8fb169db10f708da32"
+    },
+    {
+      "path": "branch-before.json",
+      "bytes": 4552,
+      "sha256": "1614f44cf0fad38119bc26afa0d18b7176f0c9422d438d9427e7d53c17ffc405"
+    },
+    {
+      "path": "merge-command.json",
+      "bytes": 410,
+      "sha256": "e17b1e0e03efe7158bd295fedf487c23fd25e7274d990cae8cd29d00e088779d"
+    },
+    {
+      "path": "merge-commit.json",
+      "bytes": 1454,
+      "sha256": "fd3bd68f0b99f02377b954668d5b2ad864eeb1d53c3fd9356ce35cfc742950e8"
+    },
+    {
+      "path": "merge.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "merge.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pr-after.json",
+      "bytes": 20335,
+      "sha256": "7217022921c7f4786602984b74312e015f5f3d1133484cfac2c7f83ced29731d"
+    },
+    {
+      "path": "pr-before.json",
+      "bytes": 20039,
+      "sha256": "ed285ddfd80ad6d0bac3956dbf4b76cb89d999e32181ee3fb0d5c792ea41c4ca"
+    },
+    {
+      "path": "protection-after.json",
+      "bytes": 1292,
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf"
+    },
+    {
+      "path": "protection-before.json",
+      "bytes": 1292,
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf"
+    },
+    {
+      "path": "ready-before-merge.json",
+      "bytes": 2275,
+      "sha256": "2e9fc11e4ea9771e87ecdb639d64b57710bc3b08d2096ec92c87f4892df418d5"
+    },
+    {
+      "path": "repo-before.json",
+      "bytes": 319,
+      "sha256": "5740fbbacf71991581b0c2d302aac31239eb8a84f5d22a4526418e24d803c8d2"
+    },
+    {
+      "path": "reviews-before.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "rulesets-after.json",
+      "bytes": 915,
+      "sha256": "cb390c64261d2cab5eb1b959c8ef1e6c9c1d82647522b221a4e9d03d99e3bad4"
+    },
+    {
+      "path": "rulesets-before.json",
+      "bytes": 1159,
+      "sha256": "cef60188c33dc7b4a147873b8fa25562b7f0493e8c40568503a3f424441bdd51"
+    },
+    {
+      "path": "worktree-cleanup.json",
+      "bytes": 597,
+      "sha256": "0f2e9f86fca9c520691388792fa381f4ba065ba4b5e4b4944f6f737d302c868f"
+    }
+  ]
+}

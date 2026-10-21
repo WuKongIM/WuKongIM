@@ -1,0 +1,69 @@
+{
+  "collected_at": "2026-10-21T18:13:29.852740+00:00",
+  "method": "GET",
+  "requests": [
+    {
+      "name": "run-final.json",
+      "path": "repos/WuKongIM/packages/actions/runs/39644526993",
+      "returncode": 0,
+      "bytes": 12728,
+      "sha256": "0348c4f7edfc6c6ab0a0a46def6f717192cdf9b0fd27db3d7c964b56079d8e5e"
+    },
+    {
+      "name": "attempt2-final.json",
+      "path": "repos/WuKongIM/packages/actions/runs/39644526993/attempts/2",
+      "returncode": 0,
+      "bytes": 12750,
+      "sha256": "b4667aa3ea2552e9abc30c9e678d2911bb8d6cdf04155436d65ad038b00d2a68"
+    },
+    {
+      "name": "attempt1-final.json",
+      "path": "repos/WuKongIM/packages/actions/runs/39644526993/attempts/1",
+      "returncode": 0,
+      "bytes": 12670,
+      "sha256": "65dedb9226a56b4314c8e5dd5f614a7fea09dfab75dc295e4cdc1a6436af2fd8"
+    },
+    {
+      "name": "jobs-attempt2.json",
+      "path": "repos/WuKongIM/packages/actions/runs/39644526993/attempts/2/jobs?per_page=100",
+      "returncode": 0,
+      "bytes": 8915,
+      "sha256": "b46dfc675c2499b57c2a5f1871a9b28cf223588260200cf1cbb6dbc2fffc6201"
+    },
+    {
+      "name": "jobs-attempt1.json",
+      "path": "repos/WuKongIM/packages/actions/runs/39644526993/attempts/1/jobs?per_page=100",
+      "returncode": 0,
+      "bytes": 8912,
+      "sha256": "bab64e2feb032919fd92beaf97a12a8f717c30c6a93762112997c11a68e8a27a"
+    },
+    {
+      "name": "artifacts-final.json",
+      "path": "repos/WuKongIM/packages/actions/runs/39644526993/artifacts?per_page=100",
+      "returncode": 0,
+      "bytes": 4349,
+      "sha256": "dbe90aef013552e4aace55257b08d01fca8417d9ca6a1ce6294dffee759374e5"
+    },
+    {
+      "name": "pr-final.json",
+      "path": "repos/WuKongIM/packages/pulls/76",
+      "returncode": 0,
+      "bytes": 17379,
+      "sha256": "5bff8df26099f9467979137ed2d0d4b955cb4fdd3c9133f35f0eb12d5094be1e"
+    },
+    {
+      "name": "stable-job.log",
+      "path": "repos/WuKongIM/packages/actions/jobs/119391226142/logs",
+      "returncode": 0,
+      "bytes": 62797,
+      "sha256": "8f26c6fde32f49642fdce8943e6980ba44582e7abb71d57cda1b2021f41eede1"
+    },
+    {
+      "name": "retained-signed-job.log",
+      "path": "repos/WuKongIM/packages/actions/jobs/119391228348/logs",
+      "returncode": 0,
+      "bytes": 196449,
+      "sha256": "cf05de0ec03f246aa38a32d07c687e462fb61f77373714a0e944481e411069a9"
+    }
+  ]
+}

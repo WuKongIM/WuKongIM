@@ -1,0 +1,26 @@
+Type: alloc_space
+Time: 2026-10-22 01:19:15 CST
+Showing nodes accounting for 40.67GB, 75.55% of 53.84GB total
+Dropped 2320 nodes (cum <= 0.27GB)
+Showing top 20 nodes out of 246
+      flat  flat%   sum%        cum   cum%
+   34.58GB 64.23% 64.23%    34.58GB 64.23%  github.com/cockroachdb/pebble/v2/internal/manual.New (inline)
+    1.68GB  3.12% 67.35%     1.69GB  3.13%  github.com/WuKongIM/WuKongIM/pkg/workqueue.(*BoundedBatchPool[go.shape.struct { github.com/WuKongIM/WuKongIM/pkg/channel/replication.proposal github.com/WuKongIM/WuKongIM/pkg/channel/replication.durableProposal; github.com/WuKongIM/WuKongIM/pkg/channel/replication.complete func(github.com/WuKongIM/WuKongIM/pkg/channel/replication.durabilityCompletion); github.com/WuKongIM/WuKongIM/pkg/channel/replication.submittedAt time.Time }]).collectBatch
+    0.58GB  1.08% 68.43%     0.62GB  1.15%  github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { ChannelID string; ChannelType int64; CommittedTail uint64; CreatedAt int64; Generation uint64 }].scanPrimary
+    0.53GB  0.99% 69.42%     0.53GB  0.99%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.(*ObserverDrain).drainAggregates
+    0.42GB  0.78% 70.19%     0.42GB  0.78%  github.com/WuKongIM/WuKongIM/pkg/cluster/routing.(*Table).cloneWithLeaders
+    0.40GB  0.74% 70.94%     0.97GB  1.80%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*peerBatcher).exchange
+    0.33GB  0.62% 71.55%     0.36GB  0.67%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).statusSnapshot
+    0.32GB  0.59% 72.15%     0.36GB  0.67%  github.com/WuKongIM/WuKongIM/pkg/controller/raft.(*applyScheduler).applyEntries
+    0.29GB  0.54% 72.68%     0.30GB  0.56%  github.com/WuKongIM/WuKongIM/internal/access/node.appendString (inline)
+    0.28GB  0.52% 73.20%     0.28GB  0.52%  github.com/WuKongIM/WuKongIM/pkg/slot/fsm.decodeMembershipBatchEntries
+    0.27GB  0.51% 73.71%    14.57GB 27.06%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*ExchangeServer).Handle
+    0.19GB  0.36% 74.07%     0.40GB  0.74%  context.WithDeadlineCause
+    0.14GB  0.26% 74.32%     0.31GB  0.58%  github.com/WuKongIM/WuKongIM/pkg/db/meta.(*WriteBatch).stageSubscribers.func1
+    0.13GB  0.24% 74.56%    34.41GB 63.92%  github.com/cockroachdb/pebble/v2/internal/cache.Alloc
+    0.12GB  0.23% 74.79%     0.86GB  1.60%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan
+    0.11GB  0.21% 74.99%     0.85GB  1.58%  github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).scan
+    0.09GB  0.16% 75.15%    18.33GB 34.04%  github.com/WuKongIM/WuKongIM/pkg/db/message.storeAppendBatchOwner
+    0.08GB  0.15% 75.31%     0.56GB  1.03%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*QuorumPeerLink).Exchange
+    0.07GB  0.12% 75.43%     1.19GB  2.21%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets
+    0.06GB  0.12% 75.55%     0.40GB  0.74%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce
