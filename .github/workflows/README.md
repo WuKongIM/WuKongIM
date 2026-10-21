@@ -19,6 +19,7 @@ authorization and the applicable budget.
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | While armed, collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
 | `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
+| `v3-candidate-regression.yml` | `Safety Automation - V3 Candidate Regression` | Runs the frozen `go-unit` named check, then serial migration, cross-node delivery, and self-chat E2E with one exact server binary on Linux |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
@@ -234,6 +235,62 @@ Both repositories enforce immutable Releases, and the custom-domain DNS and
 certificate are provisioned. Exact unsigned source package assets still come
 only from the tag-bound binary Release described below; this credential-free
 source workflow never receives production signing or package-publisher access.
+
+## V3 candidate regression
+
+`v3-candidate-regression.yml` validates pull requests targeting `main` when Go
+source, the selected process E2E scenarios, their shared harness, or workflow
+contracts change. Manual dispatch runs the selected ref once with no command
+inputs. Both paths have only `contents: read`, credential-free exact-SHA
+checkouts, no persistent Go cache, and no cloud or publication authority.
+The named jobs are `Candidate default suite (go-unit)` and
+`Candidate migration and messaging E2E`; each has a 35-minute bound, and the
+second starts only after the first passes.
+
+The first job freezes the PR event's exact base SHA, or the fetched `origin/main`
+SHA for a manual run, and requires that revision to be an ancestor of the tested
+commit. Its `go-unit` named check is read from that revision's
+`.github/review-agent/policy.json`. The Workflow consumes the command arguments,
+working directory, timeout and combined output limit directly from that policy;
+it does not redefine the check or its path selector. `GOFLAGS=-p=2` bounds package
+build/test concurrency. Exceeding either policy limit fails the job. The shared
+candidate command runner starts each command in its own session, then cleans all
+live members of that SID, including server nodes with separate process groups.
+The retained receipt binds source SHA, policy SHA and
+digest, command, environment, duration, exit status and bounded combined
+stdout/stderr. The workflow's Python static contracts run before the named check.
+
+The second job builds one `e2e`-tagged server from the same exact source SHA.
+Every scenario uses that frozen `WK_E2E_BINARY`, with its SHA256 checked before
+each scenario and after the last. It runs the complete default package tests
+for `ordinary_history` (all five migration topologies, serial subtests),
+`cross_node_delivery`, and `self_chat`, in that order. The existing per-package
+test deadlines remain unchanged; outer command deadlines bound build and test
+processes. A 64 MiB combined output limit bounds each E2E/build command's
+stdout and stderr, retained in separate files. There is no
+automatic retry or test-name filter. A failed scenario prevents later scenarios
+from running and preserves their explicit `not_run` state. The artifact includes
+commands, case results, JSONL logs, the self-chat report when produced, binary
+digest and build metadata, but excludes the server executable.
+
+For normal exit, test failure, deadline, output-limit refusal and handled
+SIGINT/SIGTERM, the runner rechecks each process SID before TERM/KILL, excludes
+zombies, and records the original command outcome plus a separate cleanup
+receipt. The cleanup attempt allows two seconds for TERM and two for KILL;
+repeated cancellation signals cannot interrupt that attempt. Failed process
+enumeration remains unverified, and nonzero survivors or unverified cleanup
+prevent a passing result. There is no host-wide process-name kill.
+
+Both jobs reject tracked-source mutation and attempt evidence upload after
+success, failure, or cancellation, retaining each exact run/attempt for 14 days.
+SIGKILL, hard job cancellation or runner loss can prevent cleanup or upload;
+missing or incomplete cleanup/artifacts are inconclusive, never zero-survivor
+proof. A new PR revision cancels the older PR run; cancellation is never
+passing evidence. Inspect the exact source SHA, run attempt, both job results,
+and receipts before reusing a result. Preserve a failure and diagnose its cause
+before any deliberate rerun. A pass covers this candidate regression scope;
+performance gates, released SDK acceptance, long-duration stability and signed
+native-package publication remain separate release requirements.
 
 ## Fixed Linux SEND diagnosis
 

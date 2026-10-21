@@ -46,6 +46,7 @@ var workflowCatalog = map[string]string{
 	"review-agent-run.yml":                     "Agent Tool - Review Pull Request",
 	"review-agent.yml":                         "Safety Automation - Review Agent Controller",
 	"three-node-chat-lifecycle-regression.yml": "Safety Automation - Three-Node Chat Lifecycle Regression",
+	"v3-candidate-regression.yml":              "Safety Automation - V3 Candidate Regression",
 }
 
 func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T) {

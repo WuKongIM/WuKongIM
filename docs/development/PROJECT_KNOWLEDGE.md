@@ -1858,3 +1858,8 @@ specification, runbook, report, or module documentation; link to them when neede
   canonical unpadded base64url; HTTP payloads use ordinary Base64 of the same
   raw IM bytes. Pages retain default-off development-preview and incomplete
   Linux/fault/load qualification boundaries; configuration stays in one reference.
+- V3 candidate integration keeps the migration recovery repair separate from its
+  archived performance diagnostics. Existing candidate Linux floor evidence does
+  not certify final-tag publication, the agreed long-run plan, or the disabled
+  stable native-package channel; unresolved historical CPU attribution is not an
+  additional gate. See [candidate integration](../reports/2026-10-21-v3-release-recovery.md).
