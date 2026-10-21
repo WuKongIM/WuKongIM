@@ -9,9 +9,38 @@ relax quorum admission or make uncommitted messages readable.
 The product repair was first committed as
 `98c25091bb9587a303af982bb14bf4cedd9aa110`. This integration branch selects that
 repair and its regression fixtures from the evidence branch instead of merging
-hundreds of archived observations into one review. Product directories
-`cmd`, `internal`, and `pkg`, plus `go.mod` and `go.sum`, match the qualified
-candidate `ef798352c40a94e57f768f76b2f4713712f827fe`.
+hundreds of archived observations into one review. The initial integration head
+`5f3ecdf93e762a1b1551b44977a44f2e63c97802` matched qualified candidate
+`ef798352c40a94e57f768f76b2f4713712f827fe` in `cmd`, `internal`, `pkg`, `go.mod`
+and `go.sum`. Its first Linux default-suite run exposed the two failures below.
+The subsequent MQTT fix changes product code, so that earlier tree equivalence
+does not certify the updated candidate. Exact new-head results belong in the PR
+and retained readiness evidence, without rewriting the first failed attempt.
+
+## Failures found by candidate integration
+
+[Candidate run 39546957124](https://github.com/WuKongIM/WuKongIM/actions/runs/39546957124)
+attempt 1 failed two default-suite assertions; migration/messaging E2E was skipped.
+The runner preserved exit 1 and verified Linux session cleanup with zero remaining
+members. The independent SDK, Manager, native-package and three-node runs passed
+on the initial head; those do not override the default-suite failure.
+
+- MQTT cancellation: nested subscription, projection and source scopes only
+  checked their immediate parent while cancellation of the original caller
+  propagated asynchronously. A deterministic delayed-cancellation case drove
+  the real source CAS conflict path and reproduced a pending-drain result and
+  subsequent reads after caller cancellation. Carry only private scope ancestry
+  and synchronously check each ancestor and Owner gate. Preserve the deadline
+  minimum, uncertainty classification and source sealing constraints. Regression
+  assertions require cancellation, no subsequent contention reads and an unchanged
+  unsealed binding; the default-off preview boundary remains unchanged.
+- Replication fixture: its single-item-only rejection bypassed coalesced batches.
+  Every missing repair in six failures across 150 instrumented runs already had
+  the exact durable proposal on the follower. Reject each selected batch item,
+  preserve aligned accepted results, and verify exact repair keys. A deterministic
+  real-batcher regression failed before the fixture fix; the original 66-item
+  scenario passed 150/150 afterward, followed by the full package and focused race
+  checks. No replication product code or expectation was weakened.
 
 ## Existing fixed-candidate evidence
 

@@ -13,9 +13,23 @@ import (
 // Use real subscription/projection/drain/progress and storage transitions, with
 // one fixed interleaving at the source CAS. Unknown effects never become pending.
 func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
-	for _, mode := range []string{"progress", "competing-drain", "changed-end", "progress-denied", "progress-with-exchange", "port-conflict", "lost-reply", "unchanged-rejection", "fake-newer-rejection", "changed-owner", "changed-child", "changed-binding", "regressed-binding", "regressed-progress", "changed-cursor", "regressed-parent", "read-unavailable", "canceled"} {
+	for _, mode := range []string{"progress", "competing-drain", "changed-end", "progress-denied", "progress-with-exchange", "port-conflict", "lost-reply", "unchanged-rejection", "fake-newer-rejection", "changed-owner", "changed-child", "changed-binding", "regressed-binding", "regressed-progress", "changed-cursor", "regressed-parent", "read-unavailable", "canceled", "canceled-delayed"} {
 		t.Run(mode, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			var ctx context.Context
+			var cancel context.CancelFunc
+			if mode == "canceled-delayed" {
+				// Hold cancellation propagation so nested scopes must observe the
+				// original caller synchronously at the source CAS boundary.
+				parent := &delayedCancellation{done: make(chan struct{})}
+				ctx = parent
+				cancel = func() {
+					if parent.Err() == nil {
+						parent.cancel()
+					}
+				}
+			} else {
+				ctx, cancel = context.WithCancel(context.Background())
+			}
 			defer cancel()
 			f, s, progress, prepared := progressFixture(t)
 			ack := advanceProgressWindow(t, f, prepared)
@@ -29,6 +43,7 @@ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
 			f.project.remove = projection.Remove
 			lost := errors.New("source reply unavailable")
 			calls := 0
+			postCancelReads := 0
 			before := prepared.Binding
 			s.write = func(c context.Context, expected uint64, b meta.MQTTSourceBinding) (meta.MQTTSourceBindingResult, error) {
 				calls++
@@ -67,11 +82,14 @@ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
 				receipt, e := f.store.CompareAndSwapMQTTSourceBinding(c, expected, b)
 				require.NoError(t, e)
 				require.Equal(t, meta.MQTTSessionCASConflict, receipt.Status)
-				if mode == "canceled" {
+				if mode == "canceled" || mode == "canceled-delayed" {
 					cancel()
 				}
 				parentRevision := f.row(t).Revision
 				f.store.query = func(c context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+					if ctx.Err() != nil {
+						postCancelReads++
+					}
 					if mode == "read-unavailable" {
 						return meta.MQTTReadResult{}, lost
 					}
@@ -117,8 +135,13 @@ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
 				if mode == "lost-reply" || mode == "read-unavailable" {
 					require.ErrorIs(t, err, lost)
 				}
-				if mode == "canceled" {
+				if mode == "canceled" || mode == "canceled-delayed" {
 					require.ErrorIs(t, err, context.Canceled)
+					require.Zero(t, postCancelReads, "cancellation must stop before contention qualification reads")
+					state, readErr := f.store.ReadMQTT(context.Background(), meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: prepared.Binding.Key})
+					require.NoError(t, readErr)
+					require.Equal(t, []meta.MQTTSourceBinding{before}, state.Bindings, "cancellation cannot seal the progressed source")
+					require.False(t, state.Bindings[0].EndKnown)
 				}
 				return
 			}

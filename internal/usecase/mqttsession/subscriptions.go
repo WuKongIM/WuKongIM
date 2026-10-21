@@ -330,11 +330,22 @@ func (s *Subscriptions) completePrepared(ctx context.Context, op *subscriptionOp
 type subscriptionOperation struct {
 	*runtime.Operation
 	parent context.Context
+	// ancestor preserves the same check across nested projection/source scopes,
+	// whose owner contexts do not synchronously inherit the caller's cancellation.
+	ancestor *subscriptionOperation
 }
+
+// subscriptionOperationKey carries only in-process scope ancestry, never authority.
+type subscriptionOperationKey struct{}
 
 func (o *subscriptionOperation) Check() error {
 	if err := o.parent.Err(); err != nil {
 		return err
+	}
+	if o.ancestor != nil {
+		if err := o.ancestor.Check(); err != nil {
+			return err
+		}
 	}
 	return o.Operation.Check()
 }
@@ -342,6 +353,12 @@ func (o *subscriptionOperation) Check() error {
 func (s *Subscriptions) begin(parent context.Context, o contract.Owner) (*subscriptionOperation, context.Context, context.CancelFunc, error) {
 	if s == nil || parent == nil || o.Validate() != nil {
 		return nil, nil, nil, ErrInvalid
+	}
+	ancestor, _ := parent.Value(subscriptionOperationKey{}).(*subscriptionOperation)
+	if ancestor != nil {
+		if err := ancestor.Check(); err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	op, err := s.options.Owners.Begin(parent, o)
 	if err != nil {
@@ -352,7 +369,8 @@ func (s *Subscriptions) begin(parent context.Context, o contract.Owner) (*subscr
 		deadline = d
 	}
 	ctx, cancel := context.WithDeadline(op.Context(), deadline)
-	return &subscriptionOperation{Operation: op, parent: parent}, ctx, cancel, nil
+	scope := &subscriptionOperation{Operation: op, parent: parent, ancestor: ancestor}
+	return scope, context.WithValue(ctx, subscriptionOperationKey{}, scope), cancel, nil
 }
 
 func finishSubscription(op *subscriptionOperation, cancel context.CancelFunc, err *error) {

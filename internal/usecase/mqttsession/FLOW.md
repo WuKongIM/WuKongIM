@@ -105,7 +105,8 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   commits cannot erase an obligation; Will publication scheduling and fenced uncertain-dispatch recovery remain separate.
 - Subscription counts use bounded pages at one parent revision; its CAS rejects
   concurrent admissions. Pending/removing rows consume quota; tombstones consume
-  scan budget. Parent cancellation is checked synchronously at effect boundaries.
+  scan budget. Parent cancellation, including the original caller across nested
+  projection/source scopes, is checked synchronously at effect boundaries.
 - Projection receipts are trusted-port assertions, not independent source proof.
   Product wiring requires replicated protection, initialized cursors, inbox future
   source admission and safe removal. Membership version changes cannot replace
