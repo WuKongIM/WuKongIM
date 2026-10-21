@@ -14,6 +14,20 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Wait for protocol readiness in original-v2 migration acceptance after the
+  first imported-history check, and retain connection-failure diagnostics.
+  / 原 v2 迁移验收先核对导入历史，再等待协议就绪后验证原凭证，保留连接失败诊断。
+
+- Preserve pending readiness when a history recovery barrier is locally durable
+  and all missing voters explicitly need replica catch-up; keep ambiguous and
+  conflicting failures closed. / 历史恢复屏障在本地已持久化且缺失副本均明确需要
+  追赶时保留未就绪状态，未知故障和冲突仍严格拒绝。
+
+- Allow a new cloud chat-lifecycle request to lower its budget ceiling while
+  preserving the cleanup reserve through rehearsal, formal execution and remote
+  cost guards. / 新云端聊天生命周期请求可向下调整预算上限，预演、正式运行和远端
+  费用守卫保持同一预算及清理预留，不扩展既有请求的续跑权限。
+
 - Accept systemd's empty `Job=` as no queued job during cloud chat-lifecycle
   startup, while rejecting missing or malformed state fields consistently on
   Bash 3 and Bash 5. / 云端聊天生命周期启动兼容 systemd 用空 `Job=` 表示无排队

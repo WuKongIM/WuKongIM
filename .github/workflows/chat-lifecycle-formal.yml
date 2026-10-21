@@ -99,12 +99,18 @@ jobs:
           done
           jq -e '.schema == "wukongim.chat_lifecycle.terminal_evidence/v1" and .stage == "rehearsal" and .complete == true' \
             "$WK_CHAT_TRANSITION_DIR/evidence/manifest.json" >/dev/null
-          jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+            --directory "$WK_CHAT_TRANSITION_DIR" --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json"
+          budget="$(python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
+            --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json" --receipt "$WK_CHAT_TRANSITION_DIR/receipt.json")"
+          request_budget_limit_micros="$(jq -er .limit_micros <<<"$budget")"
+          operational_stop_micros="$(jq -er .operational_stop_micros <<<"$budget")"
+          jq -e --arg request "$WK_CHAT_REQUEST_ID" --argjson operational_stop "$operational_stop_micros" '
             .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .from_stage == "rehearsal" and
             .outcome == "rehearsal_pass" and .zero_inventory == true and .request_id == $request and
             (.source_sha | test("^[0-9a-f]{40}$")) and (.bundle_digest | test("^sha256:[0-9a-f]{64}$")) and
             (.codex_diagnostic_pubkey | startswith("ssh-ed25519 ")) and
-            (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < 1350000000
+            (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < $operational_stop
           ' "$WK_CHAT_TRANSITION_DIR/transition.json" >/dev/null
           source_sha="$(jq -er .source_sha "$WK_CHAT_TRANSITION_DIR/transition.json")"
           bundle_digest="$(jq -er .bundle_digest "$WK_CHAT_TRANSITION_DIR/transition.json")"
@@ -119,8 +125,6 @@ jobs:
           ' "$WK_CHAT_TRANSITION_DIR/cleanup.json" >/dev/null
           cmp -s <(jq -S -c .selector "$WK_CHAT_TRANSITION_DIR/release-selector.json") \
             <(jq -S -c .result.zero_inventory.selector "$WK_CHAT_TRANSITION_DIR/zero-inventory.json")
-          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
-            --directory "$WK_CHAT_TRANSITION_DIR" --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json"
           prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_TRANSITION_DIR/run-plan.json")"
           created_at="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" \
             -f scripts/chat-lifecycle/select-active-receipt-created-at.jq \
@@ -152,6 +156,7 @@ jobs:
             echo "WK_CHAT_SOURCE_SHA=$source_sha"
             echo "WK_CHAT_BUNDLE_DIGEST=$bundle_digest"
             echo "WK_CHAT_BUNDLE_RUN_ID=$bundle_run_id"
+            echo "WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS=$request_budget_limit_micros"
           } >>"$GITHUB_ENV"
       - name: Build trusted Run Plan control tool
         shell: bash

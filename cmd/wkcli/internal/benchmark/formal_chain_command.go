@@ -226,7 +226,8 @@ func loadFormalRuntimeEnvelope(cfg chatlifecycle.Config, now time.Time) (*formal
 			itemsValid = false
 		}
 	}
-	budgetBoundsValid := limit == hardLimit && stop == operationalStop
+	// Immutable requests retain the fixed cleanup reserve when lowering the ceiling.
+	budgetBoundsValid := limit > hardLimit-operationalStop && limit <= hardLimit && stop == limit-(hardLimit-operationalStop)
 	if directRepair {
 		budgetBoundsValid = limit > 0 && stop > 0 && stop < limit
 	}

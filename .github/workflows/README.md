@@ -1031,8 +1031,15 @@ Preflight Artifacts never establish a handoff or authorize further procurement.
 The required operator inputs remain `source_sha`, fixed operator `tangtaoit`, one
 request-scoped Codex diagnostic Ed25519 public key, and `request_id`. The optional
 `released_preclock_run_id` is an explicit start decision for one already released
-pre-clock failure, not an automatic retry. Infrastructure, budget, duration,
-workload, and retry values come only from the reviewed repository Run Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
+pre-clock failure, not an automatic retry. The optional string
+`request_budget_limit_micros` defaults to `1500000000` CNY micros and may only
+lower a new request's ceiling. It must be a canonical decimal integer greater
+than `150000000` and at most `1500000000`; the operational stop is exactly that
+ceiling minus `150000000`. Empty, signed, padded, fractional, exponential or
+out-of-range input is rejected before bundle/key generation or Quote. A lower
+ceiling cannot accompany `released_preclock_run_id`; the existing continuation
+proof remains bound to the original CNY 1,500/1,350 envelope. Infrastructure,
+duration, workload, and retry values come only from the reviewed repository Run Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
 12-hour AutoRelease Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
 unit. The runner exits after the remote `run-start.json` proves 10,000 full
 syncs and acceptance of the first full 2,000 SEND/s grant. The remote rehearsal
@@ -1041,6 +1048,23 @@ as formal execution, with a two-hour active-duration admission requirement.
 Before paid Acquire, it seals the generated Deployment/monitor private key with
 the Lease ID, Plan digest, source SHA, and expiry already fixed by the Run Plan.
 The acquired Receipt must equal that identity before Deployment dispatch.
+
+A lower request ceiling travels in the existing Run Plan/Lease budget fields.
+The formal starter derives it from the authenticated rehearsal Run Plan and
+Receipt; it never falls back to the default when these values are absent or
+conflicting. Both finalizers compare terminal Run Plan, Receipt and DeploymentPlan
+budgets after cleanup, preserving the same cap through formal execution. The
+remote `wkcli` guard enforces that admitted stop during rehearsal, soak, capacity
+and recovery. The bundle still builds `wkcli` from the exact product source: an
+older product revision whose guard only accepts the default envelope cannot run
+a lower-budget request merely by updating control code.
+
+This input does not authenticate costs from other requests, clear stop markers,
+allow another continuation, or grant procurement authority. If an operator
+reserves prior costs outside a new request, the new hard cap and stop must both
+be lowered by that reserve under an explicit cumulative authorization. A Quote
+reserve is not a bill; unknown charges remain unknown. No new cross-request
+ledger or automatic paid restart is introduced.
 
 A released pre-clock continuation uses the same request, source and diagnostic
 public key. Before bundle/key generation or Quote, the read-only helper requires
@@ -1206,7 +1230,8 @@ qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
 2,000-SEND/s recovery in one `wkcli bench formal-chain` process with the same
 worker fence, generation, observer, lifecycle proof, and dataset. Activation
 seals the Lease creation/expiry instants, exact quote line items, aggregate
-committed cost, and ¥1,350/¥1,500 limits into the root-only load environment.
+committed cost, and the admitted stop/hard limits (¥1,350/¥1,500 by default)
+into the root-only load environment.
 Formal-chain checks the 81.5-hour admission reserve, then re-evaluates
 conservative accrued host/retention/traffic cost and the one-hour expiry cleanup
 reserve every five seconds through both phases. `chat-lifecycle-formal-finalize.yml` waits for

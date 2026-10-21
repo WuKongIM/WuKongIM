@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"math"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -52,6 +53,19 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 	}
 	result, err := runDurableRound(ctx, authority.Leader, authority.Voters, authority.WriteQuorum, proposal, dispatcher)
 	if err != nil {
+		// Only a durable local barrier with every missing vote accounted for by
+		// this round's exact NeedFrom receipts is pending recovery. Unknown,
+		// conflicting, backpressured, or locally non-durable outcomes stay closed.
+		if err == errDurableQuorumUnavailable && result.localDurable &&
+			result.durableVotes < authority.WriteQuorum &&
+			result.durableVotes+len(result.repairs) == len(authority.Voters) {
+			for _, repair := range result.repairs {
+				if repair.needFrom == 0 || repair.needFrom > proposal.last {
+					return recoveryBarrierResult{}, err
+				}
+			}
+			return recoveryBarrierResult{}, errors.Join(ch.ErrNotReady, err)
+		}
 		return recoveryBarrierResult{}, err
 	}
 	if !result.localDurable || result.durableVotes < authority.WriteQuorum || !result.outcome.Durable() {

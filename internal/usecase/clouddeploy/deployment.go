@@ -704,7 +704,9 @@ func validDeploymentBudget(purpose DeploymentPurpose, budget DeploymentBudget) b
 func validDeploymentBudgetLimits(purpose DeploymentPurpose, budget DeploymentBudget) bool {
 	switch purpose {
 	case DeploymentPurposeImmutable:
-		return budget.LimitMicros == FormalBudgetHardMicros && budget.OperationalStopMicros == FormalBudgetStopMicros
+		// Immutable requests may lower the ceiling while retaining the full cleanup reserve.
+		return budget.LimitMicros > FormalBudgetHardMicros-FormalBudgetStopMicros && budget.LimitMicros <= FormalBudgetHardMicros &&
+			budget.OperationalStopMicros == budget.LimitMicros-(FormalBudgetHardMicros-FormalBudgetStopMicros)
 	case DeploymentPurposeRepair:
 		if budget.LimitMicros == RepairBudgetHardMicros {
 			return budget.OperationalStopMicros == RepairBudgetStopMicros

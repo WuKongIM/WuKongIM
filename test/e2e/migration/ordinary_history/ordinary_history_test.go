@@ -167,11 +167,18 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
 	for i := range cluster.Nodes {
 		check(&cluster.Nodes[i], "after-import")
 	}
+	// HTTP history can be ready before the WKProto listener. Preserve the cold
+	// history check above, then prove protocol readiness before using v2 credentials.
+	if err := cluster.MustNode(1).Process.WaitWKProtoReady(ctx, cluster.MustNode(1).GatewayAddr()); err != nil {
+		t.Fatalf("target ingress protocol readiness failed: %v\n%s", err, cluster.DumpDiagnostics())
+	}
 	// Authenticate through the real protocol using the token retained from v2.
 	client, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(1).GatewayAddr(), OperationTimeout: 5 * time.Second})
 	require.NoError(t, err)
 	_, err = client.Connect(ctx, wkclient.ConnectOptions{UID: "migrationalice", Token: "synthetic-migrationalice", DeviceID: "migration-history-check", DeviceFlag: frame.DeviceFlag(1)})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("retained v2 credential connection failed: %v\n%s", err, cluster.DumpDiagnostics())
+	}
 	ack, err := client.Send(ctx, wkclient.Message{ClientSeq: 1, ClientMsgNo: "after-original-migration", ChannelID: "migrationgroup", ChannelType: 2, Payload: []byte("protocol append")})
 	require.NoError(t, err)
 	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)

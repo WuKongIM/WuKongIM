@@ -32,6 +32,7 @@ case "$chat_stage" in
     : "${WK_CHAT_BUNDLE_RUN_ID:?required for formal}"
     : "${WK_CHAT_BUNDLE_DIGEST:?required for formal}"
     : "${WK_CHAT_TRANSITION:?required for formal}"
+    : "${WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS:?authenticated rehearsal budget required for formal}"
     [[ "$WK_CHAT_BUNDLE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
     [[ "$WK_CHAT_BUNDLE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
     [[ -f "$WK_CHAT_TRANSITION" ]]
@@ -50,6 +51,12 @@ esac
 
 install -d -m 0700 "$WK_CHAT_OUTPUT_DIR"
 install -d -m 0700 "$WK_CHAT_WORK_DIR"
+# Admission is local and precedes bundle, key generation and every provider call.
+python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget-input \
+  --limit "${WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS-1500000000}" \
+  --released-preclock-run-id "${WK_CHAT_RELEASED_PRECLOCK_RUN_ID:-}" >"$WK_CHAT_OUTPUT_DIR/request-budget.json"
+request_budget_limit_micros="$(jq -er .limit_micros "$WK_CHAT_OUTPUT_DIR/request-budget.json")"
+request_budget_stop_micros="$(jq -er .operational_stop_micros "$WK_CHAT_OUTPUT_DIR/request-budget.json")"
 scripts/chat-lifecycle/comment-request-issue.sh --preflight >"$WK_CHAT_OUTPUT_DIR/issue-preflight.json"
 # This admission is before bundle generation, identity creation or any paid
 # call. It cannot interfere with cleanup of an already-owned Lease.
@@ -346,7 +353,8 @@ bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
 
 if [[ "$chat_stage" == formal ]]; then
   committed_micros="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
-    --arg bundle "$bundle_digest" -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
+    --arg bundle "$bundle_digest" --argjson operational_stop "$request_budget_stop_micros" \
+    -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
     "$WK_CHAT_TRANSITION")"
 fi
 release_failed_attempt() {
@@ -563,6 +571,7 @@ for attempt in "$stage_attempt"; do
     --bundle-digest "$bundle_digest" --deployment-pubkey "$deployment_public_key"
     --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --attempt "$attempt"
     --committed-micros "$committed_micros"
+    --request-budget-limit-micros "$request_budget_limit_micros"
   )
   if [[ -n "$continuation_proof" ]]; then
     materialize_args+=(--released-preclock-proof "$continuation_proof")

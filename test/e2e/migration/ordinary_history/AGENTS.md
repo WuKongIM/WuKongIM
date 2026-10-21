@@ -25,6 +25,11 @@ another append, and applicable Channel Leader failover. Each successful history
 check logs its phase, node, row count and temporary-retry count; failures retain
 the phase/node and existing bounded public/process diagnostics.
 
+After the first imported-history read, wait for the target ingress's real
+WKProto readiness before authenticating with the retained v2 credential.
+HTTP `/readyz` alone does not prove that protocol listener has started; keep
+the original credential assertion and do not retry business Connect or SEND.
+
 Run the original regression slice with
 `GOWORK=off go test -tags=e2e ./test/e2e/migration/ordinary_history -run '^TestOriginalOrdinaryHistoryTopology$/^1_source_nodes_to_3_target_nodes$' -count=1 -timeout=12m -p=1 -parallel=1 -json`,
 then run the same command without `-run` for all five topology cases. Preserve

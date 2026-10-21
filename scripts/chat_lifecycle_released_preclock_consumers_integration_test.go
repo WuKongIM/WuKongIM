@@ -81,7 +81,7 @@ func TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell(t *
 						}
 					}
 					// Only the authority helper is stubbed; run the checked-in workflow shell unchanged.
-					stub := "#!/bin/bash\nset -eu\nprintf '%s\\n' \"$*\" >>\"$CONSUMER_CALL_LOG\"\nexit \"$CONSUMER_VALIDATOR_STATUS\"\n"
+					stub := "#!/bin/bash\nset -eu\nif [[ \"$2\" == budget ]]; then\n  printf '%s\\n' '{\"limit_micros\":1500000000,\"operational_stop_micros\":1350000000}'\n  exit 0\nfi\nprintf '%s\\n' \"$*\" >>\"$CONSUMER_CALL_LOG\"\nexit \"$CONSUMER_VALIDATOR_STATUS\"\n"
 					if err := os.WriteFile(filepath.Join(bin, "python3"), []byte(stub), 0700); err != nil {
 						t.Fatal(err)
 					}

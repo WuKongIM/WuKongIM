@@ -386,6 +386,17 @@ jobs:
             --directory "$WK_CHAT_HANDOFF_DIR/rehearsal" --run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json"
           final_dir="$WK_CHAT_FINAL_DIR"
           [[ "${{ steps.existing.outputs.ready }}" == true ]] && final_dir="$RUNNER_TEMP/previous-final"
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
+            --run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json" \
+            --receipt "$WK_CHAT_HANDOFF_DIR/rehearsal/receipt.json" >/dev/null
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
+            --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json" --receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
+            --deployment-plan "$WK_CHAT_HANDOFF_DIR/deployment-plan.json" \
+            --matches-run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json" >/dev/null
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
+            --run-plan "$final_dir/run-plan.json" --receipt "$final_dir/receipt.json" \
+            --deployment-plan "$final_dir/deployment-plan.json" \
+            --matches-run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json" >/dev/null
           rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
           test "$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_HANDOFF_DIR/run-plan.json")" = "$rehearsal_committed_micros"
           test "$(jq -er .lease_plan.budget.committed_micros "$final_dir/run-plan.json")" = "$rehearsal_committed_micros"
@@ -416,7 +427,8 @@ jobs:
           rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
           formal_quote_micros="$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")"
           aggregate_conservative_micros=$(( rehearsal_committed_micros + formal_quote_micros ))
-          (( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= 1500000000 ))
+          request_budget_limit_micros="$(jq -er .lease_plan.budget.limit_micros "$final_dir/run-plan.json")"
+          (( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= request_budget_limit_micros )) || exit 1
           jq -n --arg schema 'wukongim.chat_lifecycle.complete_evidence/v1' --arg stage formal \
             --arg request_id "$WK_CHAT_REQUEST_ID" --arg assembled_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson rehearsal_committed_micros "$rehearsal_committed_micros" \
@@ -441,7 +453,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Upload formal zero-inventory proof
-        if: steps.cleanup.outputs.zero == 'true'
+        if: always() && steps.cleanup.outputs.zero == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chat-lifecycle-formal-cleanup-${{ matrix.request_id }}
