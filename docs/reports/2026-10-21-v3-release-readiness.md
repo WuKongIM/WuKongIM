@@ -1,18 +1,18 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 14:50Z（北京时间22:50）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 15:42Z（北京时间23:42）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 迁移修复及候选 Linux 性能/功能验收已完成；产品 #1016/#1017/#1019/#1020/#1021、packages #67–#73 已合并。本次另行授权的云续跑已成功部署，但 systemd 空 `Job` 字段被控制脚本误判，负载未进入计时；原始诊断与精确零库存已验证，四台主机及相关资源全部释放。#1021 已经另行批准合并，合并后文档流程也通过。packages #74 第五代真实客户端验收仍在第24项失败，具体缓存文件属性正在固定镜像取证。既定完整云长稳与 stable 公网签名包交付仍未完成，没有正式 tag 或正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 迁移修复及候选 Linux 性能/功能验收已完成；产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。云续跑的 systemd 空 `Job` 控制脚本缺陷已修复，原资源全部释放；完整预演及72小时长稳尚未完成。packages #74 第六代49项真实客户端场景已全部通过并获准合并，生产stable仍关闭。向下预算修复#1022首次Linux的默认和完整scripts通过，但1→1迁移后的协议连接拒绝导致E2E失败，正在诊断；对象存储/CDN交付核心已完成本地窄实现，待独立复核。没有正式tag或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
 本轮更新仍维持 **NO-GO**：
 
 - packages #73 与产品 #1019 已批准合并，合并 tree 与各自验收候选一致。
-- packages #74 的前五代首失败均保留。当前 head `de43579a` 已通过Linux 518项Python（零skip）、4项合同、旧native完整签名仓库演练及独立双轴复核；新stable49项执行24项/23通过，cache-inventory helper因unsupported file退出1。真实DNF下载及签名验证成功，9条请求均200且完成写入，容器/网络全部清零。原收据缺具体文件stat，不能猜是类型、硬链接数还是大小；正在固定镜像进行窄诊断。
+- packages #74 的前五代首失败均保留。最终 `983e567f` 首次Linux 528项Python（零skip）、4项合同、旧native完整签名仓库演练及49/49项新客户端场景全部通过。Rocky/Alma真实metadata缓存读取、两代八套installed CLI来源/版本和资源零遗留已独立核验；经用户明确批准15:31:37Z合并为 `620bdfa1`，完整tree相同。生产stable未启用。
 - 已授权的云续跑实际run33（控制e30299fa、产品fc182）终态failure；原before-kill证据确认active/running、Job为空、classifier拒绝，未形成run-start。已完成Stop/Release，13:40:52Z十二scope零库存。两次完整Quote reserve保守合计¥148.9552，实际账单未知。
 - 空Job窄修 #1021（`ff0aa096`）首次完整Linux默认/scripts/迁移E2E及三节点性能回归通过，新增26 parser、11 actual-loop及4项Mac未覆盖检查均实际通过；SDK/native/Manager路径过滤未触发。用户另行批准后14:39:25Z普通合并为 `aeb45c21`，同验收tree，已清理原分支/worktree；后置文档CI首次全绿，不包含新云启动。
-- 原request的一次续跑资格已使用且已Stop。新request若保留整项¥1500/¥1350限额，其上限/停止线必须降为¥1351.0448/¥1201.0448；当前控制层和fc182产品内wkcli均硬编码原预算。向下预算方案已完成，正在隔离分支按测试先行实施；未来候选与付费启动均需单独冻结，不可仅修改控制源重跑fc182。
+- 原request的一次续跑资格已使用且已Stop。保留两次报价合计¥148.9552 reserve的新request拟采用上限/停止线¥1351.0448/¥1201.0448。向下预算修复已提交为#1022（9a4900dc）：tests-first与双轴复核完成，本地六项named checks通过、完整scripts原9分钟超时保留；首次Linux默认与完整scripts通过，1→1迁移后首次协议连接拒绝，E2E失败，其余四拓扑通过；后续消息E2E未运行。旧fc182的wkcli不支持降低预算，后续必须冻结含新守卫的产品候选并另行批准付费启动。
 
 ## 固定身份和已关闭事项
 
@@ -196,6 +196,18 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 [云状态解析修复](v3-release-readiness-20261021/cloud/systemd-job-diagnosis/README.md)已按tests-first完成六文件窄改：明确存在的空Job归一0，缺失/重复/畸形显式拒绝，Bash3/5一致且保留原诊断hash；两shell各26 parser场景和11 actual-loop分支通过，相关各9根/74pass事件。4个Darwin summary子检查因既有awk限制skip，不计Linux覆盖；独立规范与行为复核均无发现，独立56输入探针通过；已推送 `ff0aa096fe1bd125be70fc1844b2f45cc7f0115e` 并创建 [#1021](https://github.com/WuKongIM/WuKongIM/pull/1021)，首次完整Linux CI已于14:31Z读取确认终态success（candidate39614359934、3node39614360432、signal39614359600），全部attempt1。scripts wrapper573.654秒，未改变既有限额；Linux实际通过4个Mac summary跳过检查，所有owned-session cleanup均complete/remaining=[]。原6个scripts opt-in skip及E2E既有2000QPS comparison skip保留。SDK/native/Manager未因这六文件触发，不冒称已跑。[首轮完整CI收据](v3-release-readiness-20261021/cloud/pr1021-ci-generation-1/README.md)与[ready后读回](v3-release-readiness-20261021/cloud/pr1021-ready-checks/README.md)已冻结。用户随后明确批准，14:39:25Z正常合并为aeb45c2164b6a50214928f520edd2a8815b7a976，完整tree与ff0相同，保护JSON前后字节相同；fetch验证包含原tip后普通清理干净worktree/本地分支，primary a804未动。[合并及后置文档收据](v3-release-readiness-20261021/cloud/pr1021-merge/README.md)记录39618754568 attempt1四job全success、5路径origin校验通过、4URL CDN刷新受理，不声称全edge完成。API artifact补读失败，未重下文档完整包，边界及读取错误已保留。没有新云启动批准或采购。预算、状态策略、cleanup和一次性续跑规则未改变。
 
 [下次执行的只读边界](v3-release-readiness-20261021/cloud/post-systemd-repair-execution-options/README.md)与[向下预算第二版设计](v3-release-readiness-20261021/cloud/post-systemd-repair-execution-options-generation-2/README.md)确认：既有Stop和一次续跑资格不可重置；原两次reserve 148955200 micros不能忽略。新request拟采用H=1351044800、S=1201044800 micros，和历史reserve相加仍为整项1500/1350。现有fc182的wkcli原生guard拒绝该预算，而bundle从产品source构建wkcli，因此纯control改动不足。42项失败矩阵已冻结，隔离分支开始测试先行实现；尚未改变候选来源、启用新付费运行或采购。该方案不将报价预留宣称为实际费用，也不引入跨request认证账本。
+
+[固定镜像GPG缓存文件诊断](v3-release-readiness-20261021/packages/rpm-cache-filetype-diagnosis/README.md)确认 signed Repo.load 会在pubring遗留五种Unix socket；原第五代CI未记录stat，独立file://重放不冒充对原文件的追溯。第六代窄修只豁免canonical cache父路径中这五名、socket且nlink=1/size=0，其他类型/链接/大小及metadata的inode/SHA/真实atime复用证明均保持。10项新增测试先红后绿、41项相关回归及本地528+4通过，[双轴复核](v3-release-readiness-20261021/packages/cache-filetype-review/combined-review.md)无发现；[第六代首次Linux CI](v3-release-readiness-20261021/packages/pr74-ci-generation-6/README.md)现已完整通过：49/49、两代八套installed source/version一致，Rocky与Alma重复读取各五项metadata，device/inode/SHA/size不变、atime前进，清理全部零。实际checkout186138391与head983e567完整tree相同。用户明确同意后#74正常rebase合并为620bdfa1，同已验收tree，分支保护字节不变；原tip因rebase非main祖先，保留干净原分支/worktree，未强删。TEST ONLY的published/public_origin/source_provenance仍为false，不能充当生产发布证据。
+
+[向下预算实现封存](v3-release-readiness-20261021/cloud/downward-budget-implementation/public-final/README-final.md)已交付为[#1022](https://github.com/WuKongIM/WuKongIM/pull/1022)，head9a4900dc、tree9a199e72。新增规范十进制上限输入，停止线固定减150000000 micros；预算贯穿Run Plan/Lease/Deployment/wkcli，formal从已认证rehearsal继承，降低上限不能和旧continuation混用。Spec首次P2发现预算拒绝会让零库存上传被隐含success条件跳过，先红后修两处always条件并保持cleanup.zero要求，[v2双轴复核](v3-release-readiness-20261021/cloud/downward-budget-review/combined-review-v2.md)已关闭且27文件匹配冻结。本地完整go-unit 219包/15无测试与另五项named检查通过；scripts包540.676秒/外层544.260秒触及原9分钟上限，未打印单项断言失败，但不算通过，原owned SID cleanup完整/remaining=[]。早期v1因会话交接丢失无完整终态，未称超时或通过；所有原始记录保留。Linux首次CI仍进行中，没有新付费运行。
+
+[stable交付缺口续审](v3-release-readiness-20261021/packages/after-native-delivery-gap/README.md)和[独立范围复核](v3-release-readiness-20261021/packages/after-native-delivery-gap-review/README.md)确认继续既有D适配器：同一窄核心消费原v1 preview与v2 composite，复用签名/来源及四客户端入口；精确materialize、create-only读回、路由和阶段receipt先离线验证。#74跨代RPM可能映射到public/snapshots，因此精确alias必须先于snapshot直达，不能整段盲改。隔离分支开始tests-first，生产保持disabled，真实OSS/CDN、配置回读、TLS/DNS、费用与公网精确版本验收仍未完成；¥100/7天对象存储方案未获采购批准。
+
+[#74合并及后置检查](v3-release-readiness-20261021/packages/pr74-merge/README.md)已完整冻结：自然push run39626500979 attempt1再次528项零skip与4合同通过，配置/上传/部署均跳过。15:34Z后的[对象存储只读补查](v3-release-readiness-20261021/packages/storage-readonly-followup/README.md)确认packages仍指向GitHub Pages、现有CDN清单无该域名；RAM角色页主体未加载，不能推断权限存在或缺失。
+
+#1022 [首次候选CI39625524702](https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702)的新失败已保留：Linux完整scripts一次通过（499.409秒、exit0、cleanup完整/remaining=[]），默认219个测试包通过；ordinary_history的1→1在HTTP历史3rows验证后首次WKProto Connect遭connection refused，尚未Send。其余1→3/3→1/3→3/3→5通过；ordinary_history整体exit1、102.556秒、cleanup无残留，后续cross_node_delivery/self_chat为not_run。原制品全SHA/CRC已验证，原日志没有该node的运行时日志或退出事实，当前不能归因为产品退出或监听时序；独立临时诊断worktree开始固定次数有界观察，不重跑原CI。
+
+用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 
 MQTT 继续默认关闭、开发预览。专项 self-chat、100 GiB/4h 迁移、生产 RPO/RTO、4,500 SEND/s 等未承诺范围不会被随意加入新的强制清单，也不凭本轮小规模通过扩大宣传范围。
 

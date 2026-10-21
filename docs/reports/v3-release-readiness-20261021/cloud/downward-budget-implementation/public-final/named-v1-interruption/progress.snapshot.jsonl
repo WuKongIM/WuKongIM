@@ -1,0 +1,7 @@
+{"event": "start", "check": "go-format", "time": "2026-10-21T14:51:03.972607+00:00"}
+{"event": "finish", "check": "go-format", "status": "passed", "exit_code": 0, "elapsed_seconds": 0.899, "cleanup_complete": true}
+{"event": "start", "check": "flow-doc-contracts", "time": "2026-10-21T14:51:04.902614+00:00"}
+{"event": "finish", "check": "flow-doc-contracts", "status": "passed", "exit_code": 0, "elapsed_seconds": 0.116, "cleanup_complete": true}
+{"event": "start", "check": "workflow-contracts", "time": "2026-10-21T14:51:05.046380+00:00"}
+{"event": "finish", "check": "workflow-contracts", "status": "passed", "exit_code": 0, "elapsed_seconds": 4.59, "cleanup_complete": true}
+{"event": "start", "check": "go-unit", "time": "2026-10-21T14:51:09.664615+00:00"}

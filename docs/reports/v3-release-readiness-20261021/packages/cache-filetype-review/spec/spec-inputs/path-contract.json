@@ -1,0 +1,34 @@
+{
+  "at": "2026-10-21T14:58:03.291683+00:00",
+  "canonical_mirrorlist": "https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist",
+  "sha256": "5702a8a51b8fa885376811ade232aeb631c918c27a5e7c0ebe60ed2e270606d2",
+  "first_8_bytes_hex": "5702a8a51b8fa885",
+  "repo_id": "wukongim-stable",
+  "native_canonical_repo_cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+  "host_cache_component": "dnf-cli-cache",
+  "allowed_relative_parent": "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/pubring",
+  "allowed_socket_names": [
+    "S.gpg-agent",
+    "S.gpg-agent.browser",
+    "S.gpg-agent.extra",
+    "S.gpg-agent.ssh",
+    "S.scdaemon"
+  ],
+  "required_file_type": "stat.S_ISSOCK(lstat.st_mode)",
+  "observed_mode": "0o140700",
+  "observed_nlink": 1,
+  "observed_size": 0,
+  "diagnostic_file_url": "file:///tmp/cache-filetype-repo",
+  "diagnostic_file_url_sha256": "aaa08530d5caaef3a8e00517140e2bc41fc3890e9f7a2b4ef5b086c9c220d8b6",
+  "canonical_path_evidence": "canonical-native-path-proof.json",
+  "original_ci_specific_file_stat_known": false,
+  "official_source": {
+    "url": "https://github.com/rpm-software-management/libdnf/blob/0.69.0/libdnf/repo/Repo.cpp",
+    "lines": [
+      "818-865",
+      "1266-1300"
+    ],
+    "interpretation": "libdnf chooses metalink, mirrorlist, first baseurl, then repo id, hashes it using SHA256, appends the first 8 bytes in hex to repo id, and appends pubring for GPGME. Upstream explanation, not a claim of byte identity with distro-patched libdnf."
+  },
+  "design": "Use only the exact canonical path above in shipping. Do not add the diagnostic file:// hash or a generic regex."
+}

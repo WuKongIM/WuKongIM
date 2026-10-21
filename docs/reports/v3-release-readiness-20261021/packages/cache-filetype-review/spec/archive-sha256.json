@@ -1,0 +1,54 @@
+{
+  "author-validation-summary.json": {
+    "size": 2279,
+    "sha256": "48d259a24dba1292399bd8d3bbcf883d1ddedc9509a4150abf3bb6d61dd64f5a"
+  },
+  "evidence.md": {
+    "size": 4488,
+    "sha256": "14f917768837df1cd33583bd8726a5575d1931af7e0dc569f33209dcdd6d34a7"
+  },
+  "probe-results.json": {
+    "size": 13105,
+    "sha256": "37c54cc30305b526f3a2ed21c5022b042aff7b6539f6cecf16e31ac1f0cc512b"
+  },
+  "probe.py": {
+    "size": 8213,
+    "sha256": "8b01fa8cb59c9ded12fc3c9cecc6bafe04ebd23add2fc38ccff573388ca66a2a"
+  },
+  "report.md": {
+    "size": 678,
+    "sha256": "e4ae1f948012bd0c5c18e6c3577eefc5ee92a770f9a5f26fd4119d54a3706104"
+  },
+  "reviewed.patch": {
+    "size": 18409,
+    "sha256": "d46227c5c27e57f4588704e4d9114609881a36f2f29e4fc37fcf9fef6ff43ec6"
+  },
+  "rules-summary.md": {
+    "size": 1247,
+    "sha256": "7ae6e0a8f7e5cd0ceb31e58f5e8fe65cbac6aa603c1eefac6d659a0f6bc8e7cb"
+  },
+  "source-freeze.json": {
+    "size": 8584,
+    "sha256": "551a8954bdaabc7817a8cd41f6a3f0658dc85e9c89c79b81488bcaaea2a11877"
+  },
+  "spec-inputs/canonical-native-path-proof.json": {
+    "size": 1931,
+    "sha256": "980960ca3876a43f296ef6e4ff4619f43da41eecd0079716571150e26286ee61"
+  },
+  "spec-inputs/diagnosis-README.md": {
+    "size": 3604,
+    "sha256": "e9d6ff2da51e10817894aeb5980eab23ae64fee60db05667435adf9fd94cefb1"
+  },
+  "spec-inputs/path-contract.json": {
+    "size": 1637,
+    "sha256": "43fe1fbb21f200afb91246c5dacf04c39ecdbe2bd6ebf271e882ecbf558ebec6"
+  },
+  "spec-inputs/repair-README.md": {
+    "size": 2652,
+    "sha256": "d5b1f8bfcb920d4a894119b9859dcf1d92a498dea3372bfa2d6be6e697cbd44f"
+  },
+  "spec-inputs/repair-failure-matrix.md": {
+    "size": 3143,
+    "sha256": "91355d32dabcc30c38d1664b01cbd182637ce5771cb5ef3e034f0510ec88cddc"
+  }
+}

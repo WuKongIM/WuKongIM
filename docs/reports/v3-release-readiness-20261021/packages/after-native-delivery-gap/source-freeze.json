@@ -1,0 +1,87 @@
+{
+  "observed_at": "2026-10-21T15:19:18.568539+00:00",
+  "scope": "read-only source and GitHub status; no native tests, publication or cloud writes",
+  "packages_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients",
+  "packages_head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "working_tree_status": "",
+  "packages_main": {
+    "date": "2026-10-21T11:14:24Z",
+    "sha": "335cd2569d2b62de577916ed86c097fd3a22547e",
+    "url": "https://github.com/WuKongIM/packages/commit/335cd2569d2b62de577916ed86c097fd3a22547e"
+  },
+  "pull_request_74": {
+    "headRefOid": "983e567f155a982c45ca066e4dc67d33851f0d24",
+    "isDraft": true,
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-21T15:15:53Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39623787268/job/119303803076",
+        "name": "Validate complete Pages snapshot",
+        "startedAt": "2026-10-21T15:14:12Z",
+        "status": "COMPLETED",
+        "workflowName": "Safety Automation - Deploy Package Repository Bootstrap"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-21T15:17:16Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39623787283/job/119303802418",
+        "name": "TEST ONLY signed APT/RPM repository",
+        "startedAt": "2026-10-21T15:14:12Z",
+        "status": "COMPLETED",
+        "workflowName": "Safety Automation - Drill Native Package Repository"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39623787283/job/119303802807",
+        "name": "TEST ONLY stable four clients and A/B",
+        "startedAt": "2026-10-21T15:14:12Z",
+        "status": "IN_PROGRESS",
+        "workflowName": "Safety Automation - Drill Native Package Repository"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-21T15:15:54Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39623787268/job/119304691799",
+        "name": "Deploy complete Pages snapshot",
+        "startedAt": "2026-10-21T15:15:54Z",
+        "status": "COMPLETED",
+        "workflowName": "Safety Automation - Deploy Package Repository Bootstrap"
+      }
+    ],
+    "url": "https://github.com/WuKongIM/packages/pull/74"
+  },
+  "files_sha256": {
+    "README.md": "5277c2df505cc17522b8edf3f811b4a875e992a7a94dfaf6b6c4104fbd5567b8",
+    "docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "docs/object-storage-planning.md": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+    "docs/stable-audit-transport.md": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "manifests/stable-public-keys.json": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+    "scripts/plan-object-storage-publication.py": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+    "scripts/validate-production-package-clients.py": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+    "scripts/validate-control.py": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+    ".github/workflows/native-package-publish.yml": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+  },
+  "prior_evidence_sha256": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/storage-resource-proposal/proposal.md": "d3164f6a4410003692d68ff35863311ba7b852856f7a7e7e106b314ada6df4f1",
+    "/tmp/wukongim-v3-readiness-20261021/packages/storage-design/design.md": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/2026-10-21-v3-release-readiness.md": "37a04acac32111f936a4eb15d7da60befb7a726dd1edc9a14c2868c7c3b03c66"
+  },
+  "source_worktree": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification",
+    "head": "8e5696fbd912e838d3dde54025c3e7f5b6e5f4f2",
+    "release_contract_sha256": "7e14b1df0d8c73c022ca544e13b64c06dc66a15fe12d0f5763efe906f619c5fc"
+  },
+  "main_files_sha256": {
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "scripts/validate-control.py": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+    "docs/stable-audit-transport.md": "9aacf50ccf447afe21942d6aa46d3da0a2b63c2aa997cffcbe8cbcf04332a01f"
+  }
+}

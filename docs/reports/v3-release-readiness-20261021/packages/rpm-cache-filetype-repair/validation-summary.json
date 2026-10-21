@@ -1,0 +1,83 @@
+{
+  "at": "2026-10-21T15:08:01.075983+00:00",
+  "base_head": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "committed": false,
+  "pushed": false,
+  "frozen_source_unchanged": true,
+  "tests_first_all_cases": true,
+  "test_bytes_unchanged_after_first_red": true,
+  "checks": [
+    {
+      "name": "01-red",
+      "exit_code": 1,
+      "elapsed_seconds": 0.329,
+      "summary": [
+        "Ran 10 tests in 0.227s",
+        "FAILED (failures=4, errors=4)"
+      ]
+    },
+    {
+      "name": "02-green",
+      "exit_code": 0,
+      "elapsed_seconds": 0.322,
+      "summary": [
+        "Ran 10 tests in 0.240s",
+        "OK"
+      ]
+    },
+    {
+      "name": "03-related",
+      "exit_code": 0,
+      "elapsed_seconds": 0.67,
+      "summary": [
+        "Ran 41 tests in 0.558s",
+        "OK"
+      ]
+    },
+    {
+      "name": "04-full-python",
+      "exit_code": 0,
+      "elapsed_seconds": 119.289,
+      "summary": [
+        "Ran 528 tests in 119.164s",
+        "OK (skipped=1)"
+      ]
+    },
+    {
+      "name": "05-contract",
+      "exit_code": 0,
+      "elapsed_seconds": 0.983,
+      "summary": [
+        "Ran 4 tests in 0.006s",
+        "OK"
+      ]
+    },
+    {
+      "name": "06-diff-check",
+      "exit_code": 0,
+      "elapsed_seconds": 0.024,
+      "summary": []
+    }
+  ],
+  "new_socket_tests": {
+    "count": 10,
+    "passed": 10,
+    "skipped": 0,
+    "real_hardlinked_socket": "created on this Mac; nlink=2 rejected",
+    "size_nonzero_device_and_budget": "explicit filesystem-boundary doubles; not native compatibility proof"
+  },
+  "related_tests": 41,
+  "full_python_tests": 528,
+  "full_python_skipped": 1,
+  "full_python_skip_boundary": "Existing real RPM bootstrap builder test requires local rpmbuild and rpm; no new socket test skipped.",
+  "contract_tests": 4,
+  "protected_files_byte_identical": 40,
+  "producer_files_included": 12,
+  "native_49_plan_unchanged": true,
+  "native_full_49_not_run": true,
+  "limits": [
+    "Original generation-5 CI rejected-path stat remains unknown.",
+    "No Docker, full native clients, new CI attempt, cloud, production secrets, publication or keychain access in this repair.",
+    "Only exact canonical pubring paths and socket/nlink=1/size=0 are excluded from ordinary-file evidence; sockets are not metadata."
+  ]
+}

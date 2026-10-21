@@ -1,0 +1,15 @@
+test_five_live_and_closed_sockets_remain_untouched_beside_metadata (test_native_stable_clients_drill.CacheInventorySocketTests.test_five_live_and_closed_sockets_remain_untouched_beside_metadata) ... ok
+test_known_names_as_regular_files_are_hashed_and_keep_size_bounds (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_names_as_regular_files_are_hashed_and_keep_size_bounds) ... ok
+test_known_names_reject_fifo_symlink_and_regular_hardlink_without_reading (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_names_reject_fifo_symlink_and_regular_hardlink_without_reading) ... ok
+test_known_socket_size_and_link_count_still_fail_closed (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_socket_size_and_link_count_still_fail_closed) ... ok
+test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence) ... ok
+test_known_sockets_do_not_bypass_regular_count_or_total_size_budget (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_do_not_bypass_regular_count_or_total_size_budget) ... ok
+test_known_sockets_do_not_weaken_actual_metadata_read_proof (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_do_not_weaken_actual_metadata_read_proof) ... ok
+test_real_hardlinked_socket_is_rejected (test_native_stable_clients_drill.CacheInventorySocketTests.test_real_hardlinked_socket_is_rejected) ... ok
+test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) ... ok
+test_socket_name_and_parent_allowlist_are_exact (test_native_stable_clients_drill.CacheInventorySocketTests.test_socket_name_and_parent_allowlist_are_exact) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.240s
+
+OK

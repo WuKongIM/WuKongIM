@@ -1,0 +1,109 @@
+{
+  "at": "2026-10-21T15:25:41.825663+00:00",
+  "scope": "Read-only local Spec scope review; no tests/source edits/CI/cloud/API/credentials",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients",
+  "head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "working_tree_clean": true,
+  "applicable_rules": "User-provided WuKongIM AGENTS plus root delegated read-only scope; no AGENTS.md/FLOW.md found within packages repository",
+  "inputs": {
+    "after-native-delivery-gap-README.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-native-delivery-gap/README.md",
+      "sha256": "0ce6f9036648e203f4ce6e9211d20a344dceedd03383d3d2b8fdad3cd52b32c2"
+    },
+    "storage-design.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/storage-design/design.md",
+      "sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311"
+    },
+    "resource-proposal.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/storage-resource-proposal/proposal.md",
+      "sha256": "d3164f6a4410003692d68ff35863311ba7b852856f7a7e7e106b314ada6df4f1"
+    }
+  },
+  "source_files": {
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "size": 38978,
+      "lines": [
+        [
+          218,
+          269
+        ],
+        [
+          273,
+          289
+        ],
+        [
+          401,
+          405
+        ],
+        [
+          480,
+          595
+        ]
+      ]
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+      "size": 12830,
+      "lines": [
+        [
+          16,
+          29
+        ],
+        [
+          43,
+          109
+        ]
+      ]
+    },
+    "scripts/validate-production-package-clients.py": {
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+      "size": 87886,
+      "lines": [
+        [
+          1579,
+          1595
+        ]
+      ]
+    },
+    "scripts/validate-control.py": {
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "size": 44355,
+      "lines": [
+        [
+          354,
+          363
+        ]
+      ]
+    },
+    "docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357,
+      "lines": [
+        [
+          600,
+          610
+        ]
+      ]
+    },
+    "docs/object-storage-planning.md": {
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+      "size": 7359,
+      "lines": [
+        [
+          1,
+          25
+        ],
+        [
+          86,
+          115
+        ]
+      ]
+    }
+  },
+  "decision": "one narrow v1/v2 object-route core; no existing schema/signature/publication authority changes; production disabled; live SDK/provider behavior remains unverified",
+  "runtime_probes_run": false,
+  "cloud_api_used": false,
+  "ci_used": false,
+  "private_material_read": false
+}

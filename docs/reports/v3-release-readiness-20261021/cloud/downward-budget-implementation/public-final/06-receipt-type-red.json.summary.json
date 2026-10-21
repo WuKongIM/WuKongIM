@@ -1,0 +1,12 @@
+{
+  "events": 13,
+  "pass_events": 0,
+  "failed_tests": [
+    "TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior",
+    "TestChatLifecycleDownwardBudgetDocuments"
+  ],
+  "failed_packages": [
+    "github.com/WuKongIM/WuKongIM/scripts"
+  ],
+  "build_failures": []
+}

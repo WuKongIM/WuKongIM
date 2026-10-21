@@ -1,0 +1,68 @@
+--- FAIL: TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification (0.00s)
+    chat_lifecycle_downward_budget_consumers_test.go:43: rehearsal does not compare handoff, selected terminal, and deployment budget evidence
+--- FAIL: TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell (1.39s)
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/above_hard (0.16s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:364: aggregate boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/above_hard (0.26s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:364: aggregate boundary wantOK=false: <nil>: 
+--- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell (3.27s)
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/at_stop (0.26s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/above_stop (0.26s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/at_stop (0.26s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/above_stop (0.19s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+--- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell (4.77s)
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/handoff_receipt (0.17s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/handoff_deployment (0.17s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_receipt (0.17s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_deployment (0.16s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_higher (0.16s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_higher: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/rehearsal_receipt (0.23s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=rehearsal_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/handoff_receipt (0.14s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/handoff_deployment (0.15s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_receipt (0.11s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_deployment (0.16s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_higher (0.19s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_higher: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/rehearsal_receipt (0.11s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=rehearsal_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/handoff_receipt (0.16s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/handoff_deployment (0.19s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_receipt (0.18s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_deployment (0.11s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_higher (0.12s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_higher: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/rehearsal_receipt (0.12s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=rehearsal_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/handoff_receipt (0.12s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/handoff_deployment (0.12s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=handoff_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_receipt (0.12s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_receipt: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_deployment (0.16s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_deployment: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_higher (0.15s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=final_higher: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/rehearsal_receipt (0.12s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:272: budget qualification corrupt=rehearsal_receipt: <nil>: 
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	5.118s
+FAIL

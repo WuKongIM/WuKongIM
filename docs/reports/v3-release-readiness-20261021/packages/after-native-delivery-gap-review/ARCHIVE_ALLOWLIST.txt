@@ -1,0 +1,10 @@
+README.md
+failure-inventory.md
+source-excerpts.txt
+source-freeze.json
+summary.json
+inputs/after-native-delivery-gap-README.md
+inputs/storage-design.md
+inputs/resource-proposal.md
+ARCHIVE_ALLOWLIST.txt
+archive-sha256.json

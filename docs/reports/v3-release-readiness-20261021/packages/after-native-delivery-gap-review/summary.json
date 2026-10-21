@@ -1,0 +1,17 @@
+{
+  "schema": "wukongim.delivery_gap_spec_review/v1",
+  "can_start_offline": true,
+  "must_change_existing_schema": false,
+  "must_change_signatures": false,
+  "must_change_publication_authority": false,
+  "recommended_scope": "single object/route consumer for existing preview v1 and composite v2; dry-run materializer plus fake API transition/receipt tests",
+  "no_new_ga_gates": true,
+  "fresh_provider_and_public_acceptance_required_for_actual_delivery": true,
+  "cloud_execution_authorized_by_this_review": false,
+  "scope_clarifications": [
+    "preview-first cannot require a fabricated stable descriptor",
+    "plan/provenance/execution authorization remain distinct",
+    "provider-specific resource/API/IAM facts await real integration",
+    "partial activation retains side-effect evidence; simulated completion is not live completion"
+  ]
+}

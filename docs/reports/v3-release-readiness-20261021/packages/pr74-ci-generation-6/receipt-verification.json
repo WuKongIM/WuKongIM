@@ -1,0 +1,184 @@
+{
+  "passed": true,
+  "head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "synthetic_checkout": "1861383911303229fba4cd65eb75019ff26f6a32",
+  "real_native_cases": 49,
+  "baseline": [
+    {
+      "generation": "A",
+      "version": "3.0.0",
+      "source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "distributions": [
+        "ubuntu-24.04",
+        "debian-13",
+        "rocky-linux-9",
+        "alma-linux-9"
+      ]
+    },
+    {
+      "generation": "B",
+      "version": "3.0.1",
+      "source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "distributions": [
+        "ubuntu-24.04",
+        "debian-13",
+        "rocky-linux-9",
+        "alma-linux-9"
+      ]
+    }
+  ],
+  "cache": [
+    {
+      "number": 4,
+      "case": "ubuntu-24.04-cache-A-first",
+      "reuse_required": false,
+      "metadata_before_count": 0,
+      "metadata_after_count": 2,
+      "metadata_reads": []
+    },
+    {
+      "number": 5,
+      "case": "ubuntu-24.04-cache-A-repeat",
+      "reuse_required": true,
+      "metadata_before_count": 2,
+      "metadata_after_count": 2,
+      "metadata_reads": [
+        "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+        "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+      ]
+    },
+    {
+      "number": 6,
+      "case": "ubuntu-24.04-cache-B-target",
+      "reuse_required": false,
+      "metadata_before_count": 2,
+      "metadata_after_count": 2,
+      "metadata_reads": []
+    },
+    {
+      "number": 14,
+      "case": "debian-13-cache-A-first",
+      "reuse_required": false,
+      "metadata_before_count": 0,
+      "metadata_after_count": 2,
+      "metadata_reads": []
+    },
+    {
+      "number": 15,
+      "case": "debian-13-cache-A-repeat",
+      "reuse_required": true,
+      "metadata_before_count": 2,
+      "metadata_after_count": 2,
+      "metadata_reads": [
+        "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+        "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+      ]
+    },
+    {
+      "number": 16,
+      "case": "debian-13-cache-B-target",
+      "reuse_required": false,
+      "metadata_before_count": 2,
+      "metadata_after_count": 2,
+      "metadata_reads": []
+    },
+    {
+      "number": 24,
+      "case": "rocky-linux-9-cache-A-first",
+      "reuse_required": false,
+      "metadata_before_count": 0,
+      "metadata_after_count": 14,
+      "metadata_reads": []
+    },
+    {
+      "number": 25,
+      "case": "rocky-linux-9-cache-A-repeat",
+      "reuse_required": true,
+      "metadata_before_count": 14,
+      "metadata_after_count": 14,
+      "metadata_reads": [
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml.asc",
+        "dnf-cli-cache/wukongim-stable-filenames.solvx",
+        "dnf-cli-cache/wukongim-stable.solv"
+      ]
+    },
+    {
+      "number": 26,
+      "case": "rocky-linux-9-cache-B-target",
+      "reuse_required": false,
+      "metadata_before_count": 14,
+      "metadata_after_count": 14,
+      "metadata_reads": []
+    },
+    {
+      "number": 35,
+      "case": "alma-linux-9-cache-A-first",
+      "reuse_required": false,
+      "metadata_before_count": 0,
+      "metadata_after_count": 14,
+      "metadata_reads": []
+    },
+    {
+      "number": 36,
+      "case": "alma-linux-9-cache-A-repeat",
+      "reuse_required": true,
+      "metadata_before_count": 14,
+      "metadata_after_count": 14,
+      "metadata_reads": [
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml",
+        "dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/repodata/repomd.xml.asc",
+        "dnf-cli-cache/wukongim-stable-filenames.solvx",
+        "dnf-cli-cache/wukongim-stable.solv"
+      ]
+    },
+    {
+      "number": 37,
+      "case": "alma-linux-9-cache-B-target",
+      "reuse_required": false,
+      "metadata_before_count": 14,
+      "metadata_after_count": 14,
+      "metadata_reads": []
+    }
+  ],
+  "legacy": [
+    {
+      "name": "native-source-metadata",
+      "cases": 7,
+      "transport_cases": 0,
+      "cleanup": {}
+    },
+    {
+      "name": "native-local-signing",
+      "cases": 10,
+      "transport_cases": 0,
+      "cleanup": {
+        "secret_tree_removed_before_verification": true,
+        "source_inputs_unchanged": true
+      }
+    },
+    {
+      "name": "native-bootstrap-preparation",
+      "cases": 6,
+      "transport_cases": 0,
+      "cleanup": {
+        "scratch_removed": true
+      }
+    },
+    {
+      "name": "native-stable-candidate",
+      "cases": 31,
+      "transport_cases": 8,
+      "cleanup": {
+        "checked_in_control_unchanged": true,
+        "secret_tree_removed_before_verification": true,
+        "scratch_removed": true
+      }
+    }
+  ],
+  "cleanup_zero": true,
+  "test_only": true
+}

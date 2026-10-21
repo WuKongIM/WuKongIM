@@ -1,0 +1,64 @@
+--- v1/.github/workflows/chat-lifecycle-formal-finalize.yml
++++ v2/.github/workflows/chat-lifecycle-formal-finalize.yml
+@@ -453,7 +453,7 @@
+           if-no-files-found: error
+           retention-days: 90
+       - name: Upload formal zero-inventory proof
+-        if: steps.cleanup.outputs.zero == 'true'
++        if: always() && steps.cleanup.outputs.zero == 'true'
+         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+         with:
+           name: chat-lifecycle-formal-cleanup-${{ matrix.request_id }}
+--- v1/.github/workflows/chat-lifecycle-rehearsal-finalize.yml
++++ v2/.github/workflows/chat-lifecycle-rehearsal-finalize.yml
+@@ -515,7 +515,7 @@
+           if-no-files-found: error
+           retention-days: 90
+       - name: Upload zero-inventory proof
+-        if: steps.cleanup.outputs.zero == 'true'
++        if: always() && steps.cleanup.outputs.zero == 'true'
+         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+         with:
+           name: chat-lifecycle-rehearsal-cleanup-${{ matrix.request_id }}
+--- v1/scripts/chat_lifecycle_downward_budget_consumers_test.go
++++ v2/scripts/chat_lifecycle_downward_budget_consumers_test.go
+@@ -47,8 +47,38 @@
+ 			publishName = "Upload zero-inventory proof"
+ 		}
+ 		_, publish := releasedPreclockConsumerStepAt(t, steps, publishName)
+-		if publish.If != "steps.cleanup.outputs.zero == 'true'" {
++		if publish.If != "always() && steps.cleanup.outputs.zero == 'true'" {
+ 			t.Fatalf("%s budget validation can suppress zero proof publication", stage)
+ 		}
+ 	}
+ }
++
++// Actions adds success() to conditions without an explicit status function.
++// A zero proof must still publish after a terminal budget gate rejects the run.
++func TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure(t *testing.T) {
++	for _, stage := range []string{"rehearsal", "formal"} {
++		t.Run(stage, func(t *testing.T) {
++			steps := releasedPreclockConsumerSteps(t, "chat-lifecycle-"+stage+"-finalize.yml", "finalize")
++			publishName := "Upload formal zero-inventory proof"
++			if stage == "rehearsal" {
++				publishName = "Upload zero-inventory proof"
++			}
++			uploadIndex, upload := releasedPreclockConsumerStepAt(t, steps, publishName)
++			if upload.If != "always() && steps.cleanup.outputs.zero == 'true'" {
++				t.Fatalf("after a failed budget qualification, Actions implicitly skips zero proof without an explicit status guard: %q", upload.If)
++			}
++			rejectionSeen := false
++			for _, step := range steps[:uploadIndex] {
++				if strings.Contains(step.Run, "committed_micros < operational_stop_micros") || strings.Contains(step.Run, "aggregate_conservative_micros <= request_budget_limit_micros") {
++					if step.ContinueOnError || !strings.Contains(step.Run, ")) || exit 1") {
++						t.Fatal("budget rejection must remain a failing qualification gate")
++					}
++					rejectionSeen = true
++				}
++			}
++			if !rejectionSeen {
++				t.Fatal("missing budget rejection before zero publication")
++			}
++		})
++	}
++}

@@ -1,0 +1,598 @@
+diff --git a/.github/workflows/README.md b/.github/workflows/README.md
+index f8de0fc2f..c6492152b 100644
+--- a/.github/workflows/README.md
++++ b/.github/workflows/README.md
+@@ -1031,8 +1031,15 @@ Preflight Artifacts never establish a handoff or authorize further procurement.
+ The required operator inputs remain `source_sha`, fixed operator `tangtaoit`, one
+ request-scoped Codex diagnostic Ed25519 public key, and `request_id`. The optional
+ `released_preclock_run_id` is an explicit start decision for one already released
+-pre-clock failure, not an automatic retry. Infrastructure, budget, duration,
+-workload, and retry values come only from the reviewed repository Run Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
++pre-clock failure, not an automatic retry. The optional string
++`request_budget_limit_micros` defaults to `1500000000` CNY micros and may only
++lower a new request's ceiling. It must be a canonical decimal integer greater
++than `150000000` and at most `1500000000`; the operational stop is exactly that
++ceiling minus `150000000`. Empty, signed, padded, fractional, exponential or
++out-of-range input is rejected before bundle/key generation or Quote. A lower
++ceiling cannot accompany `released_preclock_run_id`; the existing continuation
++proof remains bound to the original CNY 1,500/1,350 envelope. Infrastructure,
++duration, workload, and retry values come only from the reviewed repository Run Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
+ 12-hour AutoRelease Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
+ unit. The runner exits after the remote `run-start.json` proves 10,000 full
+ syncs and acceptance of the first full 2,000 SEND/s grant. The remote rehearsal
+@@ -1042,6 +1049,23 @@ Before paid Acquire, it seals the generated Deployment/monitor private key with
+ the Lease ID, Plan digest, source SHA, and expiry already fixed by the Run Plan.
+ The acquired Receipt must equal that identity before Deployment dispatch.
+ 
++A lower request ceiling travels in the existing Run Plan/Lease budget fields.
++The formal starter derives it from the authenticated rehearsal Run Plan and
++Receipt; it never falls back to the default when these values are absent or
++conflicting. Both finalizers compare terminal Run Plan, Receipt and DeploymentPlan
++budgets after cleanup, preserving the same cap through formal execution. The
++remote `wkcli` guard enforces that admitted stop during rehearsal, soak, capacity
++and recovery. The bundle still builds `wkcli` from the exact product source: an
++older product revision whose guard only accepts the default envelope cannot run
++a lower-budget request merely by updating control code.
++
++This input does not authenticate costs from other requests, clear stop markers,
++allow another continuation, or grant procurement authority. If an operator
++reserves prior costs outside a new request, the new hard cap and stop must both
++be lowered by that reserve under an explicit cumulative authorization. A Quote
++reserve is not a bill; unknown charges remain unknown. No new cross-request
++ledger or automatic paid restart is introduced.
++
+ A released pre-clock continuation uses the same request, source and diagnostic
+ public key. Before bundle/key generation or Quote, the read-only helper requires
+ the predecessor and current GitHub API runs to share the same numeric Workflow,
+@@ -1206,7 +1230,8 @@ qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
+ 2,000-SEND/s recovery in one `wkcli bench formal-chain` process with the same
+ worker fence, generation, observer, lifecycle proof, and dataset. Activation
+ seals the Lease creation/expiry instants, exact quote line items, aggregate
+-committed cost, and ¥1,350/¥1,500 limits into the root-only load environment.
++committed cost, and the admitted stop/hard limits (¥1,350/¥1,500 by default)
++into the root-only load environment.
+ Formal-chain checks the 81.5-hour admission reserve, then re-evaluates
+ conservative accrued host/retention/traffic cost and the one-hour expiry cleanup
+ reserve every five seconds through both phases. `chat-lifecycle-formal-finalize.yml` waits for
+diff --git a/.github/workflows/chat-lifecycle-formal-finalize.yml b/.github/workflows/chat-lifecycle-formal-finalize.yml
+index 42dafa3e4..052ab4d38 100644
+--- a/.github/workflows/chat-lifecycle-formal-finalize.yml
++++ b/.github/workflows/chat-lifecycle-formal-finalize.yml
+@@ -386,6 +386,17 @@ jobs:
+             --directory "$WK_CHAT_HANDOFF_DIR/rehearsal" --run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json"
+           final_dir="$WK_CHAT_FINAL_DIR"
+           [[ "${{ steps.existing.outputs.ready }}" == true ]] && final_dir="$RUNNER_TEMP/previous-final"
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
++            --run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json" \
++            --receipt "$WK_CHAT_HANDOFF_DIR/rehearsal/receipt.json" >/dev/null
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
++            --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json" --receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
++            --deployment-plan "$WK_CHAT_HANDOFF_DIR/deployment-plan.json" \
++            --matches-run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json" >/dev/null
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
++            --run-plan "$final_dir/run-plan.json" --receipt "$final_dir/receipt.json" \
++            --deployment-plan "$final_dir/deployment-plan.json" \
++            --matches-run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json" >/dev/null
+           rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
+           test "$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_HANDOFF_DIR/run-plan.json")" = "$rehearsal_committed_micros"
+           test "$(jq -er .lease_plan.budget.committed_micros "$final_dir/run-plan.json")" = "$rehearsal_committed_micros"
+@@ -416,7 +427,8 @@ jobs:
+           rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
+           formal_quote_micros="$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")"
+           aggregate_conservative_micros=$(( rehearsal_committed_micros + formal_quote_micros ))
+-          (( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= 1500000000 ))
++          request_budget_limit_micros="$(jq -er .lease_plan.budget.limit_micros "$final_dir/run-plan.json")"
++          (( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= request_budget_limit_micros )) || exit 1
+           jq -n --arg schema 'wukongim.chat_lifecycle.complete_evidence/v1' --arg stage formal \
+             --arg request_id "$WK_CHAT_REQUEST_ID" --arg assembled_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             --argjson rehearsal_committed_micros "$rehearsal_committed_micros" \
+diff --git a/.github/workflows/chat-lifecycle-formal.yml b/.github/workflows/chat-lifecycle-formal.yml
+index 6508bfd16..5866d61fb 100644
+--- a/.github/workflows/chat-lifecycle-formal.yml
++++ b/.github/workflows/chat-lifecycle-formal.yml
+@@ -99,12 +99,18 @@ jobs:
+           done
+           jq -e '.schema == "wukongim.chat_lifecycle.terminal_evidence/v1" and .stage == "rehearsal" and .complete == true' \
+             "$WK_CHAT_TRANSITION_DIR/evidence/manifest.json" >/dev/null
+-          jq -e --arg request "$WK_CHAT_REQUEST_ID" '
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
++            --directory "$WK_CHAT_TRANSITION_DIR" --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json"
++          budget="$(python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
++            --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json" --receipt "$WK_CHAT_TRANSITION_DIR/receipt.json")"
++          request_budget_limit_micros="$(jq -er .limit_micros <<<"$budget")"
++          operational_stop_micros="$(jq -er .operational_stop_micros <<<"$budget")"
++          jq -e --arg request "$WK_CHAT_REQUEST_ID" --argjson operational_stop "$operational_stop_micros" '
+             .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .from_stage == "rehearsal" and
+             .outcome == "rehearsal_pass" and .zero_inventory == true and .request_id == $request and
+             (.source_sha | test("^[0-9a-f]{40}$")) and (.bundle_digest | test("^sha256:[0-9a-f]{64}$")) and
+             (.codex_diagnostic_pubkey | startswith("ssh-ed25519 ")) and
+-            (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < 1350000000
++            (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < $operational_stop
+           ' "$WK_CHAT_TRANSITION_DIR/transition.json" >/dev/null
+           source_sha="$(jq -er .source_sha "$WK_CHAT_TRANSITION_DIR/transition.json")"
+           bundle_digest="$(jq -er .bundle_digest "$WK_CHAT_TRANSITION_DIR/transition.json")"
+@@ -119,8 +125,6 @@ jobs:
+           ' "$WK_CHAT_TRANSITION_DIR/cleanup.json" >/dev/null
+           cmp -s <(jq -S -c .selector "$WK_CHAT_TRANSITION_DIR/release-selector.json") \
+             <(jq -S -c .result.zero_inventory.selector "$WK_CHAT_TRANSITION_DIR/zero-inventory.json")
+-          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+-            --directory "$WK_CHAT_TRANSITION_DIR" --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json"
+           prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_TRANSITION_DIR/run-plan.json")"
+           created_at="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" \
+             -f scripts/chat-lifecycle/select-active-receipt-created-at.jq \
+@@ -152,6 +156,7 @@ jobs:
+             echo "WK_CHAT_SOURCE_SHA=$source_sha"
+             echo "WK_CHAT_BUNDLE_DIGEST=$bundle_digest"
+             echo "WK_CHAT_BUNDLE_RUN_ID=$bundle_run_id"
++            echo "WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS=$request_budget_limit_micros"
+           } >>"$GITHUB_ENV"
+       - name: Build trusted Run Plan control tool
+         shell: bash
+diff --git a/.github/workflows/chat-lifecycle-rehearsal-finalize.yml b/.github/workflows/chat-lifecycle-rehearsal-finalize.yml
+index 86473a895..4cf4eb52e 100644
+--- a/.github/workflows/chat-lifecycle-rehearsal-finalize.yml
++++ b/.github/workflows/chat-lifecycle-rehearsal-finalize.yml
+@@ -384,6 +384,13 @@ jobs:
+             --directory "$WK_CHAT_HANDOFF_DIR" --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json"
+           python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+             --directory "$final_dir" --run-plan "$final_dir/run-plan.json"
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
++            --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json" --receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
++            --deployment-plan "$WK_CHAT_HANDOFF_DIR/deployment-plan.json" >/dev/null
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
++            --run-plan "$final_dir/run-plan.json" --receipt "$final_dir/receipt.json" \
++            --deployment-plan "$final_dir/deployment-plan.json" \
++            --matches-run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json" >/dev/null
+       - name: Enable formal continuation before transition publication
+         if: steps.continuation.outcome == 'success' && steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
+         shell: bash
+@@ -439,7 +446,8 @@ jobs:
+           network_bytes="$(jq -er .resources.capacity.network_transmit_bytes "$final_dir/final.json")"
+           rehearsal_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$final_dir/run-plan.json" "$final_dir/quote.json" "$created_at" "$ended_at" "$network_bytes")"
+           committed_micros=$(( prior + rehearsal_cost ))
+-          (( committed_micros > 0 && committed_micros < 1350000000 ))
++          operational_stop_micros="$(jq -er .operational_stop_micros "$final_dir/run-plan.json")"
++          (( committed_micros > 0 && committed_micros < operational_stop_micros )) || exit 1
+           install -d -m 0700 "$WK_CHAT_TRANSITION_DIR"
+           jq -n --arg schema 'wukongim.chat_lifecycle.formal_transition/v1' \
+             --arg from_stage rehearsal --arg outcome rehearsal_pass \
+diff --git a/.github/workflows/chat-lifecycle-rehearsal.yml b/.github/workflows/chat-lifecycle-rehearsal.yml
+index 65a7b3380..39fa822d6 100644
+--- a/.github/workflows/chat-lifecycle-rehearsal.yml
++++ b/.github/workflows/chat-lifecycle-rehearsal.yml
+@@ -25,6 +25,11 @@ on:
+         required: false
+         default: ""
+         type: string
++      request_budget_limit_micros:
++        description: Optional downward-only request ceiling in CNY micros; retains a CNY 150 stop reserve
++        required: false
++        default: "1500000000"
++        type: string
+ 
+ permissions:
+   contents: read
+@@ -49,6 +54,7 @@ jobs:
+       WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
+       WK_CHAT_REQUEST_ID: ${{ inputs.request_id }}
+       WK_CHAT_RELEASED_PRECLOCK_RUN_ID: ${{ inputs.released_preclock_run_id }}
++      WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS: ${{ inputs.request_budget_limit_micros }}
+       WK_CHAT_ARTIFACT_INVENTORY: /tmp/wukongim-chat-lifecycle-inventory-${{ github.run_id }}.json
+       WK_CHAT_WRAPPING_PUBLIC_KEY: ${{ vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY }}
+       WK_CHAT_TEMPLATE: configs/cloud/chat-lifecycle/rehearsal-v1.json
+@@ -73,6 +79,8 @@ jobs:
+           [[ "$WK_CHAT_OPERATOR" == tangtaoit ]]
+           [[ "$WK_CHAT_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
+           [[ -z "$WK_CHAT_RELEASED_PRECLOCK_RUN_ID" || "$WK_CHAT_RELEASED_PRECLOCK_RUN_ID" =~ ^[1-9][0-9]*$ ]]
++          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget-input \
++            --limit "$WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS" --released-preclock-run-id "$WK_CHAT_RELEASED_PRECLOCK_RUN_ID" >/dev/null
+           test -n "$WK_CHAT_WRAPPING_PUBLIC_KEY"
+           git fetch --no-tags origin main
+           git merge-base --is-ancestor "$WK_CHAT_SOURCE_SHA" origin/main
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d856634c6..d3cfd00c0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Allow a new cloud chat-lifecycle request to lower its budget ceiling while
++  preserving the cleanup reserve through rehearsal, formal execution and remote
++  cost guards. / 新云端聊天生命周期请求可向下调整预算上限，预演、正式运行和远端
++  费用守卫保持同一预算及清理预留，不扩展既有请求的续跑权限。
++
+ - Accept systemd's empty `Job=` as no queued job during cloud chat-lifecycle
+   startup, while rejecting missing or malformed state fields consistently on
+   Bash 3 and Bash 5. / 云端聊天生命周期启动兼容 systemd 用空 `Job=` 表示无排队
+diff --git a/cmd/wkchatlifecycle/main.go b/cmd/wkchatlifecycle/main.go
+index 66ea3692e..6214c7c8d 100644
+--- a/cmd/wkchatlifecycle/main.go
++++ b/cmd/wkchatlifecycle/main.go
+@@ -8,6 +8,7 @@ import (
+ 	"io"
+ 	"os"
+ 	"path/filepath"
++	"strconv"
+ 	"strings"
+ 	"time"
+ 
+@@ -190,6 +191,8 @@ func writePrivateAtomic(path string, body []byte) error {
+ }
+ 
+ type materializeOptions struct {
++	requestBudgetLimitMicros                                  string
++	requestBudgetSupplied                                     bool
+ 	templatePath, sourceSHA, operator, codexPubKey, requestID string
+ 	repository, bundleDigest, deploymentPubKey, nowValue      string
+ 	transitionPath, releasedPreclockProofPath                 string
+@@ -201,6 +204,7 @@ func addMaterializeCommand(root *cobra.Command) {
+ 	command := &cobra.Command{
+ 		Use: "materialize", Short: "Bind the fixed operator surface to the reviewed Run Plan", Args: cobra.NoArgs,
+ 		RunE: func(command *cobra.Command, _ []string) error {
++			options.requestBudgetSupplied = command.Flags().Changed("request-budget-limit-micros")
+ 			return runMaterialize(command.OutOrStdout(), options)
+ 		},
+ 	}
+@@ -216,6 +220,7 @@ func addMaterializeCommand(root *cobra.Command) {
+ 	flags.StringVar(&options.nowValue, "now", "", "trusted RFC3339 UTC materialization time")
+ 	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
+ 	flags.StringVar(&options.releasedPreclockProofPath, "released-preclock-proof", "", "authenticated released rehearsal history from the protected read-only helper")
++	flags.StringVar(&options.requestBudgetLimitMicros, "request-budget-limit-micros", "", "optional downward-only immutable request ceiling in canonical CNY micros")
+ 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
+ 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
+ 	flags.Int64Var(&options.authorizedRepairBudgetCNY, "authorized-repair-budget-cny", 0, "independently authorized whole-CNY direct repair budget")
+@@ -247,6 +252,13 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
+ 		Attempt: int(options.attempt), CommittedMicros: options.committedMicros,
+ 		AuthorizedRepairBudgetCNY: options.authorizedRepairBudgetCNY,
+ 	}
++	if options.requestBudgetSupplied {
++		limit, err := strconv.ParseInt(options.requestBudgetLimitMicros, 10, 64)
++		if err != nil || strconv.FormatInt(limit, 10) != options.requestBudgetLimitMicros {
++			return chatlifecyclerun.ErrInvalidInput
++		}
++		trusted.RequestBudgetLimitMicros = &limit
++	}
+ 	if options.transitionPath != "" {
+ 		var transition chatlifecyclerun.StageTransition
+ 		if err := readStrict(options.transitionPath, &transition); err != nil {
+diff --git a/cmd/wkcli/internal/benchmark/formal_chain_command.go b/cmd/wkcli/internal/benchmark/formal_chain_command.go
+index 47d165be5..15d2e2ecd 100644
+--- a/cmd/wkcli/internal/benchmark/formal_chain_command.go
++++ b/cmd/wkcli/internal/benchmark/formal_chain_command.go
+@@ -226,7 +226,8 @@ func loadFormalRuntimeEnvelope(cfg chatlifecycle.Config, now time.Time) (*formal
+ 			itemsValid = false
+ 		}
+ 	}
+-	budgetBoundsValid := limit == hardLimit && stop == operationalStop
++	// Immutable requests retain the fixed cleanup reserve when lowering the ceiling.
++	budgetBoundsValid := limit > hardLimit-operationalStop && limit <= hardLimit && stop == limit-(hardLimit-operationalStop)
+ 	if directRepair {
+ 		budgetBoundsValid = limit > 0 && stop > 0 && stop < limit
+ 	}
+diff --git a/docs/development/FLOW_INDEX.md b/docs/development/FLOW_INDEX.md
+index 63323900d..7ec736be8 100644
+--- a/docs/development/FLOW_INDEX.md
++++ b/docs/development/FLOW_INDEX.md
+@@ -61,9 +61,9 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
+ | [internal/usecase/backup/FLOW.md](../../internal/usecase/backup/FLOW.md) | `package` | Owns cluster-wide backup plan policy, job admission, archive lifecycle, retention, and current-cluster restore orchestration. | 67 | ok |
+ | [internal/usecase/benchterminal/FLOW.md](../../internal/usecase/benchterminal/FLOW.md) | `package` | Owns one exact benchmark terminal drain, capability grant, and session-seal admission proof. | 68 | ok |
+ | [internal/usecase/channel/FLOW.md](../../internal/usecase/channel/FLOW.md) | `package` | Orchestrates channel metadata, ordinary membership, derived member lists, versioning, projection, and bounded iteration. | 63 | ok |
+-| [internal/usecase/chatlifecyclerun/FLOW.md](../../internal/usecase/chatlifecyclerun/FLOW.md) | `package` | Materializes bounded repair, rehearsal, and formal chat-lifecycle run plans from reviewed templates and trusted context. | 70 | ok |
++| [internal/usecase/chatlifecyclerun/FLOW.md](../../internal/usecase/chatlifecyclerun/FLOW.md) | `package` | Materializes bounded repair, rehearsal, and formal chat-lifecycle run plans from reviewed templates and trusted context. | 73 | ok |
+ | [internal/usecase/cloudanalysis/FLOW.md](../../internal/usecase/cloudanalysis/FLOW.md) | `package` | Validates exact-run Analysis MCP requests and returns bounded observations from narrow live sources. | 56 | ok |
+-| [internal/usecase/clouddeploy/FLOW.md](../../internal/usecase/clouddeploy/FLOW.md) | `package` | Seals provider-neutral offline deployment bundles, exact Lease plans, host files, and typed readiness receipts. | 83 | ok |
++| [internal/usecase/clouddeploy/FLOW.md](../../internal/usecase/clouddeploy/FLOW.md) | `package` | Seals provider-neutral offline deployment bundles, exact Lease plans, host files, and typed readiness receipts. | 85 | ok |
+ | [internal/usecase/cloudlease/FLOW.md](../../internal/usecase/cloudlease/FLOW.md) | `package` | Owns provider-neutral temporary cloud Lease validation, quote, acquisition, access grants, release, and sweep policy. | 54 | ok |
+ | [internal/usecase/cloudsim/FLOW.md](../../internal/usecase/cloudsim/FLOW.md) | `package` | Owns provider-neutral cloud Simulation Run identity, admission, lifecycle, access windows, finalization, and cleanup rules. | 63 | ok |
+ | [internal/usecase/conversation/FLOW.md](../../internal/usecase/conversation/FLOW.md) | `package` | Builds transient conversations from UID membership and Channel state, and owns badge, hide, and activation commands. | 96 | ok |
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index ff4b65030..d641a8608 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1215,6 +1215,13 @@ specification, runbook, report, or module documentation; link to them when neede
+   for host activation, bounded readiness, and typed outcomes. Behavioral tests
+   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts
+   and validation, not a parallel test-only execution model.
++- New immutable chat-lifecycle requests may lower `request_budget_limit_micros`
++  below the CNY 1,500 default while retaining the exact CNY 150 stop reserve.
++  Existing RunPlan/Lease fields carry the envelope; formal consumers authenticate
++  the original caps and remote `wkcli` enforces the admitted stop. Old released
++  continuation proofs remain default-only. The bundle builds `wkcli` from product
++  source, so changing control alone cannot make an older default-only product
++  accept a lower envelope. This is not a cross-request ledger or paid-start grant.
+ - Paid chat-lifecycle orchestration needs one exact open, unlocked tracking Issue
+   before procurement. Read-only startup validation cannot promise future write
+   permission. A pre-clock failure label alone does not prove the deadline elapsed:
+diff --git a/internal/usecase/chatlifecyclerun/FLOW.md b/internal/usecase/chatlifecyclerun/FLOW.md
+index 7bca2557c..3a3c9460d 100644
+--- a/internal/usecase/chatlifecyclerun/FLOW.md
++++ b/internal/usecase/chatlifecyclerun/FLOW.md
+@@ -41,9 +41,12 @@ private credentials.
+ 
+ ## Invariants and Failure Semantics
+ 
+-- The shared CNY 1,350 operational stop and CNY 1,500 hard limit cover all
+-  stages, including the original released rehearsal's conservative reserve.
+-  A reserve is not provider billing evidence.
++- The default CNY 1,350 operational stop and CNY 1,500 hard limit cover all
++  stages. Trusted context may only lower a new immutable request's hard limit,
++  retaining the exact CNY 150 reserve and positive stop. Reviewed templates stay
++  fixed; formal consumers authenticate the original request caps. Released
++  continuation proofs retain only the default envelope and the original
++  rehearsal's conservative reserve, which is not provider billing evidence.
+ - Topology is fixed at four Ubuntu x86 hosts, one EIP, and reviewed disk and
+   port settings; rehearsal runs two hours and formal runs 72 hours after their
+   two-hour readiness windows.
+diff --git a/internal/usecase/chatlifecyclerun/run.go b/internal/usecase/chatlifecyclerun/run.go
+index 50d23e09a..d689cf02c 100644
+--- a/internal/usecase/chatlifecyclerun/run.go
++++ b/internal/usecase/chatlifecyclerun/run.go
+@@ -113,6 +113,9 @@ type OperatorInput struct {
+ // TrustedContext is derived only by the protected workflow or a prior typed
+ // receipt. It is not an additional operator-controlled surface.
+ type TrustedContext struct {
++	// RequestBudgetLimitMicros may only lower the immutable request ceiling; nil preserves the reviewed default.
++	RequestBudgetLimitMicros *int64
++
+ 	// Repository is the protected workflow repository bound into every Lease selector.
+ 	Repository string
+ 	// BundleDigest identifies the already authenticated immutable deployment bundle.
+@@ -321,7 +324,20 @@ func DecodeTemplate(reader io.Reader) (Template, error) {
+ 
+ // Materialize binds one immutable Lease attempt to the reviewed template.
+ func Materialize(template Template, input OperatorInput, trusted TrustedContext) (RunPlan, error) {
+-	if !validTemplate(template) || !validOperatorInput(input) || !validTrustedContext(template, trusted) {
++	if !validTemplate(template) || !validOperatorInput(input) {
++		return RunPlan{}, ErrInvalidInput
++	}
++	if limit := trusted.RequestBudgetLimitMicros; limit != nil {
++		// A lower envelope is a new request, never an extension of the released
++		// pre-clock authority or the separate direct-repair authorization.
++		if template.Stage == StageRepair || *limit <= 150_000_000 || *limit > 1_500_000_000 ||
++			(trusted.ReleasedPreclockProof != nil && *limit != 1_500_000_000) {
++			return RunPlan{}, ErrInvalidInput
++		}
++		template.Budget.HardLimitMicros = *limit
++		template.Budget.OperationalStopMicros = *limit - 150_000_000
++	}
++	if !validTrustedContext(template, trusted) {
+ 		return RunPlan{}, ErrInvalidInput
+ 	}
+ 	if template.Stage == StageFormal && (trusted.Transition.RequestID != input.RequestID ||
+diff --git a/internal/usecase/clouddeploy/FLOW.md b/internal/usecase/clouddeploy/FLOW.md
+index 46e6c84ec..cd23d7c96 100644
+--- a/internal/usecase/clouddeploy/FLOW.md
++++ b/internal/usecase/clouddeploy/FLOW.md
+@@ -59,8 +59,10 @@ non-secret Lease inventory and has no provider lifecycle authority.
+ - SSH activation records first-use host keys in one private Lease-scoped file,
+   retains that file across repair generations, and never reads or mutates the
+   operator's global user known-hosts file.
+-- Five-second cost and expiry guards enforce the immutable stage's admitted CNY
+-  1,350 operational stop and CNY 1,500 hard limit. Direct repair preserves the
++- Five-second cost and expiry guards enforce the immutable stage's admitted
++  limits: CNY 1,350 stop / CNY 1,500 hard by default, or a lower positive stop
++  with the same CNY 150 reserve. Deployment digests bind the exact Lease budget;
++  the product-source `wkcli` must support the admitted envelope. Direct repair preserves the
+   exact admitted Lease budget: CNY 300/250 by default or an explicit whole-CNY
+   hard limit through CNY 1,500 with a CNY 20 operational reserve.
+ - A control repair may redeploy only the same Lease, source, bundle, and sealed
+diff --git a/internal/usecase/clouddeploy/deployment.go b/internal/usecase/clouddeploy/deployment.go
+index ec4b2807f..a29affd38 100644
+--- a/internal/usecase/clouddeploy/deployment.go
++++ b/internal/usecase/clouddeploy/deployment.go
+@@ -704,7 +704,9 @@ func validDeploymentBudget(purpose DeploymentPurpose, budget DeploymentBudget) b
+ func validDeploymentBudgetLimits(purpose DeploymentPurpose, budget DeploymentBudget) bool {
+ 	switch purpose {
+ 	case DeploymentPurposeImmutable:
+-		return budget.LimitMicros == FormalBudgetHardMicros && budget.OperationalStopMicros == FormalBudgetStopMicros
++		// Immutable requests may lower the ceiling while retaining the full cleanup reserve.
++		return budget.LimitMicros > FormalBudgetHardMicros-FormalBudgetStopMicros && budget.LimitMicros <= FormalBudgetHardMicros &&
++			budget.OperationalStopMicros == budget.LimitMicros-(FormalBudgetHardMicros-FormalBudgetStopMicros)
+ 	case DeploymentPurposeRepair:
+ 		if budget.LimitMicros == RepairBudgetHardMicros {
+ 			return budget.OperationalStopMicros == RepairBudgetStopMicros
+diff --git a/scripts/chat-lifecycle/authenticate-released-preclock.py b/scripts/chat-lifecycle/authenticate-released-preclock.py
+index 9ea056a96..aadc26951 100644
+--- a/scripts/chat-lifecycle/authenticate-released-preclock.py
++++ b/scripts/chat-lifecycle/authenticate-released-preclock.py
+@@ -514,8 +514,64 @@ def write_sidecar(directory, proof, manifest, files):
+             stream.write(data)
+ 
+ 
++def request_budget_input(raw, predecessor=''):
++    """Lower a new immutable request ceiling; never broaden continuation authority."""
++    require(isinstance(raw, str) and re.fullmatch(r'[1-9][0-9]{0,9}', raw), 'request_budget_invalid')
++    limit = int(raw)
++    require(150000000 < limit <= 1500000000 and
++            (not predecessor or limit == 1500000000), 'request_budget_invalid')
++    return {'limit_micros': limit, 'operational_stop_micros': limit-150000000}
++
++
++def plan_budget(plan):
++    """Check local budget consistency only; producer authenticity belongs to callers."""
++    reason = 'request_budget_identity'
++    lease = plan.get('lease_plan', {})
++    budget = lease.get('budget', {})
++    require(plan.get('schema') == 'wukongim.chat_lifecycle.run_plan/v1' and
++            plan.get('stage') in ['rehearsal', 'formal'] and type(plan.get('attempt')) is int and
++            plan['attempt'] in ([1, 2] if plan['stage'] == 'rehearsal' else [1]) and
++            isinstance(budget, dict) and set(budget) == set(BUDGET) and budget.get('currency') == 'CNY', reason)
++    limit, stop, prior = (budget.get(k) for k in ['limit_micros', 'operational_stop_micros', 'committed_micros'])
++    require(all(type(v) is int for v in [limit, stop, prior, plan.get('operational_stop_micros')]) and
++            150000000 < limit <= 1500000000 and stop == limit-150000000 and 0 <= prior < stop and
++            plan['operational_stop_micros'] == stop and
++            (plan['attempt'] == 1 or limit == 1500000000), reason)
++    return budget
++
++
++def read_budget(arguments):
++    plan = load(arguments.run_plan)
++    budget = plan_budget(plan)
++    lease = plan['lease_plan']
++    receipt_document = load(arguments.receipt)
++    receipt = receipt_document.get('receipt', {})
++    require(receipt_document.get('schema') == 'wukongim.cloud_lease.receipt/v1' and
++            isinstance(receipt.get('budget'), dict) and set(receipt['budget']) == set(budget) and
++            all(type(receipt['budget'].get(k)) is type(v) and receipt['budget'][k] == v for k, v in budget.items()) and
++            all(isinstance(lease.get(k), str) and lease[k] and receipt.get(k) == lease[k]
++                for k in ['request_id', 'lease_id']), 'request_budget_identity')
++    if arguments.deployment_plan:
++        deployment = load(arguments.deployment_plan)
++        actual = deployment.get('budget', {})
++        require(deployment.get('schema') == 'wukongim.cloud_deployment.plan/v2' and
++                all(deployment.get(k) == lease[k] for k in ['request_id', 'lease_id']) and
++                all(type(actual.get(k)) is type(v) and actual[k] == v for k, v in budget.items()),
++                'request_budget_identity')
++    if arguments.matches_run_plan:
++        original = load(arguments.matches_run_plan)
++        expected = plan_budget(original)
++        require(original.get('stage') == 'rehearsal' and
++                original['lease_plan'].get('request_id') == lease['request_id'] and
++                all(budget[k] == expected[k] for k in ['currency', 'limit_micros', 'operational_stop_micros']),
++                'request_budget_identity')
++    print(json.dumps({k: budget[k] for k in ['limit_micros', 'operational_stop_micros']}))
++
++
+ def prepare(arguments):
+     env = environment()
++    request_budget_input(os.environ.get('WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS', '1500000000'),
++                         env['WK_CHAT_RELEASED_PRECLOCK_RUN_ID'])
+     if env['WK_CHAT_RELEASED_PRECLOCK_RUN_ID']:
+         old, current = authenticate_sequence(env)
+         artifacts = retained_inventory(arguments.inventory)
+@@ -535,10 +591,11 @@ def validate(arguments):
+     plan = load(arguments.run_plan)
+     lease = plan.get('lease_plan', {})
+     require(plan.get('schema') == 'wukongim.chat_lifecycle.run_plan/v1' and plan.get('stage') == 'rehearsal', 'sidecar_identity')
+-    prior = lease.get('budget', {}).get('committed_micros')
++    budget = plan_budget(plan)
++    prior = budget['committed_micros']
+     directory = Path(arguments.directory)/'continuation'
+     if prior == 0 and plan.get('attempt') == 1:
+-        require(not directory.exists() and lease.get('budget') == BUDGET, 'sidecar_identity')
++        require(not directory.exists(), 'sidecar_identity')
+         print(json.dumps({'schema':RESULT,'status':'first_start','attempt':1,'committed_micros':0}))
+         return
+     require(directory.is_dir() and not directory.is_symlink() and (directory/'proof.json').is_file(), 'sidecar_missing')
+@@ -609,9 +666,20 @@ def main():
+     command = sub.add_parser('validate')
+     command.add_argument('--directory', required=True)
+     command.add_argument('--run-plan', required=True)
++    command = sub.add_parser('budget-input')
++    command.add_argument('--limit', required=True)
++    command.add_argument('--released-preclock-run-id', default='')
++    command = sub.add_parser('budget')
++    command.add_argument('--run-plan', required=True)
++    command.add_argument('--receipt', required=True)
++    command.add_argument('--deployment-plan')
++    command.add_argument('--matches-run-plan')
+     args = parser.parse_args()
+     try:
+-        (prepare if args.mode == 'prepare' else validate)(args)
++        if args.mode == 'budget-input':
++            print(json.dumps(request_budget_input(args.limit, args.released_preclock_run_id)))
++        else:
++            {'prepare': prepare, 'validate': validate, 'budget': read_budget}[args.mode](args)
+     except Rejected as error:
+         print(json.dumps({'schema': RESULT, 'status': 'rejected', 'reason': str(error)}, separators=(',', ':')))
+         return 1
+diff --git a/scripts/chat-lifecycle/select-formal-transition-committed.jq b/scripts/chat-lifecycle/select-formal-transition-committed.jq
+index b5da1d21c..2d70a0dfb 100644
+--- a/scripts/chat-lifecycle/select-formal-transition-committed.jq
++++ b/scripts/chat-lifecycle/select-formal-transition-committed.jq
+@@ -8,6 +8,6 @@ select(
+   .bundle_digest == $bundle and
+   (.committed_micros | type == "number") and
+   .committed_micros > 0 and
+-  .committed_micros < 1350000000
++  .committed_micros < $operational_stop
+ ) |
+ .committed_micros
+diff --git a/scripts/chat-lifecycle/stage-orchestrate.sh b/scripts/chat-lifecycle/stage-orchestrate.sh
+index 6141d5085..6b098f35c 100755
+--- a/scripts/chat-lifecycle/stage-orchestrate.sh
++++ b/scripts/chat-lifecycle/stage-orchestrate.sh
+@@ -32,6 +32,7 @@ case "$chat_stage" in
+     : "${WK_CHAT_BUNDLE_RUN_ID:?required for formal}"
+     : "${WK_CHAT_BUNDLE_DIGEST:?required for formal}"
+     : "${WK_CHAT_TRANSITION:?required for formal}"
++    : "${WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS:?authenticated rehearsal budget required for formal}"
+     [[ "$WK_CHAT_BUNDLE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+     [[ "$WK_CHAT_BUNDLE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+     [[ -f "$WK_CHAT_TRANSITION" ]]
+@@ -50,6 +51,12 @@ esac
+ 
+ install -d -m 0700 "$WK_CHAT_OUTPUT_DIR"
+ install -d -m 0700 "$WK_CHAT_WORK_DIR"
++# Admission is local and precedes bundle, key generation and every provider call.
++python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget-input \
++  --limit "${WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS-1500000000}" \
++  --released-preclock-run-id "${WK_CHAT_RELEASED_PRECLOCK_RUN_ID:-}" >"$WK_CHAT_OUTPUT_DIR/request-budget.json"
++request_budget_limit_micros="$(jq -er .limit_micros "$WK_CHAT_OUTPUT_DIR/request-budget.json")"
++request_budget_stop_micros="$(jq -er .operational_stop_micros "$WK_CHAT_OUTPUT_DIR/request-budget.json")"
+ scripts/chat-lifecycle/comment-request-issue.sh --preflight >"$WK_CHAT_OUTPUT_DIR/issue-preflight.json"
+ # This admission is before bundle generation, identity creation or any paid
+ # call. It cannot interfere with cleanup of an already-owned Lease.
+@@ -346,7 +353,8 @@ bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
+ 
+ if [[ "$chat_stage" == formal ]]; then
+   committed_micros="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
+-    --arg bundle "$bundle_digest" -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
++    --arg bundle "$bundle_digest" --argjson operational_stop "$request_budget_stop_micros" \
++    -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
+     "$WK_CHAT_TRANSITION")"
+ fi
+ release_failed_attempt() {
+@@ -563,6 +571,7 @@ for attempt in "$stage_attempt"; do
+     --bundle-digest "$bundle_digest" --deployment-pubkey "$deployment_public_key"
+     --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --attempt "$attempt"
+     --committed-micros "$committed_micros"
++    --request-budget-limit-micros "$request_budget_limit_micros"
+   )
+   if [[ -n "$continuation_proof" ]]; then
+     materialize_args+=(--released-preclock-proof "$continuation_proof")
+diff --git a/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go b/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go
+index 1f7c81e30..6f9e3a260 100644
+--- a/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go
++++ b/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go
+@@ -81,7 +81,7 @@ func TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell(t *
+ 						}
+ 					}
+ 					// Only the authority helper is stubbed; run the checked-in workflow shell unchanged.
+-					stub := "#!/bin/bash\nset -eu\nprintf '%s\\n' \"$*\" >>\"$CONSUMER_CALL_LOG\"\nexit \"$CONSUMER_VALIDATOR_STATUS\"\n"
++					stub := "#!/bin/bash\nset -eu\nif [[ \"$2\" == budget ]]; then\n  printf '%s\\n' '{\"limit_micros\":1500000000,\"operational_stop_micros\":1350000000}'\n  exit 0\nfi\nprintf '%s\\n' \"$*\" >>\"$CONSUMER_CALL_LOG\"\nexit \"$CONSUMER_VALIDATOR_STATUS\"\n"
+ 					if err := os.WriteFile(filepath.Join(bin, "python3"), []byte(stub), 0700); err != nil {
+ 						t.Fatal(err)
+ 					}
+diff --git a/scripts/chat_lifecycle_workflows_test.go b/scripts/chat_lifecycle_workflows_test.go
+index c3b169485..7c48350ee 100644
+--- a/scripts/chat_lifecycle_workflows_test.go
++++ b/scripts/chat_lifecycle_workflows_test.go
+@@ -32,11 +32,12 @@ func TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedConti
+ 		Required bool   `yaml:"required"`
+ 		Type     string `yaml:"type"`
+ 	}{
+-		"source_sha":               {Required: true, Type: "string"},
+-		"operator":                 {Required: true, Type: "string"},
+-		"codex_diagnostic_pubkey":  {Required: true, Type: "string"},
+-		"request_id":               {Required: true, Type: "string"},
+-		"released_preclock_run_id": {Required: false, Type: "string"},
++		"source_sha":                  {Required: true, Type: "string"},
++		"operator":                    {Required: true, Type: "string"},
++		"codex_diagnostic_pubkey":     {Required: true, Type: "string"},
++		"request_id":                  {Required: true, Type: "string"},
++		"released_preclock_run_id":    {Required: false, Type: "string"},
++		"request_budget_limit_micros": {Required: false, Type: "string"},
+ 	}
+ 	if !reflect.DeepEqual(workflow.On.Dispatch.Inputs, want) {
+ 		t.Fatalf("operator inputs = %#v, want %#v", workflow.On.Dispatch.Inputs, want)
+@@ -1842,7 +1843,7 @@ func TestChatLifecycleLedgerSelectorsExecuteAgainstTypedEvidence(t *testing.T) {
+ 		{
+ 			name:   "formal committed cost",
+ 			filter: "select-formal-transition-committed.jq",
+-			args:   []string{"--arg", "request", "request-1", "--arg", "source", strings.Repeat("a", 40), "--arg", "bundle", "sha256:" + strings.Repeat("b", 64)},
++			args:   []string{"--arg", "request", "request-1", "--arg", "source", strings.Repeat("a", 40), "--arg", "bundle", "sha256:" + strings.Repeat("b", 64), "--argjson", "operational_stop", "1350000000"},
+ 			input:  `{"schema":"wukongim.chat_lifecycle.formal_transition/v1","from_stage":"rehearsal","outcome":"rehearsal_pass","zero_inventory":true,"request_id":"request-1","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","committed_micros":123456}`,
+ 			want:   "123456",
+ 		},

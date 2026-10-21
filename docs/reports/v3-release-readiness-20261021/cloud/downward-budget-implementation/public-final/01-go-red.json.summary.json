@@ -1,0 +1,26 @@
+{
+  "events": 112,
+  "pass_events": 12,
+  "failed_tests": [
+    "TestMaterializeDownwardBudgetCLI/1351044800",
+    "TestMaterializeDownwardBudgetCLI/1500000000",
+    "TestMaterializeDownwardBudgetCLI/150000001",
+    "TestMaterializeDownwardBudgetCLI",
+    "TestDownwardImmutableDeploymentBudget",
+    "TestDownwardRuntimeBudgetEnvelope/rehearsal",
+    "TestDownwardRuntimeBudgetEnvelope/formal",
+    "TestDownwardRuntimeBudgetEnvelope"
+  ],
+  "failed_packages": [
+    "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun",
+    "github.com/WuKongIM/WuKongIM/cmd/wkchatlifecycle",
+    "github.com/WuKongIM/WuKongIM/internal/usecase/clouddeploy",
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark"
+  ],
+  "build_failures": [
+    {
+      "ImportPath": "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun [github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun.test]",
+      "Action": "build-fail"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "status": "implemented_uncommitted_focused_validation_passed",
+  "production_files": 4,
+  "test_files": 3,
+  "new_behavior_cases": 58,
+  "new_static_contracts": 2,
+  "failure_inventory": [
+    "M09",
+    "M10",
+    "C04",
+    "C05",
+    "C06",
+    "C07",
+    "C08",
+    "C09",
+    "C10",
+    "C11"
+  ],
+  "first_red_logs": [
+    "01-formal-red.log",
+    "03-finalizer-red.log"
+  ],
+  "intermediate_diagnostic_log": "04-finalizer-green.log",
+  "passing_log": "05-consumer-green.log",
+  "passing_command": "GOWORK=off go test -tags=integration ./scripts -run 'TestChatLifecycleDownwardBudget(FormalAdmissionActualWorkflowShell|TransitionSelector|ConsumerWorkflowAuthority|Finalizer|RehearsalTransitionBoundary|FormalCompleteBoundary)|TestChatLifecycleReleasedPreclockConsumers' -count=1 -timeout=2m",
+  "passing_duration_seconds": 9.808,
+  "validation_scope": "Actual checked-in workflow shell, real local budget reader, real jq selectors, real cost calculation and key validation. Sidecar authority and GitHub APIs stubbed at external boundary. Cleanup classifier executes before qualification; workflow static contract proves unchanged Release precedes classifier and zero publication depends only on cleanup proof. No real cloud Release or Actions executed.",
+  "scope_adjustments": [
+    "Parent authorized one existing sidecar consumer integration-test stub to return budget JSON without changing exact validate authority/status assertions.",
+    "Both dynamic arithmetic boundaries explicitly exit on failure to support host Bash 3.2 set-e behavior; Actions Bash 5 semantics unchanged."
+  ],
+  "remaining_gates": "Parent owns seven named checks, independent review, any source-freeze update after review. No commit/push/PR/cloud/SSH/network/dispatch performed."
+}

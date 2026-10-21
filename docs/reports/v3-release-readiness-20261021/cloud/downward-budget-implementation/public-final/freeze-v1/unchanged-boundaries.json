@@ -1,0 +1,14 @@
+{
+  "files": {
+    "AGENTS.md": true,
+    ".github/review-agent/policy.json": true,
+    ".agents/skill-tests.json": true,
+    ".github/workflows/cloud-deployment-bundle.yml": true,
+    ".github/workflows/cloud-deployment-activate.yml": true,
+    "scripts/cloud-deployment/deploy.sh": true,
+    "configs/cloud/chat-lifecycle/rehearsal-v1.json": true,
+    "configs/cloud/chat-lifecycle/formal-v1.json": true,
+    "configs/cloud/chat-lifecycle/repair-v1.json": true
+  },
+  "all_unchanged": true
+}

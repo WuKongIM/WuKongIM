@@ -1,0 +1,17 @@
+{
+  "source": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "captured_at": "2026-10-21T14:49:18.085956+00:00",
+  "owned_paths": {
+    ".github/workflows/chat-lifecycle-formal.yml": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c",
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml": "94dc982ba832e1807a8392b7ba5aa6ea246f3ca69c379e6faef668e6d7b767a6",
+    ".github/workflows/chat-lifecycle-formal-finalize.yml": "bfaba911a946fef5b74287f8f3044b8215ae121598666f6b9a0093a03f68f60d",
+    "scripts/chat-lifecycle/select-formal-transition-committed.jq": "1bc9a9231d306d230331fc2ce9fe6eeed00a4589ea4efeea4eefa9b7f92d16a8",
+    "scripts/chat_lifecycle_downward_budget_consumers_test.go": "7886ac0681bf128ddb640e36ca6371f1b0419031d763dee97f68bd9c764fce90",
+    "scripts/chat_lifecycle_downward_budget_consumers_integration_test.go": "fc9307c5d6ecd1cc4ad15a2d56948376786888735b5f3d0e270e993e7fdc5df3",
+    "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go": "4247c4629df72ae67b1735fe6d5e33f9f6a1e6300a25bb7e331a3eddedd2f679"
+  },
+  "external_dependency_snapshot": {
+    "scripts/chat-lifecycle/authenticate-released-preclock.py": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd",
+    "scripts/chat-lifecycle/stage-orchestrate.sh": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7"
+  }
+}

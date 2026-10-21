@@ -1,0 +1,16 @@
+{
+  "observed_at": "2026-10-21T15:26:04.693829+00:00",
+  "scope": "Only explicit public files from local tests/metadata and source diffs; no other task paths or secret stores read.",
+  "checks": {
+    "private_key_pem": {
+      "match": false
+    },
+    "github_token_literal": {
+      "match": false
+    },
+    "alibaba_access_key_literal": {
+      "match": false
+    }
+  },
+  "limit": "Pattern scan is supplementary. Evidence sources are local credential-free tests and public source/identity; this is not a general secret-detection guarantee."
+}

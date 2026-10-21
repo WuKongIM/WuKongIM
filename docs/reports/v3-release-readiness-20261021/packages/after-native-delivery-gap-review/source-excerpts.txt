@@ -1,0 +1,393 @@
+
+# scripts/plan-object-storage-publication.py @ 983e567f155a982c45ca066e4dc67d33851f0d24
+
+218:     with tempfile.TemporaryDirectory(prefix='wk-object-storage-plan-') as temporary:
+219:         root = Path(temporary) / 'snapshot'
+220:         summary = R.snapshot_archive.extract_snapshot(
+221:             archive_path=archive, output_dir=root,
+222:             max_members=R.snapshot_archive.DEFAULT_MAX_MEMBERS,
+223:             max_total_size=R.ARCHIVE_MAX_TOTAL_BYTES,
+224:         )
+225:         require(summary['sha256'] == archive_facts['sha256'] and summary['size'] == archive_facts['size'],
+226:                 'archive changed before extraction')
+227:         for member in summary['members']:
+228:             if member['type'] == 'file' and member['name'].startswith('site/'):
+229:                 _public_path(member['name'][5:])
+230:         verified = R.verify_audit_receipt(
+231:             receipt_path=receipt_path, archive_path=archive,
+232:             channels_path=control / 'manifests/channels.json',
+233:             signing_path=control / 'manifests/preview-signing.json',
+234:             signing_toolchain_path=control / 'manifests/signing-toolchain.json',
+235:             apt_public_cert_path=control / 'keys/apt-preview.asc',
+236:             rpm_public_cert_path=control / 'keys/rpm-preview.asc',
+237:             plan_path=root / 'audit/plan.json', apt_receipt_path=root / 'audit/apt-signing.json',
+238:             rpm_receipt_path=root / 'audit/rpm-signing.json',
+239:             source_attestations_path=root / 'audit/source-attestations',
+240:         )
+241:         require(verified == receipt, 'receipt changed while validating snapshot')
+242:         files, immutable = _metadata_closure(root, control, verified)
+243:         prefix = f"snapshots/preview/r{item['audit_release_id']}-{item['snapshot_sha256']}"
+244:         objects = []
+245:         for member in summary['members']:
+246:             if member['type'] != 'file':
+247:                 continue
+248:             path = member['name']
+249:             _public_path(path)
+250:             facts = C.hash_file(root / path, 'snapshot object')
+251:             objects.append({'object_key': prefix + '/' + path, 'sha256': facts['sha256'],
+252:                             'size': facts['size'],
+253:                             'cache_control': ('no-store' if path.startswith('site/')
+254:                                               and path[5:] not in immutable else IMMUTABLE_CACHE),
+255:                             'source': {'audit_release_id': item['audit_release_id'], 'member': path}})
+256:         identity = {key: item[key] for key in (
+257:             'audit_release_id', 'control_sha', 'archive_sha256', 'archive_size',
+258:             'receipt_sha256', 'snapshot_sha256', 'source', 'control_files_sha256',
+259:         )}
+260:         result = {'identity': identity, 'prefix': prefix, 'objects': objects,
+261:                   'files': files, 'immutable': immutable}
+262:     require(checked_file(archive, 'archive', maximum_bytes=item['archive_size'],
+263:                          expected_size=item['archive_size']) == archive_facts, 'archive changed while planning')
+264:     require(checked_file(receipt_path, 'receipt', maximum_bytes=R.MAX_JSON_BYTES,
+265:                          expected_size=receipt_facts['size']) == receipt_facts, 'receipt changed while planning')
+266:     for relative, facts in initial_control.items():
+267:         require(checked_file(control / relative, 'control file', maximum_bytes=control_size_limit(relative),
+268:                              expected_size=facts['size']) == facts,
+269:                 'control file changed while planning')
+
+273: def composite_inputs(input_path: Path, test_only: bool) -> dict[str, Any]:
+274:     input_path=C.candidate_path(input_path.parent,input_path.name,'composite inputs')
+275:     inputs=C.exact(C.load_json(input_path,'composite planner inputs'),
+276:         {'schema','channel','current','retain','test_only'},'composite planner inputs')
+277:     require(inputs['schema']=='wukongim.object_storage_plan_inputs/v2'
+278:             and inputs['channel']=='composite','explicit composite v2 input is required')
+279:     require(type(inputs['test_only']) is bool and inputs['test_only'] is test_only,
+280:             'TEST ONLY input requires matching explicit test_only mode')
+281:     C.exact(inputs['current'],{'preview','stable'},'current composite channels')
+282:     require(isinstance(inputs['retain'],list),'retained snapshots must be an array')
+283:     return inputs
+284: 
+285: 
+286: STABLE_DESCRIPTOR_FIELDS = {
+287:     'channel','audit_release_id','seal_control_sha','candidate','resolution','resolution_sha256',
+288:     'archive','receipt','plan','control_dir','source_dir','apt_receipt','rpm_receipt',
+289: }
+
+401: def make_composite_plan(input_path: Path, test_only: bool, output_path: Path | None = None) -> dict[str, Any]:
+402:     inputs=composite_inputs(input_path,test_only)
+403:     descriptors=[inputs['current']['preview'],inputs['current']['stable'],*inputs['retain']]
+404:     require(len(descriptors)<=MAX_SNAPSHOTS,'planner accepts at most 8 snapshots')
+405:     identities=[];sizes=[]
+
+480:     # Current descriptors keep precedence for legacy aliases; retained identity
+481:     # order makes identical-byte source selection independent of input ordering.
+482:     for snapshot in [*snapshots[:2],*sorted(snapshots[2:],key=lambda item:item['identity']['audit_release_id'])]:
+483:         for path in sorted(snapshot['immutable']):
+484:             if snapshot['identity']['channel']=='stable' and path in rpm_catalog: continue
+485:             facts=snapshot['files'][path]
+486:             value={'public_uri':'/'+path,'object_key':'public/'+path,**facts,'cache_control':IMMUTABLE_CACHE,
+487:                 'source':{'audit_release_id':snapshot['identity']['audit_release_id'],
+488:                           'channel':snapshot['identity']['channel'],'member':'site/'+path}}
+489:             add_alias(value)
+490:         for value in snapshot.get('derived_aliases',[]):
+491:             add_alias(value)
+492:     for path,value in sorted(rpm_catalog.items()):
+493:         add_alias(value)
+494:         for snapshot in stable_snapshots:
+495:             # A later DNF invocation may refresh mirrorlist while retaining old
+496:             # metadata. Serve the authenticated payload at each retained base;
+497:             # its source stays the real archive member, not the destination ID.
+498:             uri='/'+snapshot['prefix']+'/site/'+path
+499:             add_alias({**value,'public_uri':uri,'object_key':'public'+uri})
+500:     entrypoints=[]
+501:     for snapshot in (preview,stable):
+502:         for path,facts in sorted(snapshot['files'].items()):
+503:             if path in snapshot['immutable']: continue
+504:             if snapshot is stable and not (path.startswith('apt/') or path.startswith('keys/')): continue
+505:             entrypoints.append({'public_uri':'/'+path,'object_key':snapshot['prefix']+'/site/'+path,
+506:                                 **facts,'cache_control':'no-store'})
+507:     # The mirrorlist is a transport object. The archived, signed repomd bytes are untouched.
+508:     mirror=('https://packages.githubim.com/'+stable['prefix']+'/site/rpm/stable/el/9/x86_64/\n')
+509:     mirror_facts={'sha256':hashlib.sha256(mirror.encode()).hexdigest(),'size':len(mirror.encode())}
+510:     mirror_key='generated/stable-mirrorlists/'+mirror_facts['sha256']+'.txt'
+511:     generated=[{'object_key':mirror_key,**mirror_facts,'cache_control':'no-store','content_utf8':mirror}]
+512:     entrypoints.append({'public_uri':'/rpm/stable/el/9/x86_64/mirrorlist','object_key':mirror_key,
+513:                         **mirror_facts,'cache_control':'no-store'})
+514:     public={}
+515:     for value in [*aliases.values(),*entrypoints]:
+516:         uri=value['public_uri']
+517:         require(uri not in public or all(public[uri][key]==value[key] for key in ('sha256','size','cache_control')),
+518:                 'public URI conflict between channels: '+uri)
+519:         public[uri]=value
+520:     return {'schema':'wukongim.object_storage_publication_plan/v2','channel':'composite',
+521:         'status':'plan_only','plan_only':True,'test_only':test_only,
+522:         'current_audit_release_ids':{'preview':identities[0],'stable':identities[1]},
+523:         'verification':{'archive_and_receipt_consistent':True,'metadata_closure_checked':True,
+524:             'signatures_verified':False,'stable_signatures_verified':True,'github_provenance_verified':False,
+525:             'control_commit_verified':False,'cloud_verified':False,'activation_authorized':False},
+526:         'snapshots':sorted((item['identity'] for item in snapshots),key=lambda item:item['audit_release_id']),
+527:         'snapshot_objects':sorted((obj for item in snapshots for obj in item['objects']),key=lambda obj:obj['object_key']),
+528:         'immutable_aliases':[aliases[key] for key in sorted(aliases)],
+529:         'entrypoints':sorted(entrypoints,key=lambda item:item['public_uri']),'generated_objects':generated,
+530:         'retention':{'policy':'retain_all_supplied_snapshots_no_gc','retained_audit_ids':sorted(identities[2:]),'delete_objects':[]},
+531:         'limitations':['Local seal JSON is caller-reviewed evidence, not authenticated GitHub truth.',
+532:             'Production activation must fresh-resolve exact audit/source/control identities.',
+533:             'Preview signatures are not reverified by the legacy offline planner.',
+534:             'No upload, activation, cloud state, atomic switch or deletion is established.']}
+535: 
+536: 
+537: def make_plan(input_path: Path, *, composite: bool = False, test_only: bool = False,
+538:               output_path: Path | None = None) -> dict[str, Any]:
+539:     """Build a deterministic plan, retaining every explicitly supplied generation."""
+540:     if composite:
+541:         return make_composite_plan(input_path,test_only,output_path)
+542:     require(not test_only,'TEST ONLY requires explicit composite mode')
+543:     inputs = C.exact(C.load_json(input_path, 'planner inputs'),
+544:                      {'schema', 'channel', 'current', 'retain'}, 'planner inputs')
+545:     require(inputs['schema'] == INPUT_SCHEMA, f'planner input schema must be {INPUT_SCHEMA}')
+546:     require(inputs['channel'] == 'preview', 'only preview offline transport planning is supported')
+547:     require(isinstance(inputs['retain'], list), 'retain must be an array')
+548:     descriptors = [inputs['current'], *inputs['retain']]
+549:     require(len(descriptors) <= MAX_SNAPSHOTS, 'planner accepts at most 8 snapshots')
+550:     descriptors = [descriptor_identity(item) for item in descriptors]
+551:     require(sum(item['archive_size'] for item in descriptors) <= MAX_TOTAL_ARCHIVE_BYTES,
+552:             'planner total archive byte limit is 2 GiB')
+553:     audit_ids = [item['audit_release_id'] for item in descriptors]
+554:     require(len(set(audit_ids)) == len(audit_ids), 'duplicate audit identity in planner inputs')
+555:     snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+556:     current = snapshots[0]
+557:     snapshots.sort(key=lambda snapshot: snapshot['identity']['audit_release_id'])
+558:     aliases: dict[str, dict[str, Any]] = {}
+559:     for snapshot in snapshots:
+560:         for path in sorted(snapshot['immutable']):
+561:             facts = snapshot['files'][path]
+562:             uri = '/' + path
+563:             item = {'public_uri': uri, 'object_key': 'public/' + path,
+564:                     'sha256': facts['sha256'], 'size': facts['size'], 'cache_control': IMMUTABLE_CACHE,
+565:                     'source': {'audit_release_id': snapshot['identity']['audit_release_id'], 'member': 'site/' + path}}
+566:             if uri in aliases:
+567:                 require(all(aliases[uri][field] == item[field]
+568:                             for field in ('object_key', 'sha256', 'size', 'cache_control')),
+569:                         f'immutable URI conflict across snapshots: {uri}')
+570:             else:
+571:                 aliases[uri] = item
+572:     entrypoints = [
+573:         {'public_uri': '/' + path, 'object_key': current['prefix'] + '/site/' + path,
+574:          'sha256': facts['sha256'], 'size': facts['size'], 'cache_control': 'no-store'}
+575:         for path, facts in sorted(current['files'].items()) if path not in current['immutable']
+576:     ]
+577:     return {
+578:         'schema': PLAN_SCHEMA, 'status': 'plan_only', 'plan_only': True, 'channel': 'preview',
+579:         'current_audit_release_id': current['identity']['audit_release_id'],
+580:         'verification': {'archive_and_receipt_consistent': True, 'metadata_closure_checked': True,
+581:                          'signatures_verified': False, 'github_provenance_verified': False,
+582:                          'control_commit_verified': False, 'cloud_verified': False,
+583:                          'activation_authorized': False},
+584:         'snapshots': [snapshot['identity'] for snapshot in snapshots],
+585:         'snapshot_objects': sorted((obj for snapshot in snapshots for obj in snapshot['objects']),
+586:                                    key=lambda item: item['object_key']),
+587:         'immutable_aliases': [aliases[key] for key in sorted(aliases)],
+588:         'entrypoints': entrypoints,
+589:         'retention': {'policy': 'retain_all_supplied_snapshots_no_gc',
+590:                       'retained_audit_ids': sorted(audit_ids[1:]), 'delete_objects': []},
+591:         'limitations': ['External anchors are caller-reviewed claims, not authenticated by this command.',
+592:                         'Only preview add_release snapshots are supported; no stable or multi-channel activation.',
+593:                         'No CDN atomicity, signature freshness, rollback eligibility or cloud state is established.',
+594:                         'No upload, activation, signing, credential access or deletion is performed.'],
+595:     }
+
+
+# docs/stable-audit-transport.md @ 983e567f155a982c45ca066e4dc67d33851f0d24
+
+16: `--expected-control-sha` identifies the current reviewed sealing checkout and
+17: reserved tag. The candidate plan's `control_sha` identifies its original control
+18: commit. They may differ. Stable binding/sealing verifies the actual historical
+19: Git objects, all ten control files and twelve producer files, and ancestry to
+20: fresh packages `main`. Current executable producer bytes must still match those
+21: anchors; downloaded historical code is never executed.
+22: 
+23: Binding only reserves an empty draft/tag and does not assert source verification.
+24: Before any asset upload, sealing reuses the existing numeric source resolver,
+25: actual fixed-workflow GitHub attestation verifier, unsigned native metadata
+26: inspector, and candidate audit/signature verifier. A saved receipt claiming these
+27: checks succeeded is insufficient. Final publication rechecks source identity and
+28: ancestry, plus the existing main/tag/immutable-policy fences. Failed attempts do
+29: not overwrite or delete existing assets, and resumptions repeat verification.
+
+43: A production invocation requires an actual immutable stable source Release,
+44: an already reviewed candidate, and the reviewed executable checkout/toolchain.
+45: The external sealing-control SHA remains an operator-selected current-main fence;
+46: the helper authenticates the candidate’s historical control/producer Git objects,
+47: not its own entire checkout as a Git tree. The repository does not yet provide an enabled
+48: production workflow or OSS/CDN activator. Implementation and TEST ONLY validation
+49: of these helpers do not constitute a production seal or release.
+50: 
+51: ## Offline composite plan
+52: 
+53: The planner requires explicit `--composite` with
+54: `wukongim.object_storage_plan_inputs/v2`, `channel: composite`, both current
+55: preview and stable descriptors, and an explicit retained-generation list. The
+56: preview descriptor wraps the existing v1 snapshot descriptor. A stable descriptor
+57: binds its independently supplied plan/control/source/receipt inputs, candidate
+58: tuple, numeric audit ID, sealing control SHA, and external v2 resolution bytes.
+59: Only an immutable complete observation is accepted. Every retained snapshot is
+60: fully verified before combining inventories. At most eight snapshots and 2 GiB
+61: of declared archives are accepted; actual archive sizes must match.
+62: 
+63: A locally supplied resolution JSON is evidence, not authenticated GitHub truth.
+64: Plans remain `plan_only`; GitHub/control/cloud/activation verification flags remain
+65: false. A future activator must fresh-resolve exact audit/source/control identities.
+66: Stable signatures are reverified by the native verifier; the legacy preview
+67: planner does not add a new preview signature-verification claim.
+68: 
+69: Every original site/audit object is retained below its channel-specific immutable
+70: snapshot path. Current preview continues to own `/repo`, `/index.html`,
+71: `/status.json`, `/signing-manifest.txt`, and `/bootstrap/manifest.json`. Stable does
+72: not replace those shared entries, and no `/repo-stable` installer is emitted.
+73: Stable APT/by-hash/payloads and versioned bootstrap downloads use canonical paths.
+74: Conflicting bytes at the same public URI fail rather than selecting a winner.
+75: For the two already verified stable APT indexes, the composite planner retains
+76: SHA512 aliases alongside the archived SHA256 paths so native clients can use
+77: their default hash preference across a generation switch. Each additional alias
+78: copies the original authenticated archive member; signed metadata, archives and
+79: the preview-only planner are unchanged.
+80: 
+81: Stable RPM payloads are also retained under each supplied stable snapshot's RPM
+82: base URL. DNF's separate `makecache --refresh` and download invocations can select
+83: A's signed metadata, then reread the floating mirrorlist after it points to B.
+84: The composite plan therefore adds explicit missing `Packages/*.rpm` aliases
+85: under B's prefix for A's verified product and bootstrap bytes, and likewise for
+86: the other supplied stable snapshots. Each alias binds an original archive member,
+87: size and SHA-256; it does not create a new signed candidate or metadata file.
+88: Original snapshot objects remain unchanged. Both original objects and aliases
+89: participate in URI conflict checks: identical bytes can share a deterministic
+90: source, while conflicting bytes fail closed, including a same-version bootstrap
+91: that has been signed again. Reuse identical signed bytes or change its version.
+92: The existing limit of eight total snapshots, including current preview, permits
+93: at most seven stable snapshots; each verified stable candidate contains exactly
+94: the product and bootstrap RPM, so at most 84 missing cross-generation aliases
+95: are added. Only supplied stable generations participate; preview is unchanged.
+96: 
+97: The only derived object is a no-store stable RPM mirrorlist pointing to the
+98: complete immutable snapshot RPM base URL. Its exact UTF-8 bytes, size and digest
+99: are in `generated_objects`. No floating stable repomd/plain-metadata alias is
+100: created; signed RPM repository bytes remain unchanged. All supplied generations
+101: are retained; there is no garbage collection, deletion, activation, or promise
+102: of an atomic CDN switch.
+103: 
+104: ## TEST ONLY validation
+105: 
+106: Stable test mode requires `--test-only`, loopback API/download endpoints and
+107: explicitly test-only candidate inputs. All redirects are rejected, including
+108: loopback-to-loopback redirects; test clients also ignore proxy configuration. Test evidence retains null source IDs and is
+109: rejected by normal composite mode. It never demonstrates live GitHub provenance.
+
+
+# scripts/validate-production-package-clients.py @ 983e567f155a982c45ca066e4dc67d33851f0d24
+
+1579:                     results[family].append({"distribution": distribution, "image": image,
+1580:                                             "bootstrap_installed": True, "download": downloaded, "installed_cli": installed})
+1581:             _require(fetcher(origin + "/apt/dists/stable/InRelease", MAX_CONTROL_BYTES) == inrelease
+1582:                      and fetcher(origin + mirror_path, MAX_CONTROL_BYTES) == mirror,
+1583:                      "stable public entrypoints changed during client validation")
+1584:         _require(_read_regular(transport_inputs, "transport inputs", MAX_CONTROL_BYTES) == input_bytes,
+1585:                  "transport inputs changed during client validation")
+1586:         return {"schema": STABLE_RECEIPT_SCHEMA, "channel": "stable", "test_only": test_only,
+1587:                 "base_url": origin, "expected_version": expected_version, "expected_source_sha": source_sha,
+1588:                 "expected_version_verified": True, "installed_cli_verified": verify_installed_cli,
+1589:                 "bootstrap_verified": True, "bootstrap_version": bootstrap["version"],
+1590:                 "repository_entrypoint_executed": False, "audit_release_id": identity["audit_release_id"],
+1591:                 "snapshot_sha256": candidate["snapshot_sha256"], "transport_inputs_sha256": _sha256(input_bytes),
+1592:                 "transport_plan_sha256": _sha256(_canonical_json(planned)),
+1593:                 "status_revalidated": False, "stable_entrypoints_revalidated": True,
+1594:                 "github_provenance_verified": False, "publication_verified": False,
+1595:                 "native_verifier_tools": tool_versions, **results}
+
+
+# scripts/validate-control.py @ 983e567f155a982c45ca066e4dc67d33851f0d24
+
+354:     validate_publication(
+355:         preview["publication"], releases, retirement, bootstrap_enabled
+356:     )
+357: 
+358:     require(type(stable["enabled"]) is bool and stable["enabled"] is False,
+359:             "stable publishing must remain disabled on GitHub Pages")
+360:     require(stable["status"] == "object_storage_required",
+361:             "stable.status must remain object_storage_required")
+362:     require(stable["releases"] == [], "stable releases must remain empty on GitHub Pages")
+363:     return channels
+
+
+# docs/release-contract.md @ 983e567f155a982c45ca066e4dc67d33851f0d24
+
+600: `compose-package-site.py`, `package-audit-receipt.py` and
+601: `verify-production-package-site.py` have an explicit candidate mode. Every
+602: candidate invocation requires `--channel stable --offline-candidate
+603: --control-root CONTROL --candidate-source-root SOURCE`; omission is an error,
+604: not a schema-based fallback. Preview remains the default. The checked-in
+605: stable channel must stay disabled with no releases and
+606: `status=object_storage_required`. No production workflow or live site is changed.
+607: 
+608: This mode supports exactly the first `add_release` of one strict `X.Y.Z`
+609: version. There is no base, retained/removed payload, key history, rotation,
+610: bootstrap update, retirement, or prerelease/build-metadata version. The plan's
+
+
+# docs/object-storage-planning.md @ 983e567f155a982c45ca066e4dc67d33851f0d24
+
+1: # Offline object-storage planning
+2: 
+3: `plan-object-storage-publication.py` prepares a deterministic transport inventory
+4: for existing **preview `add_release` audit snapshots**. It reads local files,
+5: writes a new plan and prints a digest receipt. It does not connect to GitHub or a
+6: cloud account, access credentials, sign packages, upload objects, activate CDN
+7: routing, or delete files from a repository. Stable remains disabled.
+8: 
+9: ```sh
+10: python3 scripts/plan-object-storage-publication.py \
+11:   --inputs /path/to/reviewed-inputs.json \
+12:   --output /path/to/new-transport-plan.json
+13: ```
+14: 
+15: The output must not already exist. Input paths may be absolute or relative to
+16: the input JSON file. Repeating the same inputs with another output path produces
+17: identical plan bytes, including when retained descriptors are reordered.
+18: 
+19: ## Input trust and format
+20: 
+21: An operator supplies independently reviewed identity anchors. The planner does
+22: not authenticate who reviewed them. In particular, a matching self-reported
+23: receipt digest is not proof of a GitHub immutable Release, tag ancestry, control
+24: commit identity, or valid signatures. Run the existing provenance and
+25: cryptographic verification separately; this plan never replaces those gates.
+
+86: `signatures_verified`, `github_provenance_verified`, `control_commit_verified`,
+87: `cloud_verified` and `activation_authorized` false. It cannot establish key
+88: expiry/revocation status, whether an audit is still eligible for rollback, or
+89: whether a reviewed cloud role/configuration exists.
+90: 
+91: ## Plan layout and retention
+92: 
+93: - `snapshot_objects` inventories every original site/audit file below
+94:   `snapshots/preview/r<ID>-<snapshot-sha>/`, preserving the canonical bytes.
+95: - `immutable_aliases` maps versioned payloads/bootstrap downloads, APT by-hash
+96:   indexes and digest-named RPM metadata to `public/<original-public-path>`.
+97:   Across all supplied generations, an immutable public URI must keep the same
+98:   bytes, size and cache classification.
+99: - `entrypoints` lists only the current snapshot's floating public URLs, mapped
+100:   to its immutable snapshot keys. They use `no-store`; in particular,
+101:   `Packages.gz`, `repomd.xml` and its detached signature are not permanent aliases.
+102:   Their physical snapshot objects also use `no-store`, so a future origin
+103:   integration does not accidentally long-cache these floating URLs.
+104:   Ordinary RPM metadata filenames follow the same rule; each retained generation
+105:   keeps its own original bytes under its separate snapshot key.
+106: - `retention` preserves every explicitly supplied old snapshot and the union of
+107:   its immutable aliases. `delete_objects` is always empty. No elapsed-time or
+108:   garbage-collection decision is inferred.
+109: 
+110: The plan has `status: "plan_only"` and `plan_only: true`. It contains no bucket,
+111: region, credentials, API request or executable activation instruction. A future
+112: uploader must still enforce create-only writes and verify remote bytes; a
+113: future CDN adapter must implement and verify routing and cache behavior. The
+114: plan does not claim whole-site atomic switching, consistency of a client's
+115: multiple requests, or a completed stable repository.
+

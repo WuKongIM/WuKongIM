@@ -1,0 +1,12 @@
+.github/workflows/native-package-repository-drill.yml
+CHANGELOG.md
+docs/release-contract.md
+docs/stable-audit-transport.md
+scripts/plan-object-storage-publication.py
+scripts/validate-production-package-clients.py
+tests/native_source_metadata_drill.py
+tests/native_stable_candidate_drill.py
+tests/native_stable_clients_drill.py
+tests/test_composite_storage_plan.py
+tests/test_native_stable_clients_drill.py
+tests/test_validate_production_package_clients.py

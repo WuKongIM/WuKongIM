@@ -1,0 +1,142 @@
+{
+  "started_at": "2026-10-21T14:50:29.421284+00:00",
+  "label": "filetype-5adb33455b324af9be359d446fbfc142",
+  "name": "wk-filetype-5adb33455b324af9be359d446fbfc142",
+  "distribution": "rocky",
+  "image": "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+  "probe": "replay-signed-metadata.py",
+  "probe_sha256": "d2609e80e50035c68a3ed8968dd7d1e38351fdcc21cb66d5315626cbfc91a7ed",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.06380208401242271,
+      "stdout": "[image identity recorded above]",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "create",
+        "--pull=never",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-filetype-5adb33455b324af9be359d446fbfc142",
+        "--label",
+        "wk-stable-cache-filetype=filetype-5adb33455b324af9be359d446fbfc142",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/private/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-filetype-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/replay-signed-metadata.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.03819237498100847,
+      "stdout": "258d9b91feea3f088a1a65cd43db9a98647a6e6ffdf403748491dd0b7f0061e7\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "258d9b91feea3f088a1a65cd43db9a98647a6e6ffdf403748491dd0b7f0061e7"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 1.0661463330034167,
+      "stdout": "",
+      "stderr": "Importing GPG key 0xC7578366:\n Userid     : \"CACHE FILETYPE TEST ONLY <cache-filetype@test.invalid>\"\n Fingerprint: CABA 83C5 2391 F93F 2057 9C14 0354 D78F C757 8366\n From       : /tmp/cache-filetype-repo/public.asc\nTraceback (most recent call last):\n  File \"/usr/lib/python3.9/site-packages/dnf/repo.py\", line 574, in load\n    ret = self._repo.load()\n  File \"/usr/lib64/python3.9/site-packages/libdnf/repo.py\", line 331, in load\n    return _repo.Repo_load(self)\nlibdnf._error.Error: Failed to download metadata for repo 'wukongim-stable': repomd.xml parser error: Element <repomd> was not found - Bad repomd file\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/probe/replay-signed-metadata.py\", line 68, in <module>\n    r['native_repo_load_return']=repo.load();r['native_repo_load_succeeded']=True\n  File \"/usr/lib/python3.9/site-packages/dnf/repo.py\", line 581, in load\n    raise dnf.exceptions.RepoError(str(e))\ndnf.exceptions.RepoError: Failed to download metadata for repo 'wukongim-stable': repomd.xml parser error: Element <repomd> was not found - Bad repomd file\n"
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-5adb33455b324af9be359d446fbfc142"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.02673495904309675,
+      "stdout": "258d9b91feea\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-cache-filetype\"}}",
+        "258d9b91feea"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.017237375024706125,
+      "stdout": "/wk-filetype-5adb33455b324af9be359d446fbfc142 filetype-5adb33455b324af9be359d446fbfc142\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "258d9b91feea"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.019097874988801777,
+      "stdout": "258d9b91feea\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-5adb33455b324af9be359d446fbfc142"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.015127499995287508,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "image_identity": {
+    "Id": "sha256:e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd",
+    "RepoDigests": [
+      "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+    ],
+    "Architecture": "amd64",
+    "Os": "linux"
+  },
+  "container_id": "258d9b91feea3f088a1a65cd43db9a98647a6e6ffdf403748491dd0b7f0061e7",
+  "probe_exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "09deb3d6e3c5700e0f936cc723adc2a9a3184f157b3e59190d1ce41146d281a7",
+  "remaining_container_ids": [],
+  "finished_at": "2026-10-21T14:50:30.668906+00:00"
+}

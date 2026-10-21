@@ -1,0 +1,576 @@
+{
+  "schema": "wukongim.cloud_rc.downward_budget_failure_inventory/v1",
+  "cases": [
+    {
+      "id": "I01",
+      "seam": "workflow input",
+      "case": "input omitted",
+      "required_outcome": "default byte-equivalent 1500000000/1350000000",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I02",
+      "seam": "workflow input",
+      "case": "explicit default",
+      "required_outcome": "same default behavior",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I03",
+      "seam": "workflow input",
+      "case": "1351044800",
+      "required_outcome": "stop derives exactly1201044800, no float/rounding",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I04",
+      "seam": "workflow input",
+      "case": "0/negative/<=150000000",
+      "required_outcome": "reject before bundle/identity/Quote",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I05",
+      "seam": "workflow input",
+      "case": ">1500000000 or int64 overflow",
+      "required_outcome": "reject before bundle/identity/Quote",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I06",
+      "seam": "workflow input",
+      "case": "decimal/exponent/+sign/leading zero/whitespace/empty explicit",
+      "required_outcome": "reject canonical integer format",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I07",
+      "seam": "workflow input",
+      "case": "custom cap with released_preclock_run_id",
+      "required_outcome": "reject; old continuation only default envelope",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "I08",
+      "seam": "workflow input",
+      "case": "new cap plus stopped/spent request",
+      "required_outcome": "existing guards still reject; no request reset",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetInput",
+        "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+        "TestChatLifecycleDownwardBudgetRehearsalWiring",
+        "TestChatLifecycleDownwardBudgetCannotResetSpentRequest"
+      ]
+    },
+    {
+      "id": "M01",
+      "seam": "CLI/materialize",
+      "case": "nil/default TrustedContext",
+      "required_outcome": "all old materialize golden behaviors preserved",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M02",
+      "seam": "CLI/materialize",
+      "case": "explicit lower context",
+      "required_outcome": "RunPlan root stop and Lease budget exactly derived pair; prior0/rehearsal1",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M03",
+      "seam": "CLI/materialize",
+      "case": "cap raised or malformed context",
+      "required_outcome": "reject without emitted Plan",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M04",
+      "seam": "CLI/materialize",
+      "case": "template budget/body altered instead of trusted override",
+      "required_outcome": "reject contradictory or nonreviewed template",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M05",
+      "seam": "CLI/materialize",
+      "case": "nonzero first-start committed/attempt2 without proof",
+      "required_outcome": "reject unchanged",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M06",
+      "seam": "CLI/materialize",
+      "case": "old valid default proof",
+      "required_outcome": "same attempt2/old reserve accepted",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M07",
+      "seam": "CLI/materialize",
+      "case": "old proof + reduced cap/mutated proof limits",
+      "required_outcome": "reject, never generalize authority",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M08",
+      "seam": "CLI/materialize",
+      "case": "repair mode receives formal cap",
+      "required_outcome": "reject; direct-repair contracts untouched",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M09",
+      "seam": "CLI/materialize",
+      "case": "formal cap differs from authenticated rehearsal cap",
+      "required_outcome": "reader rejects before procurement",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "M10",
+      "seam": "CLI/materialize",
+      "case": "formal prior>=newstop or prior/source/request/bundle conflict",
+      "required_outcome": "reject",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardBudgetMaterialization",
+        "TestMaterializeDownwardBudgetCLI",
+        "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C01",
+      "seam": "readers/formal/finalizers",
+      "case": "lower new first-start Plan with nil sidecar",
+      "required_outcome": "accept only valid pair/prior0/attempt1 and matching root stop",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C02",
+      "seam": "readers/formal/finalizers",
+      "case": "sidecar on lower first-start / missing old sidecar / mutated prior",
+      "required_outcome": "reject unchanged authority boundary",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C03",
+      "seam": "readers/formal/finalizers",
+      "case": "Plan root stop != Lease stop / currency mismatch / reserve gap shrink",
+      "required_outcome": "reject",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C04",
+      "seam": "readers/formal/finalizers",
+      "case": "Receipt/RunPlan/DeploymentPlan caps disagree",
+      "required_outcome": "reject procurement/qualification; cleanup still runs",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C05",
+      "seam": "readers/formal/finalizers",
+      "case": "passing rehearsal lower budget",
+      "required_outcome": "transition existing v1 plus original full RunPlan carry exact caps; formal derives these values",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C06",
+      "seam": "readers/formal/finalizers",
+      "case": "formal cap missing/corrupt in transition RunPlan",
+      "required_outcome": "reject; never default back to1500",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C07",
+      "seam": "readers/formal/finalizers",
+      "case": "rehearsal cost at/above lowerstop",
+      "required_outcome": "no formal transition even if below1350",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C08",
+      "seam": "readers/formal/finalizers",
+      "case": "final or previous-final formal Plan returns higher limits",
+      "required_outcome": "reject evidence qualification after cleanup",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C09",
+      "seam": "readers/formal/finalizers",
+      "case": "aggregate at/below hard vs hard+1",
+      "required_outcome": "exact per-plan boundary; no default1500 escape",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C10",
+      "seam": "readers/formal/finalizers",
+      "case": "default old artifacts and old valid continuation",
+      "required_outcome": "old nil/default and reauthentication still pass",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell"
+      ]
+    },
+    {
+      "id": "C11",
+      "seam": "readers/formal/finalizers",
+      "case": "consumer/sidecar validation fails with ownedLease",
+      "required_outcome": "Release/zero publication still executes",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestChatLifecycleDownwardBudgetDocuments",
+        "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+        "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+        "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell",
+        "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure"
+      ],
+      "limit": "Real local cleanup classifier and retained zero files plus explicit Actions status-gating contract; no actual cloud Release or Actions upload executed."
+    },
+    {
+      "id": "D01",
+      "seam": "Lease/deployment",
+      "case": "immutable deployment lower valid envelope",
+      "required_outcome": "accept and digest binds exact lowered budget",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardImmutableDeploymentBudget",
+        "TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation",
+        "TestControllerQuoteEnforcesAdmissionSignalsAndRemainingBudget",
+        "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+        "TestBuildRepairPlanAcceptsExplicitBoundedBudget"
+      ]
+    },
+    {
+      "id": "D02",
+      "seam": "Lease/deployment",
+      "case": "immutable cap above max / stop mismatch / bad quoted sum / prior>=stop",
+      "required_outcome": "reject",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardImmutableDeploymentBudget",
+        "TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation",
+        "TestControllerQuoteEnforcesAdmissionSignalsAndRemainingBudget",
+        "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+        "TestBuildRepairPlanAcceptsExplicitBoundedBudget"
+      ]
+    },
+    {
+      "id": "D03",
+      "seam": "Lease/deployment",
+      "case": "Quote == remaining stop and Quote > remaining stop",
+      "required_outcome": "preserve existing inclusive admission boundary; reject +1",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardImmutableDeploymentBudget",
+        "TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation",
+        "TestControllerQuoteEnforcesAdmissionSignalsAndRemainingBudget",
+        "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+        "TestBuildRepairPlanAcceptsExplicitBoundedBudget"
+      ]
+    },
+    {
+      "id": "D04",
+      "seam": "Lease/deployment",
+      "case": "activation env generation",
+      "required_outcome": "exact admitted lowered values written to root-only load env without logging secrets",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardImmutableDeploymentBudget",
+        "TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation",
+        "TestControllerQuoteEnforcesAdmissionSignalsAndRemainingBudget",
+        "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+        "TestBuildRepairPlanAcceptsExplicitBoundedBudget"
+      ]
+    },
+    {
+      "id": "D05",
+      "seam": "Lease/deployment",
+      "case": "repair deployment defaults/custom whole-CNY",
+      "required_outcome": "unchanged",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardImmutableDeploymentBudget",
+        "TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation",
+        "TestControllerQuoteEnforcesAdmissionSignalsAndRemainingBudget",
+        "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+        "TestBuildRepairPlanAcceptsExplicitBoundedBudget"
+      ]
+    },
+    {
+      "id": "R01",
+      "seam": "remote/native guard",
+      "case": "existing fc182 remote binary + lower env",
+      "required_outcome": "must reject; required NO-GO control proving old source unsupported",
+      "execution_status": "old_guard_source_equivalence_and_real_local_red",
+      "coverage_group": [
+        "TestDownwardRuntimeBudgetEnvelope",
+        "TestFormalRuntimeEnvelopeRejectsBudgetAndExpiryRisk",
+        "TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget"
+      ],
+      "limit": "Base ff0 guard bytes equal fc182; 01-go-red executed that guard and rejected reduced limits. No existing Linux binary or cloud run was executed.",
+      "evidence": "freeze-v1/old-product-guard.json"
+    },
+    {
+      "id": "R02",
+      "seam": "remote/native guard",
+      "case": "new guard with lower env rehearsal and formal",
+      "required_outcome": "accept valid admission without changing2h/81.5h+cleanup rules",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardRuntimeBudgetEnvelope",
+        "TestFormalRuntimeEnvelopeRejectsBudgetAndExpiryRisk",
+        "TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget"
+      ]
+    },
+    {
+      "id": "R03",
+      "seam": "remote/native guard",
+      "case": "invalid/increased/noncanonical pair/quote/precommit env",
+      "required_outcome": "reject before workload start",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardRuntimeBudgetEnvelope",
+        "TestFormalRuntimeEnvelopeRejectsBudgetAndExpiryRisk",
+        "TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget"
+      ]
+    },
+    {
+      "id": "R04",
+      "seam": "remote/native guard",
+      "case": "Observe accrued stop-1 then stop",
+      "required_outcome": "OK below; RuntimeSafetyBudgetStop at exact lowerstop",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardRuntimeBudgetEnvelope",
+        "TestFormalRuntimeEnvelopeRejectsBudgetAndExpiryRisk",
+        "TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget"
+      ]
+    },
+    {
+      "id": "R05",
+      "seam": "remote/native guard",
+      "case": "same guard during aged capacity/recovery",
+      "required_outcome": "lowerstop continues without restart/reset",
+      "execution_status": "unchanged_single_runner_contract_and_shared_guard_boundary",
+      "coverage_group": [
+        "TestFormalChainCommandOwnsOneInProcessRunner",
+        "TestDownwardRuntimeBudgetEnvelope"
+      ],
+      "limit": "No aged capacity/recovery workload executed; source retains one existing runtime guard through those phases."
+    },
+    {
+      "id": "R06",
+      "seam": "remote/native guard",
+      "case": "direct_repair env mode supplied to formal",
+      "required_outcome": "still reject; never use bypass mode",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardRuntimeBudgetEnvelope",
+        "TestFormalRuntimeEnvelopeRejectsBudgetAndExpiryRisk",
+        "TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget"
+      ]
+    },
+    {
+      "id": "R07",
+      "seam": "remote/native guard",
+      "case": "default runtime and expiry/overflow guards",
+      "required_outcome": "preserve old behavior",
+      "execution_status": "covered_by_recorded_focused_checks_full_named_gate_has_scripts_timeout",
+      "coverage_group": [
+        "TestDownwardRuntimeBudgetEnvelope",
+        "TestFormalRuntimeEnvelopeRejectsBudgetAndExpiryRisk",
+        "TestDirectRepairRuntimeEnvelopeAcceptsItsAuthenticatedLeaseBudget"
+      ]
+    },
+    {
+      "id": "R08",
+      "seam": "remote/native guard",
+      "case": "future bundle identities",
+      "required_outcome": "wkcli built from new product source; do not claim fc182 compatibility or change build-origin contract",
+      "execution_status": "unchanged_build_origin_contract",
+      "coverage_group": [
+        "TestCloudDeploymentBundleBuildIsTrustedOfflineAndPreProcurement"
+      ],
+      "limit": "No new candidate or bundle built; exact future product must include guard and pass its own qualification."
+    }
+  ],
+  "counts": 42,
+  "phase": "final_local_v2_six_named_pass_scripts_timeout",
+  "coverage_note": "Groups identify executed/public seams; source-only limitations are explicit. Full seven named results will be bound separately, not inferred from this inventory.",
+  "named_check_results": "named-checks-v2/results.json",
+  "limitations": "Focused seams passed; complete scripts integration timed out with queued tests. This inventory does not imply the whole scripts gate, Actions upload, real provider or remote workload passed."
+}

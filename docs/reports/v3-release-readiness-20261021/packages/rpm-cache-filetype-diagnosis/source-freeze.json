@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-21T14:46:15.547398+00:00",
+  "head": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "status": "",
+  "files": {
+    "AGENTS.md": {
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "docs/release-contract.md": {
+      "size": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    "README.md": {
+      "size": 10554,
+      "sha256": "5277c2df505cc17522b8edf3f811b4a875e992a7a94dfaf6b6c4104fbd5567b8"
+    },
+    "tests/native_stable_clients_drill.py": {
+      "size": 66724,
+      "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+    },
+    "scripts/validate-production-package-clients.py": {
+      "size": 87886,
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    "keys/rpm-preview.asc": {
+      "size": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    }
+  },
+  "public_certificate": "checked-in preview public certificate only; no secret material",
+  "skill_sha256": {
+    "size": 9321,
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  }
+}

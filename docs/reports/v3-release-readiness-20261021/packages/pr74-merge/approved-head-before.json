@@ -1,0 +1,14 @@
+{
+  "args": [
+    "gh",
+    "pr",
+    "view",
+    "74",
+    "--repo",
+    "WuKongIM/packages",
+    "--json",
+    "state,isDraft,headRefOid,baseRefOid,mergeable,mergeStateStatus,statusCheckRollup,url"
+  ],
+  "exit_code": 0,
+  "time": "2026-10-21T15:31:31.793088+00:00"
+}

@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/probe/replay-public-key-import.py", line 33, in <module>
+    dnf.crypto.import_repo_keys(repo)
+  File "/usr/lib/python3.9/site-packages/dnf/crypto.py", line 110, in import_repo_keys
+    if not repo._key_import._confirm(keyinfo):
+TypeError: _confirm() missing 4 required positional arguments: 'userid', 'fingerprint', 'url', and 'timestamp'
+Exception ignored in: <function Base.__del__ at 0x7ffffc35f310>
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 131, in __del__
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 550, in close
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 534, in _finalize_base
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 249, in _store_persistent_data
+  File "/usr/lib/python3.9/site-packages/dnf/persistor.py", line 96, in save
+  File "/usr/lib/python3.9/site-packages/dnf/persistor.py", line 64, in _write_json_db
+NameError: name 'open' is not defined

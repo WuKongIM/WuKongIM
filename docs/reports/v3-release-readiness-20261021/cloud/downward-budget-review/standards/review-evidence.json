@@ -1,0 +1,127 @@
+{
+  "reviewed_at_utc": "2026-10-21T14:59:42.029106+00:00",
+  "axis": "Standards",
+  "rules": [
+    {
+      "path": "AGENTS.md",
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "reviewed_current_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "base_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "reviewed_current_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "base_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "reviewed_current_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "base_sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+      "reviewed_current_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "base_sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "reviewed_current_sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf"
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "base_sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "reviewed_current_sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711"
+    }
+  ],
+  "source_scope": "scope.json",
+  "skill": "/Users/tt/.agents/skills/code-review/SKILL.md",
+  "independent_findings": [],
+  "known_shared_finding": {
+    "axis": "Spec; deduplicate",
+    "priority": "P2",
+    "summary": "Finalizer qualification failure suppresses zero-proof upload through implicit success() gating; static source assertion is not behavior evidence.",
+    "locations": [
+      ".github/workflows/chat-lifecycle-rehearsal-finalize.yml:450",
+      ".github/workflows/chat-lifecycle-rehearsal-finalize.yml:518",
+      ".github/workflows/chat-lifecycle-formal-finalize.yml:431",
+      ".github/workflows/chat-lifecycle-formal-finalize.yml:456",
+      "scripts/chat_lifecycle_downward_budget_consumers_test.go:50"
+    ],
+    "independent_probe_run": false
+  },
+  "old_product": {
+    "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "guard_matches_base": true,
+    "guard_sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+    "still_default_only": true
+  },
+  "limitations": [
+    "No tests rerun by this reviewer.",
+    "Retained red/green receipts cover their named local checks only.",
+    "Root owns remaining named checks; not declared complete here.",
+    "Candidate Linux CI/cloud acceptance not established.",
+    "No new paid approval, API/workflow/cloud/CI/merge/repository mutation."
+  ],
+  "evidence_files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/failure-inventory-before-tests.json",
+      "sha256": "136a3c17390c2263c9bcf23f8f29ebd4b9d188bc1b16b7b611b116ec53fd147a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/01-go-red.json",
+      "sha256": "3551e1a11ffa1d1b74b795fba8162ce6c212f316c9b1d259ec5bdb3eb25a91f1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/03-go-green.json",
+      "sha256": "41be498ec8887da23f079a26094c761bc3ecb8320d57101a4f3774f8e902e1c3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/04-scripts-red.json",
+      "sha256": "c31a23a4541e6e495403337952b3e4f21ba3adf69736c05fb56e0e3fc907e8c5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/06-receipt-type-red.json",
+      "sha256": "b53a086bd98bd934ee6f561545d19e964a3e4a7751f7524b8c22fa08a753bb96"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/07-go-packages.json",
+      "sha256": "ac22e93cf93d1b6e420a18d0309b48629847ba7dc84d4be97c023daf1068d67f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/08-helper-stage-regression.json",
+      "sha256": "f4a5cdab208956ae126c308298588950f27372da43238de8d33b11b07e5b7ef3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/09-existing-authority-activation.json",
+      "sha256": "0f4c2ee7091328772656e6690837a9413cd4b0d85aa674208ef808ada21a60eb"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/01-formal-red.log",
+      "sha256": "007bec44c1497f68027cf321b58cfc5bab78ef5e674a48f5c0b35e662cbc6dbd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/03-finalizer-red.log",
+      "sha256": "23d312d414c33e835de009aea9a65b44e0eac0dd698a1bc85aebd29e1896c300"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/05-consumer-green.log",
+      "sha256": "5a927a9203dda3216cab5ec919c6cbbf804b879e726ade93891a566a8ab2910a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/delivery.json",
+      "sha256": "ddbb10e9774b63ee806dcf85c77e572a67c3643ad8da4eca66aa925cbe6f4e1c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/selection.json",
+      "sha256": "da7e26da831fd4492f124e5905852d94fa0873abde513e38fe7d08a1b88f440a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/source-freeze.json",
+      "sha256": "c823397dcac43befc37140263dd14bca5bc50a8645cc6d7ef28b16dca0c03a9f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/implementation.patch",
+      "sha256": "ec2898d3d40d96f304e9e7a0d3b9278f428064d333b5167bd3f2e48be31fcfba"
+    }
+  ]
+}

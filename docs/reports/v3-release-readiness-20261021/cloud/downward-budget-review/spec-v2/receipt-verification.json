@@ -1,0 +1,41 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/10-zero-upload-gating-red.json",
+    "sha256": "c245228c8fc50bef3c768b9357a56cf396852e182b3e19cd96a7d7fd5733360f",
+    "fail": [
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/rehearsal",
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/formal",
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "passed_events": 0
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/11-zero-upload-and-consumer-green.json",
+    "sha256": "926be99e8851fb1da806f738e2c469a51413855672f1fb533ecee37e4e100f99",
+    "fail": [
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/rehearsal",
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/formal",
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "passed_events": 126
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/12-zero-upload-gating-red.json",
+    "sha256": "67ef9cb36aa58bae43fe2f589e13dca3ab846eb391ac8d329b8541c361672e24",
+    "fail": [
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/rehearsal",
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/formal",
+      "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "passed_events": 0
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/13-zero-upload-and-consumer-green.json",
+    "sha256": "626aa148d8db8a804ae7899b89a9529db9ad2a1349725fc1b2b3d68ca488f39c",
+    "fail": [],
+    "passed_events": 130
+  }
+]

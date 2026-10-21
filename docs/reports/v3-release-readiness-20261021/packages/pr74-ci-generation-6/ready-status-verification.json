@@ -1,0 +1,32 @@
+{
+  "observed_at": "2026-10-21T15:28:58.097803+00:00",
+  "pr_url": "https://github.com/WuKongIM/packages/pull/74",
+  "state": "open",
+  "draft": false,
+  "merged": false,
+  "mergeable": true,
+  "mergeable_state": "clean",
+  "head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "base": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "runs": [
+    {
+      "id": 39623787268,
+      "name": "Safety Automation - Deploy Package Repository Bootstrap",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T15:14:09Z"
+    },
+    {
+      "id": 39623787283,
+      "name": "Safety Automation - Drill Native Package Repository",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T15:14:09Z"
+    }
+  ],
+  "new_native_run_observed_after_ready": false,
+  "authorization": "This is a read-only snapshot. No PR merge performed by observer; root requests separate merge approval.",
+  "previous_archive_manifest_sha256": "0a6814966c52edc03c1fa38804ea315d90cdcfce1711fd7b51ce9c1bbec33261"
+}

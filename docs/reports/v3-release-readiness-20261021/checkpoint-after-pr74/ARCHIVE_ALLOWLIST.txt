@@ -1,0 +1,10 @@
+selection.json
+wrapper-binding.json
+prelaunch-failure.log
+wrapper.log
+flow-doc-contracts/command.json
+flow-doc-contracts/result.json
+flow-doc-contracts/stdout-stderr.log
+README.md
+archive-sha256.json
+ARCHIVE_ALLOWLIST.txt

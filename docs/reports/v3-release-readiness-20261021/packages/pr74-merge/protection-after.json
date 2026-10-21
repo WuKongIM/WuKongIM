@@ -1,0 +1,9 @@
+{
+  "args": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/branches/main/protection"
+  ],
+  "exit_code": 0,
+  "time": "2026-10-21T15:31:40.248422+00:00"
+}

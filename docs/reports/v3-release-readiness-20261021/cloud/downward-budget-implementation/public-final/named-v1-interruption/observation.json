@@ -1,0 +1,16 @@
+{
+  "observed_at": "2026-10-21T15:02:03.242900+00:00",
+  "exec_session_id": 22346,
+  "poll_result": "Unknown process id 22346",
+  "original_go_unit_result_status": "running",
+  "original_owned_session_id": null,
+  "terminal_exit_known": false,
+  "timeout_proven": false,
+  "passed": false,
+  "process_observation": [],
+  "current_matching_processes_absent": true,
+  "original_sid_cleanup_proven": false,
+  "limitation": "The runner only persisted its running placeholder before finalization; no original command SID or terminal receipt exists. Current bounded process metadata show no matching task runner or Go/compiler/test process. This is incomplete/interrupted evidence, not a pass or demonstrated timeout.",
+  "first_three_checks": "go-format, flow-doc-contracts and workflow-contracts have terminal passed receipts with verified complete cleanup.",
+  "action": "No process was signalled; v1 preserved. Source remains frozen until v2 contract test."
+}

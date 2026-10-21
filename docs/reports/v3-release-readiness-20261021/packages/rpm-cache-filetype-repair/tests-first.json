@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-21T15:02:34.039216+00:00",
+  "phase": "all tests frozen before implementation; source unchanged",
+  "base": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "files": {
+    "test_native_stable_clients_drill.py": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a",
+    "native_stable_clients_drill.py": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+  }
+}

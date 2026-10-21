@@ -1,0 +1,31 @@
+{
+  "axis": "Spec",
+  "review_type": "v1-to-v2 differential",
+  "base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "closed_findings": [
+    "SPEC-P2-01"
+  ],
+  "open_findings": [],
+  "new_findings": [],
+  "changed_files": {
+    ".github/workflows/chat-lifecycle-formal-finalize.yml": {
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05",
+      "size": 31210
+    },
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml": {
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f",
+      "size": 34715
+    },
+    "scripts/chat_lifecycle_downward_budget_consumers_test.go": {
+      "sha256": "c3aa906f6a8998cb2eda71915a0c8ba3f9abe4e2b24f35a2d2b2dcedb4d8b459",
+      "size": 4277
+    }
+  },
+  "all27_match_v2": true,
+  "full_patch_sha256": "9c6fa1bb330b10f79359af1905e74b47b04adff34de8e1b7b865e563ef1ceef3",
+  "v1_preserved": true,
+  "source_edits_by_reviewer": false,
+  "named_checks_not_rerun": true,
+  "actual_cloud_not_verified": true,
+  "at": "2026-10-21T15:07:12.717770+00:00"
+}

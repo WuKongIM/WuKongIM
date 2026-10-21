@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-21T15:13:23.765622+00:00",
+  "head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "parent": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "files": {
+    "CHANGELOG.md": {
+      "size": 2743,
+      "sha256": "b7ff304f312363305f0514710e15c145ad02ede241b8dd62c9c75eefe4a66be0"
+    },
+    "docs/stable-audit-transport.md": {
+      "size": 12830,
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1"
+    },
+    "tests/native_stable_clients_drill.py": {
+      "size": 67658,
+      "sha256": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e"
+    },
+    "tests/test_native_stable_clients_drill.py": {
+      "size": 72907,
+      "sha256": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a"
+    }
+  },
+  "source_freeze_sha256": "551a8954bdaabc7817a8cd41f6a3f0658dc85e9c89c79b81488bcaaea2a11877",
+  "local_full_python": 528,
+  "local_existing_skips": 1,
+  "contracts": 4,
+  "native_49_on_this_head": "not_yet_run",
+  "merge_approved": false
+}

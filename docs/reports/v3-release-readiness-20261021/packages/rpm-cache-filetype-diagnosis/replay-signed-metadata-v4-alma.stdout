@@ -1,0 +1,776 @@
+{
+  "args": [
+    "--quiet",
+    "--assumeyes",
+    "--installroot=/tmp/client-root",
+    "--releasever=9",
+    "--disablerepo=*",
+    "--enablerepo=wukongim-stable",
+    "--setopt=reposdir=/tmp/repos.d",
+    "--setopt=cachedir=/tmp/dnf-cache",
+    "--setopt=persistdir=/tmp/dnf-state",
+    "--setopt=keepcache=False",
+    "--setopt=install_weak_deps=False",
+    "makecache",
+    "--refresh"
+  ],
+  "diagnostic_only_removed_sockets": [
+    "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent",
+    "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.browser",
+    "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.extra",
+    "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.ssh"
+  ],
+  "fixture": {
+    "key_purpose": "new ephemeral RSA2048 signing key for empty metadata only; not production key policy",
+    "network": "none",
+    "new_test_secret_removed_before_native_load": true,
+    "public_files": {
+      "public.asc": {
+        "sha256": "e4225c0a928cd1487da592cf32d201456f6ec61836ef24db4c496351eb4b0205",
+        "size": 994
+      },
+      "repodata/filelists.xml.gz": {
+        "sha256": "8a108c63d7964ba231aaddf2f165ca96e03eb9545c037456f5eb971921aaf566",
+        "size": 124
+      },
+      "repodata/other.xml.gz": {
+        "sha256": "1bc476379e84c5e9b9001efad4ee9bd200ef91d28e1d81bd2d205d525e86a396",
+        "size": 123
+      },
+      "repodata/primary.xml.gz": {
+        "sha256": "221155cae3c0d6a7c2940faaa4010269ecbaa2a10e13783e3f069ee0a0da972e",
+        "size": 133
+      },
+      "repodata/repomd.xml": {
+        "sha256": "d55abc6cf29c537506ad8811d155539722e22e06756eff4dd11bb800320372e7",
+        "size": 1184
+      },
+      "repodata/repomd.xml.asc": {
+        "sha256": "6a0dbdbafbf70d810590c83a72d3bd52c0eb49bddbadfc944b2f422b8af8bf70",
+        "size": 488
+      }
+    },
+    "repo_gpgcheck": true,
+    "test_only": true
+  },
+  "native_package_download": false,
+  "native_repo_load_return": true,
+  "native_repo_load_succeeded": true,
+  "owned_import_agent_observed": {
+    "cmdline": [
+      "/run/rosetta/rosetta",
+      "/usr/bin/gpg-agent",
+      "gpg-agent",
+      "--homedir",
+      "/tmp/dnf-cache/wukongim-stable-aaa08530d5caaef3/pubring",
+      "--use-standard-socket",
+      "--daemon"
+    ],
+    "pid": 54
+  },
+  "owned_import_agent_sigkill": {
+    "cmdline": [
+      "/run/rosetta/rosetta",
+      "/usr/bin/gpg-agent",
+      "gpg-agent",
+      "--homedir",
+      "/tmp/dnf-cache/wukongim-stable-aaa08530d5caaef3/pubring",
+      "--use-standard-socket",
+      "--daemon"
+    ],
+    "pid": 54,
+    "terminal_state": "zombie"
+  },
+  "phases": {
+    "after_agent_exit": {
+      "shipping_inventory": {
+        "accepted": false,
+        "error": "cache contains an unsupported file"
+      },
+      "stat": [
+        {
+          "mode": "0o40755",
+          "nlink": 4,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3",
+          "regular": false,
+          "size": 80,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 3,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring",
+          "regular": false,
+          "size": 200,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.browser",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.extra",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.ssh",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40700",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/private-keys-v1.d",
+          "regular": false,
+          "size": 40,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx",
+          "regular": true,
+          "size": 857,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx~",
+          "regular": true,
+          "size": 32,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/trustdb.gpg",
+          "regular": true,
+          "size": 1200,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata",
+          "regular": false,
+          "size": 120,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/filelists.xml.gz",
+          "regular": true,
+          "size": 124,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/primary.xml.gz",
+          "regular": true,
+          "size": 133,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml",
+          "regular": true,
+          "size": 1184,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml.asc",
+          "regular": true,
+          "size": 488,
+          "type": "regular",
+          "within_64MiB": true
+        }
+      ]
+    },
+    "after_close": {
+      "shipping_inventory": {
+        "accepted": false,
+        "error": "cache contains an unsupported file"
+      },
+      "stat": [
+        {
+          "mode": "0o40755",
+          "nlink": 4,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3",
+          "regular": false,
+          "size": 80,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 3,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring",
+          "regular": false,
+          "size": 220,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.browser",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.extra",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.ssh",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.scdaemon",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40700",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/private-keys-v1.d",
+          "regular": false,
+          "size": 40,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx",
+          "regular": true,
+          "size": 857,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx~",
+          "regular": true,
+          "size": 32,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/trustdb.gpg",
+          "regular": true,
+          "size": 1200,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata",
+          "regular": false,
+          "size": 120,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/filelists.xml.gz",
+          "regular": true,
+          "size": 124,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/primary.xml.gz",
+          "regular": true,
+          "size": 133,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml",
+          "regular": true,
+          "size": 1184,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml.asc",
+          "regular": true,
+          "size": 488,
+          "type": "regular",
+          "within_64MiB": true
+        }
+      ]
+    },
+    "after_load": {
+      "shipping_inventory": {
+        "accepted": false,
+        "error": "cache contains an unsupported file"
+      },
+      "stat": [
+        {
+          "mode": "0o40755",
+          "nlink": 4,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3",
+          "regular": false,
+          "size": 80,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 3,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring",
+          "regular": false,
+          "size": 220,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.browser",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.extra",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent.ssh",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o140700",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/S.scdaemon",
+          "regular": false,
+          "size": 0,
+          "type": "socket",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40700",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/private-keys-v1.d",
+          "regular": false,
+          "size": 40,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx",
+          "regular": true,
+          "size": 857,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx~",
+          "regular": true,
+          "size": 32,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/trustdb.gpg",
+          "regular": true,
+          "size": 1200,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata",
+          "regular": false,
+          "size": 120,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/filelists.xml.gz",
+          "regular": true,
+          "size": 124,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/primary.xml.gz",
+          "regular": true,
+          "size": 133,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml",
+          "regular": true,
+          "size": 1184,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml.asc",
+          "regular": true,
+          "size": 488,
+          "type": "regular",
+          "within_64MiB": true
+        }
+      ]
+    },
+    "after_socket_removal": {
+      "shipping_inventory": {
+        "accepted": true,
+        "entries": {
+          "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx": {
+            "atime_ns": 1792594366229137004,
+            "device": 70,
+            "inode": 67,
+            "mtime_ns": 1792594366228137004,
+            "sha256": "79e9992df7b3d00672a6d37312392179438b49298982078437172e434b50d5ac",
+            "size": 857
+          },
+          "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx~": {
+            "atime_ns": 1792594366217137004,
+            "device": 70,
+            "inode": 65,
+            "mtime_ns": 1792594366216137004,
+            "sha256": "393a896b7367d5825bbd70c8b866729d5f4657ff39ad44f6d6c2afc9291b9028",
+            "size": 32
+          },
+          "wukongim-stable-aaa08530d5caaef3/pubring/trustdb.gpg": {
+            "atime_ns": 1792594366326137004,
+            "device": 70,
+            "inode": 69,
+            "mtime_ns": 1792594366229137004,
+            "sha256": "8216ca11d90e16c4d63f7734fe51bcddc4e94ae70462a6fac2fa5d1f38ab2231",
+            "size": 1200
+          },
+          "wukongim-stable-aaa08530d5caaef3/repodata/filelists.xml.gz": {
+            "atime_ns": 1792594366334137004,
+            "device": 70,
+            "inode": 81,
+            "mtime_ns": 1792594366334137004,
+            "sha256": "8a108c63d7964ba231aaddf2f165ca96e03eb9545c037456f5eb971921aaf566",
+            "size": 124
+          },
+          "wukongim-stable-aaa08530d5caaef3/repodata/primary.xml.gz": {
+            "atime_ns": 1792594366334137004,
+            "device": 70,
+            "inode": 82,
+            "mtime_ns": 1792594366334137004,
+            "sha256": "221155cae3c0d6a7c2940faaa4010269ecbaa2a10e13783e3f069ee0a0da972e",
+            "size": 133
+          },
+          "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml": {
+            "atime_ns": 1792594366297137004,
+            "device": 70,
+            "inode": 78,
+            "mtime_ns": 1792594366276137004,
+            "sha256": "d55abc6cf29c537506ad8811d155539722e22e06756eff4dd11bb800320372e7",
+            "size": 1184
+          },
+          "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml.asc": {
+            "atime_ns": 1792594366297137004,
+            "device": 70,
+            "inode": 79,
+            "mtime_ns": 1792594366276137004,
+            "sha256": "6a0dbdbafbf70d810590c83a72d3bd52c0eb49bddbadfc944b2f422b8af8bf70",
+            "size": 488
+          }
+        }
+      },
+      "stat": [
+        {
+          "mode": "0o40755",
+          "nlink": 4,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3",
+          "regular": false,
+          "size": 80,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 3,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring",
+          "regular": false,
+          "size": 120,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40700",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/private-keys-v1.d",
+          "regular": false,
+          "size": 40,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx",
+          "regular": true,
+          "size": 857,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/pubring.kbx~",
+          "regular": true,
+          "size": 32,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100600",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/pubring/trustdb.gpg",
+          "regular": true,
+          "size": 1200,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o40755",
+          "nlink": 2,
+          "nlink_is_one": false,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata",
+          "regular": false,
+          "size": 120,
+          "type": "directory",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/filelists.xml.gz",
+          "regular": true,
+          "size": 124,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/primary.xml.gz",
+          "regular": true,
+          "size": 133,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml",
+          "regular": true,
+          "size": 1184,
+          "type": "regular",
+          "within_64MiB": true
+        },
+        {
+          "mode": "0o100644",
+          "nlink": 1,
+          "nlink_is_one": true,
+          "path": "wukongim-stable-aaa08530d5caaef3/repodata/repomd.xml.asc",
+          "regular": true,
+          "size": 488,
+          "type": "regular",
+          "within_64MiB": true
+        }
+      ]
+    },
+    "before_load": {
+      "shipping_inventory": {
+        "accepted": true,
+        "entries": {}
+      },
+      "stat": []
+    }
+  },
+  "repo": {
+    "id": "wukongim-stable",
+    "native_cachedir": "/tmp/dnf-cache/wukongim-stable-aaa08530d5caaef3",
+    "pubring_dir": "/tmp/dnf-cache/wukongim-stable-aaa08530d5caaef3/pubring",
+    "repo_gpgcheck": true
+  },
+  "repo_transport_difference": "file:// local empty signed repository; same pinned native Repo.load metadata/key verification path, no original CI stat recovery",
+  "test_only": true,
+  "versions": [
+    "dnf-4.14.0-34.el9_8.alma.1.noarch",
+    "libdnf-0.69.0-18.el9.alma.1.x86_64",
+    "gnupg2-2.3.3-5.el9_7.x86_64",
+    "gpgme-1.15.1-6.el9.x86_64"
+  ]
+}

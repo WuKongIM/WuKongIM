@@ -1,0 +1,142 @@
+{
+  "started_at": "2026-10-21T14:48:07.345361+00:00",
+  "label": "filetype-2ea64f4118974e74b6e4fc4872a76bed",
+  "name": "wk-filetype-2ea64f4118974e74b6e4fc4872a76bed",
+  "distribution": "rocky",
+  "image": "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+  "probe": "inspect-key-callback.py",
+  "probe_sha256": "f16d7ce3871da2e665811548fe22d50d8ef6257f4fac771cfd30d0c95429b1da",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.016770000045653433,
+      "stdout": "[image identity recorded above]",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "create",
+        "--pull=never",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-filetype-2ea64f4118974e74b6e4fc4872a76bed",
+        "--label",
+        "wk-stable-cache-filetype=filetype-2ea64f4118974e74b6e4fc4872a76bed",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/private/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-filetype-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/inspect-key-callback.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.049762082984671,
+      "stdout": "9f12df72a39bdc106066a219db490be77b24c7b560d527a93c93c95fbe5d526d\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "9f12df72a39bdc106066a219db490be77b24c7b560d527a93c93c95fbe5d526d"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3689741669804789,
+      "stdout": "{\n  \"repo_native_methods\": [],\n  \"source\": {\n    \"Repo.__init__\": \"    def __init__(self, name=None, parent_conf=None):\\n        # :api\\n        super(Repo, self).__init__(section=name, parent=parent_conf)\\n\\n        self._config.this.disown()  # _repo will be the owner of _config\\n        self._repo = libdnf.repo.Repo(name if name else \\\"\\\", self._config)\\n\\n        self._md_pload = MDPayload(dnf.callback.NullDownloadProgress())\\n        self._callbacks = RepoCallbacks(self)\\n        self._callbacks.this.disown()  # _repo will be the owner of callbacks\\n        self._repo.setCallbacks(self._callbacks)\\n\\n        self._pkgdir = None\\n        self._key_import = _NullKeyImport()\\n        self.metadata = None  # :api\\n        self._repo.setSyncStrategy(SYNC_ONLY_CACHE if parent_conf and parent_conf.cacheonly else self.DEFAULT_SYNC)\\n        if parent_conf:\\n            self._repo.setSubstitutions(parent_conf.substitutions)\\n        self._substitutions = dnf.conf.substitutions.Substitutions()\\n        self._check_config_file_age = parent_conf.check_config_file_age \\\\\\n            if parent_conf is not None else True\\n\",\n    \"Repo._pubring_dir\": \"    @property\\n    def _pubring_dir(self):\\n        return os.path.join(self._repo.getCachedir(), 'pubring')\\n\",\n    \"RepoCallbacks\": \"class RepoCallbacks(libdnf.repo.RepoCB):\\n    def __init__(self, repo):\\n        super(RepoCallbacks, self).__init__()\\n        self._repo = repo\\n        self._md_pload = repo._md_pload\\n\\n    def start(self, what):\\n        self._md_pload.start(what)\\n\\n    def end(self):\\n        self._md_pload.end()\\n\\n    def progress(self, totalToDownload, downloaded):\\n        self._md_pload._progress_cb(None, totalToDownload, downloaded)\\n        return 0\\n\\n    def fastestMirror(self, stage, ptr):\\n        self._md_pload._fastestmirror_cb(None, stage, ptr)\\n\\n    def handleMirrorFailure(self, msg, url, metadata):\\n        self._md_pload._mirror_failure_cb(None, msg, url, metadata)\\n        return 0\\n\\n    def repokeyImport(self, id, userid, fingerprint, url, timestamp):\\n        return self._repo._key_import._confirm(id, userid, fingerprint, url, timestamp)\\n\",\n    \"_DetailedLibrepoError\": \"class _DetailedLibrepoError(Exception):\\n    def __init__(self, librepo_err, source_url):\\n        Exception.__init__(self)\\n        self.librepo_code = librepo_err.args[0]\\n        self.librepo_msg = librepo_err.args[1]\\n        self.source_url = source_url\\n\",\n    \"_NullKeyImport\": \"class _NullKeyImport(dnf.callback.KeyImport):\\n    def _confirm(self, id, userid, fingerprint, url, timestamp):\\n        return True\\n\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-2ea64f4118974e74b6e4fc4872a76bed"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.01808970799902454,
+      "stdout": "9f12df72a39b\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-cache-filetype\"}}",
+        "9f12df72a39b"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.01711341697955504,
+      "stdout": "/wk-filetype-2ea64f4118974e74b6e4fc4872a76bed filetype-2ea64f4118974e74b6e4fc4872a76bed\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "9f12df72a39b"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.021414792048744857,
+      "stdout": "9f12df72a39b\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-2ea64f4118974e74b6e4fc4872a76bed"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.015158457972574979,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "image_identity": {
+    "Id": "sha256:e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd",
+    "RepoDigests": [
+      "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+    ],
+    "Architecture": "amd64",
+    "Os": "linux"
+  },
+  "container_id": "9f12df72a39bdc106066a219db490be77b24c7b560d527a93c93c95fbe5d526d",
+  "probe_exit_code": 0,
+  "stdout_sha256": "c71dbfde330632fa4e9b32a8a9c9cb8614cebc2d050d9baff86bdccfd3c9f692",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "remaining_container_ids": [],
+  "finished_at": "2026-10-21T14:48:07.854040+00:00"
+}

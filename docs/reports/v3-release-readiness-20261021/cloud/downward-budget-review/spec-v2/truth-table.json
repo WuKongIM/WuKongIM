@@ -1,0 +1,26 @@
+[
+  {
+    "prior_steps_success": false,
+    "cleanup_zero": false,
+    "v1_upload": false,
+    "v2_upload": false
+  },
+  {
+    "prior_steps_success": false,
+    "cleanup_zero": true,
+    "v1_upload": false,
+    "v2_upload": true
+  },
+  {
+    "prior_steps_success": true,
+    "cleanup_zero": false,
+    "v1_upload": false,
+    "v2_upload": false
+  },
+  {
+    "prior_steps_success": true,
+    "cleanup_zero": true,
+    "v1_upload": true,
+    "v2_upload": true
+  }
+]

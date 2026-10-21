@@ -1,0 +1,6 @@
+{
+  "recorded_at": "2026-10-21T15:42:19.550233+00:00",
+  "user_instruction": "以后你自己合并 不需要再让我确认",
+  "scope": "Subsequent pull requests within this v3 readiness work after applicable review and validation. No separate per-PR confirmation.",
+  "excluded": "Does not newly authorize paid starts, new cloud permissions or final stable publication; existing applicable approvals remain effective."
+}

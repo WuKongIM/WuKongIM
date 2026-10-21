@@ -1,0 +1,54 @@
+{
+  "observed_at": "2026-10-21T15:34:46.730096+00:00",
+  "queries": [
+    {
+      "command": [
+        "dig",
+        "+noall",
+        "+answer",
+        "githubim.com",
+        "NS"
+      ],
+      "exit_code": 0,
+      "stdout": "githubim.com.\t\t21600\tIN\tNS\tdns8.hichina.com.\ngithubim.com.\t\t21600\tIN\tNS\tdns7.hichina.com.\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "dig",
+        "+noall",
+        "+answer",
+        "packages.githubim.com",
+        "CNAME"
+      ],
+      "exit_code": 0,
+      "stdout": "packages.githubim.com.\t600\tIN\tCNAME\twukongim.github.io.\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "dig",
+        "+noall",
+        "+answer",
+        "packages.githubim.com",
+        "CAA"
+      ],
+      "exit_code": 0,
+      "stdout": "packages.githubim.com.\t600\tIN\tCNAME\twukongim.github.io.\nwukongim.github.io.\t3600\tIN\tCAA\t0 issue \"letsencrypt.org\"\nwukongim.github.io.\t3600\tIN\tCAA\t0 issue \"digicert.com\"\nwukongim.github.io.\t3600\tIN\tCAA\t0 issuewild \"sectigo.com\"\nwukongim.github.io.\t3600\tIN\tCAA\t0 issuewild \"digicert.com\"\nwukongim.github.io.\t3600\tIN\tCAA\t0 issue \"sectigo.com\"\nwukongim.github.io.\t3600\tIN\tCAA\t0 issuewild \"letsencrypt.org\"\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "dig",
+        "+noall",
+        "+answer",
+        "githubim.com",
+        "CAA"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "scope": "read-only resolver answers; not authoritative-console record IDs or full propagation proof"
+}

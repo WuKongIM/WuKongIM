@@ -1,0 +1,8 @@
+Importing GPG key 0xE0BB7845:
+ Userid     : "CACHE FILETYPE TEST ONLY <cache-filetype@test.invalid>"
+ Fingerprint: 0FB1 3688 A46F BBFA 355B C846 794F 7357 E0BB 7845
+ From       : /tmp/cache-filetype-repo/public.asc
+Traceback (most recent call last):
+  File "/probe/replay-signed-metadata-v2.py", line 78, in <module>
+    assert b'gpg-agent' in cmdline[0] and repo._pubring_dir.encode() in cmdline
+AssertionError

@@ -1,0 +1,9 @@
+{
+  "source_path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+  "base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "old_product": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "same_source": true,
+  "source_sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+  "red_receipt": "01-go-red.json",
+  "limit": "pure guard red on this Mac, not a new Linux cloud/binary qualification"
+}

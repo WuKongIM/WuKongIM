@@ -1,0 +1,4 @@
+Importing GPG key 0x4F5F1A11:
+ Userid     : "CACHE FILETYPE TEST ONLY <cache-filetype@test.invalid>"
+ Fingerprint: 28B3 228E EA21 5FB4 B137 7E5E 2C22 98AB 4F5F 1A11
+ From       : /tmp/cache-filetype-repo/public.asc

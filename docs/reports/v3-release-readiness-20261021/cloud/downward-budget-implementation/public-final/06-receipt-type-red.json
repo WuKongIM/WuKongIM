@@ -1,0 +1,13 @@
+{"Time":"2026-10-21T22:43:40.741942+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts"}
+{"Time":"2026-10-21T22:43:41.115797+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments"}
+{"Time":"2026-10-21T22:43:41.115862+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments","Output":"=== RUN   TestChatLifecycleDownwardBudgetDocuments\n"}
+{"Time":"2026-10-21T22:43:41.115885+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior"}
+{"Time":"2026-10-21T22:43:41.1159+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior","Output":"=== RUN   TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior\n"}
+{"Time":"2026-10-21T22:43:41.15576+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior","Output":"    chat_lifecycle_downward_budget_test.go:100: decision: map[limit_micros:1.3510448e+09 operational_stop_micros:1.2010448e+09] \u003cnil\u003e\n"}
+{"Time":"2026-10-21T22:43:41.15609+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior","Output":"--- FAIL: TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior (0.04s)\n"}
+{"Time":"2026-10-21T22:43:41.156102+08:00","Action":"fail","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior","Elapsed":0.04}
+{"Time":"2026-10-21T22:43:41.156214+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments","Output":"--- FAIL: TestChatLifecycleDownwardBudgetDocuments (0.04s)\n"}
+{"Time":"2026-10-21T22:43:41.156223+08:00","Action":"fail","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleDownwardBudgetDocuments","Elapsed":0.04}
+{"Time":"2026-10-21T22:43:41.156295+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"FAIL\n"}
+{"Time":"2026-10-21T22:43:41.157543+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"FAIL\tgithub.com/WuKongIM/WuKongIM/scripts\t0.415s\n"}
+{"Time":"2026-10-21T22:43:41.157554+08:00","Action":"fail","Package":"github.com/WuKongIM/WuKongIM/scripts","Elapsed":0.416}

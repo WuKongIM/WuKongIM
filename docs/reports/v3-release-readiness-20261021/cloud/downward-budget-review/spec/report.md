@@ -1,0 +1,1 @@
+Spec：1 项 P2。低预算拒绝后，零库存证明上传会被隐含 success() 跳过：rehearsal transition 在累计费用达到 S 时 exit1，formal complete 在累计超过 H 时 exit1，后续上传条件均无状态函数。违反设计“失败不能阻止已有Lease Release/zero”和 C11；现有消费者测试只证本地 zero 文件/输出存在，未测 Actions 失败后的上传资格。建议两处上传改为 always() && steps.cleanup.outputs.zero == 'true'，保持预算拒绝。未发现范围扩大或其它预算传递错误。27文件匹配冻结；31项轻量探针符合预期。named checks 尚由 root 收尾，新产品候选及真实云验收未证明，旧 fc182 不支持降低预算。

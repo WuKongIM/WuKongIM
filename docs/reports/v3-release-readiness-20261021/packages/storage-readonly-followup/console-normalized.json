@@ -1,0 +1,29 @@
+{
+  "observation_window_utc": [
+    "2026-10-21T15:30:00Z",
+    "2026-10-21T15:40:00Z"
+  ],
+  "method": "visible Chrome UI via cua; normalized observations only, no account screenshots archived",
+  "cdn": {
+    "overview_url": "https://cdn.console.aliyun.com/overview",
+    "domain_list_url": "https://cdn.console.aliyun.com/domain/list",
+    "domain_count": 2,
+    "packages_domain_present": false,
+    "billing_mode": "pay_by_traffic",
+    "regional_downstream_rows": "postpaid; no applicable resource package shown",
+    "static_https_billing": "usage-based hourly; monthly free quota currently used"
+  },
+  "ram": {
+    "url": "https://ram.console.aliyun.com/roles",
+    "role_list_verified": false,
+    "observation": "skeleton/empty main body after navigation and one reload; sidebar visible",
+    "private_origin_role": null
+  },
+  "boundaries": [
+    "No resource, permission, DNS, certificate or billing changes",
+    "No AccessKey, production private key, Keychain or NAS access",
+    "No actual quote or future budget guarantee obtained",
+    "Only the two agent-created console tabs closed; closure inventory confirmed"
+  ],
+  "observed_at": "2026-10-21T15:41:02.053145+00:00"
+}

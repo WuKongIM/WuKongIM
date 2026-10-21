@@ -1,0 +1,11 @@
+{
+  "observed_at": "2026-10-21T15:31:58.910275+00:00",
+  "approved_head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "target": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "same_tree": true,
+  "target_contains_original_tip": false,
+  "worktree_clean": true,
+  "cleanup": "preserved_original_branch_and_worktree",
+  "reason": "Required linear-history rebase rewrote commits; original tip is not an ancestor; no force deletion."
+}

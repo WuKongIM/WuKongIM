@@ -1,0 +1,11 @@
+{
+  "events": 153,
+  "pass_events": 33,
+  "failed_tests": [
+    "TestDownwardImmutableDeploymentBudget"
+  ],
+  "failed_packages": [
+    "github.com/WuKongIM/WuKongIM/internal/usecase/clouddeploy"
+  ],
+  "build_failures": []
+}

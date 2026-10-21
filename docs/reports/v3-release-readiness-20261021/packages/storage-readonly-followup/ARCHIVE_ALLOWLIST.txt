@@ -1,0 +1,5 @@
+README.md
+console-normalized.json
+public-dns.json
+archive-sha256.json
+ARCHIVE_ALLOWLIST.txt

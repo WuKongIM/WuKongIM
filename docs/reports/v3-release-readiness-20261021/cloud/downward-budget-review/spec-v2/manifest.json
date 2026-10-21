@@ -1,0 +1,42 @@
+{
+  "evidence.md": {
+    "sha256": "69f15f39fa538a7c7c7a40c185f30435289de772ddc1f39a6236a38572f651fc",
+    "size": 3313
+  },
+  "files/.github/workflows/chat-lifecycle-formal-finalize.yml": {
+    "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05",
+    "size": 31210
+  },
+  "files/.github/workflows/chat-lifecycle-rehearsal-finalize.yml": {
+    "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f",
+    "size": 34715
+  },
+  "files/scripts/chat_lifecycle_downward_budget_consumers_test.go": {
+    "sha256": "c3aa906f6a8998cb2eda71915a0c8ba3f9abe4e2b24f35a2d2b2dcedb4d8b459",
+    "size": 4277
+  },
+  "receipt-verification.json": {
+    "sha256": "4fae3b8c3ee7ca301dbac3a6b289bc858d334edb71b65ba9bdfd2b81ac15ffe2",
+    "size": 1931
+  },
+  "report.md": {
+    "sha256": "6baf20541702352dd55affbc5dfb825daddf1246411d1445bb2a6c315164fce6",
+    "size": 592
+  },
+  "review.json": {
+    "sha256": "191a718d953e5d546c6b93f85e966af0e2401844e3c1bc7b53f5ec106e006c27",
+    "size": 1050
+  },
+  "source-freeze.json": {
+    "sha256": "f11ddf2c288d7410c89b90385d474ff610f6279165e6412db9a2a54ee0c3d4fd",
+    "size": 4623
+  },
+  "truth-table.json": {
+    "sha256": "facde49a2f3408ef4fc148af603fd2df5e8198d3d71d9117f58f847507ca5586",
+    "size": 464
+  },
+  "v1-v2.patch": {
+    "sha256": "c978735cd8e525c6031ddd2114cffb0c53c92dbcb64063f027c4d422e72118fc",
+    "size": 3036
+  }
+}

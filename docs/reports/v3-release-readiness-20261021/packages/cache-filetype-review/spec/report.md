@@ -1,0 +1,1 @@
+Spec 轴：0 项发现，未见遗漏、错误实施或范围扩大。例外严格匹配 canonical 父目录、五名、lstat Unix socket、单链接与零字节（规格 README:13、failure-matrix:21）。普通同名文件仍哈希；socket 不能充当 metadata 或复用证明；原生 body、49 案例、签名、cleanup 和其他 23 个函数未变。独立轻量探针 95 断言通过，含真实 live/closed socket、硬链接拒绝、路径边界、读前后 atime 与 inode/SHA/size 校验；四文件及 40 保护文件核验一致。原 CI 被拒文件 stat 仍未知；签名 file:// 重放仅证机制，完整 Linux 49 场景仍未证实（规格 README:17）。

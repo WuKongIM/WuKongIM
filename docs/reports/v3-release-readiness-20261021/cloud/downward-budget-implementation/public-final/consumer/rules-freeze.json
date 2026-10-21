@@ -1,0 +1,10 @@
+{
+  "source": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "applicable_rules": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    ".github/workflows/README.md": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+  },
+  "applicable_flow": []
+}

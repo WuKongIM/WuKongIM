@@ -1,0 +1,63 @@
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkanalysis	0.634s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkchatlifecycle	0.366s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli	0.693s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench	0.299s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark	7.548s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context	0.582s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database	7.779s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics	0.328s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops	0.416s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim	0.510s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top	0.485s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudanalysisbridge	0.273s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudbootstrap	0.316s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudbundle	0.616s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkclouddiagnosis	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudgate	0.415s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudhost	0.678s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudlease	0.328s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudleaseoidc	0.449s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudsim	0.536s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudview	0.755s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkissueagent	0.344s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkreviewagent	0.340s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkreviewcheck	0.409s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkreviewcheckmcp	0.328s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wukongim	1.759s
+ok  	github.com/WuKongIM/WuKongIM/internal	2.113s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/api	0.375s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/api/demoui	0.579s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/cloudanalysismcp	0.302s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/cloudview	0.371s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/gateway	0.315s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/issueagentcli	0.535s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/manager	0.643s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/manager/webui	0.285s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/migratecli	0.483s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/mqtt	0.325s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/node	0.362s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/opsmcp	0.593s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/plugin	0.376s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/reviewagentcheckmcp	0.692s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/reviewagentcli	0.508s
+ok  	github.com/WuKongIM/WuKongIM/internal/app	2.594s
+?   	github.com/WuKongIM/WuKongIM/internal/app/migration	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/arrival	0.686s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/capacity	0.323s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	14.928s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/config	0.289s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/coordinator	1.200s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/devsim	0.274s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/localbaseline	0.358s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/messageevent	0.301s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/metrics	0.282s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/planner	0.268s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/report	0.284s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/target	0.394s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/wkproto	0.438s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/worker	5.258s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/workload	3.003s
+ok  	github.com/WuKongIM/WuKongIM/internal/config	0.382s

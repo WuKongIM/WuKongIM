@@ -1,0 +1,38 @@
+{
+  "README.md": {
+    "sha256": "6a760804843d85fc77e8b7aab3e923ef086486ae77913a152d6e138d5a516976",
+    "size": 8182
+  },
+  "failure-inventory.md": {
+    "sha256": "e46e78947c06290a6e6289e70a003d318b128b050c10997b506529200728f301",
+    "size": 2971
+  },
+  "source-excerpts.txt": {
+    "sha256": "d7a358291bfccd92b443e825ca05e023a5b03570696073bb8e7bbd82620b6266",
+    "size": 26688
+  },
+  "source-freeze.json": {
+    "sha256": "22d55b756fa123ae98a69cf4243dab2f9b4ecf343a9bb41b4a345d4c51b8b593",
+    "size": 3090
+  },
+  "summary.json": {
+    "sha256": "274e0f23b268f3a68d7840d7154f369f7acd8a8fe88d3d58daf6e4c16a9c86cc",
+    "size": 853
+  },
+  "inputs/after-native-delivery-gap-README.md": {
+    "sha256": "0ce6f9036648e203f4ce6e9211d20a344dceedd03383d3d2b8fdad3cd52b32c2",
+    "size": 10506
+  },
+  "inputs/storage-design.md": {
+    "sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311",
+    "size": 21154
+  },
+  "inputs/resource-proposal.md": {
+    "sha256": "d3164f6a4410003692d68ff35863311ba7b852856f7a7e7e106b314ada6df4f1",
+    "size": 13085
+  },
+  "ARCHIVE_ALLOWLIST.txt": {
+    "sha256": "e33ee10f633ec9082971364a95e62087104daebd522919abc02bacc5edf8dccb",
+    "size": 221
+  }
+}

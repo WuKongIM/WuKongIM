@@ -1,0 +1,22 @@
+{
+  "events": 256,
+  "pass_events": 43,
+  "failed_tests": [
+    "TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority",
+    "TestChatLifecycleDownwardBudgetTransitionSelector/1201044800",
+    "TestChatLifecycleDownwardBudgetTransitionSelector/1201044801",
+    "TestChatLifecycleDownwardBudgetTransitionSelector",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/lower",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/default",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/stop_minus_one",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/at_stop",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/above_stop",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/missing_plan_cap",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/mismatched_receipt",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell"
+  ],
+  "failed_packages": [
+    "github.com/WuKongIM/WuKongIM/scripts"
+  ],
+  "build_failures": []
+}

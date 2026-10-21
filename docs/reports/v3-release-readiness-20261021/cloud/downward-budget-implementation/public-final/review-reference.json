@@ -1,0 +1,8 @@
+{
+  "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-review/combined-review-v2.md",
+  "sha256": "41788c7651e5dc9f3f1f7afbce99058ab1a9d1fce170dfaa969a4340dc18cb20",
+  "standards_open_findings": 0,
+  "spec_open_findings": 0,
+  "v1_p2": "zero-inventory artifact upload skipped after budget rejection by implicit success()",
+  "v2_closure": "Only both zero upload conditions add always(); budget qualification rejection remains."
+}

@@ -1,0 +1,43 @@
+{
+  "observed_at": "2026-10-21T15:09:30.881533+00:00",
+  "root_pids": [
+    40964
+  ],
+  "descendants": [
+    {
+      "pid": 40964,
+      "ppid": 45451,
+      "state": "Ss",
+      "executable": "Python",
+      "session_id": 40964
+    },
+    {
+      "pid": 41341,
+      "ppid": 40964,
+      "state": "S",
+      "executable": "Python",
+      "session_id": 40964
+    },
+    {
+      "pid": 41342,
+      "ppid": 41341,
+      "state": "Ss",
+      "executable": "go",
+      "session_id": 41342
+    },
+    {
+      "pid": 43121,
+      "ppid": 41342,
+      "state": "U",
+      "executable": "migrationv2.test",
+      "session_id": 41342
+    },
+    {
+      "pid": 43945,
+      "ppid": 41342,
+      "state": "U",
+      "executable": "mqttsession.test",
+      "session_id": 41342
+    }
+  ]
+}

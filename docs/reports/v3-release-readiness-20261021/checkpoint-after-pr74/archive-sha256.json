@@ -1,0 +1,34 @@
+{
+  "selection.json": {
+    "sha256": "eef234cf2faf7ff9e8189fac3bf915372a2125c459b5ee7cd2b32e6675c8c6fe",
+    "bytes": 340
+  },
+  "wrapper-binding.json": {
+    "sha256": "b6df3ad7aa262a85d9bfd9de2df42c18e4b666700ad007573b6ae64e0f3a39d1",
+    "bytes": 360
+  },
+  "prelaunch-failure.log": {
+    "sha256": "025728085a55873503b6e2297661991ad70648f596b8e36825b22a818f319962",
+    "bytes": 293
+  },
+  "wrapper.log": {
+    "sha256": "fec4618d9ea3ad9164b3eede4fe426089a8daa9890c7a544610d3b6d016b9cec",
+    "bytes": 323
+  },
+  "flow-doc-contracts/command.json": {
+    "sha256": "d8f49a3da03348b48d4ff6797129a776a1a33f06b681e44cc3c992624b528280",
+    "bytes": 253
+  },
+  "flow-doc-contracts/result.json": {
+    "sha256": "52feb4db3416bd915efe0d00f8f00a8cc6b6bf9e71cb5f1f6331add5ad6f545b",
+    "bytes": 369
+  },
+  "flow-doc-contracts/stdout-stderr.log": {
+    "sha256": "d0519f92429ba5615c10ecf1cde85010b84d1bd0ea1ec980dd6295910b7eae80",
+    "bytes": 1376
+  },
+  "README.md": {
+    "sha256": "dcbfae0d073c4b981914a94b669d0813570c29f99ddfa0f0aa57a7ae66af61d7",
+    "bytes": 650
+  }
+}

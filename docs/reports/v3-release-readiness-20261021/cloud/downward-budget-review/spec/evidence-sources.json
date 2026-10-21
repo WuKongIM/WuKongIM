@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/post-systemd-repair-execution-options-generation-2/README.md",
+    "sha256": "7d19e713579252d462d4f853bea81b19950c8ddfb76f0e17917ac9affeee07af",
+    "size": 8641
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/post-systemd-repair-execution-options-generation-2/failure-inventory.json",
+    "sha256": "136a3c17390c2263c9bcf23f8f29ebd4b9d188bc1b16b7b611b116ec53fd147a",
+    "size": 10339
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/source-freeze.json",
+    "sha256": "c823397dcac43befc37140263dd14bca5bc50a8645cc6d7ef28b16dca0c03a9f",
+    "size": 4623
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/implementation.patch",
+    "sha256": "ec2898d3d40d96f304e9e7a0d3b9278f428064d333b5167bd3f2e48be31fcfba",
+    "size": 87831
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/old-product-guard.json",
+    "sha256": "8674224b5d9b65cb76a449803a5294ee2393a41a1cf7382c6de1aa0a297da015",
+    "size": 421
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/unchanged-boundaries.json",
+    "sha256": "4b0adfd2d070a2c8bf79798e992c0c22147c4fab64a7b912a28431c709bae811",
+    "size": 494
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/07-go-packages.json.summary.json",
+    "sha256": "032a37eae7364c192c7b929000cbcf7439677d9bb625537801198def2824ca25",
+    "size": 114
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/08-helper-stage-regression.json.summary.json",
+    "sha256": "f74c44e545b69dd4082a1b771a4677ee06bc0a1caa8e46430f983c440f96dcec",
+    "size": 113
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/09-existing-authority-activation.json.summary.json",
+    "sha256": "9958b60aab146fd83ce8698c4f12228b6f417b68091c4f7da8c8cee568d8fb5d",
+    "size": 112
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/05-consumer-green.log",
+    "sha256": "5a927a9203dda3216cab5ec919c6cbbf804b879e726ade93891a566a8ab2910a",
+    "size": 49
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "args": [
+    "gh",
+    "pr",
+    "merge",
+    "74",
+    "--repo",
+    "WuKongIM/packages",
+    "--rebase",
+    "--match-head-commit",
+    "983e567f155a982c45ca066e4dc67d33851f0d24"
+  ],
+  "exit_code": 0,
+  "time": "2026-10-21T15:31:38.026166+00:00"
+}

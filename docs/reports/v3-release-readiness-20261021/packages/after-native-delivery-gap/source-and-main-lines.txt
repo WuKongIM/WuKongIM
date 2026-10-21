@@ -1,0 +1,87 @@
+Source worktree HEAD: 8e5696fbd912e838d3dde54025c3e7f5b6e5f4f2
+
+docs/development/RELEASING.md
+1: # Release completion
+2: 
+3: A request to release WuKongIM includes Docker images, immutable GitHub binary
+4: assets, documentation, and the applicable signed native package channel.
+5: Finish and verify all four before reporting the release complete. Preserve
+6: existing signing, review, immutable identity, and protected Environment
+7: requirements. A failed stage remains incomplete; never replace an immutable
+8: tag or Release to repair a downstream publication.
+9: 
+10: Read the [Workflow catalog](../../.github/workflows/README.md) before invoking
+11: Actions. For native publication, also read the current
+12: [package release contract](https://github.com/WuKongIM/packages/blob/main/docs/release-contract.md)
+13: and the exact protected control revision in `WuKongIM/packages`.
+
+docs/development/RELEASING.md
+34: ## Signed native package publication
+35: 
+36: Prereleases use the `preview` channel. Stable publication remains disabled
+37: until the package repository's required storage and signing prerequisites are
+38: fulfilled. Do not publish stable versions into preview or report complete
+39: delivery while their applicable channel is unavailable.
+
+docs/development/RELEASING.md
+66: 6. Wait for the entire publisher, including public clean-client verification,
+67:    to succeed. It signs APT and RPM separately, seals one immutable audit
+68:    snapshot, deploys the complete repository, and verifies target-version
+69:    downloads on Ubuntu, Debian, Rocky Linux, and AlmaLinux. New-release
+70:    publication also requires installed CLI acceptance on all four distributions.
+71: 
+72: Never copy signing credentials into the source repository or bypass signed
+73: metadata verification. Recover only the exact matching draft or immutable
+74: snapshot using the package repository's existing recovery contract.
+75: 
+76: ## Public availability and delivery evidence
+77: 
+78: Check the public status reports the intended target version and audit ID, and
+79: that the APT `Packages` index contains the exact mapped DEB version (for
+80: example, `v3.0.0-beta.9` becomes `3.0.0~beta.9`). Require the publisher's clean
+81: APT/RPM client checks to select and download that target, not merely refresh
+82: old metadata. A GitHub asset URL, a successful `/repo` invocation, or a Pages
+83: deployment status alone is insufficient. If propagation delays leave the old
+84: snapshot visible, retain an incomplete status until public checks pass.
+
+docs/development/RELEASING.md
+94: For releases containing the unified operator CLI, each clean native client
+95: also checks that `wkcli version --output json` matches
+96: `wukongim version --output json` in version, full commit, and build source.
+97: Both identities must also match the reviewed snapshot's exact source SHA and
+98: version, with build source `release`; two equally wrong binaries cannot pass.
+99: The public package validator's `--verify-installed-cli` gate installs only
+100: snapshot-verified downloads in separate credential-free containers. In addition
+101: to help commands, it runs `bench validate`, queries a known synthetic offline
+102: user, and completes `migrate diagnose` on a fixed stopped-v2 fixture. Invalid
+103: inputs must fail, source bytes must remain unchanged, and diagnosis must not
+104: create a target. Every command and container has a bounded deadline.
+105: 
+106: All four distributions must return `installed_cli_verified=true` with per-client
+107: functional receipts. Any failure keeps release delivery incomplete, even after
+108: Pages deployment. Signing and pre-publication download-only sandboxes never
+
+Packages main: 335cd2569d2b62de577916ed86c097fd3a22547e
+
+manifests/channels.json
+68:     "stable": {
+69:       "enabled": false,
+70:       "status": "object_storage_required",
+71:       "releases": []
+72:     }
+
+scripts/validate-control.py
+358:     require(type(stable["enabled"]) is bool and stable["enabled"] is False,
+359:             "stable publishing must remain disabled on GitHub Pages")
+360:     require(stable["status"] == "object_storage_required",
+361:             "stable.status must remain object_storage_required")
+362:     require(stable["releases"] == [], "stable releases must remain empty on GitHub Pages")
+
+docs/stable-audit-transport.md
+43: A production invocation requires an actual immutable stable source Release,
+44: an already reviewed candidate, and the reviewed executable checkout/toolchain.
+45: The external sealing-control SHA remains an operator-selected current-main fence;
+46: the helper authenticates the candidate’s historical control/producer Git objects,
+47: not its own entire checkout as a Git tree. The repository does not yet provide an enabled
+48: production workflow or OSS/CDN activator. Implementation and TEST ONLY validation
+49: of these helpers do not constitute a production seal or release.

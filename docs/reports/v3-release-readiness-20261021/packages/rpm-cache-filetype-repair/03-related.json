@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-21T15:04:28.134162+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_native_stable_clients_drill.py",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients",
+  "exit_code": 0,
+  "elapsed_seconds": 0.67,
+  "before": {
+    "CHANGELOG.md": "b7ff304f312363305f0514710e15c145ad02ede241b8dd62c9c75eefe4a66be0",
+    "docs/stable-audit-transport.md": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+    "tests/native_stable_clients_drill.py": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+    "tests/test_native_stable_clients_drill.py": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a"
+  },
+  "after": {
+    "CHANGELOG.md": "b7ff304f312363305f0514710e15c145ad02ede241b8dd62c9c75eefe4a66be0",
+    "docs/stable-audit-transport.md": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+    "tests/native_stable_clients_drill.py": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+    "tests/test_native_stable_clients_drill.py": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a"
+  },
+  "log_sha256": "905f089b3346537657e79a4d6186cb5b83498b2d5338878ccebc79824de2fd27"
+}

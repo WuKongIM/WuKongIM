@@ -1,0 +1,59 @@
+[
+  {
+    "check": "go-format",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 35141,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 35141,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 0.899
+  },
+  {
+    "check": "flow-doc-contracts",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 35153,
+    "output_bytes": 1376,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 35153,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 0.116
+  },
+  {
+    "check": "workflow-contracts",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 35161,
+    "output_bytes": 469,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 35161,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 4.59
+  }
+]

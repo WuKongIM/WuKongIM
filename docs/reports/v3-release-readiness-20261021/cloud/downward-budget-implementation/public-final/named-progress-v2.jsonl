@@ -1,0 +1,14 @@
+{"event": "start", "check": "go-format", "time": "2026-10-21T15:05:04.063238+00:00"}
+{"event": "finish", "check": "go-format", "status": "passed", "exit_code": 0, "elapsed_seconds": 0.863, "cleanup_complete": true}
+{"event": "start", "check": "flow-doc-contracts", "time": "2026-10-21T15:05:04.955444+00:00"}
+{"event": "finish", "check": "flow-doc-contracts", "status": "passed", "exit_code": 0, "elapsed_seconds": 0.183, "cleanup_complete": true}
+{"event": "start", "check": "workflow-contracts", "time": "2026-10-21T15:05:05.167219+00:00"}
+{"event": "finish", "check": "workflow-contracts", "status": "passed", "exit_code": 0, "elapsed_seconds": 4.972, "cleanup_complete": true}
+{"event": "start", "check": "go-unit", "time": "2026-10-21T15:05:10.167744+00:00"}
+{"event": "finish", "check": "go-unit", "status": "passed", "exit_code": 0, "elapsed_seconds": 434.87, "cleanup_complete": true}
+{"event": "start", "check": "go-vet", "time": "2026-10-21T15:12:25.073253+00:00"}
+{"event": "finish", "check": "go-vet", "status": "passed", "exit_code": 0, "elapsed_seconds": 18.383, "cleanup_complete": true}
+{"event": "start", "check": "go-mod-tidy", "time": "2026-10-21T15:12:43.484484+00:00"}
+{"event": "finish", "check": "go-mod-tidy", "status": "passed", "exit_code": 0, "elapsed_seconds": 0.596, "cleanup_complete": true}
+{"event": "start", "check": "scripts-integration", "time": "2026-10-21T15:12:44.178701+00:00"}
+{"event": "finish", "check": "scripts-integration", "status": "failed", "exit_code": 1, "elapsed_seconds": 544.26, "cleanup_complete": true}

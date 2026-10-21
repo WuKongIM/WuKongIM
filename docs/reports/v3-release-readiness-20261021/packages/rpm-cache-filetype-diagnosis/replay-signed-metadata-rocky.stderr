@@ -1,0 +1,19 @@
+Importing GPG key 0xC7578366:
+ Userid     : "CACHE FILETYPE TEST ONLY <cache-filetype@test.invalid>"
+ Fingerprint: CABA 83C5 2391 F93F 2057 9C14 0354 D78F C757 8366
+ From       : /tmp/cache-filetype-repo/public.asc
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/site-packages/dnf/repo.py", line 574, in load
+    ret = self._repo.load()
+  File "/usr/lib64/python3.9/site-packages/libdnf/repo.py", line 331, in load
+    return _repo.Repo_load(self)
+libdnf._error.Error: Failed to download metadata for repo 'wukongim-stable': repomd.xml parser error: Element <repomd> was not found - Bad repomd file
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/probe/replay-signed-metadata.py", line 68, in <module>
+    r['native_repo_load_return']=repo.load();r['native_repo_load_succeeded']=True
+  File "/usr/lib/python3.9/site-packages/dnf/repo.py", line 581, in load
+    raise dnf.exceptions.RepoError(str(e))
+dnf.exceptions.RepoError: Failed to download metadata for repo 'wukongim-stable': repomd.xml parser error: Element <repomd> was not found - Bad repomd file

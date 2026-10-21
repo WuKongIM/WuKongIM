@@ -1,0 +1,158 @@
+{
+  "evidence-sources.json": {
+    "sha256": "319162459a136c20091c1db688cf608365ad57540fa2cce470e9e4da0a2cada4",
+    "size": 2320
+  },
+  "evidence.md": {
+    "sha256": "edbcf2d30a748a2c0b4c882d6a448c22f7a1f6ec9548f0b4a9b95adce203633b",
+    "size": 10568
+  },
+  "files/.github/workflows/README.md": {
+    "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    "size": 85960
+  },
+  "files/.github/workflows/chat-lifecycle-formal-finalize.yml": {
+    "sha256": "bfaba911a946fef5b74287f8f3044b8215ae121598666f6b9a0093a03f68f60d",
+    "size": 31198
+  },
+  "files/.github/workflows/chat-lifecycle-formal.yml": {
+    "sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c",
+    "size": 16310
+  },
+  "files/.github/workflows/chat-lifecycle-rehearsal-finalize.yml": {
+    "sha256": "94dc982ba832e1807a8392b7ba5aa6ea246f3ca69c379e6faef668e6d7b767a6",
+    "size": 34703
+  },
+  "files/.github/workflows/chat-lifecycle-rehearsal.yml": {
+    "sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034",
+    "size": 10785
+  },
+  "files/CHANGELOG.md": {
+    "sha256": "08b72a286da96b76da68c1752eb544dee72e825becee4d4de49283d2de52fac1",
+    "size": 189806
+  },
+  "files/cmd/wkchatlifecycle/budget_downward_test.go": {
+    "sha256": "727fe4f18b80f69c6e9cc4f7735ea66b8e3e5e9cd0d8e304a93ead8688000683",
+    "size": 1773
+  },
+  "files/cmd/wkchatlifecycle/main.go": {
+    "sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72",
+    "size": 17021
+  },
+  "files/cmd/wkcli/internal/benchmark/budget_downward_test.go": {
+    "sha256": "2c03ef872ea819f5983c4e42ea748c235e84f6d2d3123cfa5260289cb4a325f4",
+    "size": 2040
+  },
+  "files/cmd/wkcli/internal/benchmark/formal_chain_command.go": {
+    "sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0",
+    "size": 17480
+  },
+  "files/docs/development/FLOW_INDEX.md": {
+    "sha256": "b4f9aaf699a1fd9391c1c05753b29242c810aeb310947545033f81fad3c24dc0",
+    "size": 19368
+  },
+  "files/docs/development/PROJECT_KNOWLEDGE.md": {
+    "sha256": "ee5dbad91b121b7e411251f2c368ae5abf6a38169343bbb42dfa1ce497963c95",
+    "size": 143006
+  },
+  "files/internal/usecase/chatlifecyclerun/FLOW.md": {
+    "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf",
+    "size": 3772
+  },
+  "files/internal/usecase/chatlifecyclerun/budget_downward_test.go": {
+    "sha256": "154b6b40db3a5b5b6dfbec3736d9d7fd2e5acb34e1b80c73801412993c90fce9",
+    "size": 3890
+  },
+  "files/internal/usecase/chatlifecyclerun/run.go": {
+    "sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887",
+    "size": 25696
+  },
+  "files/internal/usecase/clouddeploy/FLOW.md": {
+    "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711",
+    "size": 4737
+  },
+  "files/internal/usecase/clouddeploy/budget_downward_test.go": {
+    "sha256": "e8f5f62c19e7776a95928056da892b956861e44ba18f036cf11706804244d736",
+    "size": 2135
+  },
+  "files/internal/usecase/clouddeploy/deployment.go": {
+    "sha256": "b1099deaa151575db01edcb0f2705ca87b291272378d5bae5e56a5530a74fbf2",
+    "size": 33434
+  },
+  "files/scripts/chat-lifecycle/authenticate-released-preclock.py": {
+    "sha256": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd",
+    "size": 45040
+  },
+  "files/scripts/chat-lifecycle/select-formal-transition-committed.jq": {
+    "sha256": "1bc9a9231d306d230331fc2ce9fe6eeed00a4589ea4efeea4eefa9b7f92d16a8",
+    "size": 396
+  },
+  "files/scripts/chat-lifecycle/stage-orchestrate.sh": {
+    "sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7",
+    "size": 48953
+  },
+  "files/scripts/chat_lifecycle_downward_budget_consumers_integration_test.go": {
+    "sha256": "fc9307c5d6ecd1cc4ad15a2d56948376786888735b5f3d0e270e993e7fdc5df3",
+    "size": 19200
+  },
+  "files/scripts/chat_lifecycle_downward_budget_consumers_test.go": {
+    "sha256": "7886ac0681bf128ddb640e36ca6371f1b0419031d763dee97f68bd9c764fce90",
+    "size": 2846
+  },
+  "files/scripts/chat_lifecycle_downward_budget_integration_test.go": {
+    "sha256": "c8c1f564f0d0dd30fd07c97bdfcc18f2ee0dbbd73bf1652d546783c1f387642a",
+    "size": 4683
+  },
+  "files/scripts/chat_lifecycle_downward_budget_test.go": {
+    "sha256": "b78523d7855b9b8e298ffe04edbafb61292c2b873f2af50db097736bb46cb143",
+    "size": 7470
+  },
+  "files/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go": {
+    "sha256": "4247c4629df72ae67b1735fe6d5e33f9f6a1e6300a25bb7e331a3eddedd2f679",
+    "size": 5607
+  },
+  "files/scripts/chat_lifecycle_workflows_test.go": {
+    "sha256": "aa954c4920a2f5900524a00681fbf37d2c061ba24d5506d54b683bd036188957",
+    "size": 90203
+  },
+  "finding.json": {
+    "sha256": "a3592f48b97a29a3907f4a22e85fc8c8f6574b3b3ffebd0293b3819f54e1f172",
+    "size": 1818
+  },
+  "probe-result.json": {
+    "sha256": "8f89d89a4ed74cfe2047f2542dfb2906cdfa378448260fef50d4766b779e002f",
+    "size": 9603
+  },
+  "probe.py": {
+    "sha256": "6bb04039bd2d035ec7705ec40944c6cd6d351d6c5e75d4c2b3d6447fa82ab0e6",
+    "size": 5146
+  },
+  "report.md": {
+    "sha256": "ab5420194759527db779e823c2cc1d466b561fd0ace56e38094d2e1f767efc6e",
+    "size": 724
+  },
+  "review.json": {
+    "sha256": "f786a9fc643ae54555c3ac7d486835ebe90b3a9328bd8169a94ea3cd4b04966e",
+    "size": 2373
+  },
+  "source-freeze.json": {
+    "sha256": "864e6a7ba0f315006633f6addc77c959b35bbd6cce369477119002101604331a",
+    "size": 8313
+  },
+  "spec-README.md": {
+    "sha256": "7d19e713579252d462d4f853bea81b19950c8ddfb76f0e17917ac9affeee07af",
+    "size": 8641
+  },
+  "spec-design.json": {
+    "sha256": "d685abfafbb5937eb560e21838344c764a81ced100e9dd1fe0209f743642ae43",
+    "size": 1571
+  },
+  "spec-failure-inventory.json": {
+    "sha256": "136a3c17390c2263c9bcf23f8f29ebd4b9d188bc1b16b7b611b116ec53fd147a",
+    "size": 10339
+  },
+  "tracked.patch": {
+    "sha256": "c612fbac5615ac02fd7bcd02e0e46a2517e7c866969c4906b28b859b117f0951",
+    "size": 40777
+  }
+}

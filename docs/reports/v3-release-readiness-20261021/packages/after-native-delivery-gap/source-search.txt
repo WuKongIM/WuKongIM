@@ -1,0 +1,16 @@
+scripts/plan-object-storage-publication.py:448:    # alias must never shadow a different member, even across output categories.
+scripts/plan-object-storage-publication.py:466:                    'immutable URI conflict across snapshots: /'+path)
+scripts/plan-object-storage-publication.py:478:                        'immutable URI conflict across snapshots: /'+path)
+scripts/plan-object-storage-publication.py:525:            'control_commit_verified':False,'cloud_verified':False,'activation_authorized':False},
+scripts/plan-object-storage-publication.py:532:            'Production activation must fresh-resolve exact audit/source/control identities.',
+scripts/plan-object-storage-publication.py:534:            'No upload, activation, cloud state, atomic switch or deletion is established.']}
+scripts/plan-object-storage-publication.py:569:                        f'immutable URI conflict across snapshots: {uri}')
+scripts/plan-object-storage-publication.py:583:                         'activation_authorized': False},
+scripts/plan-object-storage-publication.py:592:                        'Only preview add_release snapshots are supported; no stable or multi-channel activation.',
+scripts/plan-object-storage-publication.py:594:                        'No upload, activation, signing, credential access or deletion is performed.'],
+scripts/plan-package-publication.py:189:    """Cross-check reviewed monotonicity with the actual fixed package tools."""
+scripts/resolve-source-release.py:374:def _seal_cross_uid_boundary(output_dir: Path, asset_names: tuple[str, ...]) -> None:
+scripts/resolve-source-release.py:375:    """Make verified public assets readable but immutable across container UIDs."""
+scripts/resolve-source-release.py:388:            f"cannot seal downloaded assets for cross-UID read-only use: {error}"
+scripts/resolve-source-release.py:469:        _seal_cross_uid_boundary(output_dir, tuple(sorted(downloaded)))
+scripts/verify-production-package-site.py:727:            "bootstrap package new states must agree across APT and RPM")

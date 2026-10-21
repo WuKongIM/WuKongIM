@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim.v3_release_readiness.delivery_gap_readonly/v1",
+  "observed_at": "2026-10-21T15:19:18.568539+00:00",
+  "packages_head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "packages_main": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "native_49_passed": false,
+  "native_49_observation": "in_progress; no native tests or workflow reruns by this audit",
+  "production_stable_enabled": false,
+  "production_status": "object_storage_required",
+  "production_status_evidence": "reviewed source manifest; no live cloud revalidation in this audit",
+  "available": [
+    "stable public keys and accepted Mac custody",
+    "offline candidate and external immutable audit helpers",
+    "v2 composite transport planner",
+    "canonical-HTTPS stable four-client and installed-CLI validator"
+  ],
+  "missing_implementation": "existing storage-design slice D: OSS/CDN delivery adapter with explicit object-storage production control, guarded activation and bound completion evidence",
+  "new_interface_delta": "PR74 cross-generation RPM aliases under /snapshots/... must be routed to explicit public/snapshots/... object keys before snapshot passthrough",
+  "new_total_plan_required": false,
+  "new_release_gates": false,
+  "code_changes": false,
+  "tests_run": false,
+  "cloud_writes": false,
+  "private_keys_read": false,
+  "external_budget_approved": false,
+  "external_budget_proposal": {
+    "days": 7,
+    "cny": 100,
+    "included_in_ecs_budget": false
+  }
+}

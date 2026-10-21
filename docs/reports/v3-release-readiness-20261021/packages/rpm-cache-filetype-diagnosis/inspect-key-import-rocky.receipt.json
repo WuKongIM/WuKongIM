@@ -1,0 +1,142 @@
+{
+  "started_at": "2026-10-21T14:46:44.978447+00:00",
+  "label": "filetype-8a449cf6643e4c71964ab2ed152bf0d0",
+  "name": "wk-filetype-8a449cf6643e4c71964ab2ed152bf0d0",
+  "distribution": "rocky",
+  "image": "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+  "probe": "inspect-key-import.py",
+  "probe_sha256": "66ce103b8aacf980ad6c358cfb11885ef676cf891e1a06a20f4fc9003867a4d7",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.06051525002112612,
+      "stdout": "[image identity recorded above]",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "create",
+        "--pull=never",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-filetype-8a449cf6643e4c71964ab2ed152bf0d0",
+        "--label",
+        "wk-stable-cache-filetype=filetype-8a449cf6643e4c71964ab2ed152bf0d0",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/private/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-filetype-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/inspect-key-import.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.040039958024863154,
+      "stdout": "937c34d2421d2317c489e1d385981dd993a99064a19e5402da6a97193271bee0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "937c34d2421d2317c489e1d385981dd993a99064a19e5402da6a97193271bee0"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3222557079861872,
+      "stdout": "{\n  \"dnf_version\": \"4.14.0\",\n  \"source\": {\n    \"Repo.load\": \"    def load(self):\\n        # :api\\n        \\\"\\\"\\\"Load the metadata for this repo.\\n\\n        Depending on the configuration and the age and consistence of data\\n        available on the disk cache, either loads the metadata from the cache or\\n        downloads them from the mirror, baseurl or metalink.\\n\\n        This method will by default not try to refresh already loaded data if\\n        called repeatedly.\\n\\n        Returns True if this call to load() caused a fresh metadata download.\\n\\n        \\\"\\\"\\\"\\n        ret = False\\n        try:\\n            ret = self._repo.load()\\n        except (libdnf.error.Error, RuntimeError) as e:\\n            if self._md_pload.mirror_failures:\\n                msg = \\\"Errors during downloading metadata for repository '%s':\\\" % self.id\\n                for failure in self._md_pload.mirror_failures:\\n                    msg += \\\"\\\\n  - %s\\\" % failure\\n                logger.warning(msg)\\n            raise dnf.exceptions.RepoError(str(e))\\n        finally:\\n            self._md_pload.mirror_failures = set()\\n        self.metadata = Metadata(self._repo)\\n        return ret\\n\",\n    \"dnf.crypto._extract_signing_subkey\": \"def _extract_signing_subkey(key):\\n    return dnf.util.first(subkey for subkey in key.subkeys if subkey.can_sign)\\n\",\n    \"dnf.crypto.import_repo_keys\": \"def import_repo_keys(repo):\\n    gpgdir = repo._pubring_dir\\n    known_keys = keyids_from_pubring(gpgdir)\\n    for keyurl in repo.gpgkey:\\n        for keyinfo in retrieve(keyurl, repo):\\n            keyid = keyinfo.id_\\n            if keyid in known_keys:\\n                logger.debug(_('repo %s: 0x%s already imported'), repo.id, keyid)\\n                continue\\n            if not repo._key_import._confirm(keyinfo):\\n                continue\\n            dnf.yum.misc.import_key_to_pubring(\\n                keyinfo.raw_key, keyinfo.short_id, gpgdir=gpgdir,\\n                make_ro_copy=False)\\n            logger.debug(_('repo %s: imported key 0x%s.'), repo.id, keyid)\\n\",\n    \"dnf.crypto.keyids_from_pubring\": \"def keyids_from_pubring(gpgdir):\\n    if not os.path.exists(gpgdir):\\n        return []\\n\\n    with pubring_dir(gpgdir), Context() as ctx:\\n        keyids = []\\n        for k in ctx.keylist():\\n            subkey = _extract_signing_subkey(k)\\n            if subkey is not None:\\n                keyids.append(subkey.keyid)\\n        return keyids\\n\",\n    \"dnf.crypto.log_dns_key_import\": \"def log_dns_key_import(keyinfo, dns_result):\\n    log_key_import(keyinfo)\\n    if dns_result == dnf.dnssec.Validity.VALID:\\n        logger.critical(_('Verified using DNS record with DNSSEC signature.'))\\n    else:\\n        logger.critical(_('NOT verified using DNS record.'))\\n\",\n    \"dnf.crypto.log_key_import\": \"def log_key_import(keyinfo):\\n    msg = (_('Importing GPG key 0x%s:\\\\n'\\n             ' Userid     : \\\"%s\\\"\\\\n'\\n             ' Fingerprint: %s\\\\n'\\n             ' From       : %s') %\\n           (keyinfo.short_id, keyinfo.userid,\\n            _printable_fingerprint(keyinfo.fingerprint),\\n            keyinfo.url.replace(\\\"file://\\\", \\\"\\\")))\\n    logger.critical(\\\"%s\\\", msg)\\n\",\n    \"dnf.crypto.rawkey2infos\": \"def rawkey2infos(key_fo):\\n    pb_dir = tempfile.mkdtemp()\\n    keyinfos = []\\n    with pubring_dir(pb_dir), Context() as ctx:\\n        ctx.op_import(key_fo)\\n        for key in ctx.keylist():\\n            subkey = _extract_signing_subkey(key)\\n            if subkey is None:\\n                continue\\n            keyinfos.append(Key(key, subkey))\\n        ctx.armor = True\\n        for info in keyinfos:\\n            with Data() as sink:\\n                ctx.op_export(info.id_, 0, sink)\\n                sink.seek(0, os.SEEK_SET)\\n                info.raw_key = sink.read()\\n    dnf.util.rm_rf(pb_dir)\\n    return keyinfos\\n\",\n    \"dnf.yum.misc.import_key_to_pubring\": \"def import_key_to_pubring(rawkey, keyid, gpgdir=None, make_ro_copy=True):\\n    if not os.path.exists(gpgdir):\\n        os.makedirs(gpgdir)\\n\\n    with dnf.crypto.pubring_dir(gpgdir), dnf.crypto.Context() as ctx:\\n        # import the key\\n        with open(os.path.join(gpgdir, 'gpg.conf'), 'wb') as fp:\\n            fp.write(b'')\\n        ctx.op_import(rawkey)\\n\\n        if make_ro_copy:\\n\\n            rodir = gpgdir + '-ro'\\n            if not os.path.exists(rodir):\\n                os.makedirs(rodir, mode=0o755)\\n                for f in glob.glob(gpgdir + '/*'):\\n                    basename = os.path.basename(f)\\n                    ro_f = rodir + '/' + basename\\n                    shutil.copy(f, ro_f)\\n                    os.chmod(ro_f, 0o755)\\n                # yes it is this stupid, why do you ask?\\n                opts = \\\"\\\"\\\"lock-never\\n    no-auto-check-trustdb\\n    trust-model direct\\n    no-expensive-trust-checks\\n    no-permission-warning\\n    preserve-permissions\\n    \\\"\\\"\\\"\\n                with open(os.path.join(rodir, 'gpg.conf'), 'w', 0o755) as fp:\\n                    fp.write(opts)\\n\\n\\n        return True\\n\",\n    \"dnf.yum.misc.keyInstalled\": \"def keyInstalled(ts, keyid, timestamp):\\n    '''\\n    Return if the GPG key described by the given keyid and timestamp are\\n    installed in the rpmdb.\\n\\n    The keyid and timestamp should both be passed as integers.\\n    The ts is an rpm transaction set object\\n\\n    Return values:\\n        - -1      key is not installed\\n        - 0       key with matching ID and timestamp is installed\\n        - 1       key with matching ID is installed but has an older timestamp\\n        - 2       key with matching ID is installed but has a newer timestamp\\n\\n    No effort is made to handle duplicates. The first matching keyid is used to\\n    calculate the return result.\\n    '''\\n    # Search\\n    for hdr in ts.dbMatch('name', 'gpg-pubkey'):\\n        if hdr['version'] == keyid:\\n            installedts = int(hdr['release'], 16)\\n            if installedts == timestamp:\\n                return 0\\n            elif installedts < timestamp:\\n                return 1\\n            else:\\n                return 2\\n\\n    return -1\\n\",\n    \"dnf.yum.misc.procgpgkey\": \"def procgpgkey(rawkey):\\n    '''Convert ASCII-armored GPG key to binary\\n    '''\\n\\n    # Normalise newlines\\n    rawkey = re.sub(b'\\\\r\\\\n?', b'\\\\n', rawkey)\\n\\n    # Extract block\\n    block = io.BytesIO()\\n    inblock = 0\\n    pastheaders = 0\\n    for line in rawkey.split(b'\\\\n'):\\n        if line.startswith(b'-----BEGIN PGP PUBLIC KEY BLOCK-----'):\\n            inblock = 1\\n        elif inblock and line.strip() == b'':\\n            pastheaders = 1\\n        elif inblock and line.startswith(b'-----END PGP PUBLIC KEY BLOCK-----'):\\n            # Hit the end of the block, get out\\n            break\\n        elif pastheaders and line.startswith(b'='):\\n            # Hit the CRC line, don't include this and stop\\n            break\\n        elif pastheaders:\\n            block.write(line + b'\\\\n')\\n\\n    # Decode and return\\n    return base64_decodebytes(block.getvalue())\\n\"\n  },\n  \"versions\": [\n    \"dnf-4.14.0-34.el9_8.rocky.0.1.noarch\",\n    \"libdnf-0.69.0-18.el9.rocky.0.1.x86_64\",\n    \"python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch\",\n    \"gnupg2-2.3.3-5.el9_7.x86_64\",\n    \"gpgme-1.15.1-6.el9.x86_64\"\n  ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-8a449cf6643e4c71964ab2ed152bf0d0"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.02588291699066758,
+      "stdout": "937c34d2421d\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-cache-filetype\"}}",
+        "937c34d2421d"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.01734941703034565,
+      "stdout": "/wk-filetype-8a449cf6643e4c71964ab2ed152bf0d0 filetype-8a449cf6643e4c71964ab2ed152bf0d0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "937c34d2421d"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.01666666701203212,
+      "stdout": "937c34d2421d\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-8a449cf6643e4c71964ab2ed152bf0d0"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.014289458049461246,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "image_identity": {
+    "Id": "sha256:e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd",
+    "RepoDigests": [
+      "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+    ],
+    "Architecture": "amd64",
+    "Os": "linux"
+  },
+  "container_id": "937c34d2421d2317c489e1d385981dd993a99064a19e5402da6a97193271bee0",
+  "probe_exit_code": 0,
+  "stdout_sha256": "50d28c7b9a895ee6a3b30710bb6498d79ff9fc69b43a6a1ffaab03a52fed7eb6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "remaining_container_ids": [],
+  "finished_at": "2026-10-21T14:46:45.476791+00:00"
+}

@@ -1,0 +1,162 @@
+{
+  "schema": "public-repair-archive-v1",
+  "base_head": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "files": [
+    {
+      "path": "01-red.json",
+      "size": 656,
+      "sha256": "b29f70062778a00da0969a217f9c512dc1030340e65c8ff437129fac39425ef7"
+    },
+    {
+      "path": "01-red.log",
+      "size": 12877,
+      "sha256": "5690d87bc4cf13ae7a1c266f91c6d5676cf5b9f4b5f33011911958666dc59c51"
+    },
+    {
+      "path": "02-green.json",
+      "size": 656,
+      "sha256": "608fee9bbe3c0d31e4d327ba2f71c60360190ce737a8a210c0490204140d637b"
+    },
+    {
+      "path": "02-green.log",
+      "size": 2005,
+      "sha256": "76424a064f2e05ae14716e0e59266e9a89f9c92b12a7df0cc8674f812d748a36"
+    },
+    {
+      "path": "03-related.json",
+      "size": 1320,
+      "sha256": "2d9c5711c81ab70c551051166cbf33718b279615ada99928335615169027e4eb"
+    },
+    {
+      "path": "03-related.log",
+      "size": 8190,
+      "sha256": "905f089b3346537657e79a4d6186cb5b83498b2d5338878ccebc79824de2fd27"
+    },
+    {
+      "path": "04-full-python.json",
+      "size": 1287,
+      "sha256": "428e0b9def134745c6fde8e9de9cbcb4c659392ef92cbcf463d4e2af523528cb"
+    },
+    {
+      "path": "04-full-python.log",
+      "size": 2250,
+      "sha256": "d99689893a8809ed7353f35edc72fc40906137e00888c63667434bb1cad06521"
+    },
+    {
+      "path": "05-contract.json",
+      "size": 1205,
+      "sha256": "31406dfd09e1297bb432cb29006aa1fafb04f0cffb644e31c9ee3eed7f650f3a"
+    },
+    {
+      "path": "05-contract.log",
+      "size": 176,
+      "sha256": "77040c00dc00a5864e495db07dae4990c25c49aa5255c9b5f3154e20d805767d"
+    },
+    {
+      "path": "06-diff-check.json",
+      "size": 1216,
+      "sha256": "a51aafb3d2529f160035f3b660b8a77f24b6cb66c344fdc9a76df70f59733b6e"
+    },
+    {
+      "path": "06-diff-check.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ARCHIVE_ALLOWLIST.txt",
+      "size": 788,
+      "sha256": "112f4595631e6a27452486cc39807a83c7cad3788fee0c5f86a506e35f1a34b6"
+    },
+    {
+      "path": "README.md",
+      "size": 2652,
+      "sha256": "d5b1f8bfcb920d4a894119b9859dcf1d92a498dea3372bfa2d6be6e697cbd44f"
+    },
+    {
+      "path": "before.json",
+      "size": 1565,
+      "sha256": "c9fe2c53b907dcc7d2c57c36eb79a45511c2e564162e8cfcde24746d270620a6"
+    },
+    {
+      "path": "before/CHANGELOG.md",
+      "size": 2594,
+      "sha256": "0bc712321b07f12d3ba4c74f1b2100410546c1fdbd798ef9c2858f0817fcf7c0"
+    },
+    {
+      "path": "before/docs/stable-audit-transport.md",
+      "size": 12245,
+      "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c"
+    },
+    {
+      "path": "before/tests/native_stable_clients_drill.py",
+      "size": 66724,
+      "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+    },
+    {
+      "path": "before/tests/test_native_stable_clients_drill.py",
+      "size": 60420,
+      "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd"
+    },
+    {
+      "path": "failure-matrix.md",
+      "size": 3143,
+      "sha256": "91355d32dabcc30c38d1664b01cbd182637ce5771cb5ef3e034f0510ec88cddc"
+    },
+    {
+      "path": "final-source/CHANGELOG.md",
+      "size": 2743,
+      "sha256": "b7ff304f312363305f0514710e15c145ad02ede241b8dd62c9c75eefe4a66be0"
+    },
+    {
+      "path": "final-source/docs/stable-audit-transport.md",
+      "size": 12830,
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1"
+    },
+    {
+      "path": "final-source/tests/native_stable_clients_drill.py",
+      "size": 67658,
+      "sha256": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e"
+    },
+    {
+      "path": "final-source/tests/test_native_stable_clients_drill.py",
+      "size": 72907,
+      "sha256": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a"
+    },
+    {
+      "path": "implementation.patch",
+      "size": 18409,
+      "sha256": "d46227c5c27e57f4588704e4d9114609881a36f2f29e4fc37fcf9fef6ff43ec6"
+    },
+    {
+      "path": "run-validation.py",
+      "size": 1632,
+      "sha256": "9bcdab3c7de38802e83328e383780002e5906072bb2492c0380eeb91185ec383"
+    },
+    {
+      "path": "source-freeze.json",
+      "size": 8584,
+      "sha256": "551a8954bdaabc7817a8cd41f6a3f0658dc85e9c89c79b81488bcaaea2a11877"
+    },
+    {
+      "path": "tests-first.json",
+      "size": 406,
+      "sha256": "92a5c97d371e6b2ba65c61df30ed544e0b25aaef4cccf870ef860515302095a1"
+    },
+    {
+      "path": "tests-first/native_stable_clients_drill.py",
+      "size": 66724,
+      "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+    },
+    {
+      "path": "tests-first/test_native_stable_clients_drill.py",
+      "size": 72907,
+      "sha256": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a"
+    },
+    {
+      "path": "validation-summary.json",
+      "size": 2279,
+      "sha256": "48d259a24dba1292399bd8d3bbcf883d1ddedc9509a4150abf3bb6d61dd64f5a"
+    }
+  ],
+  "exclusions": "No caches, test secret material, package artifacts or private inputs. Manifest is externally hashed."
+}

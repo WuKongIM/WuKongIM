@@ -1,0 +1,31 @@
+--- FAIL: TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority (0.00s)
+    chat_lifecycle_downward_budget_consumers_test.go:26: formal procurement must derive and export the authenticated rehearsal budget after sidecar validation
+--- FAIL: TestChatLifecycleDownwardBudgetTransitionSelector (0.07s)
+    --- FAIL: TestChatLifecycleDownwardBudgetTransitionSelector/1201044800 (0.02s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:198: selector boundary wantOK=false: <nil>: 1201044800
+    --- FAIL: TestChatLifecycleDownwardBudgetTransitionSelector/1201044801 (0.02s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:198: selector boundary wantOK=false: <nil>: 1201044801
+--- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell (2.51s)
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/lower (0.74s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:177: authenticated cap not propagated: WK_CHAT_SOURCE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            WK_CHAT_BUNDLE_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            WK_CHAT_BUNDLE_RUN_ID=200
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/default (0.29s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:177: authenticated cap not propagated: WK_CHAT_SOURCE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            WK_CHAT_BUNDLE_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            WK_CHAT_BUNDLE_RUN_ID=200
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/stop_minus_one (0.29s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:177: authenticated cap not propagated: WK_CHAT_SOURCE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            WK_CHAT_BUNDLE_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            WK_CHAT_BUNDLE_RUN_ID=200
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/at_stop (0.32s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:173: admission wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/above_stop (0.29s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:173: admission wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/missing_plan_cap (0.29s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:173: admission wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/mismatched_receipt (0.29s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:173: admission wantOK=false: <nil>: 
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	2.896s
+FAIL

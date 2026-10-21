@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-21T15:32:51.413631+00:00",
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/contents/manifests/channels.json?ref=620bdfa1804c732dc1b3b072bb64dbe6f0ae0475"
+  ],
+  "exit_code": 0,
+  "stdout": {
+    "size": 4585,
+    "sha256": "d884cb269e0558b02831adea61e225ca3665a53dadd254d4bab1585e52dfccf7"
+  },
+  "stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

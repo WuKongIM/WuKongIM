@@ -1,0 +1,20 @@
+{
+  "head": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "head_tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "synthetic_checkout": "1861383911303229fba4cd65eb75019ff26f6a32",
+  "synthetic_tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "synthetic_parents": [
+    "335cd2569d2b62de577916ed86c097fd3a22547e",
+    "983e567f155a982c45ca066e4dc67d33851f0d24"
+  ],
+  "tree_matches": true,
+  "native_raw_control": {
+    "checkout_sha": "1861383911303229fba4cd65eb75019ff26f6a32",
+    "tree": "7a498c42b4f5b0e6f86a524878fde651d7301371"
+  },
+  "checkout_evidence": [
+    "pages-job.log",
+    "legacy-native-job.log.gz",
+    "stable-job.log"
+  ]
+}

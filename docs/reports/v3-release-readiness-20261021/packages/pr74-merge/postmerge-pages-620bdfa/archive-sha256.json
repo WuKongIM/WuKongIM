@@ -1,0 +1,127 @@
+{
+  "schema": "wukongim/public-ci-evidence-archive/v1",
+  "head": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "run": 39626500979,
+  "attempt": 1,
+  "file_count": 18,
+  "total_bytes": 63134,
+  "allowlist_sha256": "e524202eb9fdd42fa3c029be7d9c1468aa25b14c66d8ee6c70af503aa68ccbec",
+  "checksums_sha256": "6b3dcaea1d7f03fb919ba5c55a1ba3addddcaf96fedaef6de845360785d6ef9d",
+  "crc32sums_sha256": "ab668d688b01d0565eaf0d60bc6527374b0481ecaaf40278ae61a723254eedfd",
+  "public_secret_scan": "No private-key armor, GitHub token, or signed URL query matched.",
+  "exclusions": [
+    "Original parent pr74-merge receipts remain outside this bounded subarchive and are untouched.",
+    "Sibling .ci-observer-pr74-postmerge620 private raw diagnostics are excluded."
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "930214f9601a4caac4d1e703b5ba22b1968dd00b56210a8cbf064ebfab64083f",
+      "crc32": "de4a33ca",
+      "size": 1471
+    },
+    {
+      "path": "channels-merged-decoded.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "crc32": "95768f51",
+      "size": 2579
+    },
+    {
+      "path": "channels-merged-source.json",
+      "sha256": "6df8ad5c65a315945d88b1a3412aad2bba2ebf00859d0006f9bb2fc0abb45e36",
+      "crc32": "24d9c186",
+      "size": 4529
+    },
+    {
+      "path": "channels-merged-source.json.read.json",
+      "sha256": "4f3b6463c8ef0cd5e9782eb58fd03aca48fce2273889667b80e909d91f6f0f4e",
+      "crc32": "4e4d439e",
+      "size": 455
+    },
+    {
+      "path": "merged-commit.json",
+      "sha256": "8387babfb52463f8d40c351b1b218ce35c0e06fb243d2b57b42b534416dbd4f1",
+      "crc32": "9a5ed512",
+      "size": 1134
+    },
+    {
+      "path": "merged-commit.json.read.json",
+      "sha256": "8b5feddc451f8ecb555c9dbb89d9c95a1142a467295bf44ddfedf772bf707792",
+      "crc32": "1eaebe76",
+      "size": 430
+    },
+    {
+      "path": "pages-job.log",
+      "sha256": "f167f0afbe3116da635a3b0571f1b133d19be9a5d3d80d7e4259a2ad2f12392c",
+      "crc32": "325c4920",
+      "size": 19030
+    },
+    {
+      "path": "pages-job.log.read.json",
+      "sha256": "c7be7b8946d32c92c9f07bc27100f91a6145af3067c3f200bf0802423b21f52c",
+      "crc32": "a73fb91b",
+      "size": 409
+    },
+    {
+      "path": "pages-jobs-initial.json",
+      "sha256": "ab9a927370386e4d4ea321370a48a16b7a1f1d4219650eea25b27090fc747838",
+      "crc32": "e0361943",
+      "size": 1805
+    },
+    {
+      "path": "pages-jobs-initial.json.read.json",
+      "sha256": "e3222b1d15135a0a009182aee8de08f61bbb45c96f6ebb6e6185232b4ce94749",
+      "crc32": "0f76ef92",
+      "size": 407
+    },
+    {
+      "path": "pages-jobs-read2.json",
+      "sha256": "3606b6fb0e9d22e5cd5aef76aefca953506133e1e3d27a2dc583aae0679c1f36",
+      "crc32": "372e1132",
+      "size": 3035
+    },
+    {
+      "path": "pages-jobs-read2.json.read.json",
+      "sha256": "65ec7b0e502ea700ce3c99a69d7beed4ca5e188f667da5f55cbeb819e0117dbc",
+      "crc32": "761a4887",
+      "size": 407
+    },
+    {
+      "path": "pages-run-final.json",
+      "sha256": "8d56bfa139a732a62187bcbac3369c7dfe70db2e7f8a4a9766c2ba4f360567b9",
+      "crc32": "c048c006",
+      "size": 12028
+    },
+    {
+      "path": "pages-run-final.json.read.json",
+      "sha256": "faa4d13a74db159fb7ae49ad462ad4f3a88adbbc98c352af4f4ad8cc8c9a6477",
+      "crc32": "4cd7b250",
+      "size": 403
+    },
+    {
+      "path": "runs-initial.json",
+      "sha256": "ef34aff97a7b889350bbc3844f37513f50e5f53a60a3e51909b854b7aa4baa71",
+      "crc32": "5854436e",
+      "size": 12061
+    },
+    {
+      "path": "runs-initial.json.read.json",
+      "sha256": "a1739f4430ccee91553127e75575a185c54e81bc5973c2d812f4400d3e60def9",
+      "crc32": "e98ff087",
+      "size": 452
+    },
+    {
+      "path": "summary.json",
+      "sha256": "f9ff0e2f303b03c008b187a0f49238788b2d30bdda5990a5ec15d3bead2a7056",
+      "crc32": "15a3e974",
+      "size": 660
+    },
+    {
+      "path": "verify-receipts.py",
+      "sha256": "6dd73aeb0bfacbb3bd4dffcb664d011686c8a9a97997d2a14bd6496be1e56e38",
+      "crc32": "a78e2f31",
+      "size": 1839
+    }
+  ]
+}

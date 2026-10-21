@@ -1,0 +1,164 @@
+{
+  "observed_at": "2026-10-21T15:23:51.479978+00:00",
+  "failure_kind": "go_test_total_timeout_9m",
+  "package_elapsed_seconds": 540.676,
+  "wrapper_elapsed_seconds": 544.26,
+  "printed_individual_assertion_failures": [],
+  "reported_running_tests": [
+    {
+      "test": "TestCloudSimulationFinalizeRealAnalyzeVerifiesReleasedWithoutGo",
+      "reported_age_seconds": 2,
+      "state": "os/exec.Cmd.CombinedOutput -> Wait",
+      "source": "scripts/cloud_sim_finalize_integration_test.go:522"
+    },
+    {
+      "test": "TestCloudSimulationLocalRuntimeHangupCleansProcessGroup",
+      "reported_age_seconds": 0,
+      "state": "select with child Wait goroutine",
+      "source": "scripts/cloud_sim_finalize_integration_test.go:206"
+    }
+  ],
+  "parallel_waiting_tests_at_timeout": [
+    "TestChatLifecycleAnalyzeRoutesExactLeaseWithoutLegacyLocator",
+    "TestChatLifecycleRepairMonitorRetriesTransientRemoteAndInconsistentCuts",
+    "TestChatLifecycleRepairMonitorStopsAfterRealWorkerProgressStall",
+    "TestChatLifecycleRepairMonitorSurvivesOneServiceProbeFailure",
+    "TestCloudSimulationAnalyzeBoundsDiagnosisAndValidationProcessGroups",
+    "TestCloudSimulationAnalyzeClassifiesHealthCurlFailure",
+    "TestCloudSimulationAnalyzeClearsNonWorkloadObservationState",
+    "TestCloudSimulationAnalyzeClosesWindowWhenPrepareHandoffFails",
+    "TestCloudSimulationAnalyzeDefersRemediationUntilProviderRelease",
+    "TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH",
+    "TestCloudSimulationAnalyzeFailsClosedOnInvalidSameHostIPv4",
+    "TestCloudSimulationAnalyzeFailsClosedWhenSameHostIPv4ChangesAgain",
+    "TestCloudSimulationAnalyzePreservesPrimaryFailureWhenCloseCannotBeProven",
+    "TestCloudSimulationAnalyzeRecoversCorrelatedCloseAfterLocalGitHubErrors",
+    "TestCloudSimulationAnalyzeRefusesLiveRunWithoutClientMaterialTools",
+    "TestCloudSimulationAnalyzeRejectsDiagnosisIdentityMismatchAfterClosingSession",
+    "TestCloudSimulationAnalyzeRejectsProjectCodexOverridesBeforeExec",
+    "TestCloudSimulationAnalyzeReportsBrokerInsufficientEvidenceBeforeCodex",
+    "TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup",
+    "TestCloudSimulationAnalyzeStopsBeforeCodexWhenReleased",
+    "TestCloudSimulationAnalyzeUsesExplicitToolsOutsideStrippedPATH",
+    "TestCloudSimulationLocalRuntimeBoundsOneCommand",
+    "TestCloudSimulationLocalRuntimeDoesNotDeleteInheritedShimDirectory",
+    "TestCloudSimulationLocalRuntimeRejectsVersionDrift",
+    "TestCloudSimulationSSHRetryStopsBeforeExpiredGlobalDeadline",
+    "TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload",
+    "TestCloudSimulationSetupConfiguresAlibabaAndGitHubWithoutAPIKey",
+    "TestCloudSimulationSetupExitsOnTerminationBeforeMutation",
+    "TestCloudSimulationSetupRejectsInvalidCommandTimeoutBeforeToolUse",
+    "TestCloudSimulationSetupReplacesStaleGoWithPinnedArchive",
+    "TestIssueAgentSchemas.func5",
+    "TestReviewAgentSchemas.func4"
+  ],
+  "waiting_tests_limit": "These stack frames show incomplete tests waiting for parallel admission at the snapshot; the non-JSON complete gate log cannot enumerate all prior passed tests or prove unprinted tests completed. Do not interpret waiting-test age as execution time.",
+  "source_file_containing_running_tests_unchanged": {
+    "scripts/cloud_sim_finalize_integration_test.go": true
+  },
+  "focused_run": "13-zero-upload-and-consumer-green.json",
+  "focused_top_level_passes": [
+    {
+      "test": "TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+      "elapsed_seconds": 0.03
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetInput",
+      "elapsed_seconds": 0.57
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetDocuments",
+      "elapsed_seconds": 0.54
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+      "elapsed_seconds": 0.13
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetRehearsalWiring",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell",
+      "elapsed_seconds": 0.01
+    },
+    {
+      "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell",
+      "elapsed_seconds": 0.85
+    },
+    {
+      "test": "TestChatLifecycleReleasedPreclockConsumersFormalProcurementGate",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleReleasedPreclockConsumersTerminalPreservation",
+      "elapsed_seconds": 0
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell",
+      "elapsed_seconds": 2.7
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+      "elapsed_seconds": 2.74
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+      "elapsed_seconds": 5.53
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetTransitionSelector",
+      "elapsed_seconds": 5.59
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetCannotResetSpentRequest",
+      "elapsed_seconds": 5.72
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+      "elapsed_seconds": 5.9
+    },
+    {
+      "test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+      "elapsed_seconds": 9.12
+    }
+  ],
+  "focused_pass_events": 129,
+  "focused_fail_events": 0,
+  "focused_skip_events": 0,
+  "focused_package_seconds": [
+    11.606
+  ],
+  "cleanup": {
+    "session_id": 51593,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [
+      36229,
+      36312,
+      36313,
+      36314,
+      36315,
+      36396,
+      36397
+    ],
+    "remaining_processes": []
+  },
+  "causality": "No attribution to CPU, new implementation, or a specific old fixture is established. Aggregate budget was exhausted; there was no printed per-test assertion failure before timeout. No rerun, filter, or deadline increase."
+}

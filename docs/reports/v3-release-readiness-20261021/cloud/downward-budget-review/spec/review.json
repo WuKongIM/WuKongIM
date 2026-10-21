@@ -1,0 +1,45 @@
+{
+  "axis": "Spec",
+  "base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "findings": [
+    {
+      "id": "SPEC-P2-01",
+      "priority": 2,
+      "category": "incorrect_implementation / partial_cleanup_requirement",
+      "title": "Budget rejection suppresses zero-inventory artifact publication",
+      "spec": {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/post-systemd-repair-execution-options-generation-2/README.md",
+        "line": 29,
+        "quote": "失败不能阻止已有Lease Release/zero。",
+        "matrix": "C11: Release/zero publication still executes"
+      },
+      "locations": [
+        {
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-budget-downward/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+          "budget_rejection_line": 450,
+          "upload_condition_line": 518
+        },
+        {
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-budget-downward/.github/workflows/chat-lifecycle-formal-finalize.yml",
+          "budget_rejection_line": 431,
+          "upload_condition_line": 456
+        }
+      ],
+      "trigger": "Valid lowered budget with cleanup.zero=true, then rehearsal committed>=S or formal aggregate>H. The transition/complete step exits1 without continue-on-error.",
+      "effect": "Exact Release may already have completed, but default success() causes zero-inventory proof upload to be skipped.",
+      "recommendation": "Use explicit status guard: always() && steps.cleanup.outputs.zero == 'true', or persist cleanup proof before surfacing the qualification failure. Keep budget rejection in place.",
+      "test_gap": "Actual consumer shell tests verify threshold exit and local cleanup files; the static test mandates the bare if string. Neither accounts for Actions implicit success().",
+      "official_semantics_source": "https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#status-check-functions",
+      "status": "open_in_freeze_v1"
+    }
+  ],
+  "scope_creep": [],
+  "other_findings": [],
+  "independent_probes": 31,
+  "source_unchanged_by_reviewer": true,
+  "freeze_matches_at_end": true,
+  "new_linux_candidate_verified": false,
+  "real_cloud_qualification_verified": false,
+  "named_checks": "root-owned, not certified by this review",
+  "at": "2026-10-21T14:58:58.963217+00:00"
+}

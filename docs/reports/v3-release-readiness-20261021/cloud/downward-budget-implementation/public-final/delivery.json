@@ -1,0 +1,217 @@
+{
+  "schema": "wukongim.cloud_rc.downward_budget_delivery/v1",
+  "observed_at": "2026-10-21T15:24:27.725121+00:00",
+  "source": {
+    "base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+    "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+    "patch_sha256": "9c6fa1bb330b10f79359af1905e74b47b04adff34de8e1b7b865e563ef1ceef3",
+    "file_count": 27,
+    "frozen_source_matches": true,
+    "clean_after_parent_commit": true
+  },
+  "implementation": {
+    "input": "request_budget_limit_micros",
+    "canonical_integer_min_exclusive": 150000000,
+    "max_inclusive_and_default": 1500000000,
+    "fixed_cleanup_gap_micros": 150000000,
+    "stop_formula": "S=H-150000000",
+    "example_lower_cap": 1351044800,
+    "example_lower_stop": 1201044800,
+    "old_full_quote_reserve_micros": 148955200,
+    "old_actual_bill": "unknown",
+    "default_and_existing_continuation_proof": "unchanged default envelope; lower cap with released_preclock_run_id/proof rejected",
+    "new_cross_request_ledger": false,
+    "fixed_product_fc182_supports_lower_budget": false,
+    "future_candidate": "must include the wkcli guard change and pass its own acceptance; source not selected by this implementation"
+  },
+  "validation": {
+    "named_total": 7,
+    "named_passed": 6,
+    "all_named_passed": false,
+    "named_results": [
+      {
+        "check": "go-format",
+        "wrapper_exit_code": 0,
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 41024,
+        "output_bytes": 0,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 41024,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "elapsed_seconds": 0.863
+      },
+      {
+        "check": "flow-doc-contracts",
+        "wrapper_exit_code": 0,
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 41039,
+        "output_bytes": 1376,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 41039,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "elapsed_seconds": 0.183
+      },
+      {
+        "check": "workflow-contracts",
+        "wrapper_exit_code": 0,
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 41050,
+        "output_bytes": 469,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 41050,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "elapsed_seconds": 4.972
+      },
+      {
+        "check": "go-unit",
+        "wrapper_exit_code": 0,
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 41342,
+        "output_bytes": 15248,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 41342,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "elapsed_seconds": 434.87
+      },
+      {
+        "check": "go-vet",
+        "wrapper_exit_code": 0,
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 50338,
+        "output_bytes": 0,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 50338,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "elapsed_seconds": 18.383
+      },
+      {
+        "check": "go-mod-tidy",
+        "wrapper_exit_code": 0,
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 51584,
+        "output_bytes": 0,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 51584,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "elapsed_seconds": 0.596
+      },
+      {
+        "check": "scripts-integration",
+        "wrapper_exit_code": 1,
+        "status": "failed",
+        "exit_code": 1,
+        "session_id": 51593,
+        "output_bytes": 51971,
+        "output_truncated": false,
+        "passed": false,
+        "cleanup": {
+          "session_id": 51593,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [
+            36229,
+            36312,
+            36313,
+            36314,
+            36315,
+            36396,
+            36397
+          ],
+          "remaining_processes": []
+        },
+        "command_status": "failed",
+        "elapsed_seconds": 544.26
+      }
+    ],
+    "go_unit": {
+      "packages_passed": 219,
+      "packages_without_tests": 15,
+      "fail_lines": 0
+    },
+    "latest_focused": {
+      "path": "13-zero-upload-and-consumer-green.json",
+      "pass_events": 129,
+      "fail_events": 0,
+      "skip_events": 0,
+      "package_elapsed_seconds": 11.606
+    },
+    "v1_interruption": "Original session22346 vanished; go-unit has running placeholder without SID/terminal. Only first3 named checks have terminal receipts; not a timeout or pass. Historical cleanup cannot be reconstructed. Preserved unchanged.",
+    "v2_timeout": {
+      "command": "scripts-integration",
+      "type": "Go package total 9m timeout",
+      "package_seconds": 540.676,
+      "wrapper_seconds": 544.26,
+      "printed_individual_assertion_failures": 0,
+      "parallel_waiting_tests": 32,
+      "cause": "not attributed",
+      "owned_cleanup_complete": true,
+      "remaining_processes": []
+    },
+    "no_automatic_rerun": true,
+    "reviews": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-review/combined-review-v2.md",
+      "sha256": "41788c7651e5dc9f3f1f7afbce99058ab1a9d1fce170dfaa969a4340dc18cb20",
+      "standards_open_findings": 0,
+      "spec_open_findings": 0,
+      "v1_p2": "zero-inventory artifact upload skipped after budget rejection by implicit success()",
+      "v2_closure": "Only both zero upload conditions add always(); budget qualification rejection remains."
+    }
+  },
+  "remaining": [
+    "First complete Linux scripts-integration named gate for this new exact commit/source; local timeout is not a pass.",
+    "Natural candidate CI and any source acceptance needed for a future product containing this wkcli change.",
+    "Explicit future candidate/merge/paid-start approvals as applicable; this implementation authorizes no new procurement."
+  ],
+  "performed_cloud_api_ssh_dispatch_or_purchase": false,
+  "repository_changes_after_source_freeze": "None by this agent; parent created the byte-identical commit.",
+  "archive_rules": "Explicit public file allowlist only; no gocache, private keys, decrypted credentials, binaries or paid execution payload. FLOW copies, if any, use .source; source FLOW content here remains only in patch."
+}

@@ -1,0 +1,312 @@
+{
+  "base": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "status": "pass",
+  "checks": [
+    "author freeze sha",
+    "base HEAD",
+    "no untracked",
+    "four frozen files",
+    "diff sha",
+    "only intended four files",
+    "no function added removed",
+    "only cache_inventory function changed",
+    "protected byte identity .github/CODEOWNERS",
+    "protected byte identity .github/workflows/native-package-audit-bind.yml",
+    "protected byte identity .github/workflows/native-package-audit-draft.yml",
+    "protected byte identity .github/workflows/native-package-cli-acceptance.yml",
+    "protected byte identity .github/workflows/native-package-immutable-public-reverify.yml",
+    "protected byte identity .github/workflows/native-package-publish.yml",
+    "protected byte identity .github/workflows/native-package-repository-drill.yml",
+    "protected byte identity .github/workflows/native-package-signing-preflight.yml",
+    "protected byte identity .github/workflows/native-package-signing-toolchain.yml",
+    "protected byte identity .github/workflows/pages.yml",
+    "protected byte identity .github/workflows/source-release-preflight.yml",
+    "protected byte identity keys/README.md",
+    "protected byte identity keys/apt-preview.asc",
+    "protected byte identity keys/apt-stable.asc",
+    "protected byte identity keys/rpm-preview.asc",
+    "protected byte identity keys/rpm-stable.asc",
+    "protected byte identity manifests/audit-access.json",
+    "protected byte identity manifests/bootstrap-packages.json",
+    "protected byte identity manifests/channels.json",
+    "protected byte identity manifests/preview-signing.json",
+    "protected byte identity manifests/signing-toolchain.json",
+    "protected byte identity manifests/source-read.json",
+    "protected byte identity manifests/stable-public-keys.json",
+    "protected byte identity manifests/trusted-toolchain.json",
+    "protected byte identity scripts/archive-package-snapshot.py",
+    "protected byte identity scripts/build-repository-bootstrap-packages.py",
+    "protected byte identity scripts/compose-package-site.py",
+    "protected byte identity scripts/package-audit-receipt.py",
+    "protected byte identity scripts/plan-object-storage-publication.py",
+    "protected byte identity scripts/plan-package-publication.py",
+    "protected byte identity scripts/prepare-package-site.py",
+    "protected byte identity scripts/sign-package-family.py",
+    "protected byte identity scripts/validate-control.py",
+    "protected byte identity scripts/validate-production-package-clients.py",
+    "protected byte identity scripts/validate-signing-material.py",
+    "protected byte identity scripts/verify-production-package-site.py",
+    "protected byte identity scripts/verify-source-attestations.py",
+    "protected byte identity scripts/verify-source-package-metadata.py",
+    "protected byte identity site/index.html",
+    "protected byte identity site/status.json",
+    "canonical URL exact parent hash",
+    "exact allowlist",
+    "live=True sockets excluded",
+    "live=True reuse=False no fake metadata",
+    "live=True reuse=True no fake metadata",
+    "live=True untouched S.gpg-agent",
+    "live=True untouched S.gpg-agent.browser",
+    "live=True untouched S.gpg-agent.extra",
+    "live=True untouched S.gpg-agent.ssh",
+    "live=True untouched S.scdaemon",
+    "live=True no unread reuse",
+    "live=True actual OS read reuse",
+    "live=True reject modified device",
+    "live=True reject modified inode",
+    "live=True reject modified sha256",
+    "live=True reject modified size",
+    "live=False sockets excluded",
+    "live=False reuse=False no fake metadata",
+    "live=False reuse=True no fake metadata",
+    "live=False untouched S.gpg-agent",
+    "live=False untouched S.gpg-agent.browser",
+    "live=False untouched S.gpg-agent.extra",
+    "live=False untouched S.gpg-agent.ssh",
+    "live=False untouched S.scdaemon",
+    "live=False no unread reuse",
+    "live=False actual OS read reuse",
+    "live=False reject modified device",
+    "live=False reject modified inode",
+    "live=False reject modified sha256",
+    "live=False reject modified size",
+    "reject socket S.gpg-agent",
+    "reject socket apt/lists/S.gpg-agent",
+    "reject socket dnf-cache/wukongim-stable-5702a8a51b8fa885/pubring/S.gpg-agent",
+    "reject socket dnf-cli-cache/wukongim-stable-aaa08530d5caaef3/pubring/S.gpg-agent",
+    "reject socket dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/pubring/nested/S.gpg-agent",
+    "reject socket dnf-cli-cache/wukongim-stable-5702a8a51b8fa885/pubring/S.gpg-agent.foo",
+    "reject socket dnf-cli-cache/repo/repodata/S.gpg-agent",
+    "reject fifo",
+    "reject symlink",
+    "reject regular-hardlink",
+    "reject socket-hardlink",
+    "ordinary same-name hashed",
+    "reject large-regular",
+    "bounded escaped diagnostic 'odd\\nname'",
+    "relative repr retained 'odd\\nname'",
+    "bounded escaped diagnostic 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/fifo'",
+    "relative repr retained 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/fifo'"
+  ],
+  "check_count": 95,
+  "source_freeze_sha256": "551a8954bdaabc7817a8cd41f6a3f0658dc85e9c89c79b81488bcaaea2a11877",
+  "patch_sha256": "d46227c5c27e57f4588704e4d9114609881a36f2f29e4fc37fcf9fef6ff43ec6",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "b7ff304f312363305f0514710e15c145ad02ede241b8dd62c9c75eefe4a66be0",
+      "size": 2743
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+      "size": 12830
+    },
+    "tests/native_stable_clients_drill.py": {
+      "sha256": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+      "size": 67658
+    },
+    "tests/test_native_stable_clients_drill.py": {
+      "sha256": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a",
+      "size": 72907
+    }
+  },
+  "unchanged_driver_functions": [
+    "canonical",
+    "require",
+    "facts",
+    "module",
+    "run_command",
+    "apt_by_hash_path",
+    "verify_apt_by_hash_fault",
+    "verify_rpm_requests",
+    "RouteTable",
+    "serve",
+    "OwnedDocker",
+    "fixture_user",
+    "cache_mounts",
+    "cache_client_command",
+    "cache_evidence",
+    "cache_operation",
+    "cache_helper_command",
+    "installed_negative_command",
+    "build_product",
+    "seal_generations",
+    "materialize_routes",
+    "exercise",
+    "main"
+  ],
+  "protected": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281"
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b"
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6"
+    },
+    {
+      "path": "scripts/build-repository-bootstrap-packages.py",
+      "sha256": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c"
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7"
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "scripts/plan-package-publication.py",
+      "sha256": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff"
+    },
+    {
+      "path": "scripts/prepare-package-site.py",
+      "sha256": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd"
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0"
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4"
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f"
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0"
+    },
+    {
+      "path": "scripts/verify-source-package-metadata.py",
+      "sha256": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a"
+    },
+    {
+      "path": "site/index.html",
+      "sha256": "2ba98f220e612423af3894d98b3d334a8c84cef162e760b39ea7c55e9d46d6d3"
+    },
+    {
+      "path": "site/status.json",
+      "sha256": "fd3d2dd70c1d02eb9e72417a5ce2e9be3fe6f04e8f5c9bd9a134f18940148086"
+    }
+  ],
+  "real_socket_hardlink_test": "passed without skip",
+  "scope": "Small independent local AF_UNIX and filesystem probes; no Docker/network/private keys/full suite/native49",
+  "source_unchanged_after": true
+}

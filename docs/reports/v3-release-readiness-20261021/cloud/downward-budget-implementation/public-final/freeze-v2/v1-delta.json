@@ -1,0 +1,13 @@
+{
+  "files": [
+    ".github/workflows/chat-lifecycle-formal-finalize.yml",
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+    "scripts/chat_lifecycle_downward_budget_consumers_test.go"
+  ],
+  "production_change": "Only the two zero-proof upload conditions add always(); budget rejection and resource actions are unchanged.",
+  "red": "12-zero-upload-gating-red.json",
+  "original_test_draft": "10-zero-upload-gating-red.json: rehearsal test had incorrect step name; corrected test red retained separately",
+  "earlier_unapplied_repair_attempt": "11-zero-upload-and-consumer-green.json is failing, not green: edit assertion prevented production mutation",
+  "green": "13-zero-upload-and-consumer-green.json",
+  "v1_check_state": "named-v1-interruption/observation.json"
+}

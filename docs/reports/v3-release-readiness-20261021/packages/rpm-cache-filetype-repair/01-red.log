@@ -1,0 +1,117 @@
+test_five_live_and_closed_sockets_remain_untouched_beside_metadata (test_native_stable_clients_drill.CacheInventorySocketTests.test_five_live_and_closed_sockets_remain_untouched_beside_metadata) ... 
+  test_five_live_and_closed_sockets_remain_untouched_beside_metadata (test_native_stable_clients_drill.CacheInventorySocketTests.test_five_live_and_closed_sockets_remain_untouched_beside_metadata) (live=True) ... ERROR
+  test_five_live_and_closed_sockets_remain_untouched_beside_metadata (test_native_stable_clients_drill.CacheInventorySocketTests.test_five_live_and_closed_sockets_remain_untouched_beside_metadata) (live=False) ... ERROR
+test_known_names_as_regular_files_are_hashed_and_keep_size_bounds (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_names_as_regular_files_are_hashed_and_keep_size_bounds) ... ok
+test_known_names_reject_fifo_symlink_and_regular_hardlink_without_reading (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_names_reject_fifo_symlink_and_regular_hardlink_without_reading) ... ok
+test_known_socket_size_and_link_count_still_fail_closed (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_socket_size_and_link_count_still_fail_closed) ... ok
+test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence) ... ERROR
+test_known_sockets_do_not_bypass_regular_count_or_total_size_budget (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_do_not_bypass_regular_count_or_total_size_budget) ... ok
+test_known_sockets_do_not_weaken_actual_metadata_read_proof (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_do_not_weaken_actual_metadata_read_proof) ... ERROR
+test_real_hardlinked_socket_is_rejected (test_native_stable_clients_drill.CacheInventorySocketTests.test_real_hardlinked_socket_is_rejected) ... ok
+test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) ... 
+  test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='odd\nname', kind='fifo') ... FAIL
+  test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='odd\nname', kind='symlink') ... FAIL
+  test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='odd\nname', kind='hardlink') ... FAIL
+  test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/fifo', kind='fifo') ... FAIL
+test_socket_name_and_parent_allowlist_are_exact (test_native_stable_clients_drill.CacheInventorySocketTests.test_socket_name_and_parent_allowlist_are_exact) ... ok
+
+======================================================================
+ERROR: test_five_live_and_closed_sockets_remain_untouched_beside_metadata (test_native_stable_clients_drill.CacheInventorySocketTests.test_five_live_and_closed_sockets_remain_untouched_beside_metadata) (live=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 822, in test_five_live_and_closed_sockets_remain_untouched_beside_metadata
+    before = drill.cache_inventory(root, arm=True)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 460, in cache_inventory
+    require(path.is_file() and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            'cache contains an unsupported file')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 46, in require
+    raise RuntimeError(message)
+RuntimeError: cache contains an unsupported file
+
+======================================================================
+ERROR: test_five_live_and_closed_sockets_remain_untouched_beside_metadata (test_native_stable_clients_drill.CacheInventorySocketTests.test_five_live_and_closed_sockets_remain_untouched_beside_metadata) (live=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 822, in test_five_live_and_closed_sockets_remain_untouched_beside_metadata
+    before = drill.cache_inventory(root, arm=True)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 460, in cache_inventory
+    require(path.is_file() and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            'cache contains an unsupported file')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 46, in require
+    raise RuntimeError(message)
+RuntimeError: cache contains an unsupported file
+
+======================================================================
+ERROR: test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 837, in test_known_sockets_alone_cannot_supply_metadata_or_reuse_evidence
+    inventory = drill.cache_inventory(root, arm=True)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 460, in cache_inventory
+    require(path.is_file() and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            'cache contains an unsupported file')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 46, in require
+    raise RuntimeError(message)
+RuntimeError: cache contains an unsupported file
+
+======================================================================
+ERROR: test_known_sockets_do_not_weaken_actual_metadata_read_proof (test_native_stable_clients_drill.CacheInventorySocketTests.test_known_sockets_do_not_weaken_actual_metadata_read_proof)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 851, in test_known_sockets_do_not_weaken_actual_metadata_read_proof
+    before = drill.cache_inventory(root, arm=True)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 460, in cache_inventory
+    require(path.is_file() and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            'cache contains an unsupported file')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py", line 46, in require
+    raise RuntimeError(message)
+RuntimeError: cache contains an unsupported file
+
+======================================================================
+FAIL: test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='odd\nname', kind='fifo')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 963, in test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific
+    self.assertIn(repr(relative)[:240], message)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "'odd\\nname'" not found in 'cache contains an unsupported file'
+
+======================================================================
+FAIL: test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='odd\nname', kind='symlink')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 963, in test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific
+    self.assertIn(repr(relative)[:240], message)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "'odd\\nname'" not found in 'cache must not contain links'
+
+======================================================================
+FAIL: test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='odd\nname', kind='hardlink')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 963, in test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific
+    self.assertIn(repr(relative)[:240], message)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "'odd\\nname'" not found in 'cache contains an unsupported file'
+
+======================================================================
+FAIL: test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific (test_native_stable_clients_drill.CacheInventorySocketTests.test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific) (relative='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/fifo', kind='fifo')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 963, in test_rejected_file_diagnostic_is_relative_bounded_and_stat_specific
+    self.assertIn(repr(relative)[:240], message)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" not found in 'cache contains an unsupported file'
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.227s
+
+FAILED (failures=4, errors=4)

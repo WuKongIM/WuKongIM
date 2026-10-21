@@ -1,0 +1,213 @@
+{
+  "base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "head": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "frozen_at": "2026-10-21T14:51:03.326983+00:00",
+  "patch_sha256": "ec2898d3d40d96f304e9e7a0d3b9278f428064d333b5167bd3f2e48be31fcfba",
+  "patch_matches_requested_sha256": true,
+  "files": [
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "size": 85960,
+      "matches": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "bfaba911a946fef5b74287f8f3044b8215ae121598666f6b9a0093a03f68f60d",
+      "size": 31198,
+      "matches": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c",
+      "size": 16310,
+      "matches": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "94dc982ba832e1807a8392b7ba5aa6ea246f3ca69c379e6faef668e6d7b767a6",
+      "size": 34703,
+      "matches": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034",
+      "size": 10785,
+      "matches": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "08b72a286da96b76da68c1752eb544dee72e825becee4d4de49283d2de52fac1",
+      "size": 189806,
+      "matches": true
+    },
+    {
+      "path": "cmd/wkchatlifecycle/budget_downward_test.go",
+      "sha256": "727fe4f18b80f69c6e9cc4f7735ea66b8e3e5e9cd0d8e304a93ead8688000683",
+      "size": 1773,
+      "matches": true
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72",
+      "size": 17021,
+      "matches": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/budget_downward_test.go",
+      "sha256": "2c03ef872ea819f5983c4e42ea748c235e84f6d2d3123cfa5260289cb4a325f4",
+      "size": 2040,
+      "matches": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0",
+      "size": 17480,
+      "matches": true
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "b4f9aaf699a1fd9391c1c05753b29242c810aeb310947545033f81fad3c24dc0",
+      "size": 19368,
+      "matches": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "ee5dbad91b121b7e411251f2c368ae5abf6a38169343bbb42dfa1ce497963c95",
+      "size": 143006,
+      "matches": true
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf",
+      "size": 3772,
+      "matches": true
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/budget_downward_test.go",
+      "sha256": "154b6b40db3a5b5b6dfbec3736d9d7fd2e5acb34e1b80c73801412993c90fce9",
+      "size": 3890,
+      "matches": true
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887",
+      "size": 25696,
+      "matches": true
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711",
+      "size": 4737,
+      "matches": true
+    },
+    {
+      "path": "internal/usecase/clouddeploy/budget_downward_test.go",
+      "sha256": "e8f5f62c19e7776a95928056da892b956861e44ba18f036cf11706804244d736",
+      "size": 2135,
+      "matches": true
+    },
+    {
+      "path": "internal/usecase/clouddeploy/deployment.go",
+      "sha256": "b1099deaa151575db01edcb0f2705ca87b291272378d5bae5e56a5530a74fbf2",
+      "size": 33434,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "sha256": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd",
+      "size": 45040,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+      "sha256": "1bc9a9231d306d230331fc2ce9fe6eeed00a4589ea4efeea4eefa9b7f92d16a8",
+      "size": 396,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7",
+      "size": 48953,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_downward_budget_consumers_integration_test.go",
+      "sha256": "fc9307c5d6ecd1cc4ad15a2d56948376786888735b5f3d0e270e993e7fdc5df3",
+      "size": 19200,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_downward_budget_consumers_test.go",
+      "sha256": "7886ac0681bf128ddb640e36ca6371f1b0419031d763dee97f68bd9c764fce90",
+      "size": 2846,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_downward_budget_integration_test.go",
+      "sha256": "c8c1f564f0d0dd30fd07c97bdfcc18f2ee0dbbd73bf1652d546783c1f387642a",
+      "size": 4683,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_downward_budget_test.go",
+      "sha256": "b78523d7855b9b8e298ffe04edbafb61292c2b873f2af50db097736bb46cb143",
+      "size": 7470,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+      "sha256": "4247c4629df72ae67b1735fe6d5e33f9f6a1e6300a25bb7e331a3eddedd2f679",
+      "size": 5607,
+      "matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "sha256": "aa954c4920a2f5900524a00681fbf37d2c061ba24d5506d54b683bd036188957",
+      "size": 90203,
+      "matches": true
+    }
+  ],
+  "all_27_match": true,
+  "changed_paths_match_freeze": true,
+  "protected_and_out_of_scope_files": {
+    "AGENTS.md": {
+      "unchanged": true,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    ".github/review-agent/policy.json": {
+      "unchanged": true,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    ".agents/skill-tests.json": {
+      "unchanged": true,
+      "sha256": "85c3687447d4417204d6430ad7bfd180c522cd8d4881737574248d3cbb3f78d4"
+    },
+    ".github/workflows/cloud-deployment-bundle.yml": {
+      "unchanged": true,
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4"
+    },
+    ".github/workflows/cloud-deployment-activate.yml": {
+      "unchanged": true,
+      "sha256": "74ca6dba1abe62b07738a3f723220048d64fbcc4347846b479a1359bfbd0933e"
+    },
+    "scripts/cloud-deployment/deploy.sh": {
+      "unchanged": true,
+      "sha256": "f0e15be89d8f41f49ff7bb70881f8ac0e2417c67a0878285b1e77fdc4ad53c4e"
+    },
+    "configs/cloud/chat-lifecycle/rehearsal-v1.json": {
+      "unchanged": true,
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b"
+    },
+    "configs/cloud/chat-lifecycle/formal-v1.json": {
+      "unchanged": true,
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0"
+    },
+    "configs/cloud/chat-lifecycle/repair-v1.json": {
+      "unchanged": true,
+      "sha256": "61fc2e2dcf8a541394ba1430ca742081711c169224aa54110204bcd685bb4093"
+    }
+  },
+  "all_protected_unchanged": true,
+  "review_actions": "read-only repository; wrote only this review receipt; no test/API/workflow/cloud/CI/merge execution"
+}

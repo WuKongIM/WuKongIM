@@ -1,0 +1,142 @@
+{
+  "started_at": "2026-10-21T14:47:38.409650+00:00",
+  "label": "filetype-d5f21ee5d4d74f239b16113884f98a89",
+  "name": "wk-filetype-d5f21ee5d4d74f239b16113884f98a89",
+  "distribution": "rocky",
+  "image": "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+  "probe": "replay-public-key-import.py",
+  "probe_sha256": "c2670274416eb1964f106b3d4be49ca1c5cd0bb7cdbf02d1810b9307c5c5b580",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.018873666995204985,
+      "stdout": "[image identity recorded above]",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "create",
+        "--pull=never",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-filetype-d5f21ee5d4d74f239b16113884f98a89",
+        "--label",
+        "wk-stable-cache-filetype=filetype-d5f21ee5d4d74f239b16113884f98a89",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/private/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-filetype-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/replay-public-key-import.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.04453983303392306,
+      "stdout": "939ded7ee436f74611bb107069b07bba2d6d898c3b6fb9c05041c9fca51b052d\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "939ded7ee436f74611bb107069b07bba2d6d898c3b6fb9c05041c9fca51b052d"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 0.587615167023614,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/probe/replay-public-key-import.py\", line 33, in <module>\n    dnf.crypto.import_repo_keys(repo)\n  File \"/usr/lib/python3.9/site-packages/dnf/crypto.py\", line 110, in import_repo_keys\n    if not repo._key_import._confirm(keyinfo):\nTypeError: _confirm() missing 4 required positional arguments: 'userid', 'fingerprint', 'url', and 'timestamp'\nException ignored in: <function Base.__del__ at 0x7ffffc35f310>\nTraceback (most recent call last):\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 131, in __del__\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 550, in close\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 534, in _finalize_base\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 249, in _store_persistent_data\n  File \"/usr/lib/python3.9/site-packages/dnf/persistor.py\", line 96, in save\n  File \"/usr/lib/python3.9/site-packages/dnf/persistor.py\", line 64, in _write_json_db\nNameError: name 'open' is not defined\n"
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-d5f21ee5d4d74f239b16113884f98a89"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.0257090000086464,
+      "stdout": "939ded7ee436\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-cache-filetype\"}}",
+        "939ded7ee436"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.016376207990106195,
+      "stdout": "/wk-filetype-d5f21ee5d4d74f239b16113884f98a89 filetype-d5f21ee5d4d74f239b16113884f98a89\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "939ded7ee436"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.018464583030436188,
+      "stdout": "939ded7ee436\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-filetype=filetype-d5f21ee5d4d74f239b16113884f98a89"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.014445540960878134,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "image_identity": {
+    "Id": "sha256:e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd",
+    "RepoDigests": [
+      "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+    ],
+    "Architecture": "amd64",
+    "Os": "linux"
+  },
+  "container_id": "939ded7ee436f74611bb107069b07bba2d6d898c3b6fb9c05041c9fca51b052d",
+  "probe_exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "4558e3eef901b62f02f42a653a61b5afab421c92fd949f0f8a4bef095c8742fd",
+  "remaining_container_ids": [],
+  "finished_at": "2026-10-21T14:47:39.136911+00:00"
+}

@@ -1,0 +1,275 @@
+{
+  "checks": [
+    {
+      "kind": "input",
+      "value": "1500000000",
+      "expected_accept": true,
+      "exit": 0,
+      "stdout": "{\"limit_micros\": 1500000000, \"operational_stop_micros\": 1350000000}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "1351044800",
+      "expected_accept": true,
+      "exit": 0,
+      "stdout": "{\"limit_micros\": 1351044800, \"operational_stop_micros\": 1201044800}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "150000001",
+      "expected_accept": true,
+      "exit": 0,
+      "stdout": "{\"limit_micros\": 150000001, \"operational_stop_micros\": 1}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "150000000",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "0",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "-1",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "1500000001",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "9223372036854775808",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "1351044800.0",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "1e9",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "+1351044800",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "01351044800",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": " 1351044800",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "1351044800 ",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "input",
+      "value": "",
+      "expected_accept": false,
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "continuation_input",
+      "value": "1500000000",
+      "exit": 0,
+      "stdout": "{\"limit_micros\": 1500000000, \"operational_stop_micros\": 1350000000}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "continuation_input",
+      "value": "1351044800",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_invalid\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "valid",
+      "exit": 0,
+      "stdout": "{\"limit_micros\": 1351044800, \"operational_stop_micros\": 1201044800}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "root-stop",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "receipt-cap",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "receipt-bool",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "deployment-stop",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "lease-bool",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "currency",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "reader",
+      "mutation": "float-cap",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"request_budget_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "first_start_no_sidecar",
+      "exit": 0,
+      "stdout": "{\"schema\": \"wukongim.chat_lifecycle.released_preclock_authentication/v1\", \"status\": \"first_start\", \"attempt\": 1, \"committed_micros\": 0}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "lower_with_sidecar",
+      "exit": 1,
+      "stdout": "{\"schema\":\"wukongim.chat_lifecycle.released_preclock_authentication/v1\",\"status\":\"rejected\",\"reason\":\"sidecar_identity\"}\n",
+      "stderr": ""
+    },
+    {
+      "kind": "exact_source_budget_expression",
+      "stage": "rehearsal",
+      "line": "(( committed_micros > 0 && committed_micros < operational_stop_micros )) || exit 1",
+      "amount": 1201044799,
+      "cap": 1201044800,
+      "exit": 0
+    },
+    {
+      "kind": "exact_source_budget_expression",
+      "stage": "rehearsal",
+      "line": "(( committed_micros > 0 && committed_micros < operational_stop_micros )) || exit 1",
+      "amount": 1201044800,
+      "cap": 1201044800,
+      "exit": 1
+    },
+    {
+      "kind": "exact_source_budget_expression",
+      "stage": "formal",
+      "line": "(( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= request_budget_limit_micros )) || exit 1",
+      "amount": 1351044800,
+      "cap": 1351044800,
+      "exit": 0
+    },
+    {
+      "kind": "exact_source_budget_expression",
+      "stage": "formal",
+      "line": "(( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= request_budget_limit_micros )) || exit 1",
+      "amount": 1351044801,
+      "cap": 1351044800,
+      "exit": 1
+    }
+  ],
+  "findings": [
+    {
+      "stage": "rehearsal",
+      "failing_step": "transition",
+      "source_condition": "steps.cleanup.outputs.zero == 'true'",
+      "explicit_status_function": false,
+      "after_budget_exit1": {
+        "cleanup_zero": true,
+        "prior_step_success": false,
+        "effective_upload_condition": "success() && steps.cleanup.outputs.zero == 'true'",
+        "upload_runs": false
+      },
+      "scope": "Boolean consequence of documented Actions status semantics, not a remote Actions run"
+    },
+    {
+      "stage": "formal",
+      "failing_step": "complete",
+      "source_condition": "steps.cleanup.outputs.zero == 'true'",
+      "explicit_status_function": false,
+      "after_budget_exit1": {
+        "cleanup_zero": true,
+        "prior_step_success": false,
+        "effective_upload_condition": "success() && steps.cleanup.outputs.zero == 'true'",
+        "upload_runs": false
+      },
+      "scope": "Boolean consequence of documented Actions status semantics, not a remote Actions run"
+    }
+  ],
+  "external_actions_executed": false,
+  "real_cloud_qualification": false,
+  "historical_reserve_arithmetic": {
+    "reserve": 148955200,
+    "newH": 1351044800,
+    "newS": 1201044800,
+    "reserve_plus_H": 1500000000,
+    "reserve_plus_S": 1350000000
+  }
+}

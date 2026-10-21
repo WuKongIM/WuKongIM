@@ -337,3 +337,13 @@ immutable publication and signed native-package public-client acceptance.
 
 - [#1021 首次Linux CI](cloud/pr1021-ci-generation-1/README.md)、[ready补读](cloud/pr1021-ready-checks/README.md)及[经单独授权的合并交付](cloud/pr1021-merge/README.md)：aeb45c21同验收tree、原任务分支已清理、文档/5路径origin通过；4URL CDN受理不等于全edge完成。
 - [#74第五代首次CI](packages/pr74-ci-generation-5/README.md)：518+4/旧native通过，新24项中23通过，DNF下载已通过但cache helper拒绝未记录stat的文件，清理全部零。
+
+- [#74第六代完整首次CI](packages/pr74-ci-generation-6/README.md)：528+4、旧native与新49/49全通过；8套安装身份、Rocky/Alma缓存原始响应/atime及零遗留独立闭合。用户随后批准合并为620bdfa1，同验收tree，生产stable仍关闭。
+- [GPG缓存文件机制诊断](packages/rpm-cache-filetype-diagnosis/README.md)、[四文件tests-first窄修](packages/rpm-cache-filetype-repair/README.md)及[双轴独审](packages/cache-filetype-review/combined-review.md)：983e567f；明确独立重放与原CI缺stat的证据边界。
+- [向下预算本地最终封存](cloud/downward-budget-implementation/public-final/README-final.md)与[v2双轴复核](cloud/downward-budget-review/combined-review-v2.md)：#1022/9a4900dc，六named通过、完整scripts原9m超时且清理完整，首次Linux仍运行。
+- [原D交付缺口续审](packages/after-native-delivery-gap/README.md)及[独立范围与失败清单](packages/after-native-delivery-gap-review/README.md)：v1/v2共用离线核心，不改签名/schema/生产authority；开始tests-first，无真实云写入。
+
+- [#74获准合并及后置Pages](packages/pr74-merge/README.md)：620bdfa同树、保护不变、528+4再次通过、部署跳过；rebase后的原非祖先tip被保留。
+- [只读CDN/DNS补查](packages/storage-readonly-followup/README.md)：packages仍指向Pages，CDN目标域名未创建，RAM角色主体未加载；没有云写入或费用批准。
+
+- `checkpoint-after-pr74/`: named FLOW check passed with original limits; wrapper-path launch error retained separately.

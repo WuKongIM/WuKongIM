@@ -1,0 +1,668 @@
+{
+  "schema": "wukongim.public_evidence_allowlist/v1",
+  "created_at": "2026-10-21T15:26:04.694081+00:00",
+  "source_head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "source_tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "file_count_excluding_allowlist_and_sha256sums": 108,
+  "bytes_excluding_allowlist_and_sha256sums": 1690001,
+  "allowed_files": [
+    {
+      "path": "01-go-red.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/01-go-red.json",
+      "size": 24915,
+      "sha256": "3551e1a11ffa1d1b74b795fba8162ce6c212f316c9b1d259ec5bdb3eb25a91f1"
+    },
+    {
+      "path": "01-go-red.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/01-go-red.json.summary.json",
+      "size": 949,
+      "sha256": "a60a708fb98378618880a9fee1ec37d1c1f2dacd46eacd46c74806981ab63663"
+    },
+    {
+      "path": "02-go-green.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/02-go-green.json",
+      "size": 32604,
+      "sha256": "cd90c72c688109ad1a4e87561dbc9ab1d1c024d4e1d29c78e028cd686a321353"
+    },
+    {
+      "path": "02-go-green.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/02-go-green.json.summary.json",
+      "size": 226,
+      "sha256": "73f81a8860e47462225d539207a82019bce0f75987818f5ac64d76a3d3d3c6cb"
+    },
+    {
+      "path": "03-go-green.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/03-go-green.json",
+      "size": 35893,
+      "sha256": "41be498ec8887da23f079a26094c761bc3ecb8320d57101a4f3774f8e902e1c3"
+    },
+    {
+      "path": "03-go-green.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/03-go-green.json.summary.json",
+      "size": 112,
+      "sha256": "0b23996288155b7176e74612a6d6c12817f6bec476959ba78b8f796542399cb1"
+    },
+    {
+      "path": "04-scripts-red.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/04-scripts-red.json",
+      "size": 62386,
+      "sha256": "c31a23a4541e6e495403337952b3e4f21ba3adf69736c05fb56e0e3fc907e8c5"
+    },
+    {
+      "path": "04-scripts-red.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/04-scripts-red.json.summary.json",
+      "size": 2626,
+      "sha256": "c3af6a98cd7e4ec5d5dfa9dad2177e030212afec33e8f8eeedbce28031c666ce"
+    },
+    {
+      "path": "05-scripts-green.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/05-scripts-green.json",
+      "size": 57843,
+      "sha256": "f314ec3826056d80427593fbc566789d39237dd55376b678ee040a94254249cc"
+    },
+    {
+      "path": "05-scripts-green.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/05-scripts-green.json.summary.json",
+      "size": 1085,
+      "sha256": "253248e136587dfed19ed01eaeea7cefb4cdf1ee047c6a90a14d92417aa1caa5"
+    },
+    {
+      "path": "06-receipt-type-red.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/06-receipt-type-red.json",
+      "size": 2566,
+      "sha256": "b53a086bd98bd934ee6f561545d19e964a3e4a7751f7524b8c22fa08a753bb96"
+    },
+    {
+      "path": "06-receipt-type-red.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/06-receipt-type-red.json.summary.json",
+      "size": 273,
+      "sha256": "92d37dadcde9e4f4b856cc24d49b8c60668c109846d016df5f999303b7c2dfe2"
+    },
+    {
+      "path": "07-go-packages.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/07-go-packages.json",
+      "size": 534254,
+      "sha256": "ac22e93cf93d1b6e420a18d0309b48629847ba7dc84d4be97c023daf1068d67f"
+    },
+    {
+      "path": "07-go-packages.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/07-go-packages.json.summary.json",
+      "size": 114,
+      "sha256": "032a37eae7364c192c7b929000cbcf7439677d9bb625537801198def2824ca25"
+    },
+    {
+      "path": "08-helper-stage-regression.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/08-helper-stage-regression.json",
+      "size": 120868,
+      "sha256": "f4a5cdab208956ae126c308298588950f27372da43238de8d33b11b07e5b7ef3"
+    },
+    {
+      "path": "08-helper-stage-regression.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/08-helper-stage-regression.json.summary.json",
+      "size": 113,
+      "sha256": "f74c44e545b69dd4082a1b771a4677ee06bc0a1caa8e46430f983c440f96dcec"
+    },
+    {
+      "path": "09-existing-authority-activation.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/09-existing-authority-activation.json",
+      "size": 92469,
+      "sha256": "0f4c2ee7091328772656e6690837a9413cd4b0d85aa674208ef808ada21a60eb"
+    },
+    {
+      "path": "09-existing-authority-activation.json.summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/09-existing-authority-activation.json.summary.json",
+      "size": 112,
+      "sha256": "9958b60aab146fd83ce8698c4f12228b6f417b68091c4f7da8c8cee568d8fb5d"
+    },
+    {
+      "path": "10-zero-upload-gating-red.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/10-zero-upload-gating-red.json",
+      "size": 4267,
+      "sha256": "c245228c8fc50bef3c768b9357a56cf396852e182b3e19cd96a7d7fd5733360f"
+    },
+    {
+      "path": "11-zero-upload-and-consumer-green.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/11-zero-upload-and-consumer-green.json",
+      "size": 140713,
+      "sha256": "926be99e8851fb1da806f738e2c469a51413855672f1fb533ecee37e4e100f99"
+    },
+    {
+      "path": "12-zero-upload-gating-red.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/12-zero-upload-gating-red.json",
+      "size": 4356,
+      "sha256": "67ef9cb36aa58bae43fe2f589e13dca3ab846eb391ac8d329b8541c361672e24"
+    },
+    {
+      "path": "13-zero-upload-and-consumer-green.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/13-zero-upload-and-consumer-green.json",
+      "size": 139957,
+      "sha256": "626aa148d8db8a804ae7899b89a9529db9ad2a1349725fc1b2b3d68ca488f39c"
+    },
+    {
+      "path": "README-final.md",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/README-final.md",
+      "size": 1685,
+      "sha256": "8c7a1e903bd37f5a3fd6d5a6804d3c44875fdde9194c305563a21647c97b1840"
+    },
+    {
+      "path": "committed-source-identity.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/committed-source-identity.json",
+      "size": 705,
+      "sha256": "5c470cb5003726da76bd69266d9af67b4f211a9c463176058c739592d3866682"
+    },
+    {
+      "path": "consumer/01-formal-red.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/01-formal-red.log",
+      "size": 2919,
+      "sha256": "007bec44c1497f68027cf321b58cfc5bab78ef5e674a48f5c0b35e662cbc6dbd"
+    },
+    {
+      "path": "consumer/02-formal-green.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/02-formal-green.log",
+      "size": 49,
+      "sha256": "1e02a491fe2bde74cfa06271dc6d2cb8abdf40a1ba784d6e987b1843929d3536"
+    },
+    {
+      "path": "consumer/03-finalizer-red.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/03-finalizer-red.log",
+      "size": 8327,
+      "sha256": "23d312d414c33e835de009aea9a65b44e0eac0dd698a1bc85aebd29e1896c300"
+    },
+    {
+      "path": "consumer/04-finalizer-green.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/04-finalizer-green.log",
+      "size": 1889,
+      "sha256": "e34cc6c9be10127586bbe3d6d78460e92415f117e9a744576faf1aee02d619ad"
+    },
+    {
+      "path": "consumer/05-consumer-green.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/05-consumer-green.log",
+      "size": 49,
+      "sha256": "5a927a9203dda3216cab5ec919c6cbbf804b879e726ade93891a566a8ab2910a"
+    },
+    {
+      "path": "consumer/SHA256SUMS",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/SHA256SUMS",
+      "size": 764,
+      "sha256": "5c915c4dea7fd09b9bd8536f7ab6700bdec685571f4efcbaad04dde76450d67c"
+    },
+    {
+      "path": "consumer/consumer.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/consumer.patch",
+      "size": 33033,
+      "sha256": "95643c4c60c22535a1bcbbcebfee796b503f8a4dece34e6cc1dd0e69d623338c"
+    },
+    {
+      "path": "consumer/delivery.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/delivery.json",
+      "size": 1772,
+      "sha256": "ddbb10e9774b63ee806dcf85c77e572a67c3643ad8da4eca66aa925cbe6f4e1c"
+    },
+    {
+      "path": "consumer/rules-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/rules-freeze.json",
+      "size": 494,
+      "sha256": "d4a533fc4d15fc52892e869396c028eee8793e329f70fabb517ae158956dcee1"
+    },
+    {
+      "path": "consumer/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/consumer/source-freeze.json",
+      "size": 1362,
+      "sha256": "9d2ea8a6bde91d6c21968173331bdb9041f4b7374d37884e7ddd9a9b83e92783"
+    },
+    {
+      "path": "delivery.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/delivery.json",
+      "size": 7324,
+      "sha256": "f7c20d2b7b8b2ae2aa56213257b2b7eb0b112d33acb5523442cc815078ae492b"
+    },
+    {
+      "path": "failure-coverage-final.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/failure-coverage-final.json",
+      "size": 27258,
+      "sha256": "0cb38b82a9e44f5820ddace8b4470da62585cfded8bae3c7acade6d9706a61f8"
+    },
+    {
+      "path": "failure-inventory-before-tests.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/failure-inventory-before-tests.json",
+      "size": 10339,
+      "sha256": "136a3c17390c2263c9bcf23f8f29ebd4b9d188bc1b16b7b611b116ec53fd147a"
+    },
+    {
+      "path": "final-observation.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/final-observation.json",
+      "size": 2303,
+      "sha256": "8171596496899bc0e36262d04884ad1f8ea52656160fe0adddd23f3839d75d84"
+    },
+    {
+      "path": "flow-render.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/flow-render.log",
+      "size": 48,
+      "sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854"
+    },
+    {
+      "path": "freeze-v1/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/implementation.patch",
+      "size": 87831,
+      "sha256": "ec2898d3d40d96f304e9e7a0d3b9278f428064d333b5167bd3f2e48be31fcfba"
+    },
+    {
+      "path": "freeze-v1/old-product-guard.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/old-product-guard.json",
+      "size": 421,
+      "sha256": "8674224b5d9b65cb76a449803a5294ee2393a41a1cf7382c6de1aa0a297da015"
+    },
+    {
+      "path": "freeze-v1/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/source-freeze.json",
+      "size": 4623,
+      "sha256": "c823397dcac43befc37140263dd14bca5bc50a8645cc6d7ef28b16dca0c03a9f"
+    },
+    {
+      "path": "freeze-v1/unchanged-boundaries.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v1/unchanged-boundaries.json",
+      "size": 494,
+      "sha256": "4b0adfd2d070a2c8bf79798e992c0c22147c4fab64a7b912a28431c709bae811"
+    },
+    {
+      "path": "freeze-v2/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v2/implementation.patch",
+      "size": 90148,
+      "sha256": "9c6fa1bb330b10f79359af1905e74b47b04adff34de8e1b7b865e563ef1ceef3"
+    },
+    {
+      "path": "freeze-v2/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v2/source-freeze.json",
+      "size": 4623,
+      "sha256": "f11ddf2c288d7410c89b90385d474ff610f6279165e6412db9a2a54ee0c3d4fd"
+    },
+    {
+      "path": "freeze-v2/v1-delta.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/freeze-v2/v1-delta.json",
+      "size": 787,
+      "sha256": "a1dc4098bbe1d1e5654cd5b8c6fa892139f416f60b9263bd29e0905370117a38"
+    },
+    {
+      "path": "go-unit-v2-summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/go-unit-v2-summary.json",
+      "size": 80,
+      "sha256": "cc278ea0ad8fdc15af02d62d8d17b5aefe63f50bc04b15de6c362703b9608085"
+    },
+    {
+      "path": "named-checks-v1/flow-doc-contracts-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/flow-doc-contracts-wrapper.log",
+      "size": 323,
+      "sha256": "a1f8b65c2fd459a513fad0a478a0059ed7fbc4b6e276f10585a0181b6b1c9611"
+    },
+    {
+      "path": "named-checks-v1/flow-doc-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/flow-doc-contracts/command.json",
+      "size": 255,
+      "sha256": "a550a305526e6c2090e921a09005eeb299eb17e27052924b4dda3363b2700d0d"
+    },
+    {
+      "path": "named-checks-v1/flow-doc-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/flow-doc-contracts/result.json",
+      "size": 369,
+      "sha256": "8f611b28f66e8ab63719fd3e977bd6be6798f848e82b814033d4b5b708b48743"
+    },
+    {
+      "path": "named-checks-v1/flow-doc-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/flow-doc-contracts/stdout-stderr.log",
+      "size": 1376,
+      "sha256": "d0519f92429ba5615c10ecf1cde85010b84d1bd0ea1ec980dd6295910b7eae80"
+    },
+    {
+      "path": "named-checks-v1/go-format-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-format-wrapper.log",
+      "size": 320,
+      "sha256": "a94a1bc8e9d9533c41a76cce8f83817fb0265f5137ceea2341df115e8609175f"
+    },
+    {
+      "path": "named-checks-v1/go-format/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-format/command.json",
+      "size": 246,
+      "sha256": "26d3152d773580a7973fd3d93c8ec59cf440dfb46ea758d031db885a816e5772"
+    },
+    {
+      "path": "named-checks-v1/go-format/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-format/result.json",
+      "size": 366,
+      "sha256": "4118384f2284523f7224ac9b8a7a28c035d0a0b4dc8540e206ed28b911db7647"
+    },
+    {
+      "path": "named-checks-v1/go-format/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-format/stdout-stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "named-checks-v1/go-unit/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-unit/command.json",
+      "size": 317,
+      "sha256": "d2410c6d8a449c2cb60e85ed6c4dee1a81edb9613c69b3ae6f279bf41ea2fea9"
+    },
+    {
+      "path": "named-checks-v1/go-unit/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-unit/result.json",
+      "size": 138,
+      "sha256": "4ee4d079f8945f72287cdede217edde636438b5c1f93b42f867928f2f77438ee"
+    },
+    {
+      "path": "named-checks-v1/go-unit/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/go-unit/stdout-stderr.log",
+      "size": 4065,
+      "sha256": "3c3f4f0b8df276526b93da2408bd8188f8d09e6013034aaa44b192e2e548e2aa"
+    },
+    {
+      "path": "named-checks-v1/policy.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/policy.json",
+      "size": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "named-checks-v1/results.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/results.json",
+      "size": 1312,
+      "sha256": "c78c2873b4fcdb2c1a930263bfadf80cd558f3435500609fe0760f25a91750d4"
+    },
+    {
+      "path": "named-checks-v1/selection.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/selection.json",
+      "size": 2276,
+      "sha256": "da7e26da831fd4492f124e5905852d94fa0873abde513e38fe7d08a1b88f440a"
+    },
+    {
+      "path": "named-checks-v1/workflow-contracts-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/workflow-contracts-wrapper.log",
+      "size": 321,
+      "sha256": "98c1d7f938f99bbe638a25874aa95bd9ec36cc317d3e73a18ac767f6d52e8e30"
+    },
+    {
+      "path": "named-checks-v1/workflow-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/workflow-contracts/command.json",
+      "size": 280,
+      "sha256": "c50d728f10efb847aef9150943e8ac447e741cf4036eaf0425f2ece7aeeecc8e"
+    },
+    {
+      "path": "named-checks-v1/workflow-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/workflow-contracts/result.json",
+      "size": 367,
+      "sha256": "33ca74420e4b4c528aa01ed1e43da100ea6d58944531eef3434b71375f3edd4a"
+    },
+    {
+      "path": "named-checks-v1/workflow-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v1/workflow-contracts/stdout-stderr.log",
+      "size": 469,
+      "sha256": "e5c320b90503652559e7b66e2b78a1b7cf08cce42733829c9c2991b502df79e1"
+    },
+    {
+      "path": "named-checks-v2/flow-doc-contracts-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/flow-doc-contracts-wrapper.log",
+      "size": 323,
+      "sha256": "095332e733064309e78f5030e02f9ab5ccd2cd7bea431c040003b67f07d3e2d8"
+    },
+    {
+      "path": "named-checks-v2/flow-doc-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/flow-doc-contracts/command.json",
+      "size": 255,
+      "sha256": "a550a305526e6c2090e921a09005eeb299eb17e27052924b4dda3363b2700d0d"
+    },
+    {
+      "path": "named-checks-v2/flow-doc-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/flow-doc-contracts/result.json",
+      "size": 369,
+      "sha256": "389ae6d6be40ec1e27e1abdb8053a28acff9c3332447dfe307261fb3dfc641c6"
+    },
+    {
+      "path": "named-checks-v2/flow-doc-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/flow-doc-contracts/stdout-stderr.log",
+      "size": 1376,
+      "sha256": "d0519f92429ba5615c10ecf1cde85010b84d1bd0ea1ec980dd6295910b7eae80"
+    },
+    {
+      "path": "named-checks-v2/go-format-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-format-wrapper.log",
+      "size": 320,
+      "sha256": "4621277c91c1515ef4179c88031a3a26a75765b86444d15a87f7886ca5ee8102"
+    },
+    {
+      "path": "named-checks-v2/go-format/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-format/command.json",
+      "size": 246,
+      "sha256": "26d3152d773580a7973fd3d93c8ec59cf440dfb46ea758d031db885a816e5772"
+    },
+    {
+      "path": "named-checks-v2/go-format/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-format/result.json",
+      "size": 366,
+      "sha256": "9f3946a0a649211fac56e7aa32dbb398f9d7e95cd170418a6f24bda97233b02f"
+    },
+    {
+      "path": "named-checks-v2/go-format/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-format/stdout-stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "named-checks-v2/go-mod-tidy-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-mod-tidy-wrapper.log",
+      "size": 320,
+      "sha256": "99d80aa5f0712a0394c85e663da77c966e61ad6836b2a0da78687b7e7cf186f9"
+    },
+    {
+      "path": "named-checks-v2/go-mod-tidy/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-mod-tidy/command.json",
+      "size": 248,
+      "sha256": "8d63530074dee007bc60d7f637a5f65c074e7507bd5c73c6a4f70516f555995a"
+    },
+    {
+      "path": "named-checks-v2/go-mod-tidy/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-mod-tidy/result.json",
+      "size": 366,
+      "sha256": "ef7d954058e68d094de3b368052b184813713e1e52acfe838577ca6dbc429c0d"
+    },
+    {
+      "path": "named-checks-v2/go-mod-tidy/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-mod-tidy/stdout-stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "named-checks-v2/go-unit-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-unit-wrapper.log",
+      "size": 325,
+      "sha256": "f5daa8d40ca03545374ba8ac15aea83556087610dc9f029c61f5a70a86dae4d5"
+    },
+    {
+      "path": "named-checks-v2/go-unit/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-unit/command.json",
+      "size": 317,
+      "sha256": "d2410c6d8a449c2cb60e85ed6c4dee1a81edb9613c69b3ae6f279bf41ea2fea9"
+    },
+    {
+      "path": "named-checks-v2/go-unit/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-unit/result.json",
+      "size": 371,
+      "sha256": "ee930575ced14f76ed74fc4795db4558fea18906998adfd7fca58f914822b306"
+    },
+    {
+      "path": "named-checks-v2/go-unit/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-unit/stdout-stderr.log",
+      "size": 15248,
+      "sha256": "2adfbb89d7e55cee6db00753bd8622d4f87b034f98f7885a2654cf9daef46105"
+    },
+    {
+      "path": "named-checks-v2/go-vet-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-vet-wrapper.log",
+      "size": 321,
+      "sha256": "3c7dbf5526109791b7d348d9fa6f6d49ca32ca79f0db8fe191d6a4be7e4cb665"
+    },
+    {
+      "path": "named-checks-v2/go-vet/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-vet/command.json",
+      "size": 300,
+      "sha256": "144ce7c0a1913a71b39a621b4c25d91a67c1921db3912261cf1c6f6aa695a641"
+    },
+    {
+      "path": "named-checks-v2/go-vet/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-vet/result.json",
+      "size": 367,
+      "sha256": "e712437c95eeece703cfc6c6539fad887cb3e91b8030287b9cdbaa6e967d768e"
+    },
+    {
+      "path": "named-checks-v2/go-vet/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/go-vet/stdout-stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "named-checks-v2/policy.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/policy.json",
+      "size": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "named-checks-v2/results.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/results.json",
+      "size": 3159,
+      "sha256": "ab192a5f0da2259d3a3439eae6c2eaa4078ff4dc75f077fa755c534006f602cd"
+    },
+    {
+      "path": "named-checks-v2/scripts-integration-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/scripts-integration-wrapper.log",
+      "size": 373,
+      "sha256": "35e5d46259916b651ef885093dfbfae691b1e4cbbcb3c2c0d1f59a45b1c59f36"
+    },
+    {
+      "path": "named-checks-v2/scripts-integration/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/scripts-integration/command.json",
+      "size": 303,
+      "sha256": "5ca5b6fc46474ed5fac931fc24bebcab0830b105bea6db32b437c518798c5b2f"
+    },
+    {
+      "path": "named-checks-v2/scripts-integration/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/scripts-integration/result.json",
+      "size": 467,
+      "sha256": "0bf79fd7151b5578c77cbbb85d4c32bafcb6f773608b243d684f074b9ceb593c"
+    },
+    {
+      "path": "named-checks-v2/scripts-integration/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/scripts-integration/stdout-stderr.log",
+      "size": 51971,
+      "sha256": "d230788e331d21998e63586c010acbd1fcfa359f2f0e5b49dfeaa2cc0b467512"
+    },
+    {
+      "path": "named-checks-v2/selection.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/selection.json",
+      "size": 2276,
+      "sha256": "da7e26da831fd4492f124e5905852d94fa0873abde513e38fe7d08a1b88f440a"
+    },
+    {
+      "path": "named-checks-v2/workflow-contracts-wrapper.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/workflow-contracts-wrapper.log",
+      "size": 322,
+      "sha256": "a59bf79040f624323821170b1299abd9c2b6655214a7ee7f7bad14e8d119841b"
+    },
+    {
+      "path": "named-checks-v2/workflow-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/workflow-contracts/command.json",
+      "size": 280,
+      "sha256": "c50d728f10efb847aef9150943e8ac447e741cf4036eaf0425f2ece7aeeecc8e"
+    },
+    {
+      "path": "named-checks-v2/workflow-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/workflow-contracts/result.json",
+      "size": 368,
+      "sha256": "a5f71a6d2c71041dc8571b4b3690463a59723c1d89ffc4039e8d8ec1b4d619a7"
+    },
+    {
+      "path": "named-checks-v2/workflow-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-checks-v2/workflow-contracts/stdout-stderr.log",
+      "size": 469,
+      "sha256": "567fab5fb25304e93388f710ccabf7a36b4c80fd00e5d09be6d8d5fe38cd72ee"
+    },
+    {
+      "path": "named-progress-v1.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-progress-v1.jsonl",
+      "size": 763,
+      "sha256": "0fc3414c2135825c50e5dd001932a3fc968a77e5e6cf9583e02886b678499b2c"
+    },
+    {
+      "path": "named-progress-v2.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-progress-v2.jsonl",
+      "size": 1558,
+      "sha256": "14aebbf1b784f86605a5f930fbcdf4f96154656b11545218ed8e42fd3c62e2ee"
+    },
+    {
+      "path": "named-v1-interruption/go-unit-result.snapshot.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-v1-interruption/go-unit-result.snapshot.json",
+      "size": 138,
+      "sha256": "4ee4d079f8945f72287cdede217edde636438b5c1f93b42f867928f2f77438ee"
+    },
+    {
+      "path": "named-v1-interruption/observation.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-v1-interruption/observation.json",
+      "size": 958,
+      "sha256": "92e749bfc2211840647850e4967a5486ffe7af4f5ccde4d1d9b3c5376cb50d37"
+    },
+    {
+      "path": "named-v1-interruption/progress.snapshot.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-v1-interruption/progress.snapshot.jsonl",
+      "size": 763,
+      "sha256": "0fc3414c2135825c50e5dd001932a3fc968a77e5e6cf9583e02886b678499b2c"
+    },
+    {
+      "path": "named-v2-process-observation.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/named-v2-process-observation.json",
+      "size": 779,
+      "sha256": "f8e311c43f5fa6256db29bef2366e4ef225b9cb7ccd669a1f6cbd0d055be6faa"
+    },
+    {
+      "path": "pr-body.md",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/pr-body.md",
+      "size": 2986,
+      "sha256": "c0aebbb1050b32c3436907781555b719aa5f21953d61c563fd9b21680796fd11"
+    },
+    {
+      "path": "review-reference.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/review-reference.json",
+      "size": 446,
+      "sha256": "51ef193765a7360c4ee9325ce77391f3fcd053157609a31643ec121dd2921529"
+    },
+    {
+      "path": "rules-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/rules-freeze.json",
+      "size": 1016,
+      "sha256": "648438a24db6d51b9229d42b83b9626bf3a98e4990405b41ea4207f60622ce0e"
+    },
+    {
+      "path": "run-policy-checks.py",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/run-policy-checks.py",
+      "size": 2315,
+      "sha256": "f39393b5d6ad56835317e42c086536ccdd892d4c8e02444d5f66bd145f27a313"
+    },
+    {
+      "path": "timeout-classification.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/timeout-classification.json",
+      "size": 6492,
+      "sha256": "a5b22ce20a23c91d4d4423a81161516e8e6f3f440edec099e42687e87a2ad16d"
+    },
+    {
+      "path": "public-scan.json",
+      "source": "generated_from_explicit_archive_list",
+      "size": 549,
+      "sha256": "ce144ebd472f2912de13fef6cbf57a394577090b826453a23a4d7dc8708c5f77"
+    }
+  ],
+  "explicit_exclusions": [
+    "gocache",
+    "private keys",
+    "decrypted credentials",
+    "binaries",
+    "large cloud artifacts",
+    "paid dispatch payloads",
+    "active copied FLOW.md"
+  ],
+  "history": "v1 is point-in-time: session22346 go-unit unknown. v2 scripts timeout, no re-run or limit change. Neither reported as all-green."
+}

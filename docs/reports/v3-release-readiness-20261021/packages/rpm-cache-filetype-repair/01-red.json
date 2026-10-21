@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-21T15:02:52.381580+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_native_stable_clients_drill.py",
+    "-k",
+    "CacheInventorySocketTests",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients",
+  "exit_code": 1,
+  "elapsed_seconds": 0.329,
+  "log_sha256": "5690d87bc4cf13ae7a1c266f91c6d5676cf5b9f4b5f33011911958666dc59c51",
+  "source_sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f",
+  "tests_sha256": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a"
+}

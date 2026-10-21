@@ -1,0 +1,15 @@
+{
+  "arguments": [
+    "go",
+    "test",
+    "./cmd/...",
+    "./internal/...",
+    "./pkg/...",
+    "./scripts/...",
+    "./docker/...",
+    "-count=1"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-budget-downward",
+  "timeout_seconds": 1800,
+  "max_output_bytes": 8388608
+}

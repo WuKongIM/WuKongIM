@@ -1,0 +1,85 @@
+---
+scope: package
+summary: Seals provider-neutral offline deployment bundles, exact Lease plans, host files, and typed readiness receipts.
+---
+
+# Cloud Deployment Use Case Flow
+
+## Responsibility
+
+This package owns the procurement-independent content-addressed deployment
+bundle and provider-neutral activation contract. It accepts only validated,
+non-secret Lease inventory and has no provider lifecycle authority.
+
+## Boundaries
+
+- Bundles contain Ubuntu 24.04 native binaries, assets, pinned offline
+  dependencies, and templates, but no secrets or Lease-specific configuration.
+- Host transfer, disk mounting, systemd, runtime credentials, SSH, and live
+  evidence are script adapters; workload orchestration alone starts coordinators.
+- `scripts/cloud-deployment/deploy.sh` owns production execution for local repair
+  and Actions. This package owns pure planning, validation, and readiness gates;
+  it has no separate host-execution controller.
+- Deployment cannot quote, acquire, release, sweep, or replace Lease provenance.
+
+## Main Flows
+
+1. Build and seal linux/amd64 product/control artifacts, including `wkcli` for
+   all benchmark processes while retaining existing systemd unit names; validate ELF, required
+   files, modes, topology, secret paths, symlinks, and container independence;
+   hash ordered records into one bundle digest verified on each host.
+2. `BuildPlan` binds Lease, source, control, bundle, four roles, addresses,
+   disks, expiry, topology, quote line items, and budget into one immutable
+   digest; render secret-free role files and perform idempotent offline install.
+3. `EvaluateReadiness` validates supplied host topology, chrony, cluster, proxy,
+   and observer evidence against the exact Plan and Lease, emitting a typed
+   readiness receipt or stable bounded failure. The shared script entry collects
+   evidence with coordinators dormant and invokes this gate via `wkcloudgate`.
+
+## Invariants and Failure Semantics
+
+- Topology remains three service hosts plus one load host, 256 Hash Slots, and
+  the reviewed rehearsal/formal workload after normalizing only run ID/stage.
+- Service-node templates pin Slot Raft to a 50 ms tick, two-tick heartbeat, and
+  40-tick election floor, matching the 100 ms heartbeat and two-second minimum
+  election window used by the production default.
+- Public Manager and Demo share temporary Basic Authentication; Manager keeps
+  its own read-only login. Only safe GET/HEAD may retry upstreams; writes and
+  WebSockets disable retries and connection reuse.
+- Formal execution is one native process across soak, capacity, and recovery;
+  it never restarts services/workers, clears data, or splices process lifetimes.
+- Direct repair may pass one validated process-duration override only to the
+  rehearsal unit; repository YAML and formal execution remain unchanged.
+- Direct-repair qualification gracefully signals only the rehearsal
+  coordinator, validates that the terminal operator-stop report fence and
+  window start match the exact current `run-start` receipt plus a clean systemd
+  exit, and stops worker units only after that proof. Stage start removes the
+  prior fixed terminal report paths before launching a new generation. Exit
+  130 is successful only for the rehearsal unit's handled operator-stop path.
+- SSH activation records first-use host keys in one private Lease-scoped file,
+  retains that file across repair generations, and never reads or mutates the
+  operator's global user known-hosts file.
+- Five-second cost and expiry guards enforce the immutable stage's admitted
+  limits: CNY 1,350 stop / CNY 1,500 hard by default, or a lower positive stop
+  with the same CNY 150 reserve. Deployment digests bind the exact Lease budget;
+  the product-source `wkcli` must support the admitted envelope. Direct repair preserves the
+  exact admitted Lease budget: CNY 300/250 by default or an explicit whole-CNY
+  hard limit through CNY 1,500 with a CNY 20 operational reserve.
+- A control repair may redeploy only the same Lease, source, bundle, and sealed
+  identity. Bootstrap-user, coordinator-state, and dependency-script repairs
+  are allowed only for explicitly recognized frozen revision or file hashes;
+  unknown compatibility content fails closed.
+- The published analysis endpoint is non-secret and identity-bound; provider
+  access grants remain owned by the separate analysis lifecycle.
+
+## Read First
+
+- [Bundle sealing](bundle.go)
+- [Deployment planning](deployment.go)
+- [Host runtime contract](runtime.go)
+- [Native templates](templates.go)
+
+## Update Triggers
+
+Update this file when bundle contents, topology, plan identity, native services,
+readiness, public routing, coordinator ownership, budgets, or compatibility changes.

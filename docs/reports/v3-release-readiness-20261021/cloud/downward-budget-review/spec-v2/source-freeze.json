@@ -1,0 +1,114 @@
+{
+  "base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "frozen_at": "2026-10-21T15:05:03.549026+00:00",
+  "files": {
+    ".github/workflows/README.md": {
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "size": 85960
+    },
+    ".github/workflows/chat-lifecycle-formal-finalize.yml": {
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05",
+      "size": 31210
+    },
+    ".github/workflows/chat-lifecycle-formal.yml": {
+      "sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c",
+      "size": 16310
+    },
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml": {
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f",
+      "size": 34715
+    },
+    ".github/workflows/chat-lifecycle-rehearsal.yml": {
+      "sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034",
+      "size": 10785
+    },
+    "CHANGELOG.md": {
+      "sha256": "08b72a286da96b76da68c1752eb544dee72e825becee4d4de49283d2de52fac1",
+      "size": 189806
+    },
+    "cmd/wkchatlifecycle/budget_downward_test.go": {
+      "sha256": "727fe4f18b80f69c6e9cc4f7735ea66b8e3e5e9cd0d8e304a93ead8688000683",
+      "size": 1773
+    },
+    "cmd/wkchatlifecycle/main.go": {
+      "sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72",
+      "size": 17021
+    },
+    "cmd/wkcli/internal/benchmark/budget_downward_test.go": {
+      "sha256": "2c03ef872ea819f5983c4e42ea748c235e84f6d2d3123cfa5260289cb4a325f4",
+      "size": 2040
+    },
+    "cmd/wkcli/internal/benchmark/formal_chain_command.go": {
+      "sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0",
+      "size": 17480
+    },
+    "docs/development/FLOW_INDEX.md": {
+      "sha256": "b4f9aaf699a1fd9391c1c05753b29242c810aeb310947545033f81fad3c24dc0",
+      "size": 19368
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "ee5dbad91b121b7e411251f2c368ae5abf6a38169343bbb42dfa1ce497963c95",
+      "size": 143006
+    },
+    "internal/usecase/chatlifecyclerun/FLOW.md": {
+      "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf",
+      "size": 3772
+    },
+    "internal/usecase/chatlifecyclerun/budget_downward_test.go": {
+      "sha256": "154b6b40db3a5b5b6dfbec3736d9d7fd2e5acb34e1b80c73801412993c90fce9",
+      "size": 3890
+    },
+    "internal/usecase/chatlifecyclerun/run.go": {
+      "sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887",
+      "size": 25696
+    },
+    "internal/usecase/clouddeploy/FLOW.md": {
+      "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711",
+      "size": 4737
+    },
+    "internal/usecase/clouddeploy/budget_downward_test.go": {
+      "sha256": "e8f5f62c19e7776a95928056da892b956861e44ba18f036cf11706804244d736",
+      "size": 2135
+    },
+    "internal/usecase/clouddeploy/deployment.go": {
+      "sha256": "b1099deaa151575db01edcb0f2705ca87b291272378d5bae5e56a5530a74fbf2",
+      "size": 33434
+    },
+    "scripts/chat-lifecycle/authenticate-released-preclock.py": {
+      "sha256": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd",
+      "size": 45040
+    },
+    "scripts/chat-lifecycle/select-formal-transition-committed.jq": {
+      "sha256": "1bc9a9231d306d230331fc2ce9fe6eeed00a4589ea4efeea4eefa9b7f92d16a8",
+      "size": 396
+    },
+    "scripts/chat-lifecycle/stage-orchestrate.sh": {
+      "sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7",
+      "size": 48953
+    },
+    "scripts/chat_lifecycle_downward_budget_consumers_integration_test.go": {
+      "sha256": "fc9307c5d6ecd1cc4ad15a2d56948376786888735b5f3d0e270e993e7fdc5df3",
+      "size": 19200
+    },
+    "scripts/chat_lifecycle_downward_budget_consumers_test.go": {
+      "sha256": "c3aa906f6a8998cb2eda71915a0c8ba3f9abe4e2b24f35a2d2b2dcedb4d8b459",
+      "size": 4277
+    },
+    "scripts/chat_lifecycle_downward_budget_integration_test.go": {
+      "sha256": "c8c1f564f0d0dd30fd07c97bdfcc18f2ee0dbbd73bf1652d546783c1f387642a",
+      "size": 4683
+    },
+    "scripts/chat_lifecycle_downward_budget_test.go": {
+      "sha256": "b78523d7855b9b8e298ffe04edbafb61292c2b873f2af50db097736bb46cb143",
+      "size": 7470
+    },
+    "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go": {
+      "sha256": "4247c4629df72ae67b1735fe6d5e33f9f6a1e6300a25bb7e331a3eddedd2f679",
+      "size": 5607
+    },
+    "scripts/chat_lifecycle_workflows_test.go": {
+      "sha256": "aa954c4920a2f5900524a00681fbf37d2c061ba24d5506d54b683bd036188957",
+      "size": 90203
+    }
+  }
+}

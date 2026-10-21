@@ -1,0 +1,11 @@
+{
+  "observed_at": "2026-10-21T15:24:27.724563+00:00",
+  "commit_by": "parent/root after its independent source/index verification",
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "original_base": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "worktree_clean": true,
+  "all_27_worktree_and_committed_blob_hashes_match_freeze_v2": true,
+  "named_checks_binding": "Named v2 checks ran on the exact frozen source bytes before this commit; tested HEAD then was ff0aa096fe1bd125be70fc1844b2f45cc7f0115e with the frozen uncommitted patch. This identity check does not claim a newly run clean-commit suite.",
+  "paid_or_workflow_execution": false
+}

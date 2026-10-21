@@ -1,0 +1,19 @@
+--- FAIL: TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification (0.00s)
+    chat_lifecycle_downward_budget_consumers_test.go:45: missing consumer step Upload rehearsal zero-inventory proof
+--- FAIL: TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell (2.36s)
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/above_hard (0.30s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:364: aggregate boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/above_hard (0.32s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:364: aggregate boundary wantOK=false: <nil>: 
+--- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell (4.71s)
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/at_stop (0.31s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/above_stop (0.27s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/at_stop (0.27s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+    --- FAIL: TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/above_stop (0.27s)
+        chat_lifecycle_downward_budget_consumers_integration_test.go:319: transition boundary wantOK=false: <nil>: 
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	7.598s
+FAIL

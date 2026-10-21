@@ -1,0 +1,82 @@
+{
+  "at": "2026-10-21T14:53:58.297061+00:00",
+  "owned_container_count": 8,
+  "remaining_total": 0,
+  "label_checks": [
+    {
+      "path": "inspect-key-callback-rocky.receipt.json",
+      "label": "filetype-2ea64f4118974e74b6e4fc4872a76bed",
+      "container_id": "9f12df72a39bdc106066a219db490be77b24c7b560d527a93c93c95fbe5d526d",
+      "probe_exit_code": 0,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "2a04d3d468a9ed15152dc3752814bb54eb2106525e7a4c88ce6b4b2b797a32ff"
+    },
+    {
+      "path": "inspect-key-import-rocky.receipt.json",
+      "label": "filetype-8a449cf6643e4c71964ab2ed152bf0d0",
+      "container_id": "937c34d2421d2317c489e1d385981dd993a99064a19e5402da6a97193271bee0",
+      "probe_exit_code": 0,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "05525c239977d4c41c44b67411e8c566a458b4bbe896405fcbfad7ebf0736492"
+    },
+    {
+      "path": "replay-public-key-import-rocky.receipt.json",
+      "label": "filetype-d5f21ee5d4d74f239b16113884f98a89",
+      "container_id": "939ded7ee436f74611bb107069b07bba2d6d898c3b6fb9c05041c9fca51b052d",
+      "probe_exit_code": 1,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "bdb95fca4b0ff2cab682cca90609880c36e226e171ef7605b819227550628169"
+    },
+    {
+      "path": "replay-signed-metadata-rocky.receipt.json",
+      "label": "filetype-5adb33455b324af9be359d446fbfc142",
+      "container_id": "258d9b91feea3f088a1a65cd43db9a98647a6e6ffdf403748491dd0b7f0061e7",
+      "probe_exit_code": 1,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "9775acb6368f44b327e3ffdea0f19c2b03746e7351264164e3563046f9242d99"
+    },
+    {
+      "path": "replay-signed-metadata-v2-rocky.receipt.json",
+      "label": "filetype-97276fea4df34de4b348e5f532beee0a",
+      "container_id": "4de362a5ca68f2e5a927cabb28c68e2e9edea1050c2f8b88fab7e47a11c75961",
+      "probe_exit_code": 1,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "fb3e74b514c07b744a69e0817f598d3c88d6eb5ce74e7b973a3464575d61b290"
+    },
+    {
+      "path": "replay-signed-metadata-v3-rocky.receipt.json",
+      "label": "filetype-7f7e326373614535b90146a6755cd10b",
+      "container_id": "917b4e72ce6506414c951367c762c309b839cb8d6db27fb15e5eaf23841ab72f",
+      "probe_exit_code": 0,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "97c108aa7a56a5db21b90db95c7d10ee19474fc3f0b7c7e8e095322976ab5563"
+    },
+    {
+      "path": "replay-signed-metadata-v4-alma.receipt.json",
+      "label": "filetype-10fcf56df4ae4803b2330713b8bd3adf",
+      "container_id": "446e6fbb7af740a31a6fbb91c98042ae7d4a15030e4c0e6706e2c9d6af853e7d",
+      "probe_exit_code": 0,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "ca21c51f1721a24b8627709c029767bed6d212cd92fe3c6bc514d14c7ce776c2"
+    },
+    {
+      "path": "replay-signed-metadata-v4-rocky.receipt.json",
+      "label": "filetype-6dfb074236264f08b2c09f3164ce6297",
+      "container_id": "85238221e31c0bb8eff688fe6ab20b0e1668bbcbe16bdee206179bfc97de4a3a",
+      "probe_exit_code": 0,
+      "cleanup_verified": true,
+      "remaining": [],
+      "sha256": "9835376b20dde7ff25ca4c87d66e28aea1b8bee64bcd64a348500f5ae0820afd"
+    }
+  ],
+  "network_created": false,
+  "volume_created": false,
+  "fixture_private_keys": "ephemeral container tmpfs only; removed before native load in successful probes; containers removed for all probes"
+}
