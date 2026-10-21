@@ -1,0 +1,191 @@
+package replication
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+)
+
+func TestQuorumLogInstallClassifiesOnlyProvedBarrierRepairPending(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		faults   map[ch.NodeID]string
+		voters   int
+		quorum   int
+		pending  bool
+		success  bool
+		canceled bool
+	}{
+		{name: "healthy", success: true},
+		{name: "all_remote_need_from", faults: map[ch.NodeID]string{2: "need_from", 3: "need_from"}, pending: true},
+		{name: "quorum3_local_and_one_durable_rest_need_from", voters: 4, quorum: 3, faults: map[ch.NodeID]string{3: "need_from", 4: "need_from"}, pending: true},
+		{name: "one_need_from_with_healthy_quorum", faults: map[ch.NodeID]string{2: "need_from"}, success: true},
+		{name: "need_from_and_conflict", faults: map[ch.NodeID]string{2: "need_from", 3: "conflict"}},
+		{name: "need_from_and_unknown", faults: map[ch.NodeID]string{2: "need_from", 3: "unknown"}},
+		{name: "need_from_and_backpressure", faults: map[ch.NodeID]string{2: "need_from", 3: "backpressure"}},
+		{name: "need_from_and_submit_failure", faults: map[ch.NodeID]string{2: "need_from", 3: "submit_failure"}},
+		{name: "all_backpressure", faults: map[ch.NodeID]string{2: "backpressure", 3: "backpressure"}},
+		{name: "all_unknown", faults: map[ch.NodeID]string{2: "unknown", 3: "unknown"}},
+		{name: "local_unknown_remote_need_from", faults: map[ch.NodeID]string{1: "unknown", 2: "need_from", 3: "need_from"}},
+		{name: "local_not_written_remote_need_from", faults: map[ch.NodeID]string{1: "backpressure", 2: "need_from", 3: "need_from"}},
+		{name: "local_conflict_remote_need_from", faults: map[ch.NodeID]string{1: "conflict", 2: "need_from", 3: "need_from"}},
+		{name: "need_from_zero", faults: map[ch.NodeID]string{2: "need_from_zero", 3: "need_from"}},
+		{name: "need_from_beyond_barrier", faults: map[ch.NodeID]string{2: "need_from_beyond_barrier", 3: "need_from"}},
+		{name: "need_from_wrong_follower", faults: map[ch.NodeID]string{2: "need_from_wrong_follower", 3: "need_from"}},
+		{name: "need_from_wrong_cause", faults: map[ch.NodeID]string{2: "need_from_wrong_cause", 3: "need_from"}},
+		{name: "need_from_wrong_outcome", faults: map[ch.NodeID]string{2: "need_from_wrong_outcome", 3: "need_from"}},
+		{name: "canceled", canceled: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.voters == 0 {
+				tt.voters = 3
+			}
+			if tt.quorum == 0 {
+				tt.quorum = 2
+			}
+			voters := make([]ch.NodeID, tt.voters)
+			for i := range voters {
+				voters[i] = ch.NodeID(i + 1)
+			}
+			h := newReplicaHarness(t, voters...)
+			a := Authority{Key: "1:barrier-pending", ChannelID: ch.ChannelID{ID: "barrier-pending", Type: 1},
+				ID: AuthorityID{ChannelEpoch: 3, LeaderTerm: 6, FenceVersion: 8}, Leader: 1, Voters: voters, WriteQuorum: tt.quorum}
+			original, _ := recoveryMutationAfter(t, a.Key, a.ChannelID, 41, 0, ch.EntryIdentity{})
+			original.Committed = 1
+			stores := make(map[ch.NodeID]channelstore.ChannelStore, len(voters))
+			before := make(map[ch.NodeID]channelstore.ReadCommittedResult, len(voters))
+			for _, voter := range voters {
+				seed := h.stores[voter].Sync(context.Background(), []Mutation{original})
+				if len(seed) != 1 || !seed[0].Outcome.Durable() || seed[0].Err != nil {
+					t.Fatalf("seed voter %d: %+v", voter, seed)
+				}
+				store, err := h.stores[voter].(*storeAdapter).cfg.Factory.ChannelStore(a.Key, a.ChannelID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stores[voter] = store
+				before[voter] = barrierPendingHistory(t, store)
+				if len(before[voter].Messages) != 1 || before[voter].Messages[0].MessageID != 41 {
+					t.Fatalf("seed history voter %d: %+v", voter, before[voter])
+				}
+			}
+			dispatcher := &barrierPendingDispatcher{replicaHarness: h, faults: tt.faults}
+			log, err := newQuorumLog(quorumLogConfig{Local: 1, Store: h.stores[1], Recovery: h, Durability: dispatcher,
+				RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10, MaxChannels: 8, MaxVoters: tt.voters,
+				MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			if tt.canceled {
+				canceled, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = canceled
+			}
+			installed, installErr := log.Install(ctx, a)
+			if (installErr == nil) != tt.success || errors.Is(installErr, ch.ErrNotReady) != tt.pending {
+				t.Errorf("Install error=%v ready=%v; want success=%v pending=%v", installErr, errors.Is(installErr, ch.ErrNotReady), tt.success, tt.pending)
+			}
+			if tt.pending && !errors.Is(installErr, errDurableQuorumUnavailable) {
+				t.Errorf("pending Install lost original quorum failure: %v", installErr)
+			}
+			if tt.canceled && !errors.Is(installErr, context.Canceled) {
+				t.Errorf("cancellation lost: %v", installErr)
+			}
+			state := log.channels[a.Key]
+			if tt.success {
+				if installed.HW != 2 || state == nil || !state.ready {
+					t.Errorf("healthy recovery did not grant exact frontier: %+v state=%+v", installed, state)
+				}
+			} else {
+				if installed != (Installed{}) || (state != nil && (state.ready || state.hw != 0 || state.frontier != (ReplicaState{}))) {
+					t.Errorf("failed barrier granted readiness/frontier: %+v state=%+v", installed, state)
+				}
+				if !tt.canceled {
+					_, err := log.Commit(context.Background(), Proposal{Key: a.Key, Expected: a.ID, CommandID: ch.CommandID{31: 99},
+						Records: []ch.Record{{ID: 99, Epoch: 3, Payload: []byte("not-admitted"), SizeBytes: 12, ServerTimestampMS: 99}}})
+					if !errors.Is(err, ch.ErrNotReady) {
+						t.Errorf("failed recovery opened business admission: %v", err)
+					}
+				}
+			}
+			for _, voter := range voters {
+				if got := barrierPendingHistory(t, stores[voter]); !reflect.DeepEqual(got, before[voter]) {
+					t.Errorf("failed/recovered attempt changed old history at voter %d: %+v", voter, got)
+				}
+			}
+			// Remove only the controlled completion fault. This checks retry safety,
+			// not follower catch-up scheduling or the cause of a real E2E failure.
+			dispatcher.faults = nil
+			recovered, err := log.Install(context.Background(), a)
+			if err != nil || recovered.HW != 2 {
+				t.Errorf("Install after removing fault: %+v err=%v", recovered, err)
+			}
+			for _, voter := range voters {
+				if got := barrierPendingHistory(t, stores[voter]); !reflect.DeepEqual(got, before[voter]) {
+					t.Errorf("recovery changed original history at voter %d: %+v", voter, got)
+				}
+			}
+		})
+	}
+}
+
+func barrierPendingHistory(t *testing.T, store channelstore.ChannelStore) channelstore.ReadCommittedResult {
+	t.Helper()
+	read, err := store.ReadCommitted(context.Background(), channelstore.ReadCommittedRequest{FromSeq: 1, MinSeq: 1, MaxSeq: 1, Limit: 2, MaxBytes: 64 << 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return read
+}
+
+type barrierPendingDispatcher struct {
+	*replicaHarness
+	faults map[ch.NodeID]string
+}
+
+func (d *barrierPendingDispatcher) submitLocal(ctx context.Context, p durableProposal, complete func(durabilityCompletion)) error {
+	return d.submitFault(ctx, 1, p, complete)
+}
+
+func (d *barrierPendingDispatcher) submitReplica(ctx context.Context, voter ch.NodeID, p durableProposal, complete func(durabilityCompletion)) error {
+	return d.submitFault(ctx, voter, p, complete)
+}
+
+func (d *barrierPendingDispatcher) submitFault(_ context.Context, voter ch.NodeID, p durableProposal, complete func(durabilityCompletion)) error {
+	kind := d.faults[voter]
+	if kind == "" {
+		d.replicaHarness.submit(voter, p, complete)
+		return nil
+	}
+	if kind == "submit_failure" {
+		return ch.ErrBackpressured
+	}
+	c := durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: errReplicaNeedsRepair, follower: voter, needFrom: p.last}
+	switch kind {
+	case "need_from":
+	case "need_from_zero":
+		c.needFrom = 0
+	case "need_from_beyond_barrier":
+		c.needFrom = p.last + 1
+	case "need_from_wrong_follower":
+		c.follower = voter + 10
+	case "need_from_wrong_cause":
+		c.err = ch.ErrBackpressured
+	case "need_from_wrong_outcome":
+		c.outcome = ch.AppendOutcomeUnknown
+	case "conflict":
+		c = durabilityCompletion{outcome: ch.AppendOutcomeConflict, err: ch.ErrLogConflict}
+	case "unknown":
+		c = durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errPeerOutcomeUnknown}
+	case "backpressure":
+		c = durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: ch.ErrBackpressured}
+	}
+	complete(c)
+	return nil
+}
