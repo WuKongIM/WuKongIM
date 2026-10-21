@@ -1,0 +1,9 @@
+{
+  "expected_intent_sha256": "sha256:c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85",
+  "expected_intent_bytes": 1627,
+  "source_control_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "expected_regular_files_max_including_manifest": 2048,
+  "bundle_digest_algorithm": "sha256:SHA256(concat(sorted_by_path_UTF8(file.path + NUL + decimal(file.mode) + NUL + decimal(file.size) + NUL + lowercase_hex(SHA256(file.bytes)) + LF))) excluding bundle-manifest.json",
+  "actual_run_evidence_verified": false,
+  "actual_bundle_verified": false
+}

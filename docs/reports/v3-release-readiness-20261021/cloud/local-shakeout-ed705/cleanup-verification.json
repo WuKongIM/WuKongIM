@@ -1,0 +1,103 @@
+{
+  "observed_at": "2026-10-21T06:31:31.781511+00:00",
+  "owned_processes": [
+    {
+      "name": "coordinator",
+      "pid": 15665,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15665 13829 13829 Wed Oct 21 14:23:03 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "host-metrics-1",
+      "pid": 15403,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15403 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "host-metrics-2",
+      "pid": 15433,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15433 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "host-metrics-3",
+      "pid": 15463,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15463 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "host-metrics-load",
+      "pid": 15506,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15506 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "process-metrics-collector",
+      "pid": 15752,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15752 13829 13829 Wed Oct 21 14:23:03 2026     bash"
+    },
+    {
+      "name": "service-1",
+      "pid": 15264,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15264 13829 13829 Wed Oct 21 14:22:35 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wukongim"
+    },
+    {
+      "name": "service-2",
+      "pid": 15270,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15270 13829 13829 Wed Oct 21 14:22:35 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wukongim"
+    },
+    {
+      "name": "service-3",
+      "pid": 15277,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15277 13829 13829 Wed Oct 21 14:22:35 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wukongim"
+    },
+    {
+      "name": "worker-1",
+      "pid": 15391,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15391 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "worker-2",
+      "pid": 15421,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15421 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    },
+    {
+      "name": "worker-3",
+      "pid": 15451,
+      "alive": false,
+      "identity_after": "",
+      "identity_before": "15451 13829 13829 Wed Oct 21 14:23:02 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli"
+    }
+  ],
+  "all_recorded_pids_exited": true,
+  "listener_command": [
+    "lsof",
+    "-nP",
+    "-iTCP:15000-15063",
+    "-sTCP:LISTEN"
+  ],
+  "listener_exit_code": 1,
+  "listeners_stdout": "",
+  "listeners_stderr": "",
+  "all_configured_ports_closed": true,
+  "available_bytes": 783767748608,
+  "available_percent": 78.797349067254,
+  "local_tmp_files": []
+}

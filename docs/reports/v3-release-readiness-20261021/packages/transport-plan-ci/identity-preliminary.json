@@ -1,0 +1,14 @@
+{
+  "observed_at": "2026-10-21T06:26:42.299261+00:00",
+  "pr": 68,
+  "head_sha": "09360d07d0bffa3258be252d7730902041026ba8",
+  "pr_merge_sha": "c69c3208a2b0f8f8a70ecadb400474a324cfe660",
+  "same_tree": "69dface82da5728544aeb217e8f48e7ea0057343",
+  "pages_checkout_verified_from_log": "c69c3208a2b0f8f8a70ecadb400474a324cfe660",
+  "native_checkout_pending_log_verification": true,
+  "workflow_sources": {
+    ".github/workflows/pages.yml": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+    ".github/workflows/native-package-repository-drill.yml": "38b0d7248c2eb34c86564ca81cce3079bf027eb0ff7ef046769ddc894ddb377b"
+  },
+  "actions": "read-only monitoring; no rerun/cancel/comment/dispatch or production mutation invoked"
+}

@@ -1,0 +1,50 @@
+{
+  "command": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py",
+    "--inputs",
+    "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-real/inputs.json",
+    "--output",
+    "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-real/generation-2/plan.json"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan",
+  "started_at": "2026-10-21T06:19:50.151219+00:00",
+  "environment_allowlist": [
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "LC_ALL",
+    "PYTHONDONTWRITEBYTECODE"
+  ],
+  "source_script_sha256": {
+    "scripts/archive-package-snapshot.py": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+    "scripts/bind-audit-release.py": "58c2894babc0050fc643a0c65b7deaf05fb3e7e7fd66aff7ee564489deeddbe8",
+    "scripts/build-repository-bootstrap-packages.py": "bfc5ce71b422eda9695c3a915af83cbb8eb025651e4bcace0f5051c981adcf0b",
+    "scripts/compose-package-site.py": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+    "scripts/derive-rpm-allowlists.py": "4cade66db6133824e14a1d61b5d80a2440a96e2696e4c53b12cf210a366aeffe",
+    "scripts/package-audit-receipt.py": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+    "scripts/plan-object-storage-publication.py": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+    "scripts/plan-package-publication.py": "9fb416a831c24ad0d67bb3807b7c32c38c41135b306661fc528e42e5f2575245",
+    "scripts/prepare-package-site.py": "cd2be85e77cba38e6abece92d011aa2f21e5e4e000be379952d2599a243ae5ad",
+    "scripts/resolve-audit-release.py": "af6920b22067dc57ff6f72a231af6a2a620308da2bb4b9064eb1d145767337c7",
+    "scripts/resolve-source-release.py": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+    "scripts/seal-audit-release.py": "457864ca8f690eeacdefaa05a36f6e2f2789457f065b0fed2f1e98d78cdf8f3a",
+    "scripts/sign-package-family.py": "f2655db378d2b6d9dbda8cca08fa0123e4db56519187aa054db6e18a64f0d893",
+    "scripts/validate-control.py": "7b6243bdb1d76c8cb032bc9db76a89205bd464757d26e7fac5ad30e2dc1b63bf",
+    "scripts/validate-installed-wkcli.py": "c4c73f4ef4de8e84f8947cdffe0194ab8ee38f4844fcd707219ff8299dc4d8e0",
+    "scripts/validate-production-package-clients.py": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a",
+    "scripts/validate-signing-material.py": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+    "scripts/verify-production-package-site.py": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+    "scripts/verify-source-attestations.py": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+    "scripts/verify-source-package-metadata.py": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a"
+  },
+  "offline": true,
+  "previous_attempt": "../planner-command.json",
+  "previous_planner_sha256": "27ddc3fea6217bdb978e6e62b89f7c1647051b168aa6c1da8ef3e7ee2790acc6",
+  "input_sha256": "fc47ed9e23a2a3ede593beaeac89f24c62e068da4edf656f4434e0af295a3775",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T06:19:51.530358+00:00",
+  "source_scripts_unchanged": true,
+  "output_exists": true,
+  "temporary_contents_remaining": []
+}

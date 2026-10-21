@@ -24,8 +24,13 @@ regression attempts; it is not a published release or a long-run qualification.
 - `cloud/`: bounded read-only preparation audit, exact public configuration,
   frozen control sources, historical cleanup payloads and their limitations.
   This does not establish today's provider inventory or authorize procurement.
-  `local-shakeout-preconditions.json` records the current host below the existing
-  5-percent disk reserve; no local 30-minute run was attempted.
+  `local-shakeout-preconditions.json` records the initial host below the existing
+  5-percent disk reserve; no local 30-minute run had then been attempted.
+  `disk-followup/` measures the same reserve after merge and inventories only
+  previously recorded task output paths. Even all those outputs are too small
+  to recover the missing capacity; no files were deleted or workload attempted
+  during that audit. Later free-space recovery and the first workload are
+  separately recorded below.
 - `ci/session-cleanup-probes/`, `ci/candidate-workflow-validation.json`,
   `review.md`: original cross-PGID cleanup failure, real-process macOS probes,
   static validation and independent review. Linux results are separate CI evidence.
@@ -64,6 +69,31 @@ regression attempts; it is not a published release or a long-run qualification.
 - `packages/stable-signing-user-confirmation.json`: evolving user statements.
   NAS availability supplies a potential encrypted-backup location, not an
   established offline/hardware signing environment or generated stable keys.
+- `packages/object-storage-plan/`, `packages/transport-plan-review/`:
+  failure-first implementation, independent resource-limit finding and fix,
+  then ordinary-name RPM metadata support with complete closure validation.
+  The two generations and their rejection evidence remain distinct.
+- `packages/transport-plan-real/`: complete public beta.24 archive digest and
+  historical identity anchors; first unsupported-metadata rejection and the
+  subsequent successful 44-file plan. The large tar is excluded. This is byte
+  and structural consistency evidence, not cryptographic or client acceptance.
+- `packages/transport-plan-delivery.json`: historical draft PR #68 identity;
+  `packages/transport-plan-archive.json` records the bounded allowlist copies.
+- `packages/transport-plan-ci/`: both first-attempt #68 PR checks, 373 Python
+  tests and the TEST ONLY native drill; actual merge/head trees match.
+- `packages/transport-plan-merge/`: separately user-approved #68 normal rebase
+  merge to `45619df14`, identical approved tree, unchanged protection, and
+  373 passing postmerge tests. All Pages publication steps were skipped.
+- `cloud/bundle-ed705/`: first credential-free offline bundle build and full
+  artifact verification against exact ed705 source/control; no cloud resources
+  or deployment. The archive excludes the large raw artifact.
+- `cloud/local-shakeout-ed705/`: frozen first 30-minute precheck attempt after
+  disk recovery. It failed early with grant `offered_load_under_delivery` and
+  produced no final report. Running cuts do not establish full correctness;
+  all 12 owned processes and 64 reserved ports were independently cleaned.
+- `postmerge-preparation-archive.json`,
+  `planner-merge-and-shakeout-archive.json`: verified allowlist copies and
+  original-file hashes for these new bounded receipts.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.

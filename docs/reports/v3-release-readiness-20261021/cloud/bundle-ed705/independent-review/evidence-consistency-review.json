@@ -1,0 +1,85 @@
+{
+  "schema": "wukongim.readiness.bundle_evidence_consistency_review/v1",
+  "status": "consistent_with_declared_evidence",
+  "reviewed_at": "2026-10-21T06:38:25.517866+00:00",
+  "run_id": 39555917411,
+  "run_attempt": 1,
+  "artifact_id": 12325112901,
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "control_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "bundle_digest": "sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a",
+  "expected_intent_byte_equality": true,
+  "manifest_record_digest_independently_recomputed": true,
+  "manifest_inventory_records": 109,
+  "regular_files_reported_by_primary_verifier": 110,
+  "primary_verifier_suggestions_incorporated": [
+    "exact independent canonical intent bytes",
+    "small ZIP document limits checked before read-all",
+    "explicit regular/directory tar types, sparse exclusion and regular ancestor checks"
+  ],
+  "checks_completed": [
+    "strict duplicate-key JSON parsing of inspected small evidence",
+    "run/artifact/request/source/control identity consistency",
+    "all declared expected job steps completed successfully on attempt 1",
+    "artifact name/ZIP SHA/size agreement across metadata, receipt and log excerpts",
+    "embedded intent exact byte agreement with independently reconstructed frozen-source expectation",
+    "manifest bytes SHA and ordered record bundle digest recomputation",
+    "manifest record field types, paths, uniqueness, ordering, modes and byte/count sums",
+    "nine declared binary ELF pass receipts agree with exact expected binary set"
+  ],
+  "inspected_files": [
+    {
+      "path": "verify-artifact.py",
+      "bytes": 8372,
+      "sha256": "613f6cb9f23fd76f10586d45b1e597c2cea1f65fd33fc9bfc3e9f2b2e53316a4"
+    },
+    {
+      "path": "verified/verification.json",
+      "bytes": 1378,
+      "sha256": "fd028471b266f47376ed94100d25a815f1a212bdb469d8d5fbb9dc766469fc0c"
+    },
+    {
+      "path": "verified/bundle-manifest.json",
+      "bytes": 21151,
+      "sha256": "fe9a15da9bfad8e4c121c790850f71cd42c3c24a47aeaacb3360ffc4cf97fc3e"
+    },
+    {
+      "path": "verified/deployment-intent.json",
+      "bytes": 1627,
+      "sha256": "c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85"
+    },
+    {
+      "path": "run-evidence.json",
+      "bytes": 2624,
+      "sha256": "e9fc0ebce4bda3c620d24ac23ef0e71ffcb83c6181d4d13c84a690492fee41d2"
+    },
+    {
+      "path": "artifact-metadata.json",
+      "bytes": 834,
+      "sha256": "c340f135c1a5861b064cf5e85f139e91d7295dc296c2542da9165bc6a18e8ce4"
+    },
+    {
+      "path": "job-evidence-excerpts.log",
+      "bytes": 4351,
+      "sha256": "10530e0fe9d0ee22eafc0e45e41a84e03354b32b2884cfaf81a018f827c92a77"
+    },
+    {
+      "path": "independent-review/expected-deployment-intent.json",
+      "bytes": 1627,
+      "sha256": "c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85"
+    }
+  ],
+  "not_performed": [
+    "did not re-download or independently authenticate GitHub API responses",
+    "did not reread or rehash ZIP, tar.gz, payload members, binary headers or original full job log",
+    "did not execute verify-artifact.py, payload code, build or test commands",
+    "did not inspect actual tar directory/extension/trailing records independently of the primary verifier",
+    "did not access cloud, credentials, hosts, procurement, activation, signing or publication"
+  ],
+  "remaining_limits": [
+    "This is a read-only second review of small evidence, not a second full artifact hashing pass. Primary streaming verification remains the source for archive/payload byte claims.",
+    "The script does not enforce a count of root/directory-only entries and relies on tarfile handling of extension records; it never extracts or executes the payload, and this review does not broaden its selected-static-semantics claim.",
+    "No new blocking inconsistency found for this exact offline bundle. No GA, live deployment, soak, Linux performance or signed package publication conclusion follows."
+  ],
+  "prior_static_report_note": "static-audit-summary.json is the original pre-run static audit; its false actual-run/artifact flags are historical and intentionally retained."
+}

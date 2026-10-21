@@ -1,0 +1,27 @@
+{
+  "base_commit": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "cli_receipts": [
+    {
+      "plan_sha256": "30b62d086dfc7dd9724fab3cdc8a9ae0b6831f82116eaade2214e37c76768070",
+      "plan_size": 42696,
+      "schema": "wukongim.object_storage_plan_receipt/v1",
+      "snapshot_count": 2,
+      "status": "plan_only"
+    },
+    {
+      "plan_sha256": "30b62d086dfc7dd9724fab3cdc8a9ae0b6831f82116eaade2214e37c76768070",
+      "plan_size": 42696,
+      "schema": "wukongim.object_storage_plan_receipt/v1",
+      "snapshot_count": 2,
+      "status": "plan_only"
+    }
+  ],
+  "fixture": "TEST ONLY synthetic certificates/signatures and packages; plain gzip RPM metadata",
+  "fixture_files_created": 161,
+  "input_files_unchanged": true,
+  "note": "Temporary fixture automatically removed; reproduce with this script against the frozen patch.",
+  "planner_sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+  "repeat_bytes_identical": true,
+  "schema": "wukongim.object_storage_planner_local_acceptance/v1",
+  "snapshot_count": 2
+}

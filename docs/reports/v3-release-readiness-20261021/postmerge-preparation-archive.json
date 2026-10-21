@@ -1,0 +1,410 @@
+{
+  "recorded_at": "2026-10-21T06:40:24.699678+00:00",
+  "copies": [
+    {
+      "path": "cloud/bundle-ed705/ARCHIVE_ALLOWLIST.json",
+      "bytes": 5847,
+      "sha256": "8ad855ba51669ee52663b88696d133351560611a0d05fc600a479e88b44089dc",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/ARCHIVE_ALLOWLIST.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/README.md",
+      "bytes": 2824,
+      "sha256": "36d60ff112037797313ae8cab344b68a906534c5cf15904fe6c74e488f230739",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/README.md"
+    },
+    {
+      "path": "cloud/bundle-ed705/SHA256SUMS",
+      "bytes": 3255,
+      "sha256": "95ab0c58c354011c2d440dc11d7279bcdf85dbda5927126a3fceba8625bbc2b7",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/SHA256SUMS"
+    },
+    {
+      "path": "cloud/bundle-ed705/archive-allowlist.txt",
+      "bytes": 890,
+      "sha256": "a0bc180f4ddda135ba44568facf96bdc076de137bcdf5dfb30381c5b973c3fc8",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/archive-allowlist.txt"
+    },
+    {
+      "path": "cloud/bundle-ed705/artifact-metadata.json",
+      "bytes": 834,
+      "sha256": "c340f135c1a5861b064cf5e85f139e91d7295dc296c2542da9165bc6a18e8ce4",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/artifact-metadata.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/artifacts.json",
+      "bytes": 959,
+      "sha256": "644d0b37b06f50f8fe8ddf42ac3ddb207e24afa386730ce8938665e229a489a0",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/artifacts.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/dispatch-attempt.json",
+      "bytes": 310,
+      "sha256": "580dd1bd8c9a3591155e695db2323772f24277a8a55dd437a0504a1fa728f13f",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/dispatch-attempt.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/dispatch-input.json",
+      "bytes": 149,
+      "sha256": "7eef7fed7ae4b5eda6b23b5992f0d195ae4a89bf699f16d72b8b7503001306dc",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/dispatch-input.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/dispatch-response.txt",
+      "bytes": 1353,
+      "sha256": "0330efe482a2d7f2b9b40f46c5fb70045c7796dd43483a651b2e8613cc084aa6",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/dispatch-response.txt"
+    },
+    {
+      "path": "cloud/bundle-ed705/dispatch-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/dispatch-stderr.txt"
+    },
+    {
+      "path": "cloud/bundle-ed705/download-receipt.json",
+      "bytes": 293,
+      "sha256": "e08238b1784af4f39cdb0e6e18c130d229c8720121be8b69c4dc6797d0c8fb92",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/download-receipt.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/independent-review/SHA256SUMS",
+      "bytes": 449,
+      "sha256": "09108151d72831a5cef6354809415526f1a11cc7e83aa88f5d1c3d48540ff33c",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/SHA256SUMS"
+    },
+    {
+      "path": "cloud/bundle-ed705/independent-review/audit.md",
+      "bytes": 10871,
+      "sha256": "aa4a40b71a2791c75d0750b93f898783e1a874fabb28112509496d9d2a3e72d1",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/audit.md"
+    },
+    {
+      "path": "cloud/bundle-ed705/independent-review/evidence-consistency-review.json",
+      "bytes": 4193,
+      "sha256": "47a38a86ca368b4d3d2dc7fd9c72c8b5a19eaa10c0d50032ff3e617f15fddd6a",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/evidence-consistency-review.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/independent-review/expected-deployment-intent.json",
+      "bytes": 1627,
+      "sha256": "c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/expected-deployment-intent.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/independent-review/source-freeze.json",
+      "bytes": 3445,
+      "sha256": "0d6bcd7a56d633ff4ea0c56c595cfce1c782570468ce5eaba77d7f796c15d7f5",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/source-freeze.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/independent-review/static-audit-summary.json",
+      "bytes": 558,
+      "sha256": "2935f009cd352513a5ecf94d9f2b5a9ba4ccfdef89eedc80588ac8a63d7c1fcb",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/static-audit-summary.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/job-evidence-excerpts.log",
+      "bytes": 4351,
+      "sha256": "10530e0fe9d0ee22eafc0e45e41a84e03354b32b2884cfaf81a018f827c92a77",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/job-evidence-excerpts.log"
+    },
+    {
+      "path": "cloud/bundle-ed705/job-log-fetch.json",
+      "bytes": 40,
+      "sha256": "ed7c6673d91f449fbf4fc06aa849aa5c0a3a221322ab869b035cf542ba05a92b",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/job-log-fetch.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/jobs-final.json",
+      "bytes": 4360,
+      "sha256": "65e0d5ec835b80ea4b5523e527f8bec302dd588574c7e6b2d7a2d90fa54b2089",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/jobs-final.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/main-after.json",
+      "bytes": 371,
+      "sha256": "6933e0fe9cd7de88560f02a6e995e518cd47ecc451690aa670034128008a8c54",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/main-after.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/main-before.json",
+      "bytes": 332,
+      "sha256": "1426564a93fd6ab747d406abbb1d855dad798d89ae2d48029d2641eb814e1798",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/main-before.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/main-dispatch-fence.json",
+      "bytes": 371,
+      "sha256": "6933e0fe9cd7de88560f02a6e995e518cd47ecc451690aa670034128008a8c54",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/main-dispatch-fence.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/rules-and-identity-freeze.json",
+      "bytes": 1964,
+      "sha256": "dfa4425bba85a35e48302fba40478d55c01d6042103a9307c39e340e842258a4",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/rules-and-identity-freeze.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/run-evidence.json",
+      "bytes": 2624,
+      "sha256": "e9fc0ebce4bda3c620d24ac23ef0e71ffcb83c6181d4d13c84a690492fee41d2",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/run-evidence.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/run-final.json",
+      "bytes": 14764,
+      "sha256": "f2060454fb51118710837e4d477d5db858e11d2564cb2a98223a57cc8877401b",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/run-final.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/run-initial.json",
+      "bytes": 17419,
+      "sha256": "78ed60745dfc204bc1abae6f1a4dcd0e39bf6152357298573caa7c2af20f7d42",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/run-initial.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/runs-before.json",
+      "bytes": 525679,
+      "sha256": "fb0c0e495367220b42a43887927590f66aa9f797c7a30c369b6f36c90880811b",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/runs-before.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/summary.json",
+      "bytes": 3226,
+      "sha256": "8cd080107eb1c7dfdf41710222c380b56c38dd552bf619b0a4109f9cb352bc8d",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/summary.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/verification.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verification.stderr"
+    },
+    {
+      "path": "cloud/bundle-ed705/verification.stdout",
+      "bytes": 1378,
+      "sha256": "fd028471b266f47376ed94100d25a815f1a212bdb469d8d5fbb9dc766469fc0c",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verification.stdout"
+    },
+    {
+      "path": "cloud/bundle-ed705/verified/bundle-manifest-output.json",
+      "bytes": 21151,
+      "sha256": "fe9a15da9bfad8e4c121c790850f71cd42c3c24a47aeaacb3360ffc4cf97fc3e",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verified/bundle-manifest-output.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/verified/bundle-manifest.json",
+      "bytes": 21151,
+      "sha256": "fe9a15da9bfad8e4c121c790850f71cd42c3c24a47aeaacb3360ffc4cf97fc3e",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verified/bundle-manifest.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/verified/deployment-intent.json",
+      "bytes": 1627,
+      "sha256": "c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verified/deployment-intent.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/verified/verification.json",
+      "bytes": 1378,
+      "sha256": "fd028471b266f47376ed94100d25a815f1a212bdb469d8d5fbb9dc766469fc0c",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verified/verification.json"
+    },
+    {
+      "path": "cloud/bundle-ed705/verify-artifact.py",
+      "bytes": 8372,
+      "sha256": "613f6cb9f23fd76f10586d45b1e597c2cea1f65fd33fc9bfc3e9f2b2e53316a4",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/verify-artifact.py"
+    },
+    {
+      "path": "cloud/bundle-ed705/workflow-before.json",
+      "bytes": 618,
+      "sha256": "9d5620b0d3acfc5719bf1b665c089c0d2498aa628a57efbf43c9ca4fb645156f",
+      "original": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/workflow-before.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/head-commit.json",
+      "bytes": 1114,
+      "sha256": "86bda7895b50ddb9dda1b28b0912177e70e4b371d1940cae0d51df437708f4cc",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/head-commit.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/identity-preliminary.json",
+      "bytes": 743,
+      "sha256": "27924f2eff0fa8eff4257ff8dbbd1d2f306897dbb14260545fe21b1d94d87a10",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/identity-preliminary.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/merge-commit.json",
+      "bytes": 2602,
+      "sha256": "5ac13be2cf76a29099d766d89c6ff48152354ccd482f18b27ea2394700b38e87",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/merge-commit.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-artifacts-final.json",
+      "bytes": 745,
+      "sha256": "cff20c63cd34ac98a4d36c8f1892a555f874105ea1e36d4fe50a115c4b725604",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-artifacts-final.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-artifacts-initial.json",
+      "bytes": 745,
+      "sha256": "cff20c63cd34ac98a4d36c8f1892a555f874105ea1e36d4fe50a115c4b725604",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-artifacts-initial.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-job.log",
+      "bytes": 174601,
+      "sha256": "1f8558694f8ad49db96e62e24b8bf467c6893a258cd62e67e6aee84912ea67d0",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-job.log"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-jobs-final.json",
+      "bytes": 4199,
+      "sha256": "0540ed7c4adf72fe1f84cbd7f0794b0f7a42a14e508c413613b46d908a158466",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-jobs-final.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-jobs-initial.json",
+      "bytes": 3522,
+      "sha256": "319bbecaf2b7bd52e5a80a6227c9cb09635c13d5008c09ad9a371f8d04c4f5e8",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-jobs-initial.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-jobs-progress-1.json",
+      "bytes": 3745,
+      "sha256": "fb01f7afa49c85679a5dd2b8493d21ab5185b2e6b75d370e9b9dcec5b5412338",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-jobs-progress-1.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-jobs-progress-2.json",
+      "bytes": 3917,
+      "sha256": "18edb6cb53bcaea06090e94c9b17120d14737ec7bd6d611c7701de83e2e082d9",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-jobs-progress-2.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-log-receipt.json",
+      "bytes": 293,
+      "sha256": "26844b38f04c6e5b80b230e8ec7d76314ce4a47b8c95d8ef2fe4ae6ca97897ce",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-log-receipt.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-run-final.json",
+      "bytes": 12460,
+      "sha256": "08c9b0ba0109391556e45107f0cbade56908cfba2591a444c90677de7bf05907",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-run-final.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-source-metadata-artifact-receipt.json",
+      "bytes": 605,
+      "sha256": "c919ffd1b86d1916c69b23cf65df736932c58bede728f25dd31455a4b552c118",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-source-metadata-artifact-receipt.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/native-source-metadata.json",
+      "bytes": 4464,
+      "sha256": "0d2c1010f7802c574c3c4f55e06bee587e45d9116156ea5e5e82c51dcd669543",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/native-source-metadata.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/package-runs-initial.json",
+      "bytes": 24930,
+      "sha256": "d19bc2390d8c601cc68999378b6fa620c19bb57f506e71264c3bd44006a6188d",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/package-runs-initial.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pages-job.log",
+      "bytes": 17932,
+      "sha256": "c242113414a96b19b0bbccb2ee8a836b0781d80107e618be8ac5d59fd1b088f9",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pages-job.log"
+    },
+    {
+      "path": "packages/transport-plan-ci/pages-jobs-final.json",
+      "bytes": 3077,
+      "sha256": "85e31f39511d9f2dfbdf656b587afdd1abec4f314cc43511989659447a0dec4f",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pages-jobs-final.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pages-jobs-initial.json",
+      "bytes": 3077,
+      "sha256": "85e31f39511d9f2dfbdf656b587afdd1abec4f314cc43511989659447a0dec4f",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pages-jobs-initial.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pages-log-receipt.json",
+      "bytes": 292,
+      "sha256": "b766493cbe2f85507db6daad664576b9aa7f2aea958e9e6363392ed14a18cb9b",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pages-log-receipt.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pages-run-final.json",
+      "bytes": 12439,
+      "sha256": "98e6f7b3c31538cf87de40540268312703da45e330b86c31950f7ef3f2640620",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pages-run-final.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pr-68-final.json",
+      "bytes": 17349,
+      "sha256": "828c41a33752ab47a18137c9164d4ab5546ddfe872818911b15b94c6ec7cd595",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pr-68-final.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pr-68-initial.json",
+      "bytes": 17351,
+      "sha256": "02afdb7b2dcaa4c4b8ed9aac0407238df43e3a4223d640c750dc8796ab011d0a",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pr-68-initial.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/pr-body-ci-replacement.md",
+      "bytes": 579,
+      "sha256": "70b34347b9d9f90d413bd198a8e18a3ae357059feb6475e17df0946e943b52c4",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/pr-body-ci-replacement.md"
+    },
+    {
+      "path": "packages/transport-plan-ci/product-main-docs-jobs.json",
+      "bytes": 8698,
+      "sha256": "4a1c657fd353e2ffe8af7d609b9994e06804567803f49c91c186cb54c411d3ca",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/product-main-docs-jobs.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/product-main-postmerge-runs.json",
+      "bytes": 14659,
+      "sha256": "b8afac66cd9a12fcc65613da59c8174f8aa19e704615043df4fef354811776b3",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/product-main-postmerge-runs.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/summary.json",
+      "bytes": 8375,
+      "sha256": "20ce05fd5764f3f435c2daab16d620a39a29e79f936d7ecf11942d1e6f2c4780",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/summary.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/summary.md",
+      "bytes": 2308,
+      "sha256": "890460d8db57983c3ecd0f675573578111ceb1173437c3329fd5414ef107508a",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/summary.md"
+    },
+    {
+      "path": "packages/transport-plan-ci/trusted-toolchain-manifest.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/trusted-toolchain-manifest.json"
+    },
+    {
+      "path": "packages/transport-plan-ci/archive-allowlist.txt",
+      "bytes": 666,
+      "sha256": "ab8014598ed99e0c95a5279b1309e122a8dbb71727876cc15049fb29550ab762",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/archive-allowlist.txt"
+    },
+    {
+      "path": "packages/transport-plan-ci/archive-sha256.txt",
+      "bytes": 2602,
+      "sha256": "75685b3fbd4e56354873144c802a35018c1ac83d7585bf9f799f0742d5cd5484",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-ci/archive-sha256.txt"
+    }
+  ],
+  "count": 67,
+  "bytes": 1018020,
+  "scope": "allowlisted small public build and CI evidence; raw bundle ZIP excluded"
+}

@@ -1,0 +1,60 @@
+{
+  "observed_at": "2026-10-21T06:14:04.700773+00:00",
+  "control_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "files": [
+    {
+      "path": "manifests/channels.json",
+      "api": "repos/WuKongIM/packages/contents/manifests/channels.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "size": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "git_blob_sha": "c65f94118e00077656721b0daee17b61f5970dda",
+      "exact_git_commit": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "matches_local_exact_commit_blob": true
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "api": "repos/WuKongIM/packages/contents/manifests/preview-signing.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "size": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "git_blob_sha": "d49ceaefa1348273df1883ebb42d3d109ecb12fc",
+      "exact_git_commit": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "matches_local_exact_commit_blob": true
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "api": "repos/WuKongIM/packages/contents/manifests/signing-toolchain.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "size": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "git_blob_sha": "791d09c701213d182b1803965e0605c502bf096c",
+      "exact_git_commit": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "matches_local_exact_commit_blob": true
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "api": "repos/WuKongIM/packages/contents/manifests/bootstrap-packages.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "size": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "git_blob_sha": "5266992bd184a18817d45840eeec6e41232ee43f",
+      "exact_git_commit": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "matches_local_exact_commit_blob": true
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "api": "repos/WuKongIM/packages/contents/keys/apt-preview.asc?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "size": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "git_blob_sha": "7cfd2c7826c694d6325711b5bfeedefcad8a1261",
+      "exact_git_commit": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "matches_local_exact_commit_blob": true
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "api": "repos/WuKongIM/packages/contents/keys/rpm-preview.asc?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "size": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "git_blob_sha": "cf6915956c24893b873c34cd0567ff9caf43bd5f",
+      "exact_git_commit": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+      "matches_local_exact_commit_blob": true
+    }
+  ]
+}

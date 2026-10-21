@@ -1,0 +1,29 @@
+{
+  "authority": "root explicit one-shot credential-free bundle request; no procurement, cloud access, runtime secrets or activation",
+  "captured_at": "2026-10-21T06:30:47.430968+00:00",
+  "first_observed_trusted_main_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "reachability_basis": "Source equals API main ref and local Git merge-base ancestry succeeds",
+  "request_id": "v3-readiness-ed705-20261021",
+  "reuse_search": {
+    "returned_runs": 35,
+    "same_source_matches": 0,
+    "total_runs": 35
+  },
+  "rules_and_control_files": {
+    ".github/cloud-deployment/toolchain.env": "75801f1b4d969c41468abcedc061f2d419841d4949c86d413e5ea120de78b243",
+    ".github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    ".github/workflows/cloud-deployment-bundle.yml": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4",
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "cmd/wkcloudbundle/FLOW.md": "516c8e00b02e1f0ccac34b5297a7eea607f5a228c9b9aeda17ab56e30eb39f75",
+    "cmd/wkcloudbundle/offline_commands.go": "2ef22efce0f9e3b94305522df1e44fd1f1bc85531f4572377e9e6434be735818",
+    "docs/superpowers/runbooks/cloud-deployment-bundle.md": "91e5d501e038c112cd71836fdcc4f31ede7a036d9e626ac311a754794f63444b",
+    "go.mod": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+    "go.sum": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb",
+    "internal/usecase/clouddeploy/FLOW.md": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+    "internal/usecase/clouddeploy/bundle.go": "aa07d36f6c99a69885ac8daf02e63c3da8960f3ea188594349c59bc1c12567d9",
+    "scripts/cloud-deployment/FLOW.md": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80"
+  },
+  "source_reachable_from_trusted_main": true,
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "workflow": "cloud-deployment-bundle.yml"
+}

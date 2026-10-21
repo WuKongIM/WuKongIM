@@ -1,0 +1,1413 @@
+{
+  "schema": "wukongim/task-disk-readonly-audit/v1",
+  "observed_at": "2026-10-21T06:06:17.392310+00:00",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "source_sha256": {
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "234db9313fb0d1bddb2bfc6a4cce4ed1d6396b0d065781aac2d4cfd24fad31ac",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "7d971edd64be172ff8e36a170e2defdeec42b0617ec245da17d4f9372f6339a4"
+  },
+  "scope": "Exact six task output roots and explicitly receipted dedicated caches only. No shared cache, other worktree, user-directory, or whole-disk scan.",
+  "df_k": "Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on\n/dev/disk3s5   971350180 942280360   8537956   100% 2571014 85379560    3%   /System/Volumes/Data\n/dev/disk3s5   971350180 942280360   8537956   100% 2571014 85379560    3%   /System/Volumes/Data\n",
+  "filesystem": {
+    "capacity_bytes": 994662584320,
+    "available_bytes": 8742866944,
+    "available_percent": 0.8789781662469038,
+    "reserve_percent": 5,
+    "additional_bytes_to_reserve_only": 40990262272,
+    "run_headroom_bytes": null,
+    "headroom_status": "Not estimated: cannot reach reserve even with all scoped output counted; reserve alone is insufficient to claim run admission."
+  },
+  "task_root_totals": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021",
+      "allocated_bytes": 2568880128
+    },
+    {
+      "path": "/tmp/wukongim-performance-fixed-20261020",
+      "allocated_bytes": 639107072
+    },
+    {
+      "path": "/tmp/wukongim-cpu-causal-20261021",
+      "allocated_bytes": 512282624
+    },
+    {
+      "path": "/tmp/wukongim-performance-followup-20261020",
+      "allocated_bytes": 4870144
+    },
+    {
+      "path": "/tmp/wukongim-v3-rc-20261020",
+      "allocated_bytes": 108179456
+    },
+    {
+      "path": "/tmp/wukongim-cpu-placement-20261021",
+      "allocated_bytes": 57344
+    }
+  ],
+  "all_scoped_outputs_loose_upper_bound_bytes": 3833376768,
+  "shortfall_after_loose_upper_bound_bytes": 37156885504,
+  "rebuildable_cache_candidates": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local/go-cache",
+      "allocated_bytes": 1755344896,
+      "ownership_receipt": "/tmp/wukongim-v3-readiness-20261021/local/missing-cache-build-retry.json",
+      "rebuildable": true,
+      "retained_byte_copy_verified": false,
+      "test_evidence_outside_cache": true,
+      "active_user_check_performed": false,
+      "caveat": "Task-specific compilation cache only; rebuilding costs CPU/time/space. Must establish quiescence before any later deletion; shared Go cache excluded."
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache",
+      "allocated_bytes": 737759232,
+      "ownership_receipt": "/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/commands.json",
+      "rebuildable": true,
+      "retained_byte_copy_verified": false,
+      "test_evidence_outside_cache": true,
+      "active_user_check_performed": false,
+      "caveat": "Task-specific compilation cache only; rebuilding costs CPU/time/space. Must establish quiescence before any later deletion; shared Go cache excluded."
+    }
+  ],
+  "verified_archive_extract_candidates": [
+    {
+      "candidate_path": "/tmp/wukongim-performance-fixed-20261020/download",
+      "allocated_bytes": 384995328,
+      "retained_copy": "/tmp/wukongim-performance-fixed-20261020/artifact.zip",
+      "retained_copy_bytes": 165242098,
+      "sha256": "1adc8cfd1fa800cd1372f68f872b3ee395712b1da97eece073d8c63a99cf1718",
+      "matches_recorded_api_sha256": true,
+      "zip_crc_pass": true,
+      "download_files_match_archive": true,
+      "files_checked": 141,
+      "files": [
+        {
+          "path": "conversation-fixed-host/binaries/A/binary.sha256",
+          "size": 79,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/build.command.json",
+          "size": 457,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/build.log",
+          "size": 0,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/build.txt",
+          "size": 8959,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/checkout.command.json",
+          "size": 396,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/checkout.log",
+          "size": 599,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/identity.json",
+          "size": 269,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/A/wukongim-e2e",
+          "size": 96500272,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/binary.sha256",
+          "size": 79,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/build.command.json",
+          "size": 458,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/build.log",
+          "size": 0,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/build.txt",
+          "size": 8959,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/checkout.command.json",
+          "size": 398,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/checkout.log",
+          "size": 192,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/identity.json",
+          "size": 269,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/B/wukongim-e2e",
+          "size": 96631320,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/binary.sha256",
+          "size": 79,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/build.command.json",
+          "size": 457,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/build.log",
+          "size": 0,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/build.txt",
+          "size": 8959,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/checkout.command.json",
+          "size": 398,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/checkout.log",
+          "size": 205,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/identity.json",
+          "size": 269,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/binaries/C/wukongim-e2e",
+          "size": 96632136,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/driver-cpu.pprof",
+          "size": 20967,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/fixed-environment.json",
+          "size": 1884708,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node1-alloc-after.pprof",
+          "size": 117858,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node1-alloc-before.pprof",
+          "size": 115930,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node1-cpu.pprof",
+          "size": 60265,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node2-alloc-after.pprof",
+          "size": 117466,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node2-alloc-before.pprof",
+          "size": 115366,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node2-cpu.pprof",
+          "size": 62422,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node3-alloc-after.pprof",
+          "size": 120919,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node3-alloc-before.pprof",
+          "size": 118779,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/node3-cpu.pprof",
+          "size": 63590,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/report.json",
+          "size": 3782694,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/test.command.json",
+          "size": 562,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/01-B/test.log",
+          "size": 1526,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/driver-cpu.pprof",
+          "size": 20683,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/fixed-environment.json",
+          "size": 1885069,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node1-alloc-after.pprof",
+          "size": 121901,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node1-alloc-before.pprof",
+          "size": 119947,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node1-cpu.pprof",
+          "size": 59897,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node2-alloc-after.pprof",
+          "size": 119322,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node2-alloc-before.pprof",
+          "size": 117480,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node2-cpu.pprof",
+          "size": 59590,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node3-alloc-after.pprof",
+          "size": 118478,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node3-alloc-before.pprof",
+          "size": 116351,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/node3-cpu.pprof",
+          "size": 63087,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/report.json",
+          "size": 3780351,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/test.command.json",
+          "size": 562,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/02-B/test.log",
+          "size": 1524,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/driver-cpu.pprof",
+          "size": 20673,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/fixed-environment.json",
+          "size": 1885313,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node1-alloc-after.pprof",
+          "size": 119921,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node1-alloc-before.pprof",
+          "size": 118199,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node1-cpu.pprof",
+          "size": 62410,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node2-alloc-after.pprof",
+          "size": 118205,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node2-alloc-before.pprof",
+          "size": 116393,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node2-cpu.pprof",
+          "size": 60976,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node3-alloc-after.pprof",
+          "size": 115784,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node3-alloc-before.pprof",
+          "size": 114062,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/node3-cpu.pprof",
+          "size": 65055,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/report.json",
+          "size": 3795967,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/test.command.json",
+          "size": 563,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/03-A/test.log",
+          "size": 1525,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/driver-cpu.pprof",
+          "size": 19454,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/fixed-environment.json",
+          "size": 1885392,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node1-alloc-after.pprof",
+          "size": 120940,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node1-alloc-before.pprof",
+          "size": 119291,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node1-cpu.pprof",
+          "size": 58887,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node2-alloc-after.pprof",
+          "size": 118437,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node2-alloc-before.pprof",
+          "size": 116370,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node2-cpu.pprof",
+          "size": 53993,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node3-alloc-after.pprof",
+          "size": 119821,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node3-alloc-before.pprof",
+          "size": 117475,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/node3-cpu.pprof",
+          "size": 58145,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/report.json",
+          "size": 3781099,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/test.command.json",
+          "size": 564,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/04-B/test.log",
+          "size": 1524,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/driver-cpu.pprof",
+          "size": 21763,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/fixed-environment.json",
+          "size": 1885479,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node1-alloc-after.pprof",
+          "size": 119671,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node1-alloc-before.pprof",
+          "size": 117573,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node1-cpu.pprof",
+          "size": 61476,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node2-alloc-after.pprof",
+          "size": 121031,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node2-alloc-before.pprof",
+          "size": 118475,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node2-cpu.pprof",
+          "size": 58690,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node3-alloc-after.pprof",
+          "size": 118419,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node3-alloc-before.pprof",
+          "size": 116817,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/node3-cpu.pprof",
+          "size": 60710,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/report.json",
+          "size": 3790853,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/test.command.json",
+          "size": 564,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/05-B/test.log",
+          "size": 1524,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/driver-cpu.pprof",
+          "size": 21768,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/fixed-environment.json",
+          "size": 1885536,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node1-alloc-after.pprof",
+          "size": 118621,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node1-alloc-before.pprof",
+          "size": 116618,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node1-cpu.pprof",
+          "size": 62778,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node2-alloc-after.pprof",
+          "size": 117421,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node2-alloc-before.pprof",
+          "size": 115426,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node2-cpu.pprof",
+          "size": 60945,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node3-alloc-after.pprof",
+          "size": 117431,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node3-alloc-before.pprof",
+          "size": 115363,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/node3-cpu.pprof",
+          "size": 59827,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/report.json",
+          "size": 3781592,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/test.command.json",
+          "size": 563,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/06-A/test.log",
+          "size": 1524,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/driver-cpu.pprof",
+          "size": 22204,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/fixed-environment.json",
+          "size": 1885619,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node1-alloc-after.pprof",
+          "size": 120633,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node1-alloc-before.pprof",
+          "size": 119055,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node1-cpu.pprof",
+          "size": 60463,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node2-alloc-after.pprof",
+          "size": 117402,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node2-alloc-before.pprof",
+          "size": 114928,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node2-cpu.pprof",
+          "size": 59935,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node3-alloc-after.pprof",
+          "size": 119229,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node3-alloc-before.pprof",
+          "size": 117316,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/node3-cpu.pprof",
+          "size": 62588,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/report.json",
+          "size": 3783275,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/test.command.json",
+          "size": 562,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/blocks/07-C/test.log",
+          "size": 1526,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/build-clone.command.json",
+          "size": 460,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/build-clone.log",
+          "size": 78,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/events.jsonl",
+          "size": 29603,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/gate/report.json",
+          "size": 3156579,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/gate/test.command.json",
+          "size": 559,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/gate/test.log",
+          "size": 10679,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/gate/validation.command.json",
+          "size": 777,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/gate/validation.log",
+          "size": 5,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/harness/build.command.json",
+          "size": 475,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/harness/build.log",
+          "size": 52,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/harness/build.txt",
+          "size": 423,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/harness/conversation_qps.test",
+          "size": 45523448,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/harness/identity.json",
+          "size": 336,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/harness/profile.json",
+          "size": 2087,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/host.json",
+          "size": 9239,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/plan/sequence.json",
+          "size": 974,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host/summary.json",
+          "size": 25241,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host-preflight.jsonl",
+          "size": 2265,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-fixed-host-preflight.stderr.log",
+          "size": 0,
+          "matches_retained_archive": true
+        }
+      ],
+      "artifact_id": 12282956979,
+      "recorded_remote_expiry": "2027-01-18T16:00:17Z",
+      "remote_reavailability_rechecked": false,
+      "caveat": "Retain archive and receipts; verify no active reader before any later cleanup. No cleanup authorized or performed here."
+    },
+    {
+      "candidate_path": "/tmp/wukongim-cpu-causal-20261021/download",
+      "allocated_bytes": 418951168,
+      "retained_copy": "/tmp/wukongim-cpu-causal-20261021/artifact.zip",
+      "retained_copy_bytes": 84435437,
+      "sha256": "bd6cd557046b29fa1784e6e90f705910996e17e577f8182ec24914e3e34a187c",
+      "matches_recorded_api_sha256": true,
+      "zip_crc_pass": true,
+      "download_files_match_archive": true,
+      "files_checked": 111,
+      "files": [
+        {
+          "path": "conversation-cpu-contention/binaries/C/binary.sha256",
+          "size": 79,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/build.command.json",
+          "size": 461,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/build.log",
+          "size": 0,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/build.txt",
+          "size": 8963,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/checkout.command.json",
+          "size": 398,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/checkout.log",
+          "size": 481,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/identity.json",
+          "size": 365,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/binaries/C/wukongim-e2e",
+          "size": 96632136,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/driver-cpu.pprof",
+          "size": 19438,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/fixed-environment.json",
+          "size": 1885031,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node1-alloc-after.pprof",
+          "size": 120054,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node1-alloc-before.pprof",
+          "size": 118337,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node1-cpu.pprof",
+          "size": 61190,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node2-alloc-after.pprof",
+          "size": 114603,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node2-alloc-before.pprof",
+          "size": 112903,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node2-cpu.pprof",
+          "size": 55709,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node3-alloc-after.pprof",
+          "size": 116398,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node3-alloc-before.pprof",
+          "size": 115121,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/node3-cpu.pprof",
+          "size": 58811,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/report.json",
+          "size": 43455052,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/test.command.json",
+          "size": 562,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/01-S/test.log",
+          "size": 1509,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/driver-cpu.pprof",
+          "size": 14075,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/fixed-environment.json",
+          "size": 1885428,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node1-alloc-after.pprof",
+          "size": 122013,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node1-alloc-before.pprof",
+          "size": 120723,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node1-cpu.pprof",
+          "size": 56552,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node2-alloc-after.pprof",
+          "size": 119700,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node2-alloc-before.pprof",
+          "size": 117615,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node2-cpu.pprof",
+          "size": 52331,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node3-alloc-after.pprof",
+          "size": 117429,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node3-alloc-before.pprof",
+          "size": 114383,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/node3-cpu.pprof",
+          "size": 53736,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/report.json",
+          "size": 43328441,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/test.command.json",
+          "size": 564,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/02-O/test.log",
+          "size": 1509,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/driver-cpu.pprof",
+          "size": 16585,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/fixed-environment.json",
+          "size": 1885609,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node1-alloc-after.pprof",
+          "size": 120509,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node1-alloc-before.pprof",
+          "size": 119242,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node1-cpu.pprof",
+          "size": 55883,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node2-alloc-after.pprof",
+          "size": 117089,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node2-alloc-before.pprof",
+          "size": 115134,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node2-cpu.pprof",
+          "size": 51916,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node3-alloc-after.pprof",
+          "size": 120471,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node3-alloc-before.pprof",
+          "size": 118565,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/node3-cpu.pprof",
+          "size": 55789,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/report.json",
+          "size": 42843094,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/test.command.json",
+          "size": 564,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/03-D/test.log",
+          "size": 1508,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/driver-cpu.pprof",
+          "size": 17419,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/fixed-environment.json",
+          "size": 1885627,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node1-alloc-after.pprof",
+          "size": 120760,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node1-alloc-before.pprof",
+          "size": 118470,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node1-cpu.pprof",
+          "size": 55433,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node2-alloc-after.pprof",
+          "size": 119832,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node2-alloc-before.pprof",
+          "size": 118028,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node2-cpu.pprof",
+          "size": 57560,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node3-alloc-after.pprof",
+          "size": 116403,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node3-alloc-before.pprof",
+          "size": 114646,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/node3-cpu.pprof",
+          "size": 56360,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/report.json",
+          "size": 42888115,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/test.command.json",
+          "size": 564,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/04-D/test.log",
+          "size": 1508,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/driver-cpu.pprof",
+          "size": 14273,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/fixed-environment.json",
+          "size": 1885694,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node1-alloc-after.pprof",
+          "size": 120393,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node1-alloc-before.pprof",
+          "size": 118834,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node1-cpu.pprof",
+          "size": 52489,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node2-alloc-after.pprof",
+          "size": 122055,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node2-alloc-before.pprof",
+          "size": 119748,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node2-cpu.pprof",
+          "size": 56656,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node3-alloc-after.pprof",
+          "size": 120289,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node3-alloc-before.pprof",
+          "size": 118492,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/node3-cpu.pprof",
+          "size": 58215,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/report.json",
+          "size": 42889766,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/test.command.json",
+          "size": 564,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/05-O/test.log",
+          "size": 1510,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/driver-cpu.pprof",
+          "size": 19663,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/fixed-environment.json",
+          "size": 1885761,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node1-alloc-after.pprof",
+          "size": 121649,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node1-alloc-before.pprof",
+          "size": 119606,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node1-cpu.pprof",
+          "size": 59503,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node2-alloc-after.pprof",
+          "size": 117639,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node2-alloc-before.pprof",
+          "size": 115805,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node2-cpu.pprof",
+          "size": 56756,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node3-alloc-after.pprof",
+          "size": 117275,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node3-alloc-before.pprof",
+          "size": 115541,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/node3-cpu.pprof",
+          "size": 57634,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/report.json",
+          "size": 44117436,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/test.command.json",
+          "size": 563,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/blocks/06-S/test.log",
+          "size": 1508,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/build-clone.command.json",
+          "size": 459,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/build-clone.log",
+          "size": 78,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/events.jsonl",
+          "size": 22522,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/harness/build.command.json",
+          "size": 480,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/harness/build.log",
+          "size": 52,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/harness/build.txt",
+          "size": 427,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/harness/conversation_qps.test",
+          "size": 45771120,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/harness/identity.json",
+          "size": 336,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/harness/profile.json",
+          "size": 2087,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/host.json",
+          "size": 8970,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/plan/sequence.json",
+          "size": 2337,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/source-ancestry.command.json",
+          "size": 434,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/source-ancestry.log",
+          "size": 0,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention/summary.json",
+          "size": 21819,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention-preflight.cleanup.jsonl",
+          "size": 2265,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention-preflight.cleanup.stderr.log",
+          "size": 0,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention-preflight.inputs.log",
+          "size": 53,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention-preflight.placement.jsonl",
+          "size": 5846,
+          "matches_retained_archive": true
+        },
+        {
+          "path": "conversation-cpu-contention-preflight.placement.stderr.log",
+          "size": 0,
+          "matches_retained_archive": true
+        }
+      ],
+      "artifact_id": 12288855188,
+      "recorded_remote_expiry": "2027-01-18T17:36:29Z",
+      "remote_reavailability_rechecked": false,
+      "caveat": "Retain archive and receipts; verify no active reader before any later cleanup. No cleanup authorized or performed here."
+    }
+  ],
+  "candidate_estimated_allocated_bytes": 3297050624,
+  "previously_removed_paths": [
+    {
+      "path": "/tmp/wukongim-cpu-causal-20261021/archive-replay",
+      "exists_now": false,
+      "historical_bytes_not_counted": 426989709
+    },
+    {
+      "path": "/tmp/wukongim-cpu-causal-20261021/combined-linux.test",
+      "exists_now": false,
+      "historical_bytes_not_counted": 43870890
+    },
+    {
+      "path": "/tmp/wukongim-cpu-causal-20261021/placement-preflight.test",
+      "exists_now": false,
+      "historical_bytes_not_counted": 43870810
+    },
+    {
+      "path": "/tmp/wukongim-cpu-placement-20261021/sampler-linux.test",
+      "exists_now": false,
+      "historical_bytes_not_counted": 43832295
+    },
+    {
+      "path": "/tmp/wukongim-cpu-placement-20261021/sampler-linux-preflight.test",
+      "exists_now": false,
+      "historical_bytes_not_counted": 39428565
+    },
+    {
+      "path": "/tmp/wukongim-cpu-placement-20261021/sampler-followup-linux.test",
+      "exists_now": false,
+      "historical_bytes_not_counted": 43870890
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/mqtt-diagnosis/gocache",
+      "exists_now": false
+    }
+  ],
+  "measurement_limits": [
+    "du allocated bytes are not guaranteed reclaim on APFS snapshots/clones/hard links.",
+    "Disk use can change concurrently.",
+    "No process liveness or remote artifact retention query was performed.",
+    "Root totals include unique evidence and are only an optimistic arithmetic bound, not a cleanup allowlist."
+  ],
+  "status": "blocked_disk_reserve_unsatisfied",
+  "cleanup_performed": false,
+  "load_started": false,
+  "threshold_changed": false
+}

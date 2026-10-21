@@ -1,0 +1,626 @@
+{
+  "recorded_at": "2026-10-21T06:42:14.953995+00:00",
+  "copies": [
+    {
+      "path": "packages/transport-plan-merge/README.md",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/README.md",
+      "bytes": 2016,
+      "sha256": "9db7d99d8ff4183f0986247367bd3be4db7562c84b0036ef2a89b25f03f2cb61"
+    },
+    {
+      "path": "packages/transport-plan-merge/active-in_progress.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/active-in_progress.json",
+      "bytes": 37,
+      "sha256": "fc5753fa7f5380199fb73c07a084e2125b722a06993132cdf348bc7e41367728"
+    },
+    {
+      "path": "packages/transport-plan-merge/active-pending.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/active-pending.json",
+      "bytes": 37,
+      "sha256": "fc5753fa7f5380199fb73c07a084e2125b722a06993132cdf348bc7e41367728"
+    },
+    {
+      "path": "packages/transport-plan-merge/active-queued.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/active-queued.json",
+      "bytes": 37,
+      "sha256": "fc5753fa7f5380199fb73c07a084e2125b722a06993132cdf348bc7e41367728"
+    },
+    {
+      "path": "packages/transport-plan-merge/active-requested.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/active-requested.json",
+      "bytes": 37,
+      "sha256": "fc5753fa7f5380199fb73c07a084e2125b722a06993132cdf348bc7e41367728"
+    },
+    {
+      "path": "packages/transport-plan-merge/active-waiting.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/active-waiting.json",
+      "bytes": 37,
+      "sha256": "fc5753fa7f5380199fb73c07a084e2125b722a06993132cdf348bc7e41367728"
+    },
+    {
+      "path": "packages/transport-plan-merge/checks-before.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/checks-before.json",
+      "bytes": 1419,
+      "sha256": "3e4508058444dac52fdb3010cc3bc88d6cbe7f9786ba3f6584ae186b1a111b9c"
+    },
+    {
+      "path": "packages/transport-plan-merge/cleanup-final-readonly-verification.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/cleanup-final-readonly-verification.json",
+      "bytes": 1225,
+      "sha256": "b95243a9396121fe065cecc9ba4e496de559fc185c306894f504aa9c41f86720"
+    },
+    {
+      "path": "packages/transport-plan-merge/cleanup-state.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/cleanup-state.json",
+      "bytes": 447,
+      "sha256": "47945bafc58db1a2dbdcbaeac094d8e3314fecd14a00243d0322cc844a47eb9c"
+    },
+    {
+      "path": "packages/transport-plan-merge/commands.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/commands.json",
+      "bytes": 500,
+      "sha256": "348f13ed1185b10359580606945f9580ad5d63c30733dd4f334d886c611db316"
+    },
+    {
+      "path": "packages/transport-plan-merge/final-status-20261021T064127Z.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/final-status-20261021T064127Z.json",
+      "bytes": 612,
+      "sha256": "33f7f93ad2b6129b8fd589208115133285093ad638fb43f43c1fd53b9312d915"
+    },
+    {
+      "path": "packages/transport-plan-merge/head-commit.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/head-commit.json",
+      "bytes": 1115,
+      "sha256": "46859fce7c281ed81b021a251da5079b7dcff29f01b1d0904f45716173ff344f"
+    },
+    {
+      "path": "packages/transport-plan-merge/main-before.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/main-before.json",
+      "bytes": 333,
+      "sha256": "24c4f2f5102130092c766603a5e567139bc290a8921fdc4942eece5a89092e80"
+    },
+    {
+      "path": "packages/transport-plan-merge/main-final.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/main-final.json",
+      "bytes": 332,
+      "sha256": "ffb9b0550ce2fabd4eda26e1fb7aeb1f78623bfbd47332b68595fc46d62222f8"
+    },
+    {
+      "path": "packages/transport-plan-merge/main-protection-after.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/main-protection-after.json",
+      "bytes": 1293,
+      "sha256": "da2837b50960064494d025f92beee941d25bb1d248a01aafb413b0176d1d06d1"
+    },
+    {
+      "path": "packages/transport-plan-merge/main-protection-before.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/main-protection-before.json",
+      "bytes": 1293,
+      "sha256": "da2837b50960064494d025f92beee941d25bb1d248a01aafb413b0176d1d06d1"
+    },
+    {
+      "path": "packages/transport-plan-merge/main-runs-first.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/main-runs-first.json",
+      "bytes": 11998,
+      "sha256": "341eec39316275a313cf0d5ed257147c1750c0277d6ff8d84a97b29722a8bde5"
+    },
+    {
+      "path": "packages/transport-plan-merge/merge-commit.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/merge-commit.json",
+      "bytes": 1121,
+      "sha256": "d0592c60762e51ce86258fef75b479d415dfed6c0468f57330d5edb167b37d7d"
+    },
+    {
+      "path": "packages/transport-plan-merge/merge.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/merge.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/transport-plan-merge/postmerge-jobs-final.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/postmerge-jobs-final.json",
+      "bytes": 3035,
+      "sha256": "e6660ec8b9c539d9c4432c4c1f660092881c48ecedf618fe061643a289cec4e3"
+    },
+    {
+      "path": "packages/transport-plan-merge/postmerge-log-receipt.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/postmerge-log-receipt.json",
+      "bytes": 292,
+      "sha256": "8b6541d73786d60df8565aca3bda13a75f51b895fbfc6997b9efba29a17c44c5"
+    },
+    {
+      "path": "packages/transport-plan-merge/postmerge-run-final.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/postmerge-run-final.json",
+      "bytes": 11964,
+      "sha256": "06bd5dbf165ceeba082d119cc945c2c22dac2da2791789baa1931ab5b4f18af9"
+    },
+    {
+      "path": "packages/transport-plan-merge/postmerge-validation-job.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/postmerge-validation-job.log",
+      "bytes": 17147,
+      "sha256": "0c273ef16a10252158f9bdcf82fdefd83e6282b33ab8b1b375c9de57236432f6"
+    },
+    {
+      "path": "packages/transport-plan-merge/pr-before.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/pr-before.json",
+      "bytes": 17837,
+      "sha256": "ed42a7512f748b3c624871f8e66cdb6c23f3972a7fda758f8d76271bf8131e71"
+    },
+    {
+      "path": "packages/transport-plan-merge/pr-merged.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/pr-merged.json",
+      "bytes": 19797,
+      "sha256": "1da82a056ce1983c902f15449d33be8f838b0fa54305f97b9dbc734821ed4a5c"
+    },
+    {
+      "path": "packages/transport-plan-merge/ready.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/ready.log",
+      "bytes": 70,
+      "sha256": "b28ac0859cadbe42afda5fb2730620cbd5c6f81b280c286ccac556d0fe833f18"
+    },
+    {
+      "path": "packages/transport-plan-merge/repository-permissions.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/repository-permissions.json",
+      "bytes": 6879,
+      "sha256": "1cbfe25ee14cda15e074dbd45ccab490b17590de313496346b93b95fd827e7ee"
+    },
+    {
+      "path": "packages/transport-plan-merge/summary.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/summary.json",
+      "bytes": 2131,
+      "sha256": "d58ef6c57780a929ef850cd3c2c446a1d56a038736f02f3015b7d4c59e91a431"
+    },
+    {
+      "path": "packages/transport-plan-merge/archive-allowlist.txt",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/archive-allowlist.txt",
+      "bytes": 585,
+      "sha256": "43bbd6113b83abb92bfe956e6d5ec932e0709f21bcc415008764d2ebbae92fc7"
+    },
+    {
+      "path": "packages/transport-plan-merge/archive-sha256.txt",
+      "original": "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-merge/archive-sha256.txt",
+      "bytes": 2521,
+      "sha256": "dc7d0699e004d02ef0676341f59b415f332cdf40876108588e1d73b2433222cc"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/README.md",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/README.md",
+      "bytes": 2482,
+      "sha256": "2d230d0c7742995c9693cc6337256fb96d00b049b33d8d01383678792ec31357"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/cleanup-verification.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/cleanup-verification.json",
+      "bytes": 3562,
+      "sha256": "9bbbac6808408ea01224cad76f448523066e7dbfe257885cedb5afa7e0bf9321"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/command.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/command.json",
+      "bytes": 1302,
+      "sha256": "783353fece2f295573328c8f67232784cc1e1482f77494e2c27a221f526c1b8e"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/credential-scan.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/credential-scan.json",
+      "bytes": 151,
+      "sha256": "7f238162bbd9c29faa33a86581aad4dac4b70363feca82b12552072b574b2538"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/dry-run.stderr",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/dry-run.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/dry-run.stdout",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/dry-run.stdout",
+      "bytes": 1434,
+      "sha256": "50650398d60a65d3e9b00f24941945d580f51307dfe397502e5e8ef5e898941f"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/error-matches.txt",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/error-matches.txt",
+      "bytes": 1788,
+      "sha256": "63ea46194692145721e49dda169bc8afac8fa567c723e1b2f8b585e160cb8d14"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/owned-process-identities.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/owned-process-identities.json",
+      "bytes": 2762,
+      "sha256": "35be0f9d458db2752d728594aab88428ff81d96d483c17345491f2b33d642f2e"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/preflight.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/preflight.json",
+      "bytes": 2944,
+      "sha256": "d9aa702b08b5ae51f3b5bad66b16f6dcc3d76aff4059c6ab659cf1538e15d595"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/progress.jsonl",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/progress.jsonl",
+      "bytes": 7540,
+      "sha256": "664ba24c8e3f9e8c6e6d048ab56c2daf43a29558b8dc3dba85f8b4fd50587b65"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/chat-lifecycle.yaml",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/chat-lifecycle.yaml",
+      "bytes": 4339,
+      "sha256": "a15d4ebd42457228f6f03bdf08ef84250f9ab5ee340c17343a6b395aae12971a"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/config/node1.toml",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/config/node1.toml",
+      "bytes": 9123,
+      "sha256": "3cbe215c8564808fc61b06e91f80f5a6c70e29aa107482f32531c56923129d21"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/config/node2.toml",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/config/node2.toml",
+      "bytes": 9123,
+      "sha256": "6f485b514ca36570e75ee021889ed0f63c1da0cec1650743cde88b6bde9cfad3"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/config/node3.toml",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/config/node3.toml",
+      "bytes": 9123,
+      "sha256": "965c6a5a4d3f72614792c9a8b29cf9fb3a7f179af00232139f8273d80b78ecc0"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/filesystem-preflight.txt",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/filesystem-preflight.txt",
+      "bytes": 142,
+      "sha256": "7f2d60a0bc83957d23a59e8845092f07f457ffbd14a2b01e0caa190634eb2dc3"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/identity.tsv",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/identity.tsv",
+      "bytes": 1065,
+      "sha256": "8d73e0b00eef496d09ba99cc23c2d4c46ac74bd38d165b901fbfcf5e1487cb35"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/phase-state",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/phase-state",
+      "bytes": 7,
+      "sha256": "b8d3be7939f632e4ddc4684ba7a964a7c516a43ec61d91eb0efe9fb2fb37f7ac"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/processes-load.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/processes-load.prom",
+      "bytes": 1544,
+      "sha256": "73d981bfa660de0698978b7de9204027a011385e3ebbf7380d8dc3313b87db30"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/processes-node-1.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/processes-node-1.prom",
+      "bytes": 1062,
+      "sha256": "24969227304154ba58667309894df6e6754998b5f4078891537b372b7119ebfb"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/processes-node-2.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/processes-node-2.prom",
+      "bytes": 1061,
+      "sha256": "f1bca112e3db48ebf1ed58ad54fe9afdaa7cc0730cae237b243e8f89bd517345"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/processes-node-3.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/processes-node-3.prom",
+      "bytes": 1062,
+      "sha256": "20bb0323a2deefd51e05b59dc9909dffe68c1c46646880e62a8d986f15f28c22"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/snapshot-inventory/warmup-before-node-1.tsv",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/snapshot-inventory/warmup-before-node-1.tsv",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/snapshot-inventory/warmup-before-node-2.tsv",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/snapshot-inventory/warmup-before-node-2.tsv",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/snapshot-inventory/warmup-before-node-3.tsv",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/snapshot-inventory/warmup-before-node-3.tsv",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/storage-overlap.tsv",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/storage-overlap.tsv",
+      "bytes": 744,
+      "sha256": "11051b2da7f71283dadc158bc315e91eb40ad88a89a4da621049f1778d5b0862"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/timeline.tsv",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/timeline.tsv",
+      "bytes": 461,
+      "sha256": "9e3b0dcc0da7d7ffdbdef3dc0cf7f4a07d2e3d5aec5c2619f40adf93bebb3362"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/evidence/worker-cut-query.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/evidence/worker-cut-query.json",
+      "bytes": 4778,
+      "sha256": "fdbc508c83784eee8df5f0c3794f8210254387bf1692438524ec12725f051f02"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/coordinator.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/coordinator.log",
+      "bytes": 80488,
+      "sha256": "fa3069abb867029624c8ea93ea434d46dd95e947cca20d0f261a4ddbc597ca68"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/host-metrics-1.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/host-metrics-1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/host-metrics-2.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/host-metrics-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/host-metrics-3.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/host-metrics-3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/host-metrics-load.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/host-metrics-load.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/node1/app.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/node1/app.log",
+      "bytes": 16119,
+      "sha256": "a669eacbf27888b820f8f44ccbafc8c7528773f12796699a53a87dc958f09a4c"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/node1/warn.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/node1/warn.log",
+      "bytes": 366,
+      "sha256": "cb8824d1746aca86f83ed59314f0cdd00c148f6f7204ce1f5071d2a33851ccd7"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/node2/app.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/node2/app.log",
+      "bytes": 15568,
+      "sha256": "1497417d8d77bfddca7c6dfbbec48ae5264e9aebca9b5c29f892a3120e3de3af"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/node3/app.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/node3/app.log",
+      "bytes": 16266,
+      "sha256": "aff46c6d91ce1efbc507d6e82008aef986ef3651b95ec67e52d3a048948c104c"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/node3/warn.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/node3/warn.log",
+      "bytes": 703,
+      "sha256": "01668607dc8e42276e1fd52da6e72c8343ce3e9265c03157cd4adb63386a476d"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/process-metrics.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/process-metrics.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/service-1.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/service-1.log",
+      "bytes": 15438,
+      "sha256": "ec5fa68351b3f47d21825a67b940eaf08a1628bdc2812253b0f4fc2a5b7e1322"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/service-2.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/service-2.log",
+      "bytes": 14887,
+      "sha256": "f9cd2e3c948690f35c9f5a914f5bd7b110f74c1403a520df3bbd7bb2459b8812"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/service-3.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/service-3.log",
+      "bytes": 15585,
+      "sha256": "7c58416ef0ed07deb7dd3f2a1713eb5720a428b009374c86d069838e9fe15073"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/worker-1.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/worker-1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/worker-2.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/worker-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/logs/worker-3.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/logs/worker-3.log",
+      "bytes": 148,
+      "sha256": "0596d32f85bf6575e22c2e36db0d9a68c9598a60dd26f2fd0a79971d60b8f5b6"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/host-load-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/host-load-warmup-before.prom",
+      "bytes": 2280,
+      "sha256": "5152560f69a469be7b29705586f19b4009ae33bdeae3e7cd88abf364b0873240"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/host-node-1-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/host-node-1-warmup-before.prom",
+      "bytes": 1887,
+      "sha256": "020edf6313d3a659213abbaec313789b110bb091c1cd8b22dc335bf7118bbef8"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/host-node-2-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/host-node-2-warmup-before.prom",
+      "bytes": 1923,
+      "sha256": "c9f1151470f774a34ce5074dfb313b7c89d95ed83cf7615423446a91772cbff2"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/host-node-3-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/host-node-3-warmup-before.prom",
+      "bytes": 1923,
+      "sha256": "45aa49aae864df416ff965f6c4ec7884618afec400a18070b253c55675ab5d9c"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/node-1-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/node-1-warmup-before.prom",
+      "bytes": 428953,
+      "sha256": "b99a050949a32ca0fc501b46487becc10bf0b908f67d6ac7489d2a7b58900766"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/node-2-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/node-2-warmup-before.prom",
+      "bytes": 414264,
+      "sha256": "c8410cd341da8001bd6fabe8871920c43cc811649334ba75764ef8ad79ae8495"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/metrics/node-3-warmup-before.prom",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/metrics/node-3-warmup-before.prom",
+      "bytes": 412268,
+      "sha256": "0b6856f312f064b8d44121f505e2ab64cf32c5c9e26a4df674f8bae907ce2d45"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/coordinator.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/coordinator.pid",
+      "bytes": 6,
+      "sha256": "8dafd1d5059a03511eb4e4f8dc5d90c419d87a88ba56e00fa5d63bd4ddbb5bcf"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/host-metrics-1.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/host-metrics-1.pid",
+      "bytes": 6,
+      "sha256": "5fa3d5d1a9484e23cb4e1ff4715a440df0136cf5e8223a605c26c56a3ad146ad"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/host-metrics-2.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/host-metrics-2.pid",
+      "bytes": 6,
+      "sha256": "cdd2230fbb22f9f80b77f8d99436fd7ab3ab2f552e345ff90c1f8e530249b310"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/host-metrics-3.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/host-metrics-3.pid",
+      "bytes": 6,
+      "sha256": "73004217267c7a15487a0b5b3296b9e9b0714cdf2fb9e3f314e4dfcf0ff93de9"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/host-metrics-load.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/host-metrics-load.pid",
+      "bytes": 6,
+      "sha256": "98b0b6f56b69d53676ad34ada52c76942f0ebd5f718c9393fe6e86b18a64f456"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/process-metrics-collector.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/process-metrics-collector.pid",
+      "bytes": 6,
+      "sha256": "5fba48ec7d6e24ce058a13966c9f08e861437b9285d62157d3bc2a423ddc2441"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/service-1.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/service-1.pid",
+      "bytes": 6,
+      "sha256": "322d70b741131243b52e1c09ac9cb1a8308c20d5e4f4c217bcae2aa0f5493343"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/service-2.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/service-2.pid",
+      "bytes": 6,
+      "sha256": "daa24cb761ac47158bac14f4c7d6edbaaec01a6a00eb3dd3c11479ab677f4e8c"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/service-3.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/service-3.pid",
+      "bytes": 6,
+      "sha256": "49a7769f09b8f7f47ad93125a6a58ad06b6155add68b37636cd8b4813f4accf7"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/worker-1.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/worker-1.pid",
+      "bytes": 6,
+      "sha256": "635b09bf869cee1d499f88af21104b01c90132bfdd96e2f1d41ffc4f3e34ce71"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/worker-2.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/worker-2.pid",
+      "bytes": 6,
+      "sha256": "fb5cfcd8a9718250be9fb469783fcdf15b7ef41b64f77c9609661659db06efbe"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/pids/worker-3.pid",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/pids/worker-3.pid",
+      "bytes": 6,
+      "sha256": "5aefadd57d6f1a66d00f6e7772078cea42bdd5df330c42abd4357a03872e9049"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/report/diagnostic-status.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/report/diagnostic-status.json",
+      "bytes": 12445,
+      "sha256": "55ea988ba7f2def863ed2aa5349815db1eed4aa49f00b1ffd5ca79b4cf1896b0"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run/report/run-start.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/report/run-start.json",
+      "bytes": 381,
+      "sha256": "7ebc4ac0b0c35e677a32a8a82f2da6bfd2f6f82b0dee9fd510ab18951823ee9c"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/run-once.py",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run-once.py",
+      "bytes": 6691,
+      "sha256": "a7ec48935e9f2f5a13c5ad2e044ceaeb8b2365b8aaa3ff40fa6f97c42305be17"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/status-once.py",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/status-once.py",
+      "bytes": 1448,
+      "sha256": "e2205a100a0f0002dc5fb42b0850b271619e025a75466a953656952e150f85b9"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/stdout-stderr.log",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/stdout-stderr.log",
+      "bytes": 1080,
+      "sha256": "7f7572e259bf3997bba7b554c60513339c16fa34b76feb6fee59cf61932bd001"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/summary.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/summary.json",
+      "bytes": 4579,
+      "sha256": "c3e77f66b35c4d72eb92107ff14f26124b2a2516696cc95a130d2261e722a1de"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/wkcli-build.txt",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/wkcli-build.txt",
+      "bytes": 9708,
+      "sha256": "96b03ea0141c579499f193dd73647f88d56257c55be2187aebd6cd0c0afe4ba6"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/wukongim-build.txt",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/wukongim-build.txt",
+      "bytes": 8950,
+      "sha256": "6b5b9f7bcee89ff3c7c7cc045fd4bb6d00de0999f12289b6e6340c9307b83dae"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/ARCHIVE_ALLOWLIST.json",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/ARCHIVE_ALLOWLIST.json",
+      "bytes": 11518,
+      "sha256": "fe7e90b4148e4bfcacdc5c9176fc8277cfc12e24302003efca6be2488c58c857"
+    },
+    {
+      "path": "cloud/local-shakeout-ed705/SHA256SUMS",
+      "original": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/SHA256SUMS",
+      "bytes": 6707,
+      "sha256": "32cd1f707ca33bfa6fed17a538db067393eaea6fe7c5aeb54cb52df4bac44ab9"
+    }
+  ],
+  "count": 103,
+  "bytes": 1676391,
+  "scope": "merged planner and immutable first shakeout failure; binary, database, cache and secrets excluded"
+}

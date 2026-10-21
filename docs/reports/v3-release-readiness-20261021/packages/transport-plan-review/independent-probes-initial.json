@@ -1,0 +1,51 @@
+{
+  "schema": "independent-transport-review-probes/v1",
+  "results": [
+    {
+      "case": "real-cli-baseline",
+      "returncode": 0,
+      "stdout": "{\"plan_sha256\":\"02b4d19fd378958b0a756c26b0edcebf64f6e3542912b2d8ee03fc31ae33aa51\",\"plan_size\":26311,\"schema\":\"wukongim.object_storage_plan_receipt/v1\",\"snapshot_count\":1,\"status\":\"plan_only\"}\n",
+      "stderr": "",
+      "output_exists": true,
+      "passed_expected_boundary": true,
+      "output_sha256": "02b4d19fd378958b0a756c26b0edcebf64f6e3542912b2d8ee03fc31ae33aa51"
+    },
+    {
+      "case": "retained-fully-receipted-missing-byhash",
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "object-storage planning failed: APT by-hash object differs from dists/preview/main/binary-amd64/Packages\n",
+      "output_exists": false,
+      "passed_expected_boundary": true
+    },
+    {
+      "case": "coherent-rewrite-original-anchor",
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "object-storage planning failed: archive SHA-256 differs from independent anchor\n",
+      "output_exists": false,
+      "passed_expected_boundary": true
+    },
+    {
+      "case": "declared-archive-prehash-budget",
+      "declared_archive_size": 1,
+      "observed_archive_reads": [
+        {
+          "actual_bytes_read_for_hash": 66048,
+          "maximum_bytes_argument": null
+        }
+      ],
+      "stderr": "archive size differs from independent anchor",
+      "passed_expected_boundary": false,
+      "finding": "The entire archive is hashed without a limit before actual size is compared to the independent declared bound."
+    },
+    {
+      "case": "apt-decompression-limit-receipted",
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "object-storage planning failed: APT Packages.gz exceeds its decompressed size limit\n",
+      "output_exists": false,
+      "passed_expected_boundary": true
+    }
+  ]
+}

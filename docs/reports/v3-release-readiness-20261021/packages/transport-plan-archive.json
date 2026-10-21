@@ -1,0 +1,472 @@
+{
+  "recorded_at": "2026-10-21T06:24:10.486483+00:00",
+  "copied_verbatim": true,
+  "files": [
+    {
+      "path": "object-storage-plan/01-red.log",
+      "bytes": 33348,
+      "sha256": "ee7f6b4a6d02c53074ae6d31f7050c2a74736c35f8a090f10b4f78922ecaf09a"
+    },
+    {
+      "path": "object-storage-plan/02-complete-red.log",
+      "bytes": 42470,
+      "sha256": "f02cc5d569ff3284bf50fd7358d627f6edd3582690f201740109965b09d45269"
+    },
+    {
+      "path": "object-storage-plan/03-first-green-attempt.log",
+      "bytes": 12869,
+      "sha256": "44a1a036c85a72537e60ad2c3f847aee5b2cddca63ee076f36300d425e765b02"
+    },
+    {
+      "path": "object-storage-plan/04-focused-green.log",
+      "bytes": 5232,
+      "sha256": "a765384e346ebfc4de10b83d37eb0b76d06d6c37495733f58694ce0875f07ba7"
+    },
+    {
+      "path": "object-storage-plan/05-related-green.log",
+      "bytes": 14994,
+      "sha256": "10f4bd9eae9364df3af0991723eb87cf7d55a040667304c68a4e8eaadc9bf0f6"
+    },
+    {
+      "path": "object-storage-plan/06-resource-bounds-red.log",
+      "bytes": 36996,
+      "sha256": "d397ffa461bb1de8397d946288f397b4c75937ceea0e018879a8b5d5bfcc555b"
+    },
+    {
+      "path": "object-storage-plan/07-resource-bounds-related-green.log",
+      "bytes": 15577,
+      "sha256": "004d77c95242bbb9bde38ddab786f3e2d91cc3093ca66662adaf967bc6851dc5"
+    },
+    {
+      "path": "object-storage-plan/08-contract.log",
+      "bytes": 174,
+      "sha256": "2f62abd07c6fc44d93fa5b2bb62a83d228dcb998ef7efdf186eaa86633c4889f"
+    },
+    {
+      "path": "object-storage-plan/09-plain-rpm-red.log",
+      "bytes": 6815,
+      "sha256": "ccbd0a08994047247e13d5b6d176031e334ce8b83951bfa5685ee952b3dfee6e"
+    },
+    {
+      "path": "object-storage-plan/10-plain-rpm-related-green.log",
+      "bytes": 15856,
+      "sha256": "71516fe4aff1b0f791f80d6a5986a0a3f74d3ba972fe2348f7828f839dbf65a7"
+    },
+    {
+      "path": "object-storage-plan/11-plain-rpm-contract.log",
+      "bytes": 174,
+      "sha256": "2f62abd07c6fc44d93fa5b2bb62a83d228dcb998ef7efdf186eaa86633c4889f"
+    },
+    {
+      "path": "object-storage-plan/ARCHIVE_ALLOWLIST.json",
+      "bytes": 5315,
+      "sha256": "44edb43e7fb29db8045bedfb668aacd1eb14886a4e0c25a1d3897e55196f6014"
+    },
+    {
+      "path": "object-storage-plan/archive-allowlist.txt",
+      "bytes": 995,
+      "sha256": "a9754b1e7f000b299b36e1d9088c253ed59c692517527ad935906b75c5516711"
+    },
+    {
+      "path": "object-storage-plan/archive-sha256.txt",
+      "bytes": 3022,
+      "sha256": "1b8e5d24e8f016a3bb3f43a9e191743f8583b21f267e836d2628c0c616af38e5"
+    },
+    {
+      "path": "object-storage-plan/failure-inventory.md",
+      "bytes": 2185,
+      "sha256": "af59fd4c51cf7fc867c4518bfccc9d54c46750562e5cc0f2ac62d51f811d78bb"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/README.md",
+      "bytes": 502,
+      "sha256": "22eb6fa654565d2b763f741653cd246ac89993a70053223ea9bd8c29e414e5ab"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/cli-acceptance.json",
+      "bytes": 23831,
+      "sha256": "5d05a67a2c14e7915be2647c89a57e70aa74b084ccebd4d9bd1cc0b106f03204"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/cli-receipt-1.json",
+      "bytes": 192,
+      "sha256": "e48798285868b4a132da466599244b38de7fffc7c28aa1b06e43be42a66450c0"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/cli-receipt-2.json",
+      "bytes": 192,
+      "sha256": "e48798285868b4a132da466599244b38de7fffc7c28aa1b06e43be42a66450c0"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/handoff.md",
+      "bytes": 2187,
+      "sha256": "ca41f812fd4e03f5a48ec91c69f9d979a78e239dd8334d1bd588cb6bce3a34cf"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/implementation-summary.json",
+      "bytes": 1662,
+      "sha256": "f690b88dab3aa5a017442e94e9d532bb30a98080da2b1251aa1a8a08b52b659d"
+    },
+    {
+      "path": "object-storage-plan/generation-1-resource-fix/review.patch",
+      "bytes": 54298,
+      "sha256": "7bc9c2c35a152dbffdd6b82a36bfe502fa35736132e83068195b401ea834e4f4"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/cli/acceptance.json",
+      "bytes": 1054,
+      "sha256": "2587d774961949ec408e7a9e01e717865946411dd98cbd72b368e605dc451449"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/cli/plan-1.json",
+      "bytes": 42696,
+      "sha256": "30b62d086dfc7dd9724fab3cdc8a9ae0b6831f82116eaade2214e37c76768070"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/cli/receipt-1.json",
+      "bytes": 192,
+      "sha256": "658e8ea15a45f4e156124dc81d9a41a74c88f893b27d7f2e471083523428b977"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/cli/receipt-2.json",
+      "bytes": 192,
+      "sha256": "658e8ea15a45f4e156124dc81d9a41a74c88f893b27d7f2e471083523428b977"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/handoff.md",
+      "bytes": 3066,
+      "sha256": "adf4c3abbe898e6c786e60f515aa9e5c7374dbc5d88f8d52d10e88cd9a5aa10c"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/implementation-summary.json",
+      "bytes": 2677,
+      "sha256": "0da822bf061a46fbc24d134f99f279fe52cb239bf2957f1bdba6fd1cef602886"
+    },
+    {
+      "path": "object-storage-plan/generation-2-plain-rpm/review.patch",
+      "bytes": 58470,
+      "sha256": "044246e3ea471bd656bfb7ba1fb3055d7491c4f7a9c285d9d6cb385b78e6f1ac"
+    },
+    {
+      "path": "object-storage-plan/generations.json",
+      "bytes": 789,
+      "sha256": "e9a91a983c3b36174eb47c7b8f934b2291d3a39e1380cf98ae1370ca004f6224"
+    },
+    {
+      "path": "object-storage-plan/reproduce-cli.py",
+      "bytes": 2861,
+      "sha256": "21c16a16e898c0b2aae77029e35449d703c5bea95919616ea98fd9fdf5a9f43d"
+    },
+    {
+      "path": "object-storage-plan/rules-and-source-freeze.json",
+      "bytes": 2343,
+      "sha256": "5dc9570bab3d1e9ad72a8d99868a92c70a7a8a93a7161efb9fdd63c930060e93"
+    },
+    {
+      "path": "transport-plan-review/final-freeze.json",
+      "bytes": 1183,
+      "sha256": "524aabdc4849953f95096127d545d5b686325447afbb81a1be4479a0b95a5cd8"
+    },
+    {
+      "path": "transport-plan-review/focused-resource-tests.log",
+      "bytes": 681,
+      "sha256": "39d8d97e8b4597c7397a2778dbf1be568a42f54b5adfbca034349b6ad2757d77"
+    },
+    {
+      "path": "transport-plan-review/implementation-freeze.json",
+      "bytes": 458,
+      "sha256": "c6a790ca13fd08e57c00afa129e21c36305a54b25c4847989099c3e46d7979aa"
+    },
+    {
+      "path": "transport-plan-review/independent-probes-final.json",
+      "bytes": 1678,
+      "sha256": "90457bbe2eb490c081942981efefafa397a73181c43dc340f0aa5d09018e201f"
+    },
+    {
+      "path": "transport-plan-review/independent-probes-initial.json",
+      "bytes": 1902,
+      "sha256": "1a09d0216747a1794b1f2af523798d11ebca5964654d4a730e0b3be4b0246941"
+    },
+    {
+      "path": "transport-plan-review/independent-probes.py",
+      "bytes": 4703,
+      "sha256": "ec7c98f7f035b53170903373cda2f25025ea600ca86e9104dec2f99bef51736f"
+    },
+    {
+      "path": "transport-plan-review/initial-finding.json",
+      "bytes": 1143,
+      "sha256": "a85604375ba3c9db3e55754f09194b59a51c41b37b654a8521fa77997a8959cd"
+    },
+    {
+      "path": "transport-plan-review/preimplementation-negative-cases.md",
+      "bytes": 3569,
+      "sha256": "5752f948a6367c1b322f490e578c24fbdcd8bd8c8cdd844badf431e69076f95d"
+    },
+    {
+      "path": "transport-plan-review/review-result.json",
+      "bytes": 2328,
+      "sha256": "2570376c940321db34bb6f38be27c855b44b728773b1ef3f4a58dd23f1b4016e"
+    },
+    {
+      "path": "transport-plan-review/review-summary.md",
+      "bytes": 2084,
+      "sha256": "6d34843d99b029c896d4aae1a0f64b88b5ea4f6795e9324a7e0bd7e608537c81"
+    },
+    {
+      "path": "transport-plan-review/scope-and-source-freeze.json",
+      "bytes": 2048,
+      "sha256": "9574bd964d4cbf6e3d70b70d4c2b428bf9f3fcf92113c4761af5971605ab6d82"
+    },
+    {
+      "path": "transport-plan-review/archive-allowlist.txt",
+      "bytes": 279,
+      "sha256": "d4a284dbd381963eec56abe99c9712c6ba3e1a224e4afd2e026ba5a3bfbfb205"
+    },
+    {
+      "path": "transport-plan-review/archive-sha256.txt",
+      "bytes": 1093,
+      "sha256": "cd739830fa7eeb20279c48c3a7cea9d38cf2c12d07f11d945ee9b776237675f4"
+    },
+    {
+      "path": "transport-plan-review/generation-2/floating-probes-first-new-code-diagnostic.json",
+      "bytes": 1848,
+      "sha256": "5941c2a4b299751e7c838daf6c69dada14fcf5b0f9c95969e1a560851d8de260"
+    },
+    {
+      "path": "transport-plan-review/generation-2/floating-probes-green.json",
+      "bytes": 1875,
+      "sha256": "82b0f762b07c7a88edcc99dd71fe629c4f5823725d44d06d623c7673c66dc07a"
+    },
+    {
+      "path": "transport-plan-review/generation-2/focused-plain-metadata-tests.log",
+      "bytes": 550,
+      "sha256": "bc63f90fcab3ea5bc17bec44650fc3c51ed9c8b49fc6f4f06fbf97f1df2521b5"
+    },
+    {
+      "path": "transport-plan-review/generation-2/freeze.json",
+      "bytes": 671,
+      "sha256": "eb26ccc2d15265db8d74be6bd521cba22ca07a1e9790c6d76b9aa77006b25ac8"
+    },
+    {
+      "path": "transport-plan-review/generation-2/implementation-gen1-to-gen2.diff",
+      "bytes": 1136,
+      "sha256": "d936ededf0145077f28e8a16558840e8b8b6fdc3550de8d4073e1ea039e1cca4"
+    },
+    {
+      "path": "transport-plan-review/generation-2/independent-floating-probes.py",
+      "bytes": 5555,
+      "sha256": "4d6bf02e6ae377db57633a790e79b72232dc8636fe7cee33c05300f0f58765a9"
+    },
+    {
+      "path": "transport-plan-review/generation-2/real-plan-independent-crosscheck.json",
+      "bytes": 1796,
+      "sha256": "6a4d5cfd29ef3a1711ddc3e39ac7c6a718d0806c236d4b516d0eb94b201b0eb4"
+    },
+    {
+      "path": "transport-plan-review/generation-2/review-result.json",
+      "bytes": 940,
+      "sha256": "4c49627d575c27e397418e33a5ced6a8a0001507e33cb81018d82c2693dbf109"
+    },
+    {
+      "path": "transport-plan-review/generation-2/review-summary.md",
+      "bytes": 2549,
+      "sha256": "72560e4b241e5219b9ba1c13b828d95ba9483d7c97e673002620b499e9a12a48"
+    },
+    {
+      "path": "transport-plan-review/generation-2/archive-allowlist.txt",
+      "bytes": 258,
+      "sha256": "a97b7771f7934fd424d15abc62762d825a6fd7c801fec242a22aa0d774eb5627"
+    },
+    {
+      "path": "transport-plan-review/generation-2/archive-sha256.txt",
+      "bytes": 940,
+      "sha256": "e685aaa9dff839ef5e2f8a47da2780a72eb666566bdfde8e308bcb08a2094852"
+    },
+    {
+      "path": "transport-plan-real/README.md",
+      "bytes": 2506,
+      "sha256": "98c03bfd12cd0e85745898fc4a9cae92c2c6434650bab2f7de01e4186bd2630f"
+    },
+    {
+      "path": "transport-plan-real/audit-release.json",
+      "bytes": 6174,
+      "sha256": "3fbfd31f2f0c1c8782b14c2a24c71537f2c39e7cdb9c86e0a1a257d29b82f1bd"
+    },
+    {
+      "path": "transport-plan-real/audit-tag.json",
+      "bytes": 428,
+      "sha256": "8fa13b3fdb9aff6f93e23e8d987500b02c172698023f03ba8ee1847a7d6b5502"
+    },
+    {
+      "path": "transport-plan-real/commands.json",
+      "bytes": 3017,
+      "sha256": "922745fc0c27d7781fe84e91327db0c6fae32ec45810e60a595aaeb8007f351f"
+    },
+    {
+      "path": "transport-plan-real/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "transport-plan-real/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "transport-plan-real/control/manifests/bootstrap-packages.json",
+      "bytes": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "transport-plan-real/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "transport-plan-real/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "transport-plan-real/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "transport-plan-real/control-commit.json",
+      "bytes": 2232,
+      "sha256": "55825e07f3b2e1b8ea4a3497a888ba9f9b88b949e100d0cc9e10ec28992a46b7"
+    },
+    {
+      "path": "transport-plan-real/control-file-anchors.json",
+      "bytes": 2919,
+      "sha256": "893bc212918912698403f426f1e38e4a237ba384b209650b63ec5973992304e6"
+    },
+    {
+      "path": "transport-plan-real/disk-precheck.json",
+      "bytes": 244,
+      "sha256": "ed3b402ebf1922a4164deba07c13ed212ffd324974edf703be188d228b0ce127"
+    },
+    {
+      "path": "transport-plan-real/input-preparation.stdout",
+      "bytes": 187,
+      "sha256": "e3ee76422fe9fb38575f3dba85de207c3553b9b1d742fff000d8660de8a3de44"
+    },
+    {
+      "path": "transport-plan-real/input-verification.json",
+      "bytes": 2153,
+      "sha256": "511df2537969cdbcdccb445c81d2555d002dae569cc57b8ff1e5692f27adb6ed"
+    },
+    {
+      "path": "transport-plan-real/inputs.json",
+      "bytes": 1514,
+      "sha256": "fc47ed9e23a2a3ede593beaeac89f24c62e068da4edf656f4434e0af295a3775"
+    },
+    {
+      "path": "transport-plan-real/planner-command.json",
+      "bytes": 3118,
+      "sha256": "e512e19a3bfec8a847644de6c612fb134c600c8075e324affb4e5c22bfc21ea9"
+    },
+    {
+      "path": "transport-plan-real/planner.stderr",
+      "bytes": 107,
+      "sha256": "ea6df688851bcedf504414fbfe80cd44b4140096094113db1418c9fab68cb266"
+    },
+    {
+      "path": "transport-plan-real/planner.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "transport-plan-real/prepare-inputs.py",
+      "bytes": 6668,
+      "sha256": "52ce9780801ccd5416d726e7697b20f192499f68b0ac93bc26e4ad9269946423"
+    },
+    {
+      "path": "transport-plan-real/public-audit-rpm-signing.json",
+      "bytes": 3045,
+      "sha256": "1faab76816a561db3153d5f8946040f5a2e680566b7b11659f6841301f743614"
+    },
+    {
+      "path": "transport-plan-real/public-audit-source-attestations-source-attestations.json",
+      "bytes": 2513,
+      "sha256": "ebce91320818de6fad1c8cc03ed65172c7fcd81d6c1cb40e5f580cfdce429abe"
+    },
+    {
+      "path": "transport-plan-real/source-release.json",
+      "bytes": 16365,
+      "sha256": "83d8bf9bd8d02e229ce9ded092c03629eeb1ce034f434042d1d7c23638b067e5"
+    },
+    {
+      "path": "transport-plan-real/source-tag-object.json",
+      "bytes": 674,
+      "sha256": "8bd2e088b00e632c8f84267c45c3918c4b9f13ba41112346a0ec677a99add640"
+    },
+    {
+      "path": "transport-plan-real/source-tag.json",
+      "bytes": 356,
+      "sha256": "11707eddb5fae9dc6b189c6fd90e184c8a0601920f17d5fc3ae7d19b7a0ba46a"
+    },
+    {
+      "path": "transport-plan-real/summary.json",
+      "bytes": 1568,
+      "sha256": "57facafc516da224e6670995e46ac8287550f92574cc1dfabca8550c1b4c2a91"
+    },
+    {
+      "path": "transport-plan-real/wukongim-preview-r402342684-receipt.json",
+      "bytes": 3743,
+      "sha256": "c156796d4559f93c600ac3196537fc0a858b9de1ae0d233bfe94fd333d7617bb"
+    },
+    {
+      "path": "transport-plan-real/ARCHIVE_ALLOWLIST.json",
+      "bytes": 4381,
+      "sha256": "ca12379b89921aaf83c6b2d8c1db55bb534f30614761f02a452d66440f6d7e5c"
+    },
+    {
+      "path": "transport-plan-real/SHA256SUMS",
+      "bytes": 2537,
+      "sha256": "4f10397ba821b5e4cd810930ddd526f2ef7ad100f9ccd6b8d269813db0897961"
+    },
+    {
+      "path": "transport-plan-real/generation-2/README.md",
+      "bytes": 1100,
+      "sha256": "c8f63d9e055a8f2c6fa758e975a3d15f8201db3a9681d0d896897861081e5551"
+    },
+    {
+      "path": "transport-plan-real/generation-2/independent-verification.json",
+      "bytes": 1831,
+      "sha256": "3346b1687145402fd3854d19dd0f76807a31fb824626689fccc93c7b2c708ab8"
+    },
+    {
+      "path": "transport-plan-real/generation-2/plan.json",
+      "bytes": 31484,
+      "sha256": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114"
+    },
+    {
+      "path": "transport-plan-real/generation-2/planner-command.json",
+      "bytes": 3362,
+      "sha256": "439fd1ba2f36e44934ae7a3b21eabbbeae55178d53a1105cbc5f5700255488c7"
+    },
+    {
+      "path": "transport-plan-real/generation-2/planner.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "transport-plan-real/generation-2/planner.stdout",
+      "bytes": 192,
+      "sha256": "7a9f9a61eba61599b1b69d2d8cc8fae83a46eb5a51adf450f62f186c1058eba7"
+    },
+    {
+      "path": "transport-plan-real/generation-2/ARCHIVE_ALLOWLIST.json",
+      "bytes": 946,
+      "sha256": "893cc2775631d4b1afff7fb57da9b9ad88800fdc5f4c00227cc3b821ad3e1119"
+    },
+    {
+      "path": "transport-plan-real/generation-2/SHA256SUMS",
+      "bytes": 586,
+      "sha256": "f5a3db82cece0e6a0804d9cbd66688339c61bb22fbdd0a84998724e2fafbe485"
+    }
+  ],
+  "scope": "Only allowlisted planner implementation/review/public-input receipts; no source tar, package binaries, fixture tree, credentials or private signing material."
+}

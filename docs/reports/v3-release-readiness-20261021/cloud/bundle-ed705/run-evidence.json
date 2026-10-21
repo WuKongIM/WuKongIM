@@ -1,0 +1,81 @@
+{
+  "checked_out_revision_log_occurrences": 4,
+  "completed_at": "2026-10-21T06:34:06Z",
+  "conclusion": "success",
+  "control_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "effective_job_permissions": [
+    "Contents: read",
+    "Metadata: read"
+  ],
+  "event": "workflow_dispatch",
+  "expected_steps": {
+    "Add checksum-pinned native dependencies": {
+      "completed_at": "2026-10-21T06:33:37Z",
+      "conclusion": "success",
+      "number": 10,
+      "started_at": "2026-10-21T06:33:34Z",
+      "status": "completed"
+    },
+    "Build Linux AMD64 product and control binaries": {
+      "completed_at": "2026-10-21T06:33:34Z",
+      "conclusion": "success",
+      "number": 9,
+      "started_at": "2026-10-21T06:32:12Z",
+      "status": "completed"
+    },
+    "Build Manager and Demo assets on the runner": {
+      "completed_at": "2026-10-21T06:32:12Z",
+      "conclusion": "success",
+      "number": 8,
+      "started_at": "2026-10-21T06:31:49Z",
+      "status": "completed"
+    },
+    "Checkout immutable product source": {
+      "completed_at": "2026-10-21T06:31:35Z",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T06:31:26Z",
+      "status": "completed"
+    },
+    "Checkout trusted control revision": {
+      "completed_at": "2026-10-21T06:31:26Z",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T06:31:22Z",
+      "status": "completed"
+    },
+    "Prove source and control identities": {
+      "completed_at": "2026-10-21T06:31:49Z",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-10-21T06:31:48Z",
+      "status": "completed"
+    },
+    "Seal and independently verify content address": {
+      "completed_at": "2026-10-21T06:33:53Z",
+      "conclusion": "success",
+      "number": 11,
+      "started_at": "2026-10-21T06:33:37Z",
+      "status": "completed"
+    },
+    "Upload content-addressed offline bundle": {
+      "completed_at": "2026-10-21T06:33:58Z",
+      "conclusion": "success",
+      "number": 12,
+      "started_at": "2026-10-21T06:33:53Z",
+      "status": "completed"
+    }
+  },
+  "head_branch": "main",
+  "no_retry_dispatch": true,
+  "raw_log_sha256": "a28caa79e5e70bac159d46a0474a7fcf04badedaa5890cef64a5022d141c6b9c",
+  "raw_log_size": 131081,
+  "request_id": "v3-readiness-ed705-20261021",
+  "run_attempt": 1,
+  "run_id": 39555917411,
+  "schema": "wukongim.offline_bundle_run_evidence/v1",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "started_at": "2026-10-21T06:31:20Z",
+  "workflow_id": 329938006,
+  "workflow_path": ".github/workflows/cloud-deployment-bundle.yml"
+}

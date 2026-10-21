@@ -1,0 +1,52 @@
+{
+  "schema": "wukongim/packages-pr-merge-delivery-audit/v1",
+  "observed_at": "2026-10-21T06:41:27.727359+00:00",
+  "pr": 68,
+  "url": "https://github.com/WuKongIM/packages/pull/68",
+  "authorization_scope": "Parent task confirmed explicit authorization to review and normally merge PR #68 at the approved exact head. This continuation only performs read-only delivery verification and evidence writes.",
+  "approved_head": "09360d07d0bffa3258be252d7730902041026ba8",
+  "merged_main": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "merged_at": "2026-10-21T06:34:42Z",
+  "merge_method": "rebase",
+  "recorded_merge_cli_uses_admin_flag": false,
+  "same_tree": "69dface82da5728544aeb217e8f48e7ea0057343",
+  "protection_unchanged": true,
+  "postmerge_run": {
+    "id": 39556280194,
+    "url": "https://github.com/WuKongIM/packages/actions/runs/39556280194",
+    "event": "push",
+    "attempt": 1,
+    "head_sha": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+    "actual_checkout_sha": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+    "conclusion": "success",
+    "completed_observation": "2026-10-21T06:36:32Z",
+    "full_python_tests": 373,
+    "full_python_seconds": 99.318,
+    "contract_subtests": 2,
+    "contract_subtests_not_summed_as_unique_tests": true,
+    "configure_pages": "skipped",
+    "upload_pages_artifact": "skipped",
+    "deploy_pages_job": "skipped"
+  },
+  "cleanup": {
+    "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan",
+    "clean": true,
+    "original_tip_is_ancestor": false,
+    "branch_retained": true,
+    "worktree_retained": true,
+    "reason": "Normal rebase changed the commit identity; the original tip is absent from main ancestry, so no force deletion is performed."
+  },
+  "publication": "No production package deployment occurred; this is delivery of the offline preview-only planner, not a stable release.",
+  "actions_not_performed": [
+    "merge",
+    "dispatch",
+    "rerun",
+    "cancel",
+    "comment",
+    "cloud operation",
+    "key access",
+    "protected control change",
+    "force deletion"
+  ],
+  "prior_evidence_preserved": true
+}

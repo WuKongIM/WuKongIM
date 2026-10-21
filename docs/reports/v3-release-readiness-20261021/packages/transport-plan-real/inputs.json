@@ -1,0 +1,30 @@
+{
+  "schema": "wukongim.object_storage_plan_inputs/v1",
+  "channel": "preview",
+  "current": {
+    "archive": "wukongim-preview-r402342684-site.tar",
+    "receipt": "wukongim-preview-r402342684-receipt.json",
+    "control_dir": "control",
+    "audit_release_id": 402342684,
+    "control_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+    "archive_sha256": "71eb2b1b338742b9669ebfc7135ede8a12f73f395b3171e6375f18240d5c3a07",
+    "archive_size": 308536832,
+    "receipt_sha256": "c156796d4559f93c600ac3196537fc0a858b9de1ae0d233bfe94fd333d7617bb",
+    "snapshot_sha256": "242af0efec792b089661a5411e0b57b954998432cf13df9c657fb2d823851be8",
+    "source": {
+      "repository": "WuKongIM/WuKongIM",
+      "version": "3.0.0-beta.24",
+      "release_id": 402354460,
+      "source_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77"
+    },
+    "control_files_sha256": {
+      "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "manifests/preview-signing.json": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "manifests/signing-toolchain.json": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "manifests/bootstrap-packages.json": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "keys/apt-preview.asc": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "keys/rpm-preview.asc": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    }
+  },
+  "retain": []
+}

@@ -1,0 +1,44 @@
+{
+  "observed_at": "2026-10-21T06:21:48.700717+00:00",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "source_clean": true,
+  "source_files_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "test/e2e/AGENTS.md": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "go.mod": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+    "go.sum": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "efc49bb068de1b5dd714ebd12dc077b4c34a27fede0d995bdf59b37caf3386af",
+    "scripts/chat-lifecycle/detect-local-workload-overlap.sh": "cf73b5e4d106e79f5152cf0a8ea6dbad8bc20ab6aed0d997d51fed7c98641580",
+    "scripts/chat-lifecycle/capture-local-storage-overlap.sh": "f4ac1758b158f307a617b7dea199622f71449c04b63d939ff9f5c881fd664e7b",
+    "scripts/storage-metrics-cut-consistent.awk": "1c23e0966953292ff24b5d5d3a2f4b5ba5f8f4c5e9642744e8cc590e7bd7bfaa",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "234db9313fb0d1bddb2bfc6a4cce4ed1d6396b0d065781aac2d4cfd24fad31ac",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "7d971edd64be172ff8e36a170e2defdeec42b0617ec245da17d4f9372f6339a4",
+    "scripts/wukongim/wukongim-node1.toml": "3cbe215c8564808fc61b06e91f80f5a6c70e29aa107482f32531c56923129d21",
+    "scripts/wukongim/wukongim-node2.toml": "6f485b514ca36570e75ee021889ed0f63c1da0cec1650743cde88b6bde9cfad3",
+    "scripts/wukongim/wukongim-node3.toml": "965c6a5a4d3f72614792c9a8b29cf9fb3a7f179af00232139f8273d80b78ecc0"
+  },
+  "worktree_reason": "No development or code edits; use exact clean merged primary checkout, freeze before/after builds and run.",
+  "go_version": "go version go1.25.11 darwin/arm64",
+  "platform": "Darwin Mac.lan 24.1.0 Darwin Kernel Version 24.1.0: Thu Oct 10 21:06:23 PDT 2024; root:xnu-11215.41.3~3/RELEASE_ARM64_T8132 arm64",
+  "memory_bytes": 34359738368,
+  "logical_cpu_count": 10,
+  "filesystem": {
+    "capacity_bytes": 994662584320,
+    "available_bytes": 787221499904,
+    "available_percent": 79.14457749933192,
+    "fixed_reserve_percent": 5
+  },
+  "localhost_ports_checked": [
+    15000,
+    15063
+  ],
+  "existing_wukongim_workloads": [],
+  "config_change": false,
+  "cloud_operation": false,
+  "independent_gocache": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/go-cache",
+  "local_tmp": "/tmp/wksoak-ed705-20261021",
+  "network_scope": "Owned service, worker, manager, debug, metrics and gateway endpoints are bound to 127.0.0.1 by the committed helper.",
+  "evidence_level": "Local macOS native-process shakeout only; not Linux formal/rehearsal/72-hour qualification."
+}

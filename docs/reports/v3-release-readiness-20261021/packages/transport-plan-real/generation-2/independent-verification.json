@@ -1,0 +1,47 @@
+{
+  "status": "plan_only_real_input_compatible",
+  "planner_sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+  "prior_failure_preserved": "../summary.json",
+  "plan_sha256": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114",
+  "plan_size": 31484,
+  "snapshot_count": 1,
+  "snapshot_objects_independently_hashed": 44,
+  "entrypoint_count": 17,
+  "immutable_alias_count": 14,
+  "plain_filename_metadata": [
+    {
+      "public_uri": "/rpm/preview/el/9/x86_64/repodata/filelists.xml.gz",
+      "entrypoint_cache_control": "no-store",
+      "physical_snapshot_cache_control": "no-store",
+      "immutable_alias_count": 0,
+      "sha256": "b8272b8e3fcfd8712b93e090a24f9f63d9df8d13872a859a5b3ab9b4f8183856",
+      "size": 570
+    },
+    {
+      "public_uri": "/rpm/preview/el/9/x86_64/repodata/other.xml.gz",
+      "entrypoint_cache_control": "no-store",
+      "physical_snapshot_cache_control": "no-store",
+      "immutable_alias_count": 0,
+      "sha256": "ab289b11dbb15c643015f7e2ed2089720652af970534a09c4cf831d254b65fbd",
+      "size": 442
+    },
+    {
+      "public_uri": "/rpm/preview/el/9/x86_64/repodata/primary.xml.gz",
+      "entrypoint_cache_control": "no-store",
+      "physical_snapshot_cache_control": "no-store",
+      "immutable_alias_count": 0,
+      "sha256": "d5c1bb33ff141e1a06dba36676b670404e21f0c3f3e1c0d60ddfe8638fb54363",
+      "size": 1345
+    }
+  ],
+  "scope": "One real preview generation; structure/bytes plan-only, no signatures/full provenance/cloud/publication verification",
+  "verification": {
+    "activation_authorized": false,
+    "archive_and_receipt_consistent": true,
+    "cloud_verified": false,
+    "control_commit_verified": false,
+    "github_provenance_verified": false,
+    "metadata_closure_checked": true,
+    "signatures_verified": false
+  }
+}

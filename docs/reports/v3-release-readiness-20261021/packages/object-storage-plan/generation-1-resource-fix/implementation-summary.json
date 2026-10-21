@@ -1,0 +1,25 @@
+{
+  "base_commit": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "branch": "codex/object-storage-plan",
+  "committed": false,
+  "files": {
+    "CHANGELOG.md": "49e872069fde2a0f74ef37c7ee571611a3c745f04e7c7e4b9a402038fa19e4f1",
+    "README.md": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+    "docs/object-storage-planning.md": "014a9b4b1f8afbbe3014ef99236d9790e65cad9d63f86ddba8e1dcfa2acc6750",
+    "scripts/plan-object-storage-publication.py": "27ddc3fea6217bdb978e6e62b89f7c1647051b168aa6c1da8ef3e7ee2790acc6",
+    "tests/test_plan_object_storage_publication.py": "a52df533fcbcf8f2f10d12d8eb61e322e8492cb9ce782d552fd6d3c8be69895a"
+  },
+  "pushed": false,
+  "review_patch_sha256": "7bc9c2c35a152dbffdd6b82a36bfe502fa35736132e83068195b401ea834e4f4",
+  "scope": "preview add_release offline plan only; no stable, native verification, cloud, signing, credentials, upload, activation or deletion",
+  "validation": {
+    "failure_first_initial": "02-complete-red.log (27 tests, 37 failures: missing implementation)",
+    "independent_review": "ci_audit independently closed R1; final artifact pending",
+    "process_cli": "cli-acceptance.json; two byte-identical TEST ONLY 2-snapshot plans; inputs unchanged",
+    "real_public_input": "rc_cloud_plan compatibility verification in progress",
+    "related_tests": "07-resource-bounds-related-green.log (83 tests PASS; planner 30)",
+    "repository_contract": "08-contract.log PASS",
+    "resource_regression_red": "06-resource-bounds-red.log (3 tests, 9 failing subcases before fix)"
+  },
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan"
+}

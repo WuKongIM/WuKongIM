@@ -1,0 +1,28 @@
+{
+  "schema": "independent-review-real-plan-crosscheck/v1",
+  "observed_at": "2026-10-21T06:22:06.374360+00:00",
+  "original_review_manifest_unchanged": true,
+  "real_plan_sha256": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114",
+  "real_plan_identity_matches_original_descriptor": true,
+  "plain_metadata_checked_against_public_rpm_receipt": [
+    "repodata/filelists.xml.gz",
+    "repodata/other.xml.gz",
+    "repodata/primary.xml.gz"
+  ],
+  "snapshot_count": 1,
+  "snapshot_objects": 44,
+  "entrypoints": 17,
+  "aliases": 14,
+  "tar_members_rehash": "Performed by rc_cloud_plan, recorded in real generation-2/independent-verification.json; not duplicated here.",
+  "referenced_evidence": {
+    "transport-plan-real/input-verification.json": "511df2537969cdbcdccb445c81d2555d002dae569cc57b8ff1e5692f27adb6ed",
+    "transport-plan-real/inputs.json": "fc47ed9e23a2a3ede593beaeac89f24c62e068da4edf656f4434e0af295a3775",
+    "transport-plan-real/planner-command.json": "e512e19a3bfec8a847644de6c612fb134c600c8075e324affb4e5c22bfc21ea9",
+    "transport-plan-real/planner.stderr": "ea6df688851bcedf504414fbfe80cd44b4140096094113db1418c9fab68cb266",
+    "transport-plan-real/generation-2/planner-command.json": "439fd1ba2f36e44934ae7a3b21eabbbeae55178d53a1105cbc5f5700255488c7",
+    "transport-plan-real/generation-2/independent-verification.json": "3346b1687145402fd3854d19dd0f76807a31fb824626689fccc93c7b2c708ab8",
+    "transport-plan-real/generation-2/plan.json": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114",
+    "object-storage-plan/09-plain-rpm-red.log": "ccbd0a08994047247e13d5b6d176031e334ce8b83951bfa5685ee952b3dfee6e",
+    "object-storage-plan/10-plain-rpm-related-green.log": "71516fe4aff1b0f791f80d6a5986a0a3f74d3ba972fe2348f7828f839dbf65a7"
+  }
+}

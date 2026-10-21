@@ -1,0 +1,51 @@
+{
+  "schema": "wukongim/real-preview-plan-input-preparation/v1",
+  "observed_at": "2026-10-21T06:15:12.344551+00:00",
+  "audit_release_id": 402342684,
+  "audit_immutable_observed": true,
+  "assets": [
+    {
+      "name": "wukongim-preview-r402342684-receipt.json",
+      "asset_id": 607274289,
+      "numeric_api": "https://api.github.com/repos/WuKongIM/packages/releases/assets/607274289",
+      "public_url": "https://github.com/WuKongIM/packages/releases/download/native-package-preview-r402342684/wukongim-preview-r402342684-receipt.json",
+      "expected": {
+        "size": 3743,
+        "sha256": "c156796d4559f93c600ac3196537fc0a858b9de1ae0d233bfe94fd333d7617bb"
+      },
+      "actual": {
+        "size": 3743,
+        "sha256": "c156796d4559f93c600ac3196537fc0a858b9de1ae0d233bfe94fd333d7617bb"
+      }
+    },
+    {
+      "name": "wukongim-preview-r402342684-site.tar",
+      "asset_id": 607274043,
+      "numeric_api": "https://api.github.com/repos/WuKongIM/packages/releases/assets/607274043",
+      "public_url": "https://github.com/WuKongIM/packages/releases/download/native-package-preview-r402342684/wukongim-preview-r402342684-site.tar",
+      "expected": {
+        "size": 308536832,
+        "sha256": "71eb2b1b338742b9669ebfc7135ede8a12f73f395b3171e6375f18240d5c3a07"
+      },
+      "actual": {
+        "size": 308536832,
+        "sha256": "71eb2b1b338742b9669ebfc7135ede8a12f73f395b3171e6375f18240d5c3a07"
+      }
+    }
+  ],
+  "control_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "source_release_id": 402354460,
+  "source_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "snapshot_sha256": "242af0efec792b089661a5411e0b57b954998432cf13df9c657fb2d823851be8",
+  "rpm_metadata_paths": [
+    "repodata/filelists.xml.gz",
+    "repodata/other.xml.gz",
+    "repodata/primary.xml.gz",
+    "repodata/repomd.xml",
+    "repodata/repomd.xml.asc"
+  ],
+  "signatures_verified": false,
+  "full_source_provenance_verified": false,
+  "payload_executed": false,
+  "scope": "Public API identity observations and complete downloaded SHA256/size; selected JSON consistency. Planner must independently validate archive and metadata closure."
+}

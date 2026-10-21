@@ -33,6 +33,6 @@
 
 已完成：来源分类 → provenance → native metadata 的只读预检与真实 Linux fixture 验收，[PR #67](https://github.com/WuKongIM/packages/pull/67) 已合并；合并后 main 检查通过，没有部署。
 
-可独立继续：无凭证运输计划器/切换演练、stable 签名请求与回执协议及 TEST ONLY 测试。协议和公钥校验器尚未实现，本准备单不是已完成签名系统。
+无需生产密钥的后续实现：现有 preview 的离线运输计划器 [PR #68](https://github.com/WuKongIM/packages/pull/68) 已经用户批准合并为 `45619df14`，真实 beta.24 快照的结构/字节验证、373 项完整测试及 TEST ONLY 原生包 CI 已通过；它不认证签名或执行上传。客户端切换演练、stable 签名请求与回执协议及 TEST ONLY 测试仍待完成。协议和 stable 公钥校验器尚未实现，本准备单不是已完成签名系统。
 
 待落实：满足合同的专用离线环境或硬件设备，以及实际保管负责人。目前只有联网电脑与 NAS，不再按“稍后提供现有 stable 公钥”等待。实际生成密钥应在冻结的方案得到确认后进行；本任务不会用复制/改名 preview 证书来满足 stable 要求。

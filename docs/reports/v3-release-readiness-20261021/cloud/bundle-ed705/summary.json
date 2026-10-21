@@ -1,0 +1,59 @@
+{
+  "artifact_expires_at": "2026-10-28T06:33:53Z",
+  "artifact_id": 12325112901,
+  "artifact_name": "cloud-deployment-bundle-f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a",
+  "artifact_zip_digest": "sha256:ec3c57608befe831eba0909e974836a0febecd0edc77bef39aed084cbdbe7ca7",
+  "artifact_zip_size": 141108564,
+  "bundle_digest": "sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a",
+  "bundle_regular_files_verified": 110,
+  "control_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "dispatch_count": 1,
+  "effective_job_permissions": [
+    "Contents: read",
+    "Metadata: read"
+  ],
+  "intent_sha256": "sha256:c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85",
+  "large_local_artifact": {
+    "excluded_from_evidence_repository": true,
+    "path": "raw/artifact-12325112901.zip"
+  },
+  "limits": [
+    "Procurement-independent offline payload preparation only; no Lease/Quote/Acquire/activation performed.",
+    "Does not replace local shakeout, two-hour rehearsal, 72-hour stability or production publication.",
+    "Top-level paid workflows must build/associate their own bundle through their fixed contract; this manual artifact is not claimed as a drop-in entry.",
+    "Full static bundle semantics passed on the trusted runner; local independent verifier checks content, complete inventory and frozen intent without executing payload.",
+    "Content addressing is verified; no separate reproducible-build comparison was performed."
+  ],
+  "manifest_inventory_files": 109,
+  "reproduce_independent_verification": [
+    "python3 verify-artifact.py --zip /path/to/downloaded-artifact.zip --artifact-metadata artifact-metadata.json",
+    "--source-sha ed705c0fbffdea485bbb65608d6e340bb049d97e --control-sha ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "--expected-intent independent-review/expected-deployment-intent.json --output-dir /path/to/new-verification-directory"
+  ],
+  "request_id": "v3-readiness-ed705-20261021",
+  "reuse_search": {
+    "complete_history_run_count": 35,
+    "same_source_runs": 0
+  },
+  "schema": "wukongim.v3_readiness_offline_bundle/v1",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "status": "offline_payload_preparation_passed",
+  "tar_sha256": "3fe42fbd8367d76df7b3e85f3d96131783d374fe6cc1c6dbdd6bab4dbb74e078",
+  "tar_size": 141450491,
+  "validation": {
+    "all_nine_linux_amd64_elf_headers": "passed",
+    "artifact_zip_api_digest_and_size": "passed",
+    "cloud_called": false,
+    "every_file_mode_size_sha256_and_ordered_bundle_digest": "passed",
+    "independent_static_and_small_evidence_review": "passed; exact intent bytes and manifest-record digest recomputed by a separate reviewer; no second full archive rehash claimed",
+    "no_repository_changes_or_local_builds": "confirmed",
+    "payload_executed_locally": false,
+    "run_checkout_source_control_build_checksum_seal_verify_upload": "passed",
+    "runtime_or_signing_keys_created": false,
+    "strict_json_and_exact_independently_prepared_default_intent": "passed",
+    "tar_checksum": "passed"
+  },
+  "workflow_run_attempt": 1,
+  "workflow_run_id": 39555917411,
+  "workflow_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39555917411"
+}

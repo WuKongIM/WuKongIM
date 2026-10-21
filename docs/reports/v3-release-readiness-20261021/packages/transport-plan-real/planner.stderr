@@ -1,0 +1,1 @@
+object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz

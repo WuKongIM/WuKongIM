@@ -1,0 +1,9 @@
+{
+  "attempt": 1,
+  "completed_at": "2026-10-21T06:31:17.278287+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/cloud-deployment-bundle.yml/dispatches",
+  "exit_code": 0,
+  "input_file": "dispatch-input.json",
+  "no_automatic_retry": true,
+  "started_at": "2026-10-21T06:31:15.291648+00:00"
+}

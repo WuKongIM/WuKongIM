@@ -1,0 +1,13 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/jobs/119076677122/logs"
+  ],
+  "exit_code": 0,
+  "max_bytes": 2097152,
+  "received_bytes": 17147,
+  "truncated": false,
+  "stderr": "",
+  "sha256": "0c273ef16a10252158f9bdcf82fdefd83e6282b33ab8b1b375c9de57236432f6"
+}

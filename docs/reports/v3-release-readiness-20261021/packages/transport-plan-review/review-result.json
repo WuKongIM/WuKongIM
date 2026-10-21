@@ -1,0 +1,53 @@
+{
+  "verdict": "no_open_blocking_findings_in_approved_offline_preview_scope",
+  "base": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "reviewed_files": {
+    "CHANGELOG.md": {
+      "sha256": "49e872069fde2a0f74ef37c7ee571611a3c745f04e7c7e4b9a402038fa19e4f1",
+      "size": 701
+    },
+    "README.md": {
+      "sha256": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+      "size": 7478
+    },
+    "docs/object-storage-planning.md": {
+      "sha256": "014a9b4b1f8afbbe3014ef99236d9790e65cad9d63f86ddba8e1dcfa2acc6750",
+      "size": 6549
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "27ddc3fea6217bdb978e6e62b89f7c1647051b168aa6c1da8ef3e7ee2790acc6",
+      "size": 19943
+    },
+    "tests/test_plan_object_storage_publication.py": {
+      "sha256": "a52df533fcbcf8f2f10d12d8eb61e322e8492cb9ce782d552fd6d3c8be69895a",
+      "size": 24871
+    }
+  },
+  "resolved_findings": [
+    {
+      "id": "R1",
+      "priority": "P2",
+      "summary": "Input file bounds were applied after unbounded preverification hashing.",
+      "resolution": "New planner checks archive actual size before opening and passes explicit limits to the existing hash helper; receipt/control limits apply before their first reads and rechecks.",
+      "red": "independent-probes-initial.json",
+      "green": "independent-probes-final.json",
+      "focused_tests": "focused-resource-tests.log"
+    }
+  ],
+  "independent_validation": {
+    "real_cli_cases": 4,
+    "total_independent_probes": 5,
+    "all_passed": true,
+    "focused_resource_tests": 3,
+    "resource_subcases": 9,
+    "git_diff_check": "pass",
+    "baseline_output_sha256": "02b4d19fd378958b0a756c26b0edcebf64f6e3542912b2d8ee03fc31ae33aa51"
+  },
+  "not_repeated": "Implementer ran 83 related tests and contract.sh; this review reran only three focused resource tests and independent probes.",
+  "trust_boundaries": [
+    "Caller-provided independent anchors are not authenticated by this command.",
+    "Synthetic TEST ONLY fixture certificates/signatures test consistency only.",
+    "No cryptographic verification, GitHub provenance, control commit validation, cloud routing, upload, activation, deletion, or stable publication is established.",
+    "This review did not invoke any cloud, publication, or production-control operation."
+  ]
+}

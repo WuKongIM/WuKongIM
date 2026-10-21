@@ -1,0 +1,29 @@
+[
+  {
+    "command": [
+      "gh",
+      "pr",
+      "ready",
+      "68",
+      "--repo",
+      "WuKongIM/packages"
+    ],
+    "exit_code": 0,
+    "recorded_at": "2026-10-21T06:34:39.045008+00:00"
+  },
+  {
+    "command": [
+      "gh",
+      "pr",
+      "merge",
+      "68",
+      "--repo",
+      "WuKongIM/packages",
+      "--rebase",
+      "--match-head-commit",
+      "09360d07d0bffa3258be252d7730902041026ba8"
+    ],
+    "exit_code": 0,
+    "recorded_at": "2026-10-21T06:34:43.299126+00:00"
+  }
+]

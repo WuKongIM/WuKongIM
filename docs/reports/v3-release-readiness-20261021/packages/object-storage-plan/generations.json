@@ -1,0 +1,22 @@
+{
+  "current_generation": 2,
+  "generations": [
+    {
+      "evidence": "generation-1-resource-fix/",
+      "generation": 1,
+      "green": "07-resource-bounds-related-green.log",
+      "name": "resource-bound-fix",
+      "planner_sha256": "27ddc3fea6217bdb978e6e62b89f7c1647051b168aa6c1da8ef3e7ee2790acc6",
+      "public_input_result": "Rejected valid beta.24 plain RPM metadata; original receipt in ../transport-plan-real/",
+      "red": "06-resource-bounds-red.log"
+    },
+    {
+      "evidence": "generation-2-plain-rpm/",
+      "generation": 2,
+      "green": "10-plain-rpm-related-green.log",
+      "name": "plain-rpm-metadata-compatibility",
+      "planner_sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+      "red": "09-plain-rpm-red.log"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # v3 正式版发布复核（2026-10-21）
 
-结论：**产品修复和包来源预检已验收并合入 main；当前仍不能发布正式 v3。** 原迁移修复候选已通过迁移重启读取和完整 Linux 性能验收；本轮完整默认测试又发现 MQTT 取消边界与复制测试夹具问题，已修复并冻结更新候选。更新候选 `7e9da7df1` 的七项 Linux CI 均首次通过，包含默认测试、迁移/消息 E2E、完整性能、SDK、Manager 和四发行版原生包。用户批准后，产品 #1016 合入 `ed705c0fb`、packages #67 合入 `782c14602`，两者源码树分别与已验收 head 相同。剩余条件是既定 RC 长稳验收、stable 签名原生包渠道，以及最终版本的发布交付。没有创建版本 tag、采购云资源或启动正式发布。
+结论：**产品修复、包来源预检和离线发布计划器已验收并合入 main；当前仍不能发布正式 v3。** 原迁移修复候选已通过迁移重启读取和完整 Linux 性能验收；本轮完整默认测试又发现 MQTT 取消边界与复制测试夹具问题，已修复并冻结更新候选。更新候选 `7e9da7df1` 的七项 Linux CI 均首次通过，包含默认测试、迁移/消息 E2E、完整性能、SDK、Manager 和四发行版原生包。用户批准后，产品 #1016 合入 `ed705c0fb`、packages #67 合入 `782c14602`、#68 合入 `45619df14`，源码树分别与已验收 head 相同。随后 ed705 本地 30 分钟预检在约第六分钟因生成器 `offered_load_under_delivery` 提前退出，尚未完成，正在诊断。剩余条件是该预检与既定 RC 长稳验收、stable 签名原生包渠道，以及最终版本的发布交付。没有创建版本 tag、采购云资源或启动正式发布。
 
 ## 固定身份和已关闭事项
 
@@ -27,7 +27,7 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 尚未执行；采购前需明确累计预算授权及精确候选。不能将其描述成 RELEASING 对所有发行的通用机械门禁 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 本地预检在 ed705 上提前失败，生成器 grant 返回 under-delivery，诊断中；云阶段尚未执行，采购前需明确累计预算授权及精确候选。不能将其描述成 RELEASING 对所有发行的通用机械门禁 |
 | stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产 stable 仍 disabled/object_storage_required；只读正式版来源/provenance/native metadata 的 [PR #67](https://github.com/WuKongIM/packages/pull/67) 已合并为 `782c14602`，52 项相关测试、独立审查及新版两项 CI 首次通过；快照检查342项测试、真实native元数据7场景和既有TEST ONLY签名仓库演练通过。合并后 main 的342项测试再次通过，部署跳过；公网生产链路仍未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
@@ -68,7 +68,15 @@ packages PR #67 按线性历史要求正常 rebase 合并为 `782c14602a6b243d89
 
 已完成[云入口只读审计](v3-release-readiness-20261021/cloud/readiness-audit.md)：七个身份变量、wrapping 公钥、OIDC subject 及正式工作流配置存在；27 份历史清理 payload 结构相符，三个缺清理回执的早期请求均在报价失败、采购被跳过。审计快照未见活动 GitHub 请求，但没有调用云 API，因此今日云侧库存、角色权限和公私钥匹配仍未知。Environment 没有人审符合既定 unattended 设计，不新增 reviewer 要求。
 
-产品 source 已合并；启动前仍须冻结最终 source/control/bundle、确认相应验收与本地 shakeout、获得精确付费范围，验证当天身份和库存，并要求自动清理调度启用成功后才 Quote/Acquire。静态检查时本机工作树文件系统仅余 9,214,992,384 bytes（0.926%），低于既有 5% 保留线；30 分钟 shakeout 未运行，不能用十分钟 Linux CI 代替。达到保留线至少还需约 40.52 GB 可用空间，另须留运行余量。见[静态前置检查](v3-release-readiness-20261021/cloud/local-shakeout-preconditions.json)，该记录不是 coordinator preflight 或 workload 结果。既定计划的 ¥1,500 上限、¥1,350 停止线是待批准的完整请求预算，不是已收到的授权或今日报价。没有启动采购、云运行或权限修改。
+产品 source 已合并；启动前仍须冻结最终 source/control/bundle、确认相应验收与本地 shakeout、获得精确付费范围，验证当天身份和库存，并要求自动清理调度启用成功后才 Quote/Acquire。最初静态检查时本机工作树文件系统仅余 9,214,992,384 bytes（0.926%），低于既有 5% 保留线，当时未运行 30 分钟 shakeout。见[历史静态前置检查](v3-release-readiness-20261021/cloud/local-shakeout-preconditions.json)，该记录不是 coordinator preflight 或 workload 结果。既定计划的 ¥1,500 上限、¥1,350 停止线是待批准的完整请求预算，不是已收到的授权或今日报价。没有启动采购、云运行或权限修改。
+
+合并后 06:06Z [磁盘只读复核](v3-release-readiness-20261021/cloud/disk-followup/README.md)记录可用 8.743 GB（0.879%），距 5% 仍缺 40.990 GB，未含运行余量。本任务独立缓存及有校验 ZIP 副本的展开目录仅 3.297 GB；六个已知任务输出根目录全部也仅 3.833 GB。该范围内清理不能解除阻塞，未删除文件、扩大扫描或用 NAS 承载实时数据库；原证据保留。
+
+随后文件系统可用空间上升，06:14:48Z 记录 338,215,362,560 bytes（34.003%），原磁盘阻塞解除；本任务未据此推断释放空间的操作者或原因。按原 5% 保留线与 400ms 热延迟阈值，在干净 ed705 上启动 100 SEND/s、2,500 在线、三 worker、12 logical Slots/256 hash slots 的原始 30 分钟 helper。协调器 06:23:03Z 开始，06:29:11Z 提前 exit 8：`harness_invalid / invalid_observation / grant / delivery / offered_load_under_delivery`；首条 worker 错误为 worker 2、grant sequence 315，未生成 `final.json`。这既不是完成 30 分钟预检，也不是产品长稳结论。
+
+最后完整 cut 的 sent=31,005、ACK=31,000，其差包含在途请求；当时各消息失败、重试、丢失、重复、损坏和序号回退计数均为零。不能将最后一次快照扩大成全程正确性通过。现有资源证据没有 pprof 或失败时连续 CPU/IO 采样，不能归因共享主机竞争。12 个所属进程均已退出，64 个预留端口无 TCP listener，源树保持干净。[原失败、缺失终态和清理收据](v3-release-readiness-20261021/cloud/local-shakeout-ed705/README.md)与后续诊断分别保留。
+
+凭证无关的[离线部署包准备](v3-release-readiness-20261021/cloud/bundle-ed705/README.md)已首次通过 [39555917411](https://github.com/WuKongIM/WuKongIM/actions/runs/39555917411)，source/control 均为 ed705。完整 ZIP/tar、110 个文件、manifest、9 个 ELF 与完整 DefaultIntent 已核验；bundle digest 为 `sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a`。此项仅完成离线 payload 准备，不替代本地/云验收；artifact 有限期保留，未宣称人工构建可直接接入顶层付费编排。
 
 ## stable 公网复核和外部边界
 
@@ -84,7 +92,13 @@ preview 的 beta.21–24 四个 active 版本已达数量上限 4；若先发 RC
 
 [渠道实施计划](2026-10-20-v3-stable-channel-plan.md)保留 preview 兼容及独立签名边界；PR #67（head `0ce7184bbf69472f607159f74a096e9160852843`）的两个新版 PR CI 均首次通过，且现已合并，见[证据](v3-release-readiness-20261021/packages/preflight-ci/README.md)；Pages配置、上传和部署均skipped。七个真实原生元数据场景及既有完整TEST ONLY演练不代表stable生产签名或公网发布。
 
-已形成[OSS/CDN具体设计](v3-release-readiness-20261021/packages/storage-design/design.md)：专用私有源站、不可变快照、APT跨代hash闭包及stable RPM镜像列表建议；明确OSS只有单对象原子性，CDN配置和刷新不是整站事务。下一可独立实现项是无凭证运输计划器和真实客户端A/B切换演练，尚未采购或配置任何资源。
+已形成[OSS/CDN具体设计](v3-release-readiness-20261021/packages/storage-design/design.md)：专用私有源站、不可变快照、APT跨代hash闭包及stable RPM镜像列表建议；明确OSS只有单对象原子性，CDN配置和刷新不是整站事务。其中现有 preview 的离线运输计划器 [PR #68](https://github.com/WuKongIM/packages/pull/68) 已按用户单独授权于 06:34:42Z 正常 rebase 合并为 `45619df14b931ef0da3eae7a6e3d5402307daa60`，与已审查 head `09360d07d0bffa3258be252d7730902041026ba8` 的完整 tree 相同。它只接受有外部身份锚的 preview add_release 审计，复用 canonical tar、receipt 和元数据闭包校验，生成确定性 plan_only 清单、当前入口和跨代保留集合；不访问凭证或网络，也不执行上传、切换或删除。stable、签名、云验证及原生客户端 A/B 切换验收仍未完成。
+
+#68 的两项 [PR CI](v3-release-readiness-20261021/packages/transport-plan-ci/summary.md) 均首次通过：373 项完整 Python 测试与 TEST ONLY 原生包演练，实际 synthetic merge 与 head 树相同。[合并后 main 收据](v3-release-readiness-20261021/packages/transport-plan-merge/README.md)确认 [39556280194](https://github.com/WuKongIM/packages/actions/runs/39556280194) attempt 1 的 373 项测试通过（99.318 秒），Pages 配置、上传、部署跳过。分支保护未修改；rebase 后原 tip 不在 main 祖先链，保留干净 worktree/分支，不强删。历史 draft/pending 收据保留为当时状态。
+
+计划器 31 项聚焦用例、84 项相关回归及合同检查通过；先补失败用例并修复初始预哈希大小限制缺口，独立审查已关闭该发现。第一轮真实 beta.24 输入完整验明 308,536,832-byte archive 与历史公开控制/来源身份，但因三份普通命名 RPM metadata 不在首版范围而拒绝；原失败保留。随后先补两代普通 gzip 布局失败用例，将完整闭包校验后的普通 metadata 归为当前 no-store 入口，并在各代 snapshot 单独保留，不加入共享不可变别名；未放松 repomd、压缩/open 哈希或引用检查。
+
+更新实现的真实 beta.24 同输入复验通过，44 个文件逐项 size/SHA 与 plan 相符，17 个可变入口、14 个不可变别名；plan SHA-256 为 `3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114`。这只是字节与结构一致性，不是签名、完整 provenance、云状态或公开客户端认证；固定 RPM baseurl 混代仍可能安全拒绝，未承诺原子或无缝切换。见[实现与先红后绿收据](v3-release-readiness-20261021/packages/object-storage-plan/generation-2-plain-rpm/handoff.md)、[独立续审](v3-release-readiness-20261021/packages/transport-plan-review/generation-2/review-summary.md)、[真实快照复验](v3-release-readiness-20261021/packages/transport-plan-real/generation-2/README.md)。
 
 MQTT 继续默认关闭、开发预览。专项 self-chat、100 GiB/4h 迁移、生产 RPO/RTO、4,500 SEND/s 等未承诺范围不会被随意加入新的强制清单，也不凭本轮小规模通过扩大宣传范围。
 

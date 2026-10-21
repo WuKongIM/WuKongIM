@@ -1,0 +1,30 @@
+{
+  "observed_at": "2026-10-21T06:15:06.273515+00:00",
+  "base": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "branch": "codex/object-storage-plan",
+  "implementation_state": "uncommitted final review freeze",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "49e872069fde2a0f74ef37c7ee571611a3c745f04e7c7e4b9a402038fa19e4f1",
+      "size": 701
+    },
+    "README.md": {
+      "sha256": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+      "size": 7478
+    },
+    "docs/object-storage-planning.md": {
+      "sha256": "014a9b4b1f8afbbe3014ef99236d9790e65cad9d63f86ddba8e1dcfa2acc6750",
+      "size": 6549
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "27ddc3fea6217bdb978e6e62b89f7c1647051b168aa6c1da8ef3e7ee2790acc6",
+      "size": 19943
+    },
+    "tests/test_plan_object_storage_publication.py": {
+      "sha256": "a52df533fcbcf8f2f10d12d8eb61e322e8492cb9ce782d552fd6d3c8be69895a",
+      "size": 24871
+    }
+  },
+  "status": " M CHANGELOG.md\n M README.md\n?? docs/object-storage-planning.md\n?? scripts/plan-object-storage-publication.py\n?? tests/test_plan_object_storage_publication.py\n",
+  "git_diff_check_returncode": 0
+}

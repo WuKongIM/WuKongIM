@@ -1,0 +1,35 @@
+run_dir=/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run
+build_wukongim=GOWORK=off go build -o /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wukongim ./cmd/wukongim
+build_wkbench=GOWORK=off go build -o /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/bin/wkcli ./cmd/wkcli
+logical_slot_groups=12
+hash_slots=256
+replicas=3/3
+online_connections=2500
+offered_send_rate_per_second=100
+measured_duration_seconds=0
+warmup_seconds=60
+drain_timeout_seconds=90
+hot_sendack_p99_milliseconds=400
+raw_metrics_sample_seconds=30
+runtime_profile=explicit_rehearsal_tuning
+channel_store_append_workers=500
+gateway_async_send_workers=1000
+gateway_async_send_batch_max_records=1
+commit_coordinator_flush_window=500us
+commit_coordinator_shards=1
+sync_commit=true
+coordinator_config=/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/chat-lifecycle.yaml
+report_dir=/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run/report
+service_1=http://127.0.0.1:15001
+gateway_1=127.0.0.1:15021
+worker_1=http://127.0.0.1:15051
+host_metrics_1=http://127.0.0.1:15061
+service_2=http://127.0.0.1:15002
+gateway_2=127.0.0.1:15022
+worker_2=http://127.0.0.1:15052
+host_metrics_2=http://127.0.0.1:15062
+service_3=http://127.0.0.1:15003
+gateway_3=127.0.0.1:15023
+worker_3=http://127.0.0.1:15053
+host_metrics_3=http://127.0.0.1:15063
+host_metrics_load=http://127.0.0.1:15060

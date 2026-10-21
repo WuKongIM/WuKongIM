@@ -1,0 +1,50 @@
+{
+  "observed_at": "2026-10-21T06:04:34.057181+00:00",
+  "repository": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan",
+  "head": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "branch": "codex/object-storage-plan",
+  "read_only": true,
+  "standards": {
+    "nested_AGENTS_or_FLOW": false,
+    "note": "No AGENTS.md/FLOW.md in this separate packages worktree. User-supplied working agreements and scoped parent instruction govern. No production keys/manifests/workflows are changed."
+  },
+  "sources": [
+    {
+      "path": "README.md",
+      "sha256": "a0c6e8d2cde642f6bdb471d977f4ca5f8ee126a48f10320f037eade4d802f8a1"
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "9c6903b38838cb47ef6a4428bd7fcd4555645f2781d707b21b7fa2b1881169ea"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871"
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6"
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe"
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498"
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b"
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "7b6243bdb1d76c8cb032bc9db76a89205bd464757d26e7fac5ad30e2dc1b63bf"
+    }
+  ],
+  "design": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/storage-design/design.md",
+    "sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311"
+  },
+  "scope": "Offline preview add_release canonical audit transport plan only. No uploader, deletion, activation, cloud verification, signature verification or GitHub provenance verification."
+}

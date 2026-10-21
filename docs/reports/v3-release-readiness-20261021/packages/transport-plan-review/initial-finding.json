@@ -1,0 +1,22 @@
+{
+  "id": "R1",
+  "priority": "P2",
+  "status": "reported_to_implementer_and_parent",
+  "file": "scripts/plan-object-storage-publication.py",
+  "initial_lines": [
+    71,
+    77,
+    195,
+    196
+  ],
+  "title": "Enforce local file-size limits before preverification hashing",
+  "evidence": "independent-probes-initial.json / declared-archive-prehash-budget",
+  "observed": {
+    "declared_archive_size": 1,
+    "actual_bytes_hashed_before_size_rejection": 66048,
+    "maximum_bytes_argument": null
+  },
+  "impact": "The declared 2 GiB cumulative budget does not bound prevalidation archive I/O; oversized receipt and control files are also hashed before their parser limits apply.",
+  "requested_change": "In the new planner only, precheck actual sizes and supply a maximum to the existing hash helper for archive, receipt and each control file. Add failure-first boundary tests before repair.",
+  "other_initial_probes": "Real CLI baseline succeeded; coherently rewritten bytes under the original anchor, missing by-hash in a retained fully receipted snapshot, and gzip output larger than 64 MiB all failed closed without an output file."
+}

@@ -1,0 +1,28 @@
+{
+  "captured_at": "2026-10-21T06:01:36.207131+00:00",
+  "files": {
+    "README.md": "a0c6e8d2cde642f6bdb471d977f4ca5f8ee126a48f10320f037eade4d802f8a1",
+    "docs/release-contract.md": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871",
+    "manifests/bootstrap-packages.json": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "manifests/preview-signing.json": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+    "manifests/signing-toolchain.json": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+    "scripts/archive-package-snapshot.py": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+    "scripts/compose-package-site.py": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+    "scripts/package-audit-receipt.py": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+    "scripts/verify-production-package-site.py": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+    "tests/test_archive_package_snapshot.py": "6eab8c2edfd5ad3f28960d9a9c139e5b75b3d8086539dbfa9fcf06084e65fe7c",
+    "tests/test_compose_package_site.py": "cd43e18a1d39bc762e88e5e63e576ae8458d1acb4ed44207b946a13b7a82c29d",
+    "tests/test_package_audit_receipt.py": "fb12ce0a34d5b4e639b94543644da93856603044f38b2e84585abc28a13cafbe"
+  },
+  "governing_instructions": "User-supplied WuKongIM AGENTS.md and root task authorization; no package-local AGENTS/FLOW exists. No workflows invoked or changed.",
+  "governing_repository_rule_reference": {
+    "note": "Final evidence also records the on-disk governing rule; user-provided instructions retain priority. Packages exact source remains source_commit above.",
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "repository_head": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "package_AGENTS_FLOW": [],
+  "source_commit": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "tdd_seam": "Public offline planner CLI: descriptor file to canonical plan output; explicitly authorized by root. Complete failure inventory precedes implementation per user task instruction."
+}

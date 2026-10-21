@@ -1,0 +1,148 @@
+{
+  "status": "failed_harness_invalid_no_final_report",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "attempts": 1,
+  "helper_exit_code": 8,
+  "source_clean_before_and_after": true,
+  "source_files_unchanged": true,
+  "local_platform": "Darwin arm64, Go 1.25.11",
+  "started_at": "2026-10-21T06:21:48.711633+00:00",
+  "finished_at": "2026-10-21T06:29:11.888776+00:00",
+  "measured_started_at": "2026-10-21T06:23:53.630033Z",
+  "last_observed_cut_at": "2026-10-21T06:29:03.664644666Z",
+  "measured_last_cut_seconds": 310.034611,
+  "terminal_line": "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=grant grant_failure_code=delivery worker_runtime_code=offered_load_under_delivery observer_code= preflight_code= report=unavailable",
+  "first_worker_failure": {
+    "file": "run/logs/worker-3.log",
+    "line": 1,
+    "worker_id": 2,
+    "sequence": 315,
+    "runtime_code": "offered_load_under_delivery",
+    "cause": "runtime"
+  },
+  "final_report_exists": false,
+  "thirty_minute_shakeout_completed": false,
+  "formal_qualification": false,
+  "last_running_messages": {
+    "sent": 31005,
+    "send_attempts": 31005,
+    "first_attempts": 31005,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 31000,
+    "send_rejected": 0,
+    "received": 40312,
+    "receive_acknowledged": 40312,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "last_running_hot_latency": {
+    "limit_nanos": 400000000,
+    "count": 5954,
+    "above_limit": 8
+  },
+  "last_running_connections": {
+    "target": 2500,
+    "online": 2499,
+    "starting": 1,
+    "closing": 0,
+    "traffic_ready": 2499
+  },
+  "last_running_close_reasons": {
+    "expired": 24,
+    "heartbeat_failed": 0,
+    "remote_terminal": 0,
+    "read_failed": 0,
+    "generation_stop": 0,
+    "explicit_logout": 0,
+    "transport_close_failed": 0
+  },
+  "correctness_finalization_verified": false,
+  "resource_thresholds_terminal_verified": false,
+  "resource_last_process_snapshots": [
+    {
+      "file": "run/evidence/processes-load.prom",
+      "collector_unix_seconds": 1792564147,
+      "resident_memory_bytes": {
+        "wkbench-host-metrics.service": 29589504,
+        "wkbench-worker@1.service": 258736128,
+        "wkbench-worker@2.service": 257245184,
+        "wkbench-worker@3.service": 266584064,
+        "wkbench-coordinator.service": 51806208
+      }
+    },
+    {
+      "file": "run/evidence/processes-node-1.prom",
+      "collector_unix_seconds": 1792564146,
+      "resident_memory_bytes": {
+        "wukongim.service": 708608000,
+        "wkbench-host-metrics.service": 29048832
+      }
+    },
+    {
+      "file": "run/evidence/processes-node-2.prom",
+      "collector_unix_seconds": 1792564146,
+      "resident_memory_bytes": {
+        "wukongim.service": 700121088,
+        "wkbench-host-metrics.service": 28688384
+      }
+    },
+    {
+      "file": "run/evidence/processes-node-3.prom",
+      "collector_unix_seconds": 1792564147,
+      "resident_memory_bytes": {
+        "wukongim.service": 698925056,
+        "wkbench-host-metrics.service": 28622848
+      }
+    }
+  ],
+  "binary_identity": [
+    {
+      "name": "wukongim",
+      "bytes": 312137138,
+      "sha256": "b118de52961bc70d174b507a04dd010f39fda8b62f7b4279fcbb6c43fb7c7360",
+      "matches_helper_identity": true
+    },
+    {
+      "name": "wkcli",
+      "bytes": 59146098,
+      "sha256": "f5e04c498f9074adfc4ff50d283d40466fe58b5f17f17a761915b2241a397e3e",
+      "matches_helper_identity": true
+    }
+  ],
+  "cleanup": {
+    "all_recorded_pids_exited": true,
+    "all_configured_ports_closed": true,
+    "tmpdir_empty": true,
+    "post_available_percent": 78.797349067254
+  },
+  "logs": {
+    "panic_paths": [],
+    "fatal_paths": [],
+    "warning": "One delivery/presence RPC warning at 06:29:09.914 during termination appears in three duplicate log destinations; not established as the first failure cause."
+  },
+  "credential_scan": {
+    "raw_token_match_paths": [],
+    "scope": "Uncompressed regular logs/config/report/evidence files <=64MiB. No token values saved.",
+    "pass": true
+  },
+  "load_retried": false,
+  "thresholds_changed": false,
+  "cloud_operations": false
+}

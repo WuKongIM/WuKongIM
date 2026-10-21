@@ -1,0 +1,11 @@
+{
+  "approved_head": "09360d07d0bffa3258be252d7730902041026ba8",
+  "merged_main": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "same_tree": "69dface82da5728544aeb217e8f48e7ea0057343",
+  "protection_unchanged": true,
+  "original_tip_is_ancestor": false,
+  "clean": true,
+  "branch_retained": true,
+  "worktree_retained": true,
+  "reason": "Rebase rewrote original commit identity; do not force-delete an original tip absent from main ancestry."
+}

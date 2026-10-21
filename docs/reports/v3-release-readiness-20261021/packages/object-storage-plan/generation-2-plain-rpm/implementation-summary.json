@@ -1,0 +1,40 @@
+{
+  "base_commit": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "branch": "codex/object-storage-plan",
+  "committed": false,
+  "compatibility_change": "Validated ordinary RPM metadata is no-store current entrypoint plus each generation snapshot object; full-SHA-named metadata alone becomes a shared immutable alias. Existing metadata validation is unchanged.",
+  "files": {
+    "CHANGELOG.md": "49e872069fde2a0f74ef37c7ee571611a3c745f04e7c7e4b9a402038fa19e4f1",
+    "README.md": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+    "docs/object-storage-planning.md": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+    "scripts/plan-object-storage-publication.py": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+    "tests/test_plan_object_storage_publication.py": "96320d5bb6ec063763bc893e9963a35caf6de1567eb99411d010b39e18f6b2d1"
+  },
+  "generation": 2,
+  "git_capture_note": "Uncommitted/unpushed fields describe the implementation freeze; root owns subsequent commit, PR and CI.",
+  "limitations": [
+    "Independent anchors are caller-reviewed claims, not authenticated by planner",
+    "No signature, GitHub/control provenance, cloud or rollback eligibility claim",
+    "Fixed RPM base URL may safely reject mixed-generation responses on signature/hash checks; no atomic/seamless activation guarantee",
+    "Native zstd remains rejected before a decoder can run"
+  ],
+  "pushed": false,
+  "review_patch_sha256": "044246e3ea471bd656bfb7ba1fb3055d7491c4f7a9c285d9d6cb385b78e6f1ac",
+  "scope": "Offline preview add_release transport inventory only; no cloud/native signing/activation/stable support",
+  "validation": {
+    "contracts": "11-plain-rpm-contract.log PASS",
+    "independent_review": "PASS: ../transport-plan-review/generation-2/floating-probes-green.json; two-generation ordinary metadata separation and negative closure cases; no blocking finding",
+    "plain_rpm_red": "09-plain-rpm-red.log: 2 tests, 5 failed subcases before change",
+    "process_cli": "cli/acceptance.json: repeated two-generation plain-gzip fixture bytes identical, all inputs unchanged",
+    "public_beta24": {
+      "ordinary_metadata_entrypoints": 3,
+      "ordinary_metadata_shared_aliases": 0,
+      "plan_sha256": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114",
+      "plan_size": 31484,
+      "report": "../transport-plan-real/generation-2/independent-verification.json",
+      "snapshot_objects_independently_hashed": 44,
+      "status": "PASS: one real preview generation structure/bytes compatibility"
+    },
+    "related_green": "10-plain-rpm-related-green.log: 84 tests PASS (31 planner)"
+  }
+}

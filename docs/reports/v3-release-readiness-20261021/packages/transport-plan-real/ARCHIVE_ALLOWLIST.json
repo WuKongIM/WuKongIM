@@ -1,0 +1,143 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2506,
+      "sha256": "98c03bfd12cd0e85745898fc4a9cae92c2c6434650bab2f7de01e4186bd2630f"
+    },
+    {
+      "path": "audit-release.json",
+      "bytes": 6174,
+      "sha256": "3fbfd31f2f0c1c8782b14c2a24c71537f2c39e7cdb9c86e0a1a257d29b82f1bd"
+    },
+    {
+      "path": "audit-tag.json",
+      "bytes": 428,
+      "sha256": "8fa13b3fdb9aff6f93e23e8d987500b02c172698023f03ba8ee1847a7d6b5502"
+    },
+    {
+      "path": "commands.json",
+      "bytes": 3017,
+      "sha256": "922745fc0c27d7781fe84e91327db0c6fae32ec45810e60a595aaeb8007f351f"
+    },
+    {
+      "path": "control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "control/manifests/bootstrap-packages.json",
+      "bytes": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "control-commit.json",
+      "bytes": 2232,
+      "sha256": "55825e07f3b2e1b8ea4a3497a888ba9f9b88b949e100d0cc9e10ec28992a46b7"
+    },
+    {
+      "path": "control-file-anchors.json",
+      "bytes": 2919,
+      "sha256": "893bc212918912698403f426f1e38e4a237ba384b209650b63ec5973992304e6"
+    },
+    {
+      "path": "disk-precheck.json",
+      "bytes": 244,
+      "sha256": "ed3b402ebf1922a4164deba07c13ed212ffd324974edf703be188d228b0ce127"
+    },
+    {
+      "path": "input-preparation.stdout",
+      "bytes": 187,
+      "sha256": "e3ee76422fe9fb38575f3dba85de207c3553b9b1d742fff000d8660de8a3de44"
+    },
+    {
+      "path": "input-verification.json",
+      "bytes": 2153,
+      "sha256": "511df2537969cdbcdccb445c81d2555d002dae569cc57b8ff1e5692f27adb6ed"
+    },
+    {
+      "path": "inputs.json",
+      "bytes": 1514,
+      "sha256": "fc47ed9e23a2a3ede593beaeac89f24c62e068da4edf656f4434e0af295a3775"
+    },
+    {
+      "path": "planner-command.json",
+      "bytes": 3118,
+      "sha256": "e512e19a3bfec8a847644de6c612fb134c600c8075e324affb4e5c22bfc21ea9"
+    },
+    {
+      "path": "planner.stderr",
+      "bytes": 107,
+      "sha256": "ea6df688851bcedf504414fbfe80cd44b4140096094113db1418c9fab68cb266"
+    },
+    {
+      "path": "planner.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "prepare-inputs.py",
+      "bytes": 6668,
+      "sha256": "52ce9780801ccd5416d726e7697b20f192499f68b0ac93bc26e4ad9269946423"
+    },
+    {
+      "path": "public-audit-rpm-signing.json",
+      "bytes": 3045,
+      "sha256": "1faab76816a561db3153d5f8946040f5a2e680566b7b11659f6841301f743614"
+    },
+    {
+      "path": "public-audit-source-attestations-source-attestations.json",
+      "bytes": 2513,
+      "sha256": "ebce91320818de6fad1c8cc03ed65172c7fcd81d6c1cb40e5f580cfdce429abe"
+    },
+    {
+      "path": "source-release.json",
+      "bytes": 16365,
+      "sha256": "83d8bf9bd8d02e229ce9ded092c03629eeb1ce034f434042d1d7c23638b067e5"
+    },
+    {
+      "path": "source-tag-object.json",
+      "bytes": 674,
+      "sha256": "8bd2e088b00e632c8f84267c45c3918c4b9f13ba41112346a0ec677a99add640"
+    },
+    {
+      "path": "source-tag.json",
+      "bytes": 356,
+      "sha256": "11707eddb5fae9dc6b189c6fd90e184c8a0601920f17d5fc3ae7d19b7a0ba46a"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 1568,
+      "sha256": "57facafc516da224e6670995e46ac8287550f92574cc1dfabca8550c1b4c2a91"
+    },
+    {
+      "path": "wukongim-preview-r402342684-receipt.json",
+      "bytes": 3743,
+      "sha256": "c156796d4559f93c600ac3196537fc0a858b9de1ae0d233bfe94fd333d7617bb"
+    }
+  ],
+  "excluded": [
+    "wukongim-preview-r402342684-site.tar"
+  ],
+  "total_bytes": 76031
+}

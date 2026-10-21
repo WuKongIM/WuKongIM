@@ -1,0 +1,21 @@
+--- generation-1/plan-object-storage-publication.py
++++ generation-2/plan-object-storage-publication.py
+@@ -160,8 +160,6 @@
+             continue
+         require(Path(relative).suffix not in {'.zst', '.zstd'},
+                 'unsupported RPM metadata compression: zstd requires native verification')
+-        require(Path(relative).name.startswith(item['sha256'] + '-'),
+-                f'only digest-named RPM metadata can be immutable: {relative}')
+     apt_files, _, _ = C.validate_apt_tree(
+         site / 'apt', root / 'audit/apt-signing.json', inventory['apt'],
+         bootstrap['packages']['apt'], plan['active_versions'], plan['retained_versions'],
+@@ -181,7 +179,8 @@
+         if path.startswith('apt/pool/') or '/by-hash/SHA256/' in path
+         or path.startswith(RPM_REPO + 'Packages/')
+     } | {RPM_REPO + item['path'] for item in repodata
+-         if item['path'] not in {'repodata/repomd.xml', 'repodata/repomd.xml.asc'}}
++         if item['path'] not in {'repodata/repomd.xml', 'repodata/repomd.xml.asc'}
++         and Path(item['path']).name.startswith(item['sha256'] + '-')}
+     return files, immutable
+ 
+ 

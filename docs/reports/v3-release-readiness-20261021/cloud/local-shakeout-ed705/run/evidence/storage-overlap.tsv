@@ -1,0 +1,4 @@
+observed_at_utc	run_id	sample	node	status	compaction_count	compactions_in_progress	snapshot_files	snapshot_bytes	snapshot_identity	snapshot_inventory
+2026-10-21T06:23:03Z	local-chat-lifecycle-shakeout	warmup-before	node-1	complete	0	0	0	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	snapshot-inventory/warmup-before-node-1.tsv
+2026-10-21T06:23:03Z	local-chat-lifecycle-shakeout	warmup-before	node-2	complete	0	0	0	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	snapshot-inventory/warmup-before-node-2.tsv
+2026-10-21T06:23:03Z	local-chat-lifecycle-shakeout	warmup-before	node-3	complete	0	0	0	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	snapshot-inventory/warmup-before-node-3.tsv

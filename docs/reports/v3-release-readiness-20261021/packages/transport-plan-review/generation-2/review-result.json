@@ -1,0 +1,17 @@
+{
+  "generation": 2,
+  "verdict": "no_open_findings_in_offline_preview_transport_scope",
+  "resolved_compatibility_finding": "Initial planner rejected valid published beta.24 plain-named RPM metadata.",
+  "source_sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+  "independent_probes": 4,
+  "focused_tests": 2,
+  "real_input_exit_code": 0,
+  "real_plan_sha256": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114",
+  "preserved_prior_failure": "../../transport-plan-real/planner-command.json",
+  "preserved_initial_review": "../review-summary.md",
+  "limitations": [
+    "Caller anchors/signatures/source/control/cloud remain unauthenticated by the planner.",
+    "fixedbaseurl cross-generation requests may mix repomd/signature/ordinary metadata and only fail closed; no atomic/seamless activation guarantee.",
+    "No production control, cloud, key or workflow operations were performed."
+  ]
+}

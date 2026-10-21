@@ -1,0 +1,9 @@
+{
+  "observed_at": "2026-10-21T06:09:41.466221+00:00",
+  "base": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "implementation_state": "uncommitted new files; implementer declared code review freeze",
+  "files": {
+    "scripts/plan-object-storage-publication.py": "7adefc789b78608f8b55965a0b9eb331c3be96138c9f62cb2543dc0c59b54ccd",
+    "tests/test_plan_object_storage_publication.py": "75566670aa8170e1bff4e160c2c6605a638d9361e5a433a6d20e4be9ffb1a539"
+  }
+}

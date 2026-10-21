@@ -1,0 +1,22 @@
+{
+  "artifact_id": 12325076512,
+  "size": 1268,
+  "download_command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/artifacts/12325076512/zip"
+  ],
+  "sha256": "40724416bf0a774ff973abf60b899932632485a4ee4488e8fa3541150c8b8bea",
+  "api_digest_verified_full_download": true,
+  "zip_crc_verified_selected_member": true,
+  "members": [
+    {
+      "name": "native-source-metadata.json",
+      "size": 4464,
+      "compressed_size": 1100,
+      "crc32": "e1bb255e"
+    }
+  ],
+  "selected_json_sha256": "0d2c1010f7802c574c3c4f55e06bee587e45d9116156ea5e5e82c51dcd669543",
+  "zip_retained": false
+}

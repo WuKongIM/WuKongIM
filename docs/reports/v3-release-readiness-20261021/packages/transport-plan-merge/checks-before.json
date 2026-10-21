@@ -1,0 +1,37 @@
+{
+  "headRefOid": "09360d07d0bffa3258be252d7730902041026ba8",
+  "mergeStateStatus": "CLEAN",
+  "reviewDecision": "",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-21T06:23:46Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39554961478/job/119072486990",
+      "name": "Validate complete Pages snapshot",
+      "startedAt": "2026-10-21T06:22:06Z",
+      "status": "COMPLETED",
+      "workflowName": "Safety Automation - Deploy Package Repository Bootstrap"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-21T06:26:43Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39554961461/job/119072486712",
+      "name": "TEST ONLY signed APT/RPM repository",
+      "startedAt": "2026-10-21T06:22:06Z",
+      "status": "COMPLETED",
+      "workflowName": "Safety Automation - Drill Native Package Repository"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-21T06:23:46Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39554961478/job/119073034478",
+      "name": "Deploy complete Pages snapshot",
+      "startedAt": "2026-10-21T06:23:46Z",
+      "status": "COMPLETED",
+      "workflowName": "Safety Automation - Deploy Package Repository Bootstrap"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schema": "wukongim.readiness.static_bundle_audit_freeze/v1",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "control_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "request_id": "v3-readiness-ed705-20261021",
+  "review_scope": "read-only static contract; no build, test, network, credentials, deployment or resource actions",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "size": 13284
+    },
+    {
+      "path": "cmd/wkcloudbundle/FLOW.md",
+      "sha256": "516c8e00b02e1f0ccac34b5297a7eea607f5a228c9b9aeda17ab56e30eb39f75",
+      "size": 1759
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "size": 4567
+    },
+    {
+      "path": "internal/infra/clouddeploy/FLOW.md",
+      "sha256": "b5405ce2d1b14e140202ddaee651143f5e5d550a5a032a991bf888a1fbf61245",
+      "size": 1552
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+      "size": 77878
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4",
+      "size": 8145
+    },
+    {
+      "path": "docs/superpowers/runbooks/cloud-deployment-bundle.md",
+      "sha256": "91e5d501e038c112cd71836fdcc4f31ede7a036d9e626ac311a754794f63444b",
+      "size": 3074
+    },
+    {
+      "path": "cmd/wkcloudbundle/main.go",
+      "sha256": "5832b012071f369f38ccefaa77366698b942c81f08e55e85efc96f44863848e5",
+      "size": 4585
+    },
+    {
+      "path": "cmd/wkcloudbundle/offline_commands.go",
+      "sha256": "2ef22efce0f9e3b94305522df1e44fd1f1bc85531f4572377e9e6434be735818",
+      "size": 1718
+    },
+    {
+      "path": "cmd/wkcloudbundle/main_test.go",
+      "sha256": "76a670f59cdb41a117e5898de3b196d34b788261f730e891990a8546a3e64fc2",
+      "size": 3956
+    },
+    {
+      "path": "internal/usecase/clouddeploy/bundle.go",
+      "sha256": "aa07d36f6c99a69885ac8daf02e63c3da8960f3ea188594349c59bc1c12567d9",
+      "size": 18553
+    },
+    {
+      "path": "internal/usecase/clouddeploy/bundle_test.go",
+      "sha256": "72a63ea878fc4172db453a3296fec8e436f945063d6f1b728e8d6699f9389899",
+      "size": 19443
+    },
+    {
+      "path": "internal/usecase/clouddeploy/templates.go",
+      "sha256": "6258e8a22b8f3fc3faacd47fe1f1bc17214149fa768936a056f264c8dcc3257e",
+      "size": 17556
+    },
+    {
+      "path": "internal/infra/clouddeploy/directory.go",
+      "sha256": "33ea6216e5429c82d07a48366704a01d7cae2f32211a3c019dd736b047c4d727",
+      "size": 8251
+    },
+    {
+      "path": "internal/infra/clouddeploy/directory_test.go",
+      "sha256": "c5550cd26530e1324db858edfaa88a8e4894efaff300cac72a9c26f9b1757eef",
+      "size": 9995
+    },
+    {
+      "path": ".github/cloud-deployment/toolchain.env",
+      "sha256": "75801f1b4d969c41468abcedc061f2d419841d4949c86d413e5ea120de78b243",
+      "size": 359
+    },
+    {
+      "path": "scripts/cloud_deployment_bundle_workflow_test.go",
+      "sha256": "bd61aa28a5f0816d632f4553beac8a461b3fc49a28f069d5b200f465278a5d56",
+      "size": 2324
+    },
+    {
+      "path": "scripts/cloud-deployment/validate-upstream-run.sh",
+      "sha256": "bfb03504fbb4ccccc0fb3046da1aeccd9a4669a419e076e0bdacc72eeea214ce",
+      "size": 1019
+    }
+  ]
+}

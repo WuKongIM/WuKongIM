@@ -1,0 +1,25 @@
+{
+  "artifacts": [
+    {
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12325112901/zip",
+      "created_at": "2026-10-21T06:33:58Z",
+      "digest": "sha256:ec3c57608befe831eba0909e974836a0febecd0edc77bef39aed084cbdbe7ca7",
+      "expired": false,
+      "expires_at": "2026-10-28T06:33:53Z",
+      "id": 12325112901,
+      "name": "cloud-deployment-bundle-f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a",
+      "node_id": "MDg6QXJ0aWZhY3QxMjMyNTExMjkwMQ==",
+      "size_in_bytes": 141108564,
+      "updated_at": "2026-10-21T06:33:58Z",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12325112901",
+      "workflow_run": {
+        "head_branch": "main",
+        "head_repository_id": 638054601,
+        "head_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+        "id": 39555917411,
+        "repository_id": 638054601
+      }
+    }
+  ],
+  "total_count": 1
+}

@@ -1,0 +1,13 @@
+{
+  "generation": 2,
+  "base": "09360d07d0bffa3258be252d7730902041026ba8",
+  "files": {
+    "CHANGELOG.md": "49e872069fde2a0f74ef37c7ee571611a3c745f04e7c7e4b9a402038fa19e4f1",
+    "README.md": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+    "docs/object-storage-planning.md": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+    "scripts/plan-object-storage-publication.py": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+    "tests/test_plan_object_storage_publication.py": "96320d5bb6ec063763bc893e9963a35caf6de1567eb99411d010b39e18f6b2d1"
+  },
+  "shared_helpers_unchanged": true,
+  "git_diff_check": 0
+}

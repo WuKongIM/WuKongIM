@@ -1,0 +1,16 @@
+{
+  "schema": "wukongim/packages-delivery-final-status/v1",
+  "recorded_at": "2026-10-21T06:41:27.727359+00:00",
+  "prior_records": [
+    "pr-before.json",
+    "pr-merged.json",
+    "cleanup-state.json"
+  ],
+  "state": "merged_postmerge_ci_passed_local_original_branch_and_clean_worktree_retained",
+  "summary_sha256": "d58ef6c57780a929ef850cd3c2c446a1d56a038736f02f3015b7d4c59e91a431",
+  "approved_head": "09360d07d0bffa3258be252d7730902041026ba8",
+  "merged_main": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "run_id": 39556280194,
+  "production_deploy": "skipped",
+  "cleanup": "retained_no_force_delete"
+}

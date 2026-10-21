@@ -1,0 +1,105 @@
+{
+  "read_only_github_commands": [
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/releases/402342684"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/git/ref/tags/native-package-preview-r402342684"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/WuKongIM/releases/402354460"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/WuKongIM/git/ref/tags/v3.0.0-beta.24"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/WuKongIM/git/tags/7408037c4cd636c3e60b6dc2a733894fdb0b5580"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/git/commits/feb7f21503d35133cf23df7d7ab250c5d4129e71"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/releases/assets/607274043",
+      "-H",
+      "Accept: application/octet-stream"
+    ],
+    [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/releases/assets/607274289",
+      "-H",
+      "Accept: application/octet-stream"
+    ]
+  ],
+  "control_exports": [
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/WuKongIM/packages/contents/manifests/channels.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71"
+      ],
+      "bytes_decoding": "base64 content; verify git blob SHA1, size, SHA256, equality with local exact commit blob"
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/WuKongIM/packages/contents/manifests/preview-signing.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71"
+      ],
+      "bytes_decoding": "base64 content; verify git blob SHA1, size, SHA256, equality with local exact commit blob"
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/WuKongIM/packages/contents/manifests/signing-toolchain.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71"
+      ],
+      "bytes_decoding": "base64 content; verify git blob SHA1, size, SHA256, equality with local exact commit blob"
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/WuKongIM/packages/contents/manifests/bootstrap-packages.json?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71"
+      ],
+      "bytes_decoding": "base64 content; verify git blob SHA1, size, SHA256, equality with local exact commit blob"
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/WuKongIM/packages/contents/keys/apt-preview.asc?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71"
+      ],
+      "bytes_decoding": "base64 content; verify git blob SHA1, size, SHA256, equality with local exact commit blob"
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/WuKongIM/packages/contents/keys/rpm-preview.asc?ref=feb7f21503d35133cf23df7d7ab250c5d4129e71"
+      ],
+      "bytes_decoding": "base64 content; verify git blob SHA1, size, SHA256, equality with local exact commit blob"
+    }
+  ],
+  "prepare_command": [
+    "python3",
+    "prepare-inputs.py",
+    "--root",
+    "/tmp/wukongim-v3-readiness-20261021/packages/transport-plan-real"
+  ],
+  "planner_command_receipt": "planner-command.json"
+}

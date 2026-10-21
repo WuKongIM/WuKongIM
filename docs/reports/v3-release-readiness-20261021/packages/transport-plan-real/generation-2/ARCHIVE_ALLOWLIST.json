@@ -1,0 +1,35 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1100,
+      "sha256": "c8f63d9e055a8f2c6fa758e975a3d15f8201db3a9681d0d896897861081e5551"
+    },
+    {
+      "path": "independent-verification.json",
+      "bytes": 1831,
+      "sha256": "3346b1687145402fd3854d19dd0f76807a31fb824626689fccc93c7b2c708ab8"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 31484,
+      "sha256": "3c1dd765103ede4839f4d213d58bb8674365091d190008bc39ee84a289aed114"
+    },
+    {
+      "path": "planner-command.json",
+      "bytes": 3362,
+      "sha256": "439fd1ba2f36e44934ae7a3b21eabbbeae55178d53a1105cbc5f5700255488c7"
+    },
+    {
+      "path": "planner.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "planner.stdout",
+      "bytes": 192,
+      "sha256": "7a9f9a61eba61599b1b69d2d8cc8fae83a46eb5a51adf450f62f186c1058eba7"
+    }
+  ],
+  "total_bytes": 37969
+}

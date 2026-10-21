@@ -1,0 +1,59 @@
+{
+  "observed_at": "2026-10-21T06:40:38.097840+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan",
+  "exists": true,
+  "checks": [
+    {
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "branch",
+        "--show-current"
+      ],
+      "exit_code": 0,
+      "stdout": "codex/object-storage-plan\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "09360d07d0bffa3258be252d7730902041026ba8\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "45619df14b931ef0da3eae7a6e3d5402307daa60^{tree}"
+      ],
+      "exit_code": 0,
+      "stdout": "69dface82da5728544aeb217e8f48e7ea0057343\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "09360d07d0bffa3258be252d7730902041026ba8",
+        "45619df14b931ef0da3eae7a6e3d5402307daa60"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

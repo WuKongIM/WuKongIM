@@ -1,0 +1,39 @@
+{
+  "status": "real_input_compatibility_rejected",
+  "audit_release_id": 402342684,
+  "full_input_bytes_verified": true,
+  "control_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "historical_control_files_verified": 6,
+  "source_release_id": 402354460,
+  "source_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "planner_sha256": "27ddc3fea6217bdb978e6e62b89f7c1647051b168aa6c1da8ef3e7ee2790acc6",
+  "exit_code": 1,
+  "error": "object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz",
+  "plan_created": false,
+  "non_digest_named_rpm_metadata": [
+    {
+      "path": "repodata/filelists.xml.gz",
+      "sha256": "b8272b8e3fcfd8712b93e090a24f9f63d9df8d13872a859a5b3ab9b4f8183856",
+      "size": 570
+    },
+    {
+      "path": "repodata/other.xml.gz",
+      "sha256": "ab289b11dbb15c643015f7e2ed2089720652af970534a09c4cf831d254b65fbd",
+      "size": 442
+    },
+    {
+      "path": "repodata/primary.xml.gz",
+      "sha256": "d5c1bb33ff141e1a06dba36676b670404e21f0c3f3e1c0d60ddfe8638fb54363",
+      "size": 1345
+    }
+  ],
+  "temporary_extraction_cleaned": true,
+  "source_scripts_unchanged": true,
+  "signatures_verified": false,
+  "full_provenance_verified": false,
+  "cloud_verified": false,
+  "payload_executed": false,
+  "publication_performed": false,
+  "attempts": 1,
+  "large_tar_archive_policy": "Retain locally only, excluded from evidence allowlist; reacquire exact numeric public asset 607274043 and verify 308536832 bytes/SHA256 71eb2b1b338742b9669ebfc7135ede8a12f73f395b3171e6375f18240d5c3a07."
+}

@@ -1,0 +1,37 @@
+{
+  "command": [
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+    "--run-dir",
+    "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run",
+    "--stop-after",
+    "1800"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+  "started_at": "2026-10-21T06:21:48.711633+00:00",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "environment": {
+    "PATH": "/usr/local/go/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "HOME": "/Users/tt",
+    "GOWORK": "off",
+    "GOENV": "off",
+    "GOTOOLCHAIN": "go1.25.11",
+    "GOFLAGS": "-p=2",
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/go-cache",
+    "TMPDIR": "/tmp/wksoak-ed705-20261021",
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "credential_keys": [
+    "WK_BENCH_API_TOKEN",
+    "WK_BENCH_WORKER_TOKEN"
+  ],
+  "credentials": "Fresh distinct local-only 256-bit tokens; environment only, never persisted in this receipt.",
+  "bound_seconds": 3000,
+  "stop_after_seconds": 1800,
+  "helper_pid": 13829,
+  "exit_code": 8,
+  "finished_at": "2026-10-21T06:29:11.888776+00:00",
+  "source_sha_after": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "source_clean_after": true,
+  "source_files_unchanged": true
+}

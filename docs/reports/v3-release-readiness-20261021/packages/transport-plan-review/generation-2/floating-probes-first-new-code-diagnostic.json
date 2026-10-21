@@ -1,0 +1,58 @@
+{
+  "schema": "independent-floating-metadata-review/v1",
+  "planner_sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+  "results": [
+    {
+      "case": "two-generations-ordinary-gzip-names",
+      "exit_code": 0,
+      "stdout": "{\"plan_sha256\":\"03625ab9d75bd46a68a031f740ecd76bb7ed34ae96eb27cfebe1acc7b2268556\",\"plan_size\":42696,\"schema\":\"wukongim.object_storage_plan_receipt/v1\",\"snapshot_count\":2,\"status\":\"plan_only\"}\n",
+      "stderr": "",
+      "output_exists": true,
+      "passed_expected_boundary": true,
+      "classification_checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "plain_metadata_snapshot_objects": 6,
+      "plain_metadata_shared_aliases": 0,
+      "plain_metadata_current_entrypoints": 3
+    },
+    {
+      "case": "ordinary-metadata-checksum-mismatch",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "object-storage planning failed: RPM repomd identity differs for repodata/primary.xml.gz\n",
+      "output_exists": false,
+      "passed_expected_boundary": false
+    },
+    {
+      "case": "ordinary-metadata-open-checksum-mismatch",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "object-storage planning failed: RPM repomd open identity differs for repodata/primary.xml.gz\n",
+      "output_exists": false,
+      "passed_expected_boundary": false
+    },
+    {
+      "case": "retained-ordinary-metadata-unreceipted-reference",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "object-storage planning failed: RPM repomd references an unreceipted file: repodata/missing.xml.gz\n",
+      "output_exists": false,
+      "passed_expected_boundary": true
+    }
+  ]
+}

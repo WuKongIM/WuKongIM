@@ -1,0 +1,8 @@
+{
+  "available_bytes": 114448453632,
+  "capacity_bytes": 994662584320,
+  "available_percent": 11.506259050675215,
+  "bounded_increment_bytes": 1073741824,
+  "bound_fits": true,
+  "scope": "Plan-only input preparation, not shakeout admission"
+}

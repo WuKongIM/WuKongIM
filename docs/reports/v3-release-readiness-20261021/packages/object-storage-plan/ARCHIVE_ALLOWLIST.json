@@ -1,0 +1,162 @@
+{
+  "excludes": [
+    "cli-fixture/**",
+    "**/*.tar",
+    "**/*.deb",
+    "**/*.rpm",
+    "**/__pycache__/**",
+    "duplicate generated plan copies"
+  ],
+  "file_count": 29,
+  "files": [
+    {
+      "path": "01-red.log",
+      "sha256": "ee7f6b4a6d02c53074ae6d31f7050c2a74736c35f8a090f10b4f78922ecaf09a",
+      "size": 33348
+    },
+    {
+      "path": "02-complete-red.log",
+      "sha256": "f02cc5d569ff3284bf50fd7358d627f6edd3582690f201740109965b09d45269",
+      "size": 42470
+    },
+    {
+      "path": "03-first-green-attempt.log",
+      "sha256": "44a1a036c85a72537e60ad2c3f847aee5b2cddca63ee076f36300d425e765b02",
+      "size": 12869
+    },
+    {
+      "path": "04-focused-green.log",
+      "sha256": "a765384e346ebfc4de10b83d37eb0b76d06d6c37495733f58694ce0875f07ba7",
+      "size": 5232
+    },
+    {
+      "path": "05-related-green.log",
+      "sha256": "10f4bd9eae9364df3af0991723eb87cf7d55a040667304c68a4e8eaadc9bf0f6",
+      "size": 14994
+    },
+    {
+      "path": "06-resource-bounds-red.log",
+      "sha256": "d397ffa461bb1de8397d946288f397b4c75937ceea0e018879a8b5d5bfcc555b",
+      "size": 36996
+    },
+    {
+      "path": "07-resource-bounds-related-green.log",
+      "sha256": "004d77c95242bbb9bde38ddab786f3e2d91cc3093ca66662adaf967bc6851dc5",
+      "size": 15577
+    },
+    {
+      "path": "08-contract.log",
+      "sha256": "2f62abd07c6fc44d93fa5b2bb62a83d228dcb998ef7efdf186eaa86633c4889f",
+      "size": 174
+    },
+    {
+      "path": "09-plain-rpm-red.log",
+      "sha256": "ccbd0a08994047247e13d5b6d176031e334ce8b83951bfa5685ee952b3dfee6e",
+      "size": 6815
+    },
+    {
+      "path": "10-plain-rpm-related-green.log",
+      "sha256": "71516fe4aff1b0f791f80d6a5986a0a3f74d3ba972fe2348f7828f839dbf65a7",
+      "size": 15856
+    },
+    {
+      "path": "11-plain-rpm-contract.log",
+      "sha256": "2f62abd07c6fc44d93fa5b2bb62a83d228dcb998ef7efdf186eaa86633c4889f",
+      "size": 174
+    },
+    {
+      "path": "failure-inventory.md",
+      "sha256": "af59fd4c51cf7fc867c4518bfccc9d54c46750562e5cc0f2ac62d51f811d78bb",
+      "size": 2185
+    },
+    {
+      "path": "generation-1-resource-fix/README.md",
+      "sha256": "22eb6fa654565d2b763f741653cd246ac89993a70053223ea9bd8c29e414e5ab",
+      "size": 502
+    },
+    {
+      "path": "generation-1-resource-fix/cli-acceptance.json",
+      "sha256": "5d05a67a2c14e7915be2647c89a57e70aa74b084ccebd4d9bd1cc0b106f03204",
+      "size": 23831
+    },
+    {
+      "path": "generation-1-resource-fix/cli-receipt-1.json",
+      "sha256": "e48798285868b4a132da466599244b38de7fffc7c28aa1b06e43be42a66450c0",
+      "size": 192
+    },
+    {
+      "path": "generation-1-resource-fix/cli-receipt-2.json",
+      "sha256": "e48798285868b4a132da466599244b38de7fffc7c28aa1b06e43be42a66450c0",
+      "size": 192
+    },
+    {
+      "path": "generation-1-resource-fix/handoff.md",
+      "sha256": "ca41f812fd4e03f5a48ec91c69f9d979a78e239dd8334d1bd588cb6bce3a34cf",
+      "size": 2187
+    },
+    {
+      "path": "generation-1-resource-fix/implementation-summary.json",
+      "sha256": "f690b88dab3aa5a017442e94e9d532bb30a98080da2b1251aa1a8a08b52b659d",
+      "size": 1662
+    },
+    {
+      "path": "generation-1-resource-fix/review.patch",
+      "sha256": "7bc9c2c35a152dbffdd6b82a36bfe502fa35736132e83068195b401ea834e4f4",
+      "size": 54298
+    },
+    {
+      "path": "generation-2-plain-rpm/cli/acceptance.json",
+      "sha256": "2587d774961949ec408e7a9e01e717865946411dd98cbd72b368e605dc451449",
+      "size": 1054
+    },
+    {
+      "path": "generation-2-plain-rpm/cli/plan-1.json",
+      "sha256": "30b62d086dfc7dd9724fab3cdc8a9ae0b6831f82116eaade2214e37c76768070",
+      "size": 42696
+    },
+    {
+      "path": "generation-2-plain-rpm/cli/receipt-1.json",
+      "sha256": "658e8ea15a45f4e156124dc81d9a41a74c88f893b27d7f2e471083523428b977",
+      "size": 192
+    },
+    {
+      "path": "generation-2-plain-rpm/cli/receipt-2.json",
+      "sha256": "658e8ea15a45f4e156124dc81d9a41a74c88f893b27d7f2e471083523428b977",
+      "size": 192
+    },
+    {
+      "path": "generation-2-plain-rpm/handoff.md",
+      "sha256": "adf4c3abbe898e6c786e60f515aa9e5c7374dbc5d88f8d52d10e88cd9a5aa10c",
+      "size": 3066
+    },
+    {
+      "path": "generation-2-plain-rpm/implementation-summary.json",
+      "sha256": "0da822bf061a46fbc24d134f99f279fe52cb239bf2957f1bdba6fd1cef602886",
+      "size": 2677
+    },
+    {
+      "path": "generation-2-plain-rpm/review.patch",
+      "sha256": "044246e3ea471bd656bfb7ba1fb3055d7491c4f7a9c285d9d6cb385b78e6f1ac",
+      "size": 58470
+    },
+    {
+      "path": "generations.json",
+      "sha256": "e9a91a983c3b36174eb47c7b8f934b2291d3a39e1380cf98ae1370ca004f6224",
+      "size": 789
+    },
+    {
+      "path": "reproduce-cli.py",
+      "sha256": "21c16a16e898c0b2aae77029e35449d703c5bea95919616ea98fd9fdf5a9f43d",
+      "size": 2861
+    },
+    {
+      "path": "rules-and-source-freeze.json",
+      "sha256": "5dc9570bab3d1e9ad72a8d99868a92c70a7a8a93a7161efb9fdd63c930060e93",
+      "size": 2343
+    }
+  ],
+  "note": "Generation 1 is preserved after resource-limit repair; generation 2 adds ordinary RPM metadata compatibility. Source commits after freeze are owned by root.",
+  "root": "/tmp/wukongim-v3-readiness-20261021/packages/object-storage-plan",
+  "schema": "wukongim.evidence_small_file_allowlist/v1",
+  "total_bytes": 383894
+}
