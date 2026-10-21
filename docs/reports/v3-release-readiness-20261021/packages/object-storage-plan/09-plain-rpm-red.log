@@ -1,0 +1,69 @@
+test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot) ... FAIL
+test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) ... 
+  test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='unused') ... FAIL
+  test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='compressed') ... FAIL
+  test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='open') ... FAIL
+  test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='unsafe') ... FAIL
+
+======================================================================
+FAIL: test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 308, in test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot
+    self.assertEqual(0, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 != 1 : object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz
+
+
+======================================================================
+FAIL: test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='unused')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 343, in test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 175, in assert_rejected
+    self.assertIn(token, error)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: 'exactly cover' not found in 'object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz\n'
+
+======================================================================
+FAIL: test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='compressed')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 343, in test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 175, in assert_rejected
+    self.assertIn(token, error)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: 'identity differs' not found in 'object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz\n'
+
+======================================================================
+FAIL: test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='open')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 343, in test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 175, in assert_rejected
+    self.assertIn(token, error)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: 'open identity differs' not found in 'object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz\n'
+
+======================================================================
+FAIL: test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) (case='unsafe')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 343, in test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 175, in assert_rejected
+    self.assertIn(token, error)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: 'unsafe path' not found in 'object-storage planning failed: only digest-named RPM metadata can be immutable: repodata/filelists.xml.gz\n'
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.575s
+
+FAILED (failures=5)

@@ -1,0 +1,39 @@
+raw-line 22: 2026-10-21T06:31:21.0151667Z ##[group]GITHUB_TOKEN Permissions
+raw-line 23: 2026-10-21T06:31:21.0153762Z Contents: read
+raw-line 24: 2026-10-21T06:31:21.0154483Z Metadata: read
+raw-line 25: 2026-10-21T06:31:21.0155041Z ##[endgroup]
+raw-line 56: 2026-10-21T06:31:22.2839516Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 114: 2026-10-21T06:31:25.5684196Z ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 126: 2026-10-21T06:31:26.3619298Z ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 175: 2026-10-21T06:31:26.4954641Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 693: 2026-10-21T06:31:34.4480604Z ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 721: 2026-10-21T06:31:35.2696277Z ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 761: 2026-10-21T06:31:35.5640422Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 780: 2026-10-21T06:31:43.5514098Z go version go1.25.11 linux/amd64
+raw-line 833: 2026-10-21T06:31:43.7115692Z   bun-version: 1.3.11
+raw-line 838: 2026-10-21T06:31:43.7119038Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 858: 2026-10-21T06:31:44.5382900Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 868: 2026-10-21T06:31:48.9396322Z node: v22.12.0
+raw-line 876: 2026-10-21T06:31:48.9581190Z test "$(git -C control rev-parse HEAD)" = "$GITHUB_SHA"
+raw-line 877: 2026-10-21T06:31:48.9581646Z test "$(git -C source rev-parse HEAD)" = "$REQUESTED_SOURCE_SHA"
+raw-line 879: 2026-10-21T06:31:48.9582540Z git -C source merge-base --is-ancestor "$REQUESTED_SOURCE_SHA" origin/main
+raw-line 885: 2026-10-21T06:31:48.9886875Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 895: 2026-10-21T06:31:49.1323734Z corepack prepare yarn@1.22.22 --activate
+raw-line 904: 2026-10-21T06:31:49.1392205Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 908: 2026-10-21T06:31:49.2677044Z Preparing yarn@1.22.22 for immediate activation...
+raw-line 1053: 2026-10-21T06:32:12.0894204Z   (cd source && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w -buildid=' -o "$bundle/bin/$name" "$package")
+raw-line 1058: 2026-10-21T06:32:12.0897162Z   (cd control && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w -buildid=' -o "$bundle/bin/$name" "$package")
+raw-line 1067: 2026-10-21T06:32:12.0963363Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 1197: 2026-10-21T06:33:34.6304200Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 1223: 2026-10-21T06:33:35.4913772Z /home/runner/work/_temp/cloud-deployment-downloads/prometheus-3.13.1.linux-amd64.tar.gz: OK
+raw-line 1224: 2026-10-21T06:33:35.5022659Z /home/runner/work/_temp/cloud-deployment-downloads/node_exporter-1.11.1.linux-amd64.tar.gz: OK
+raw-line 1225: 2026-10-21T06:33:35.5167803Z /home/runner/work/_temp/cloud-deployment-downloads/caddy_2.11.4_linux_amd64.tar.gz: OK
+raw-line 1229: 2026-10-21T06:33:37.5818941Z "$bundle/bin/wkcloudbundle" seal-offline --root "$bundle" --source-sha "$SOURCE_SHA" --control-sha "$CONTROL_SHA" >bundle-manifest-output.json
+raw-line 1231: 2026-10-21T06:33:37.5820376Z test "$bundle_digest" = "$("$bundle/bin/wkcloudbundle" verify-offline --root "$bundle" | jq -er .bundle_digest)"
+raw-line 1239: 2026-10-21T06:33:37.5884755Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 1242: 2026-10-21T06:33:37.5885934Z   SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 1243: 2026-10-21T06:33:37.5886465Z   CONTROL_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 1260: 2026-10-21T06:33:53.5734603Z   REQUESTED_SOURCE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+raw-line 1289: 2026-10-21T06:33:58.5866368Z SHA256 digest of uploaded artifact is ec3c57608befe831eba0909e974836a0febecd0edc77bef39aed084cbdbe7ca7
+raw-line 1291: 2026-10-21T06:33:58.8383078Z Artifact cloud-deployment-bundle-f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a successfully finalized. Artifact ID 12325112901
+raw-line 1292: 2026-10-21T06:33:58.8386534Z Artifact cloud-deployment-bundle-f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a has been successfully uploaded! Final size is 141108564 bytes. Artifact ID is 12325112901

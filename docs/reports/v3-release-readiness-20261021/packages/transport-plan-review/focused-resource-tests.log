@@ -1,0 +1,8 @@
+test_rejects_actual_archive_size_mismatch_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_actual_archive_size_mismatch_before_content_open) ... ok
+test_rejects_oversized_receipt_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_receipt_before_content_open) ... ok
+test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.173s
+
+OK

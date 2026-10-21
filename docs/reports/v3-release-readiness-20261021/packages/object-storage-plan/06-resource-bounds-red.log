@@ -1,0 +1,382 @@
+test_rejects_actual_archive_size_mismatch_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_actual_archive_size_mismatch_before_content_open) ... 
+  test_rejects_actual_archive_size_mismatch_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_actual_archive_size_mismatch_before_content_open) (declared=1) ... FAIL
+  test_rejects_actual_archive_size_mismatch_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_actual_archive_size_mismatch_before_content_open) (declared=66049) ... FAIL
+test_rejects_oversized_receipt_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_receipt_before_content_open) ... FAIL
+test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) ... 
+  test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='keys/apt-preview.asc') ... FAIL
+  test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='keys/rpm-preview.asc') ... FAIL
+  test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/bootstrap-packages.json') ... FAIL
+  test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/channels.json') ... FAIL
+  test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/preview-signing.json') ... FAIL
+  test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/signing-toolchain.json') ... FAIL
+
+======================================================================
+FAIL: test_rejects_actual_archive_size_mismatch_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_actual_archive_size_mismatch_before_content_open) (declared=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 408, in test_rejects_actual_archive_size_mismatch_before_content_open
+    self.assert_rejected_before_content_open(self.snapshot.archive, 'archive size')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 193, in _snapshot
+    archive_facts = checked_file(archive, 'archive')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_actual_archive_size_mismatch_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_actual_archive_size_mismatch_before_content_open) (declared=66049)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 408, in test_rejects_actual_archive_size_mismatch_before_content_open
+    self.assert_rejected_before_content_open(self.snapshot.archive, 'archive size')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 193, in _snapshot
+    archive_facts = checked_file(archive, 'archive')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_receipt_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_receipt_before_content_open)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 413, in test_rejects_oversized_receipt_before_content_open
+    self.assert_rejected_before_content_open(self.snapshot.receipt, 'receipt exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 196, in _snapshot
+    receipt_facts = checked_file(receipt_path, 'receipt')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='keys/apt-preview.asc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 425, in test_rejects_oversized_control_before_content_open
+    self.assert_rejected_before_content_open(path, 'exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 187, in _snapshot
+    initial_control[relative] = checked_file(control / relative, f'control file {relative}')
+                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='keys/rpm-preview.asc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 425, in test_rejects_oversized_control_before_content_open
+    self.assert_rejected_before_content_open(path, 'exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 187, in _snapshot
+    initial_control[relative] = checked_file(control / relative, f'control file {relative}')
+                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/bootstrap-packages.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 425, in test_rejects_oversized_control_before_content_open
+    self.assert_rejected_before_content_open(path, 'exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 187, in _snapshot
+    initial_control[relative] = checked_file(control / relative, f'control file {relative}')
+                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/channels.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 425, in test_rejects_oversized_control_before_content_open
+    self.assert_rejected_before_content_open(path, 'exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 187, in _snapshot
+    initial_control[relative] = checked_file(control / relative, f'control file {relative}')
+                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/preview-signing.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 425, in test_rejects_oversized_control_before_content_open
+    self.assert_rejected_before_content_open(path, 'exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 187, in _snapshot
+    initial_control[relative] = checked_file(control / relative, f'control file {relative}')
+                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+======================================================================
+FAIL: test_rejects_oversized_control_before_content_open (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_oversized_control_before_content_open) (relative='manifests/signing-toolchain.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 425, in test_rejects_oversized_control_before_content_open
+    self.assert_rejected_before_content_open(path, 'exceeds its size limit')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 401, in assert_rejected_before_content_open
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 156, in assert_rejected
+    code, _, error = self.invoke()
+                     ~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 152, in invoke
+    code = module.main(['--inputs', str(self.input_path), '--output', str(output or self.output)])
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 327, in main
+    plan = make_plan(args.inputs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 276, in make_plan
+    snapshots = [_snapshot(item, input_path.parent) for item in descriptors]
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 187, in _snapshot
+    initial_control[relative] = checked_file(control / relative, f'control file {relative}')
+                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/plan-object-storage-publication.py", line 78, in checked_file
+    return C.hash_file(path, label)
+           ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/scripts/compose-package-site.py", line 211, in hash_file
+    descriptor = os.open(path, flags)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 397, in bounded_open
+    self.fail('out-of-budget input was opened before its size was rejected')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out-of-budget input was opened before its size was rejected
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.272s
+
+FAILED (failures=9)

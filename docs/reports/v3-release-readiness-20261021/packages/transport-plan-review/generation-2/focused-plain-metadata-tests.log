@@ -1,0 +1,7 @@
+test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_is_current_no_store_and_retained_per_snapshot) ... ok
+test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_plain_rpm_metadata_still_requires_full_reference_and_hash_closure) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.529s
+
+OK

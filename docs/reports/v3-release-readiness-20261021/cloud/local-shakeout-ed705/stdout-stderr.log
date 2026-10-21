@@ -1,0 +1,14 @@
+[chat-lifecycle-shakeout] building service and benchmark binaries
+[chat-lifecycle-shakeout] service-1 ready: http://127.0.0.1:15001/readyz
+[chat-lifecycle-shakeout] service-2 ready: http://127.0.0.1:15002/readyz
+[chat-lifecycle-shakeout] service-3 ready: http://127.0.0.1:15003/readyz
+[chat-lifecycle-shakeout] worker-1 ready: http://127.0.0.1:15051/healthz
+[chat-lifecycle-shakeout] host-metrics-1 ready: http://127.0.0.1:15061/healthz
+[chat-lifecycle-shakeout] worker-2 ready: http://127.0.0.1:15052/healthz
+[chat-lifecycle-shakeout] host-metrics-2 ready: http://127.0.0.1:15062/healthz
+[chat-lifecycle-shakeout] worker-3 ready: http://127.0.0.1:15053/healthz
+[chat-lifecycle-shakeout] host-metrics-3 ready: http://127.0.0.1:15063/healthz
+[chat-lifecycle-shakeout] host-metrics-load ready: http://127.0.0.1:15060/healthz
+[chat-lifecycle-shakeout] starting coordinator
+[chat-lifecycle-shakeout] terminal report summary: unavailable
+[chat-lifecycle-shakeout] coordinator exited with status 8; logs preserved in /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/run

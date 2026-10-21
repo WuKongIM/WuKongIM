@@ -1,0 +1,370 @@
+test_current_entrypoints_and_content_addressed_dependencies_are_separate (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_current_entrypoints_and_content_addressed_dependencies_are_separate) ... FAIL
+test_deterministic_plan_marks_verification_limits_and_preserves_inputs (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_deterministic_plan_marks_verification_limits_and_preserves_inputs) ... FAIL
+test_rejects_ambiguous_or_unknown_public_object (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_ambiguous_or_unknown_public_object) ... 
+  test_rejects_ambiguous_or_unknown_public_object (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_ambiguous_or_unknown_public_object) (name='bad%2fpath') ... FAIL
+  test_rejects_ambiguous_or_unknown_public_object (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_ambiguous_or_unknown_public_object) (name='unexpected.txt') ... FAIL
+test_rejects_changed_control_despite_unchanged_commit_label (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_changed_control_despite_unchanged_commit_label) ... FAIL
+test_rejects_cumulative_archive_budget_before_reading_archives (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_cumulative_archive_budget_before_reading_archives) ... FAIL
+test_rejects_duplicate_json_keys (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_duplicate_json_keys) ... FAIL
+test_rejects_duplicate_snapshot_identity (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_duplicate_snapshot_identity) ... FAIL
+test_rejects_enabled_stable_control_even_when_reanchored (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_enabled_stable_control_even_when_reanchored) ... FAIL
+test_rejects_excess_snapshots_before_reading_archives (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_excess_snapshots_before_reading_archives) ... FAIL
+test_rejects_missing_apt_by_hash_even_with_matching_receipt (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_missing_apt_by_hash_even_with_matching_receipt) ... FAIL
+test_rejects_non_prerelease_in_preview (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_non_prerelease_in_preview) ... FAIL
+test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) ... 
+  test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='../escape') ... FAIL
+  test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='site/link') ... FAIL
+  test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='site/hardlink') ... FAIL
+  test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='site/') ... FAIL
+test_rejects_rpm_dependency_reference_not_present_in_receipt (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_rpm_dependency_reference_not_present_in_receipt) ... FAIL
+test_rejects_rpm_metadata_without_hash_name (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_rpm_metadata_without_hash_name) ... FAIL
+test_rejects_same_immutable_uri_with_different_valid_bytes (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_same_immutable_uri_with_different_valid_bytes) ... FAIL
+test_rejects_symlink_archive_and_existing_output (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_symlink_archive_and_existing_output) ... FAIL
+test_rejects_symlink_output_parent (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_symlink_output_parent) ... FAIL
+test_rejects_wrong_channel_and_unknown_fields (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_channel_and_unknown_fields) ... FAIL
+test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) ... 
+  test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='archive_sha256') ... FAIL
+  test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='archive_size') ... FAIL
+  test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='receipt_sha256') ... FAIL
+  test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='audit_release_id') ... FAIL
+  test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='control_sha') ... FAIL
+test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) ... FAIL
+test_retained_generations_keep_old_by_hash_and_payload_with_no_deletion (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_retained_generations_keep_old_by_hash_and_payload_with_no_deletion) ... FAIL
+
+======================================================================
+FAIL: test_current_entrypoints_and_content_addressed_dependencies_are_separate (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_current_entrypoints_and_content_addressed_dependencies_are_separate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 185, in test_current_entrypoints_and_content_addressed_dependencies_are_separate
+    self.assertEqual(0, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_deterministic_plan_marks_verification_limits_and_preserves_inputs (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_deterministic_plan_marks_verification_limits_and_preserves_inputs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 165, in test_deterministic_plan_marks_verification_limits_and_preserves_inputs
+    self.assertEqual(0, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_ambiguous_or_unknown_public_object (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_ambiguous_or_unknown_public_object) (name='bad%2fpath')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 296, in test_rejects_ambiguous_or_unknown_public_object
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_ambiguous_or_unknown_public_object (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_ambiguous_or_unknown_public_object) (name='unexpected.txt')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 296, in test_rejects_ambiguous_or_unknown_public_object
+    self.assert_rejected(token)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_changed_control_despite_unchanged_commit_label (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_changed_control_despite_unchanged_commit_label)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 244, in test_rejects_changed_control_despite_unchanged_commit_label
+    self.assert_rejected('control file SHA-256')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_cumulative_archive_budget_before_reading_archives (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_cumulative_archive_budget_before_reading_archives)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 323, in test_rejects_cumulative_archive_budget_before_reading_archives
+    self.assert_rejected('total archive byte limit')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_duplicate_json_keys (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_duplicate_json_keys)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 302, in test_rejects_duplicate_json_keys
+    self.fail('planner script is missing')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: planner script is missing
+
+======================================================================
+FAIL: test_rejects_duplicate_snapshot_identity (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_duplicate_snapshot_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 218, in test_rejects_duplicate_snapshot_identity
+    self.assert_rejected('duplicate audit')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_enabled_stable_control_even_when_reanchored (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_enabled_stable_control_even_when_reanchored)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 252, in test_rejects_enabled_stable_control_even_when_reanchored
+    self.assert_rejected('stable publishing is forbidden')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_excess_snapshots_before_reading_archives (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_excess_snapshots_before_reading_archives)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 315, in test_rejects_excess_snapshots_before_reading_archives
+    self.assert_rejected('at most 8 snapshots')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_missing_apt_by_hash_even_with_matching_receipt (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_missing_apt_by_hash_even_with_matching_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 272, in test_rejects_missing_apt_by_hash_even_with_matching_receipt
+    self.assert_rejected('APT by-hash')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_non_prerelease_in_preview (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_non_prerelease_in_preview)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 267, in test_rejects_non_prerelease_in_preview
+    self.assert_rejected('version is invalid')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='../escape')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 363, in test_rejects_noncanonical_tar_member_types_paths_and_duplicates
+    self.assert_rejected('archive')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='site/link')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 363, in test_rejects_noncanonical_tar_member_types_paths_and_duplicates
+    self.assert_rejected('archive')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='site/hardlink')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 363, in test_rejects_noncanonical_tar_member_types_paths_and_duplicates
+    self.assert_rejected('archive')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_noncanonical_tar_member_types_paths_and_duplicates (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_noncanonical_tar_member_types_paths_and_duplicates) (name='site/')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 363, in test_rejects_noncanonical_tar_member_types_paths_and_duplicates
+    self.assert_rejected('archive')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_rpm_dependency_reference_not_present_in_receipt (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_rpm_dependency_reference_not_present_in_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 278, in test_rejects_rpm_dependency_reference_not_present_in_receipt
+    self.assert_rejected('unreceipted file')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_rpm_metadata_without_hash_name (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_rpm_metadata_without_hash_name)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 288, in test_rejects_rpm_metadata_without_hash_name
+    self.assert_rejected('digest-named RPM metadata')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_same_immutable_uri_with_different_valid_bytes (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_same_immutable_uri_with_different_valid_bytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 223, in test_rejects_same_immutable_uri_with_different_valid_bytes
+    self.assert_rejected('immutable URI conflict')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_symlink_archive_and_existing_output (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_symlink_archive_and_existing_output)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 329, in test_rejects_symlink_archive_and_existing_output
+    self.assert_rejected('single-link regular file')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_symlink_output_parent (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_symlink_output_parent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 341, in test_rejects_symlink_output_parent
+    self.assertEqual(1, code)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_rejects_wrong_channel_and_unknown_fields (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_channel_and_unknown_fields)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 256, in test_rejects_wrong_channel_and_unknown_fields
+    self.assert_rejected('only preview')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='archive_sha256')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 236, in test_rejects_wrong_independent_identity_anchors
+    self.assert_rejected(message)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='archive_size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 236, in test_rejects_wrong_independent_identity_anchors
+    self.assert_rejected(message)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='receipt_sha256')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 236, in test_rejects_wrong_independent_identity_anchors
+    self.assert_rejected(message)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='audit_release_id')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 236, in test_rejects_wrong_independent_identity_anchors
+    self.assert_rejected(message)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors) (field='control_sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 236, in test_rejects_wrong_independent_identity_anchors
+    self.assert_rejected(message)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_rejects_wrong_independent_identity_anchors (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_rejects_wrong_independent_identity_anchors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 239, in test_rejects_wrong_independent_identity_anchors
+    self.assert_rejected('source identity')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 154, in assert_rejected
+    self.assertEqual(1, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2 : planner script is missing
+
+======================================================================
+FAIL: test_retained_generations_keep_old_by_hash_and_payload_with_no_deletion (tests.test_plan_object_storage_publication.PlanObjectStoragePublicationTest.test_retained_generations_keep_old_by_hash_and_payload_with_no_deletion)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan/tests/test_plan_object_storage_publication.py", line 203, in test_retained_generations_keep_old_by_hash_and_payload_with_no_deletion
+    self.assertEqual(0, code, error)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 != 2 : planner script is missing
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.884s
+
+FAILED (failures=29)
