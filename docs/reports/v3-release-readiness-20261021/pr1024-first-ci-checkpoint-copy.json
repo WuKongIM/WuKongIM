@@ -1,0 +1,1068 @@
+{
+  "recorded_at": "2026-10-21T18:53:00.222421+00:00",
+  "evidence_base": "412d3f6052e66bfca0748211a178169c7346000f",
+  "rules": {
+    "AGENTS.md": {
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "applicable_flow": [],
+    "reason": "docs/reports ancestor directories have no FLOW.md or more-specific AGENTS.md; archived rules are data"
+  },
+  "old_top_manifest_sha256": "97f0ec1e928a2341022d82b803bb5a5556d17a8b4510a574e472e0f3cb7aee99",
+  "old_entries_verified": 8779,
+  "old_immutable_entries_unchanged": 8778,
+  "rolling_existing_exception": [
+    "README.md"
+  ],
+  "groups": [
+    {
+      "group": "candidate",
+      "source_manifest_sha256": "d0db93594460013dd7b7d0d557a6710f3f475e0c33455cdc10b9c465196ac90f",
+      "copied_files": 120,
+      "copied_bytes": 3066315
+    },
+    {
+      "group": "performance",
+      "source_manifest_sha256": "f4c7812377469f6c48f9d3392212f754705e5cdec1b5d6c35088d3c3bb785f63",
+      "copied_files": 82,
+      "copied_bytes": 510646
+    }
+  ],
+  "copied": [
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/PUBLIC_ALLOWLIST.txt",
+      "bytes": 4334,
+      "sha256": "cfd42d21dfbcba24ebb45b7bee5054e865bdbc7c499f48484c2aee3f30bbfaa2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/README.md",
+      "bytes": 3118,
+      "sha256": "305fb7f4347f607fbab4589bf4047923eb0fe19d3b62ad46c6efa00f5845eca6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/SHA256SUMS",
+      "bytes": 12056,
+      "sha256": "cd7a654e5bd3f23427ba0eda61417830a882b1f0817d56152bbfccb7754e8298"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/archive-sha256.json",
+      "bytes": 20332,
+      "sha256": "d0db93594460013dd7b7d0d557a6710f3f475e0c33455cdc10b9c465196ac90f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/inventory.json",
+      "bytes": 2262,
+      "sha256": "ea5e15161939c8e3b666ec18f4d44030c201dab9cc6452fd550a7e8198b86531"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/members/command.json",
+      "bytes": 334,
+      "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/members/identity.json",
+      "bytes": 286,
+      "sha256": "ef1ba264b6377e8e39201956ff8322b99cef0521eaed6c56e1fecfee1f94bc7b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/members/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/members/result.json",
+      "bytes": 370,
+      "sha256": "65cd3f12f3587ec5caeb4e4f07a353f3379e523d41d8741f46641b00c9147f77"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/members/stdout-stderr.log",
+      "bytes": 22007,
+      "sha256": "0594426a77408d2a4665a6859984048e019f07adbbad233d0ca347b7e83b474f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/receipt.json",
+      "bytes": 1315,
+      "sha256": "dd05c9b85babcd792469825f173500faf31e0bff1d7e3143d48ec75bd4c1eb89"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12369664134/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/inventory.json",
+      "bytes": 13288,
+      "sha256": "5de38f092eaad458a3321a0ee89c972b9f5e6083373767a9868e6bc14c0aa74a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/command.json",
+      "bytes": 338,
+      "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/identity.json",
+      "bytes": 286,
+      "sha256": "ef1ba264b6377e8e39201956ff8322b99cef0521eaed6c56e1fecfee1f94bc7b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/result.json",
+      "bytes": 477,
+      "sha256": "f5fc29babf16c3a26275b52a2656efb45e7725c1f683cdbf6c89c4fc13fdde7d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/stdout-stderr.log",
+      "bytes": 1389226,
+      "sha256": "a063160f17c69485771d1d31b845f35362d6e120782dc1725dcb1d7ae92e4cea"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/receipt.json",
+      "bytes": 1319,
+      "sha256": "7fb7b948c0e7d952047e7724e9a74cb54a878162a75680c4650f00c0560a3462"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/test-events.json",
+      "bytes": 561382,
+      "sha256": "8801cb5164c7d69f0c4de9246f221b75bd76bf72cc31b33c438978c383c197b4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/inventory.json",
+      "bytes": 7868,
+      "sha256": "ffdcd24e1c629a1ecf30f54abad663d3f303e2583edcd0fdc2ec6bba5045698a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/binary-build-info.txt",
+      "bytes": 8895,
+      "sha256": "147086be3601f201595987e3a62dc3d5bb49ff8f68942cb364babedec2c6130f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/binary.sha256",
+      "bytes": 134,
+      "sha256": "4ebae28b2b59012cf22982446c6042b9aba3bf3b02d1acff25d81e421f701171"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/build/command.json",
+      "bytes": 285,
+      "sha256": "091371b51a810d38dd51fdf766d12d8dee1620c1f5bfc4f2c2349b65b87ab29a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/build/result.json",
+      "bytes": 369,
+      "sha256": "1bafa67d05557117ba80d22de683357eb9b0a9dd24fdc7df047a50fc1adb6fcb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/build/stderr.log",
+      "bytes": 5028,
+      "sha256": "bf33b946af5dad77e101e0465d51777452a54b689145b1b847caf504f7efb2f6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/build/stdout.jsonl",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/cross_node_delivery/command.json",
+      "bytes": 283,
+      "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/cross_node_delivery/result.json",
+      "bytes": 370,
+      "sha256": "09ad8cb151f891e70544a8d9d0ce8cfe179bd9eb2e9f89a227134df9165ce13f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/cross_node_delivery/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/cross_node_delivery/stdout.jsonl",
+      "bytes": 8448,
+      "sha256": "27b1f3a0db431e8d7d0d7a3d3213e5588c68f91caa5554d75ccb6ed8a748a80a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/identity.json",
+      "bytes": 172,
+      "sha256": "360fe1ad978b34576e18ecdcca7bce1d4858f4379975bf228e455aa88c24a820"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/ordinary_history/command.json",
+      "bytes": 302,
+      "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/ordinary_history/result.json",
+      "bytes": 370,
+      "sha256": "86e2c3dc6584fa66140b561c07254297d7f9fff99613b20b0737f81329e507e5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/ordinary_history/stderr.log",
+      "bytes": 262,
+      "sha256": "02bb05c1f21bd74ac631bf01639ffaed40013c09935d21d3f0cbb3687d022456"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/ordinary_history/stdout.jsonl",
+      "bytes": 27304,
+      "sha256": "0dab5bdde3b4d742a43aab7c9e83e137636e3e035c90de1105ce6de511972e4c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/self_chat/command.json",
+      "bytes": 273,
+      "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/self_chat/report.json",
+      "bytes": 47381,
+      "sha256": "4f02e1e8af44a9dd2f3feff03bbce1a0d4530cf0baecf083e60ba7ff51b27ce4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/self_chat/result.json",
+      "bytes": 370,
+      "sha256": "60bc2c54fc3584655d7c1d84982961617fb4d2cdcd5e92ef4ced03376c1ed71a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/self_chat/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/self_chat/stdout.jsonl",
+      "bytes": 3693,
+      "sha256": "eb2b1f809a32e49579c80414a647217476a4c7e6adc420b2ae47ae99f00b48b8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/receipt.json",
+      "bytes": 1315,
+      "sha256": "e84d0b6dafbecdb1cda8e31d19ca2bfd972f60193fd6f56c6855f62a2465e4bb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/test-events.json",
+      "bytes": 6734,
+      "sha256": "0fd4cb4bbb1fa6341a4a63af09eebaba0d0c1425c86329fffce0f9ea830b9573"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/candidate-summary.json",
+      "bytes": 28796,
+      "sha256": "131c7c344633a2bd486024e92014d660a7a4dcd5deafe2dc652570754142363b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/collect-completed.py",
+      "bytes": 6463,
+      "sha256": "0c0a9c288fad1cd93160b818631d1d8b6f64d4631b96d75301a0f8ee6ebb16bd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410167925/complete.log",
+      "bytes": 85396,
+      "sha256": "481dd7646a751b209c3141afdad847f97560a75174d10127bd0375ea52643ae8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410167925/job.json",
+      "bytes": 3750,
+      "sha256": "28e3e886e45b928068bc8ec0cf71140ca76a4720ac04b6d41ad2a281d5f7e460"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410167925/receipt.json",
+      "bytes": 1455,
+      "sha256": "71c8a1f4b9ff8741d532b80c9ad376272a2bba1efc3a6325f90d2856fd7725a8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410168261/complete.log",
+      "bytes": 85131,
+      "sha256": "67f773a184c18d8627bb74d26aa4b9f81bf95b50df246c9ac0d0a78ae7c9fcd1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410168261/job.json",
+      "bytes": 3742,
+      "sha256": "f915e85dace438be0e688e727ce2e1d351f432b07eaffd02046f1bc1b964f2e2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410168261/receipt.json",
+      "bytes": 1455,
+      "sha256": "f699d6b2ef52daffbb22e3520461a8f4414ee1f71251f8351a8e2b11f90c9ecf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119413321477/complete.log",
+      "bytes": 85410,
+      "sha256": "49b2a9786f66648802d5f0f0bc049cd9c5511d30fd8eb79cf6a3bce63af9a496"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119413321477/job.json",
+      "bytes": 3554,
+      "sha256": "d794f7b2277663204bef464d541e0917c10345343d33123757b3733fa82984d4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/job-logs-public/119413321477/receipt.json",
+      "bytes": 1455,
+      "sha256": "99aae807538fb76be2b5af0eaa8af8ce1063177b68eef8462957d4f0982bb253"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/latest-snapshot.txt",
+      "bytes": 12,
+      "sha256": "24590b7290b2b8b493a91b8d867af7f5af77f7867f06befaecd4a4fd91cde745"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/read-snapshot.py",
+      "bytes": 1740,
+      "sha256": "b33d30dabe980c2fe8ebe61e554deddb6b9cb9832afb0f0c97ce6485ed182553"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/scripts-first-failure-analysis.json",
+      "bytes": 173870,
+      "sha256": "75232bdb38a859cdeadc87e688341755832543ddb12c82309dca6ec4bcd86043"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "889c8b770d891c50e702dc369a411d7c4a6da55678c36b1726907e81669a77ec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/jobs-read.json",
+      "bytes": 233,
+      "sha256": "7e313623357c3916b6a7e2cd735457c7d1f24749b5cc00870ce09b7812026e30"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/jobs.json",
+      "bytes": 5298,
+      "sha256": "c91bfdc1d7eec9c241afad8155c94acbf87d8076e0f46969b36cb277087bcf59"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/pr-read.json",
+      "bytes": 201,
+      "sha256": "68b15ec570e2f58025a5f0b92b2c007fe996a5a174e630ac85021a84dad2714a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/pr.json",
+      "bytes": 17851,
+      "sha256": "a2a7feb5e90c9f8f48f1e3838e40df951a72a4099728e136cd57a584fac67c44"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/run-read.json",
+      "bytes": 215,
+      "sha256": "98a851f962053118eea925fdcae3c34104542b4e1a5126fff7ae254bc52b242d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-01/run.json",
+      "bytes": 12452,
+      "sha256": "13d3ca5bfcc2b69a2597c96645b848814b78761ca4036f01fa8131e107ba3750"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02-summary.txt",
+      "bytes": 3823,
+      "sha256": "60e3a552c8c1967e859295e4e013fb62c090fb455d3f713381512b2bac0ace32"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "869f8a263dd957a9bf4aa210c8a6e4dce0c07be83f5075bb47719b4c693a928e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/jobs-read.json",
+      "bytes": 233,
+      "sha256": "93976a268566ce7617078bb0f24330f91c6c702d658f0fcc6e485dc166d2e852"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/jobs.json",
+      "bytes": 5298,
+      "sha256": "c91bfdc1d7eec9c241afad8155c94acbf87d8076e0f46969b36cb277087bcf59"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/pr-read.json",
+      "bytes": 201,
+      "sha256": "40ecebce5a056eb16c8e984522194dd48de8061e15a594a351b98e218c2eb6cd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/pr.json",
+      "bytes": 17851,
+      "sha256": "a2a7feb5e90c9f8f48f1e3838e40df951a72a4099728e136cd57a584fac67c44"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/run-read.json",
+      "bytes": 215,
+      "sha256": "ecc05c5784bc190d19f88283163bf308d79d032566f650e00f692dbac60edc0d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-02/run.json",
+      "bytes": 12452,
+      "sha256": "13d3ca5bfcc2b69a2597c96645b848814b78761ca4036f01fa8131e107ba3750"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03-summary.txt",
+      "bytes": 3823,
+      "sha256": "60e3a552c8c1967e859295e4e013fb62c090fb455d3f713381512b2bac0ace32"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "bbdf9a184310915eac551a7e7fdbc3ddea8f9071697bd1b2e23279867b2df0d5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/jobs-read.json",
+      "bytes": 233,
+      "sha256": "1f41ea119cc8abb1a4f1d4fa57b5e2f1c6d4abee4a60a52fe074885d64fb2613"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/jobs.json",
+      "bytes": 5298,
+      "sha256": "c91bfdc1d7eec9c241afad8155c94acbf87d8076e0f46969b36cb277087bcf59"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/pr-read.json",
+      "bytes": 201,
+      "sha256": "a41a9f464a15f29bdefe2bfd959e9f14356b077195f0e19c70a02054bb735c82"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/pr.json",
+      "bytes": 17851,
+      "sha256": "a2a7feb5e90c9f8f48f1e3838e40df951a72a4099728e136cd57a584fac67c44"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/run-read.json",
+      "bytes": 215,
+      "sha256": "a6cea461ae4f2fe2589d90fea7a9690877742136be607007cfe1b22fe47d11cf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-03/run.json",
+      "bytes": 12452,
+      "sha256": "13d3ca5bfcc2b69a2597c96645b848814b78761ca4036f01fa8131e107ba3750"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04-summary.txt",
+      "bytes": 6051,
+      "sha256": "1f24354784b1ffdf9d394a43693a24579c3bca051ada597cce389a53044a8f28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "65709d28ccce2feb09253e9533b827b7fbfdb35784c49d42423f89aa16cc7cd8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/artifacts.json",
+      "bytes": 749,
+      "sha256": "e8f790a2896c3d38bb2c3c73dcfe6fc979e0a47b7b163b784f83c1fb37f9f7d0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/jobs-read.json",
+      "bytes": 233,
+      "sha256": "e6b3155ecce19673f39ebee4dabf1946731f67d73c635ebf219cab353a2779ea"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/jobs.json",
+      "bytes": 8168,
+      "sha256": "b488d35da6745e67a68fd1455d3be2fd03071da7cf42929da7806f0218f61d13"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/pr-read.json",
+      "bytes": 201,
+      "sha256": "003f1d9699fb1b97034fd35cf47d2246d13f58c24fdd9d13e5136b9bed7b1b65"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/pr.json",
+      "bytes": 17851,
+      "sha256": "8b3bdb22df6d3577c5846e48964abb283ffb16bc548460f833dd6a0366ec2ebf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/run-read.json",
+      "bytes": 215,
+      "sha256": "7e75a9c195b2e45337353e9081248300c996adea1f0242b097eda4e4df7ae340"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-04/run.json",
+      "bytes": 12452,
+      "sha256": "f6b6907aa8f9a6a132e08d7a6d3e4245e4194cf49481b8d59addee5960ac1c0e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05-summary.txt",
+      "bytes": 6576,
+      "sha256": "12a91e0d80000db82a83ee24a7aae9c633798764fd6265fe48e1cbe2e90e7546"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "03bbbb49d1a51bbc771701d8d08563afd5f39e4773548ff406e5e8bde69e18f0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/artifacts.json",
+      "bytes": 1469,
+      "sha256": "6714da5ba2c601bd05e1e0fe8c8a8c8351df7c78a8dcd627686c18d79ee17f7a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/jobs-read.json",
+      "bytes": 233,
+      "sha256": "c0237c3c4a8dc1836babde3492b5e3a29b3b8c548175b78a2e020b0b12ad0fec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/jobs.json",
+      "bytes": 8536,
+      "sha256": "1b0127509eb33c0b47d30749f12df8bfe47ddd884ecada4cb2483639f859b13a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/pr-read.json",
+      "bytes": 201,
+      "sha256": "26015227cb6cfbabeb57492c9bf25978df83e15be2ba714286ab082db189e3b6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/pr.json",
+      "bytes": 17851,
+      "sha256": "8b3bdb22df6d3577c5846e48964abb283ffb16bc548460f833dd6a0366ec2ebf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/run-read.json",
+      "bytes": 215,
+      "sha256": "a2bc8547cee2b0fde8d9890077d7d01f7379bea4450e9315f9d81a2b27111efa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-05/run.json",
+      "bytes": 12452,
+      "sha256": "f6b6907aa8f9a6a132e08d7a6d3e4245e4194cf49481b8d59addee5960ac1c0e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06-summary.txt",
+      "bytes": 7099,
+      "sha256": "cc08c337d5d3c2c59c7f0aab7e703edc0db4ae4fcfa25080b08c0727f36f7eee"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "eee13f4951f59f9f7ba6d0070bebe7939a00063d34d8dc90ca029a6953b0adf7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/artifacts.json",
+      "bytes": 2184,
+      "sha256": "258e4ed530cfaf229ef5442240574ab4bdbffa0ddc38cd9b37b951215b59a3bf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/jobs-read.json",
+      "bytes": 233,
+      "sha256": "9e85d420d292a68457eda60088cc6d7abc1c581afff3270d6300396dff274e81"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/jobs.json",
+      "bytes": 8904,
+      "sha256": "5980577d11856c060bfb4a61bb47af3b85be613bf38a5d55879b8c0d07b6bc73"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/pr-read.json",
+      "bytes": 201,
+      "sha256": "1538f07a07c16a981e7ea176ed0531f92a84b181f780b126e10e50704ec30041"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/pr.json",
+      "bytes": 17851,
+      "sha256": "8b3bdb22df6d3577c5846e48964abb283ffb16bc548460f833dd6a0366ec2ebf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/run-read.json",
+      "bytes": 215,
+      "sha256": "7e5c7f178caed09c27e960a426e65a885fe9ba01c32aeae16cecc63818ab865a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/snapshot-06/run.json",
+      "bytes": 12455,
+      "sha256": "4808a616d13293d6a3d6733b0b4bd2c5cfef83878f3877f6e6dda0d57c9b0c8c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/source/.github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/source/.github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/source/.github/workflows/v3-candidate-regression.yml",
+      "bytes": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/source/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/source/scripts/run-v3-candidate-check.py",
+      "bytes": 10569,
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/source/source-binding.json",
+      "bytes": 1041,
+      "sha256": "e85213130878c64f6e228f577e85274df07ca2c06e2711d7cc755e88ccc1a373"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/candidate/synthetic-merge-commit.json",
+      "bytes": 2602,
+      "sha256": "84c041c7816bec24a40b652820c9ea49dc7c1411132fc91e8fe7059d0b4092cd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 3216,
+      "sha256": "84da4f812ad3b4139e7f176482bc9de172cc67cce8d8aec5db8962fea681bbef"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/README.md",
+      "bytes": 3857,
+      "sha256": "67aa3e24368f36760ff78cb1b3640f659f2233162591e74a4c47b3c11c1d27f4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/SHA256SUMS",
+      "bytes": 8465,
+      "sha256": "b2b059d353de46f21487e9e3efa3d13b1e9aa1a74b3c94d4684a67aa02020385"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/archive-sha256.json",
+      "bytes": 16818,
+      "sha256": "f4c7812377469f6c48f9d3392212f754705e5cdec1b5d6c35088d3c3bb785f63"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/arrival.json",
+      "bytes": 57536,
+      "sha256": "064bfdb33db79fca29890915bef44d867339936b156f290ade6ab2213d6dec2a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/arrival.warmup.json",
+      "bytes": 19228,
+      "sha256": "4e0d4eda6faec7130cbd60dbdef385b61b8e0b0216b98aab3e44c2a0665af422"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/benchmark.txt",
+      "bytes": 2363,
+      "sha256": "8e2581d4ef00764bf9e9a974a29dd187832e76be832d375b5b796e6002b025ad"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/binary.sha256",
+      "bytes": 127,
+      "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/counters/window.json",
+      "bytes": 576,
+      "sha256": "c5507331a3eb15475200132b2323a784940f7062f1ed2f6df27a79026df46d24"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "dcf5ab186504343cc973d86bddc5862d6ea7f6e6b7682b92d3f185959aedf1fa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/host.json",
+      "bytes": 4483,
+      "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/arrival.json",
+      "bytes": 58111,
+      "sha256": "40945db1a2d4d8f8e57800ec6a67e598b83476ddfe3150f02f43b55e3c4aa9e8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/arrival.warmup.json",
+      "bytes": 19444,
+      "sha256": "9467c854261c7a294e6fc57446502943c576cca129d859a6821c780a0565c491"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/benchmark.txt",
+      "bytes": 2932,
+      "sha256": "194ace066678d6a3e8dbd7e0aea889db6c6ccb2ca6aec6251ab4843b19366abd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/binary.sha256",
+      "bytes": 124,
+      "sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "130b48380405963f40e8e90a361fe5ad9f1cf708cd434230f2c3b1c0501e118c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/host.json",
+      "bytes": 4826,
+      "sha256": "59d0294011bf325114e9e774464e01894b46bdfe43daf3ca9611621aa848ac52"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371360646/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/arrival.json",
+      "bytes": 57571,
+      "sha256": "d7b6d7a845b336adc93142b2a8e2e03cf50969fb1402e0f31c66c45a0ad87dd6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/arrival.warmup.json",
+      "bytes": 19269,
+      "sha256": "aba600b5d77df6060060e7661578a1f898db5f091412d00633fbbd85cba5bc7d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/benchmark.txt",
+      "bytes": 4019,
+      "sha256": "078b56eece2a7b9a9254a1050424563a336971564cf5b09134ce805ba9b35342"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/binary.sha256",
+      "bytes": 123,
+      "sha256": "0a02679af22e0659a5b382724dc317b84972516562544c0e2af212ec45f6e770"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/counters/window.json",
+      "bytes": 534,
+      "sha256": "22248a23866ecb1e077c05f80afd8d8c96bede7e98e5232cd683be9c0cc430b1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "4dbceec15d7c6b0c118d0a4ddc62d049794fba8eb4774d71c07c4b126c4dd6a0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/host.json",
+      "bytes": 4656,
+      "sha256": "4faf2d476b88616bf2a0bbf9612e5ca27af13645b4259119ebbf675a22938d50"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/evidence/graceful-stop-status.json",
+      "bytes": 237,
+      "sha256": "7b7f2c9cf3b894f3b2e525714e6f592083046405ed8f0ed5da42855f83ddafec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/evidence/process-continuity.tsv",
+      "bytes": 212,
+      "sha256": "0279cee778f6d9c8ad40c13d63862f8f655f794408e5de1f9574312b6617ed07"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/evidence/threshold-pprof-status.json",
+      "bytes": 287,
+      "sha256": "16fdec56e0522031eef0de1a6dad7d10d58aaed67a5afc03990d37f5d6571178"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/evidence/timeline.tsv",
+      "bytes": 1941,
+      "sha256": "49b1ad2fd349f180d5cd97bda96a9e6196d7d2743fd1c8c23c46c3b5ccc65b87"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/local-step.json",
+      "bytes": 835,
+      "sha256": "dfb02fec752563a01f4423ea0c4ae87db26eb4680e4162634f688189a2f7dfac"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/product_queue_summary.tsv",
+      "bytes": 206,
+      "sha256": "c702ba4e097e7ea6c488bebeaafb3555280881970e0a191289f42b131a45d287"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/report/diagnostic-status.json",
+      "bytes": 8799,
+      "sha256": "1f8651bafdcf13dfd429dffbfcd745685551243113c49d18983d63ed6f37c4c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/report/final.json",
+      "bytes": 23487,
+      "sha256": "f21c543c8b0fc1900f277ed69b1977bc166de43ccea0ea7f4460991881838f4f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/report/qualification.json",
+      "bytes": 23417,
+      "sha256": "7d4653434c3a5c00921a55f2bc74249a5faefdf9e9bd93b7192d63c1ecc6c5f0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "84e2a4f876a19e9c69de07f68bd675f988e86848c5c60717ce7418c324242428"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/driver.log",
+      "bytes": 1926,
+      "sha256": "7b961e3688ae4325c46148d681a1637497ac80b306f0917aad3396f1064988f2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/host.json",
+      "bytes": 4656,
+      "sha256": "4faf2d476b88616bf2a0bbf9612e5ca27af13645b4259119ebbf675a22938d50"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifact-members/12371555916/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifacts-183908.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifacts-184036.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifacts-final.json",
+      "bytes": 3021,
+      "sha256": "a6133297d90b2b1a49f3d55fa8067bf15ce8306e78994fb4e03159ffbe8f2e7a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/artifacts-initial.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/baseline-log-evidence.json",
+      "bytes": 427,
+      "sha256": "b2d621b9625866c4db9b7835a53594bb5953ef93abbb46d2d20d73249ea2a506"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/checkout-commit.json",
+      "bytes": 820,
+      "sha256": "64eeb4d88a1d49180c1cc6a4ec1eab32d9ace886279c0c018245986694be1297"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/correctness-extra-members-integrity.json",
+      "bytes": 4603,
+      "sha256": "b3b46a18e32592df9b1eaf60b66d56f4eb2ce22109b8df46ca1dd34da525184d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/correctness-members-integrity.json",
+      "bytes": 11087,
+      "sha256": "9a9f7d85854b595b5a6d2c449663093fb8adc7b667a1583b13285626d178d12a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/correctness-service-members-integrity.json",
+      "bytes": 3149,
+      "sha256": "3c6b3642fd06ca37a0f4c408908129a7935fa1463d63f5b29390379953de25fc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/correctness-summary.json",
+      "bytes": 7499,
+      "sha256": "a8bee3667f4249681c779e77251fd9928a628be45eaa9d74a309daac2535816f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/correctness-zip-inventory-receipt.json",
+      "bytes": 981,
+      "sha256": "2f1c4ee36ca10ad2e56a811ae1b847b5b99ad5c0d071ebce4b9d61988829124c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/job-119410168178-log-evidence.json",
+      "bytes": 764,
+      "sha256": "995d6b656f2eff5b8afb0e9ec92fe5f76977b364d8e45278fc28ae7c4688be39"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/job-119410305321-log-evidence.json",
+      "bytes": 432,
+      "sha256": "687fae54a9f93960fad2b84d9f1175617a61619f8d6a849142fa6c12f19f8b8d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/job-119410305452-log-evidence.json",
+      "bytes": 2143,
+      "sha256": "55b3cc64b0692a589d85a7c3d9e0afa908785b0755ea6e2a9b04b0404ab4c4a9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/job-119410305551-log-evidence.json",
+      "bytes": 432,
+      "sha256": "4941bf83a1e0a495e978c554401130688568d7d70950721c904f78e56d83d12f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/job-119412967704-log-evidence.json",
+      "bytes": 234,
+      "sha256": "55e59d8f85e240e158e9bae523bc008e1d2c691352febb8d16dd4215cd040b76"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/job-log-integrity.json",
+      "bytes": 1010,
+      "sha256": "01820b986118f7db248f0e64f0db7445d38e9411896845d6c5b5f4cc46fd3591"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/jobs-183908.json",
+      "bytes": 14274,
+      "sha256": "d1568b59dc7890f4f9fe73267d3894a0c9807a6ac3e7f57952b9f000a8f0ec69"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/jobs-184036.json",
+      "bytes": 14599,
+      "sha256": "145cb06e16e8a2dbd0310792e9f175ce41a00e9bc40e2eb52103c74602e0ecef"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/jobs-184205.json",
+      "bytes": 17517,
+      "sha256": "b8b1737a641b87610d79bd69462c49d3cda2a37c7fc708b681ca36404f7a75ed"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/jobs-initial.json",
+      "bytes": 14231,
+      "sha256": "5d4d654b728c99a9004217c98b31ac2fd0885247f3205c54263540dfa317781b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/mixed-send-flight-summary.json",
+      "bytes": 616,
+      "sha256": "9eefe1e9ce8eef6643800a8e137909771c0a846b7b7ea181656e7db026d36f46"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/read-failures.json",
+      "bytes": 263,
+      "sha256": "7c83168c6c1e251c59a4ffa0f9a873379b6733b25b3e884a99441c9d8ed4ab1f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/run-final.json",
+      "bytes": 12495,
+      "sha256": "49f4ecb4af332cacb05c758df608d07f7bec80eda7dfa0b7b6b21f2d03ad3db3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/run-initial.json",
+      "bytes": 12492,
+      "sha256": "722dbe577686e8c26c8613278a6b9a321d97d856cc8e93a2ed602c03b7e1346f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/small-artifacts-integrity.json",
+      "bytes": 7431,
+      "sha256": "6d835e696a3849405f2f86ba8adec8be583bcdaf4dbd67f842128f22e9fa3205"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/source-contract-binding.json",
+      "bytes": 1716,
+      "sha256": "b4d48ca596e122f8ca3b09dae47f3e18c4f72e7e6113368a45f10d50521b743f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/summary.json",
+      "bytes": 18025,
+      "sha256": "b1479db4bce1fdc9f876b85f200ffbc9c7a9a244e7154e94d0627085272c217f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-1/performance/unit-race-log-evidence.json",
+      "bytes": 3363,
+      "sha256": "c4d076612dfaec5df08f343cdeebb1eba41acae1d98984c80ffbaf65f81bc0af"
+    },
+    {
+      "path": "cloud/rc-new-cee5/terminal-evidence-delivery/product-source-equality.json",
+      "bytes": 1324,
+      "sha256": "5638e2632da511d775dc7641ddb8604f419de9cd8b0c42caafea45c8560fa6b8"
+    }
+  ],
+  "copied_files": 203,
+  "copied_bytes": 3578285,
+  "source_equality_git_objects_verified": true,
+  "public_only": true,
+  "source_mutation": false,
+  "ci_rerun": false,
+  "raw_diff_check": {
+    "exit_code": 2,
+    "only_byte_preserved_evidence_trailing_whitespace": true,
+    "files": [
+      "docs/reports/v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371622271/members/binary-build-info.txt",
+      "docs/reports/v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410167925/complete.log",
+      "docs/reports/v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410168261/complete.log",
+      "docs/reports/v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/job-logs-public/119413321477/complete.log",
+      "docs/reports/v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/performance/artifact-members/12371255746/benchmark.txt",
+      "docs/reports/v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/performance/artifact-members/12371516138/benchmark.txt"
+    ],
+    "reason": "Immutable CI output bytes are preserved; prose is checked separately."
+  }
+}

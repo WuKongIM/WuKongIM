@@ -1,0 +1,10 @@
+{
+  "job_id": 119410305321,
+  "original_bytes": 82930,
+  "original_sha256": "d24c092c534828dbdefd46d02140464314861e8c34201cd5e0609d74da5cb370",
+  "lines": [
+    "2026-10-21T18:36:55.9318844Z HEAD is now at 4f9e71ac3 Merge c91e37b4e35e1009c9c5cb55ff351a38b870014f into cee5d51f325fb84033060f546337d326110adae5",
+    "2026-10-21T18:41:33.4725190Z PASS"
+  ],
+  "note": "Selected raw public CI lines; not exhaustive test skip proof."
+}

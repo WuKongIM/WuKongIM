@@ -1,0 +1,20 @@
+{
+  "schema": "mixed-send-flight/v1",
+  "status": "not_triggered",
+  "started_at": "2026-10-21T18:38:48.347113523Z",
+  "stopped_at": "2026-10-21T18:41:48.467943154Z",
+  "export_started_at": "0001-01-01T00:00:00Z",
+  "export_ended_at": "0001-01-01T00:00:00Z",
+  "trace_bytes": 0,
+  "trace_complete": false,
+  "counters_complete": false,
+  "handlers_completed": true,
+  "history_target_seconds": 15,
+  "runtime_byte_target": 33554432,
+  "output_byte_limit": 67108864,
+  "original": {
+    "bytes": 2089606,
+    "sha256": "53ffd506ddad1042a149c51ad4fe03923449ea0b7fab1a6b95cbe1be6c4d2f12",
+    "crc32": "82ab6b04"
+  }
+}

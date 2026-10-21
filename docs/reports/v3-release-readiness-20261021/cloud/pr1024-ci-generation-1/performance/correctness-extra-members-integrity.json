@@ -1,0 +1,158 @@
+{
+  "artifact_id": 12371555916,
+  "zip_bytes": 229513470,
+  "api_zip_digest": "sha256:e8dbd5e05b910bae2efe4ef52db739e0f8388df8b96c6bb21f86129dd3d12bb8",
+  "full_zip_sha256_verified": false,
+  "full_zip_crc_verified": false,
+  "reason": "Only bounded ranges and selected members downloaded; whole ZIP digest is API-declared only.",
+  "member_count": 338,
+  "all_member_paths_safe_and_no_symlinks": true,
+  "ranges": [
+    {
+      "start": 229513448,
+      "end": 229513469,
+      "bytes": 22,
+      "sha256": "40b264297bdc0bcc9877ae85bd7c3c8550cde555c4b58328d643aa5021af4047"
+    },
+    {
+      "start": 229513428,
+      "end": 229513447,
+      "bytes": 20,
+      "sha256": "2537bcaaffc75ded8647fb912e18912e0befbee9e4525a71b88b6ea32d8d4baf"
+    },
+    {
+      "start": 229481091,
+      "end": 229513447,
+      "bytes": 32357,
+      "sha256": "de137b18a255924505f502263361281496b3d5e8cd62b9f21c60f1b8d44ffb6d"
+    },
+    {
+      "start": 228670095,
+      "end": 228670124,
+      "bytes": 30,
+      "sha256": "bb9b99fa99dceffb99a834b4b3827ade8e646b82da51cb8b71bca1a49d5df996"
+    },
+    {
+      "start": 228670125,
+      "end": 228670159,
+      "bytes": 35,
+      "sha256": "b49350b88d6afd85ffcd08f08ab9c5922227436cb52ea57f3e7b074b3fb60641"
+    },
+    {
+      "start": 228670160,
+      "end": 228673633,
+      "bytes": 3474,
+      "sha256": "eae278da0556ded0991586e2677a46f743806c50fed885c20c33b8fa84ee28f1"
+    },
+    {
+      "start": 228690131,
+      "end": 228690160,
+      "bytes": 30,
+      "sha256": "ba697fb2afb36b2bc619fe13af0006901cf113d6d6609e6365e41a88581874d8"
+    },
+    {
+      "start": 228690161,
+      "end": 228690190,
+      "bytes": 30,
+      "sha256": "96d41a9702ecb6cd0420711cad7e63e8654689c066d7adcbef18c1c5c23ca59c"
+    },
+    {
+      "start": 228690191,
+      "end": 228692380,
+      "bytes": 2190,
+      "sha256": "57ce013ec324940bd19d3cfd764d49bd547f4b36e74b54e7a0f7bf741659357b"
+    },
+    {
+      "start": 228692812,
+      "end": 228692841,
+      "bytes": 30,
+      "sha256": "2c6c7c37d3a560a2fd1c234816844e42dc6cfdd8c052ac80408e884c2062c9ac"
+    },
+    {
+      "start": 228692842,
+      "end": 228692869,
+      "bytes": 28,
+      "sha256": "a51ac32bcdc9d7fdb53d868dc3a42b26c7a289d14ede01f49c1033166743704f"
+    },
+    {
+      "start": 228692870,
+      "end": 228693773,
+      "bytes": 904,
+      "sha256": "eb3bc25989d5b0c859949e0d59852d568e975a9380d316b2b4f1073ccd9a2655"
+    },
+    {
+      "start": 228693790,
+      "end": 228693819,
+      "bytes": 30,
+      "sha256": "2c6c7c37d3a560a2fd1c234816844e42dc6cfdd8c052ac80408e884c2062c9ac"
+    },
+    {
+      "start": 228693820,
+      "end": 228693847,
+      "bytes": 28,
+      "sha256": "3c30fe634e929624176d8fd0b0a53e973f7f2b5626a27658f054729be999e735"
+    },
+    {
+      "start": 228693848,
+      "end": 228694718,
+      "bytes": 871,
+      "sha256": "c872d44be3d6db6c08cd96c1f4aec165fcb6d1b298c391781e6e9986026c7687"
+    },
+    {
+      "start": 228694735,
+      "end": 228694764,
+      "bytes": 30,
+      "sha256": "2c6c7c37d3a560a2fd1c234816844e42dc6cfdd8c052ac80408e884c2062c9ac"
+    },
+    {
+      "start": 228694765,
+      "end": 228694792,
+      "bytes": 28,
+      "sha256": "a3499833fa35e53bab8cd2577e5b0fe1b2ca8db74802d11e20cd34614fbacfe0"
+    },
+    {
+      "start": 228694793,
+      "end": 228695654,
+      "bytes": 862,
+      "sha256": "f83af55e1ce54076a53a935a8a344c4b782141fef6a11962f62116d3373d0c4f"
+    }
+  ],
+  "selected_members": [
+    {
+      "path": "artifacts/evidence/checksums.sha256",
+      "bytes": 8919,
+      "sha256": "f00e074a8bd1858ab92a1c2b7f3843dda34f99d193149218e145eba9b4886750",
+      "crc32": "e3c3e669",
+      "member_crc_verified": true
+    },
+    {
+      "path": "artifacts/logs/coordinator.log",
+      "bytes": 41680,
+      "sha256": "635cc5238afb7169e4d752248425fe9b74148ae39bc97ecd1c8a4fc089eabbdf",
+      "crc32": "f955abce",
+      "member_crc_verified": true
+    },
+    {
+      "path": "artifacts/logs/node1/app.log",
+      "bytes": 15717,
+      "sha256": "5cae22d1fda39709dc0c07aed16ab3e8eb5aeb8f15801fbc8b4513bb0945f691",
+      "crc32": "3bd1cfe0",
+      "member_crc_verified": true
+    },
+    {
+      "path": "artifacts/logs/node2/app.log",
+      "bytes": 15525,
+      "sha256": "6368ff888411b415e217ce8e2b97c5eb4af541806b9a1fcf38c3a5e512b9aa2c",
+      "crc32": "0e057a29",
+      "member_crc_verified": true
+    },
+    {
+      "path": "artifacts/logs/node3/app.log",
+      "bytes": 15525,
+      "sha256": "4164c556b1a65c59b46efc7f939ae304d1b9522c5e6605651c644489887713bb",
+      "crc32": "512acf5b",
+      "member_crc_verified": true
+    }
+  ],
+  "downloaded_range_bytes": 40999
+}

@@ -1,0 +1,48 @@
+{
+  "head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "tree": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "bytes": 13037,
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71"
+    },
+    {
+      "path": "scripts/run-500qps-seam.sh",
+      "bytes": 4722,
+      "sha256": "0b53b7ca3a21f4b2737eb2c823f967cf44c1543b50de6f3cd39720fd7083c922"
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "bytes": 79740,
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4"
+    },
+    {
+      "path": "internal/bench/arrival/report.go",
+      "bytes": 5110,
+      "sha256": "296603d7345b7e79fd18e72747300ad0429763370a8e67f194b895af6708ee18"
+    }
+  ],
+  "rules_note": "AGENTS and benchmark subtree/package FLOWs were read. No FLOW applies to scripts/chat-lifecycle. No source edits. Workflows only observed through GET.",
+  "independence": "No other candidate reviewer report was used."
+}

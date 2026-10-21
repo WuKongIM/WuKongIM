@@ -1,0 +1,314 @@
+[
+  {
+    "artifact_id": 12371516138,
+    "name": "500qps-mixed-send-4f9e71ac3976fab087833bb230c391cd5ea5f46e-1",
+    "zip_bytes": 237262,
+    "zip_sha256": "35589a7a2add4241d68aa9e0826d00a111b7a1511d81f187fecd6808d425ea34",
+    "api_digest_matches": true,
+    "full_zip_crc_verified": true,
+    "members": [
+      {
+        "path": "arrival.json",
+        "bytes": 57571,
+        "compressed_bytes": 3439,
+        "crc32": "81d28680"
+      },
+      {
+        "path": "arrival.warmup.json",
+        "bytes": 19269,
+        "compressed_bytes": 1323,
+        "crc32": "3d0a3e08"
+      },
+      {
+        "path": "benchmark.txt",
+        "bytes": 4019,
+        "compressed_bytes": 1025,
+        "crc32": "224f68d4"
+      },
+      {
+        "path": "binary.sha256",
+        "bytes": 123,
+        "compressed_bytes": 106,
+        "crc32": "2143473b"
+      },
+      {
+        "path": "counters/after.json",
+        "bytes": 314130,
+        "compressed_bytes": 13847,
+        "crc32": "c8ff3b01"
+      },
+      {
+        "path": "counters/window.json",
+        "bytes": 534,
+        "compressed_bytes": 319,
+        "crc32": "5af84b08"
+      },
+      {
+        "path": "counters/before.json",
+        "bytes": 313410,
+        "compressed_bytes": 13484,
+        "crc32": "ada50cf2"
+      },
+      {
+        "path": "counters.warmup/after.json",
+        "bytes": 313407,
+        "compressed_bytes": 13409,
+        "crc32": "4ada2c81"
+      },
+      {
+        "path": "counters.warmup/before.json",
+        "bytes": 310998,
+        "compressed_bytes": 11966,
+        "crc32": "9e3d3ead"
+      },
+      {
+        "path": "counters.warmup/window.json",
+        "bytes": 478,
+        "compressed_bytes": 297,
+        "crc32": "178d199b"
+      },
+      {
+        "path": "data-filesystem.json",
+        "bytes": 249,
+        "compressed_bytes": 163,
+        "crc32": "a22f9e15"
+      },
+      {
+        "path": "filesystem-preflight.txt",
+        "bytes": 123,
+        "compressed_bytes": 108,
+        "crc32": "01ee23e0"
+      },
+      {
+        "path": "flight/retention-status.txt",
+        "bytes": 28,
+        "compressed_bytes": 30,
+        "crc32": "1785ba98"
+      },
+      {
+        "path": "flight/window.json",
+        "bytes": 2089606,
+        "compressed_bytes": 173838,
+        "crc32": "82ab6b04"
+      },
+      {
+        "path": "go-version.txt",
+        "bytes": 33,
+        "compressed_bytes": 35,
+        "crc32": "dd48af92"
+      },
+      {
+        "path": "host.json",
+        "bytes": 4656,
+        "compressed_bytes": 1249,
+        "crc32": "757ba93f"
+      },
+      {
+        "path": "kernel.txt",
+        "bytes": 128,
+        "compressed_bytes": 115,
+        "crc32": "911946ec"
+      },
+      {
+        "path": "result.json",
+        "bytes": 18,
+        "compressed_bytes": 20,
+        "crc32": "81529131"
+      },
+      {
+        "path": "source.sha",
+        "bytes": 41,
+        "compressed_bytes": 41,
+        "crc32": "4a715cd9"
+      }
+    ]
+  },
+  {
+    "artifact_id": 12371360646,
+    "name": "500qps-tcp-sendack-4f9e71ac3976fab087833bb230c391cd5ea5f46e-1",
+    "zip_bytes": 8259,
+    "zip_sha256": "3ab64c6426dd74640324581b5626af1a33a5ebc78d1822525b0b8834f718912c",
+    "api_digest_matches": true,
+    "full_zip_crc_verified": true,
+    "members": [
+      {
+        "path": "arrival.json",
+        "bytes": 58111,
+        "compressed_bytes": 3019,
+        "crc32": "76cfe420"
+      },
+      {
+        "path": "benchmark.txt",
+        "bytes": 2932,
+        "compressed_bytes": 838,
+        "crc32": "e4d682b9"
+      },
+      {
+        "path": "arrival.warmup.json",
+        "bytes": 19444,
+        "compressed_bytes": 1185,
+        "crc32": "ffd096ef"
+      },
+      {
+        "path": "binary.sha256",
+        "bytes": 124,
+        "compressed_bytes": 106,
+        "crc32": "6e4afa0b"
+      },
+      {
+        "path": "data-filesystem.json",
+        "bytes": 249,
+        "compressed_bytes": 163,
+        "crc32": "a22f9e15"
+      },
+      {
+        "path": "filesystem-preflight.txt",
+        "bytes": 123,
+        "compressed_bytes": 109,
+        "crc32": "4cd69a86"
+      },
+      {
+        "path": "go-version.txt",
+        "bytes": 33,
+        "compressed_bytes": 35,
+        "crc32": "dd48af92"
+      },
+      {
+        "path": "host.json",
+        "bytes": 4826,
+        "compressed_bytes": 1284,
+        "crc32": "a5cf3833"
+      },
+      {
+        "path": "kernel.txt",
+        "bytes": 128,
+        "compressed_bytes": 115,
+        "crc32": "911946ec"
+      },
+      {
+        "path": "result.json",
+        "bytes": 18,
+        "compressed_bytes": 20,
+        "crc32": "81529131"
+      },
+      {
+        "path": "source.sha",
+        "bytes": 41,
+        "compressed_bytes": 41,
+        "crc32": "4a715cd9"
+      }
+    ]
+  },
+  {
+    "artifact_id": 12371255746,
+    "name": "500qps-channel-append-4f9e71ac3976fab087833bb230c391cd5ea5f46e-1",
+    "zip_bytes": 25376,
+    "zip_sha256": "6025b869af2e381f6dceba6df88010d74a2fe617d7b2eb58e47ce8df11a7da62",
+    "api_digest_matches": true,
+    "full_zip_crc_verified": true,
+    "members": [
+      {
+        "path": "arrival.json",
+        "bytes": 57536,
+        "compressed_bytes": 3393,
+        "crc32": "4bcf2373"
+      },
+      {
+        "path": "arrival.warmup.json",
+        "bytes": 19228,
+        "compressed_bytes": 1288,
+        "crc32": "1e96686a"
+      },
+      {
+        "path": "benchmark.txt",
+        "bytes": 2363,
+        "compressed_bytes": 837,
+        "crc32": "462698a0"
+      },
+      {
+        "path": "binary.sha256",
+        "bytes": 127,
+        "compressed_bytes": 109,
+        "crc32": "169500e8"
+      },
+      {
+        "path": "counters/after.json",
+        "bytes": 50662,
+        "compressed_bytes": 4244,
+        "crc32": "540064b6"
+      },
+      {
+        "path": "counters/before.json",
+        "bytes": 50418,
+        "compressed_bytes": 4032,
+        "crc32": "cf2e7044"
+      },
+      {
+        "path": "counters/window.json",
+        "bytes": 576,
+        "compressed_bytes": 353,
+        "crc32": "e04ff171"
+      },
+      {
+        "path": "counters.warmup/after.json",
+        "bytes": 50416,
+        "compressed_bytes": 4035,
+        "crc32": "14d1ea26"
+      },
+      {
+        "path": "counters.warmup/before.json",
+        "bytes": 21555,
+        "compressed_bytes": 2944,
+        "crc32": "4748a4a4"
+      },
+      {
+        "path": "counters.warmup/window.json",
+        "bytes": 502,
+        "compressed_bytes": 311,
+        "crc32": "16c22e89"
+      },
+      {
+        "path": "data-filesystem.json",
+        "bytes": 244,
+        "compressed_bytes": 159,
+        "crc32": "77ec143c"
+      },
+      {
+        "path": "filesystem-preflight.txt",
+        "bytes": 123,
+        "compressed_bytes": 109,
+        "crc32": "a6e20523"
+      },
+      {
+        "path": "go-version.txt",
+        "bytes": 33,
+        "compressed_bytes": 35,
+        "crc32": "dd48af92"
+      },
+      {
+        "path": "host.json",
+        "bytes": 4483,
+        "compressed_bytes": 1177,
+        "crc32": "86213588"
+      },
+      {
+        "path": "kernel.txt",
+        "bytes": 128,
+        "compressed_bytes": 115,
+        "crc32": "911946ec"
+      },
+      {
+        "path": "result.json",
+        "bytes": 18,
+        "compressed_bytes": 20,
+        "crc32": "81529131"
+      },
+      {
+        "path": "source.sha",
+        "bytes": 41,
+        "compressed_bytes": 41,
+        "crc32": "4a715cd9"
+      }
+    ]
+  }
+]

@@ -1,0 +1,269 @@
+{
+  "local_step": {
+    "schema": "wukongim/chat-lifecycle-local-step/v1",
+    "outcome": "clean",
+    "reason": "complete",
+    "offered_rate_per_second": 500,
+    "actual_rate_per_second": 505.56666666666666,
+    "minimum_throughput_percent": 90,
+    "measured_duration_seconds": 90,
+    "qualification_reached": true,
+    "target_connections": 2500,
+    "online_connections": 2500,
+    "sent": 45501,
+    "acknowledged": 45501,
+    "expected": 45000,
+    "minimum_filesystem_free_percent": 56.42691536304615,
+    "storage_evidence_complete": true,
+    "host_io_evidence_complete": true,
+    "product_metrics_complete": true,
+    "product_queue_evidence_complete": true,
+    "product_queues_converged": true,
+    "process_continuity_complete": true,
+    "timeline_evidence_complete": true,
+    "profile_evidence_complete": true,
+    "operator_interrupted": false,
+    "harness_failure_reason": ""
+  },
+  "final_verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 13,
+      "minute_capacity": 16,
+      "latency_samples": [
+        19,
+        19,
+        19
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "messages_cumulative": {
+    "sent": 75502,
+    "send_attempts": 75503,
+    "first_attempts": 75502,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 75502,
+    "send_rejected": 0,
+    "received": 98158,
+    "receive_acknowledged": 98158,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation_cumulative": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 833,
+    "delivered": 833,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "queues_final": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 54487,
+    "work_capacity": 114500,
+    "retry_current": 0,
+    "retry_peak": 1,
+    "retry_capacity": 12288,
+    "inflight_current": 0,
+    "inflight_peak": 500,
+    "inflight_capacity": 12288,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 1
+  },
+  "sessions_final": {
+    "target": 2500,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0,
+    "planned_new": 2000,
+    "planned_returning": 500,
+    "completed_new": 2500,
+    "completed_returning": 0,
+    "expired": 0,
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 2500,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    }
+  },
+  "diagnostic_status_totals": {
+    "target": 2500,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "product_queues": [
+    {
+      "tag": "rate-500",
+      "node": "node-1",
+      "evidence": "complete",
+      "baseline_queue": "6",
+      "baseline_inflight": "7",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    },
+    {
+      "tag": "rate-500",
+      "node": "node-2",
+      "evidence": "complete",
+      "baseline_queue": "5",
+      "baseline_inflight": "6",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    },
+    {
+      "tag": "rate-500",
+      "node": "node-3",
+      "evidence": "complete",
+      "baseline_queue": "8",
+      "baseline_inflight": "5",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    }
+  ],
+  "retry_evidence": {
+    "qualification_retry_attempts": 1,
+    "final_retry_attempts": 1,
+    "measured_retry_delta": 0,
+    "qualification_transport_rejected": 1,
+    "final_transport_rejected": 1,
+    "measured_transport_rejected_delta": 0,
+    "first_nonzero_retry_cut": {
+      "at": "2026-10-21T18:38:36.582020536Z",
+      "cut": "periodic",
+      "retry_attempts": 1,
+      "terminal": 0
+    },
+    "warmup_end": "2026-10-21T18:39:11.568704572Z"
+  },
+  "checksums_manifest_verified_selected_members": [
+    "local-step.json",
+    "product_queue_summary.tsv",
+    "report/final.json",
+    "report/qualification.json",
+    "report/diagnostic-status.json",
+    "report/worker-evidence.json",
+    "evidence/graceful-stop-status.json",
+    "evidence/process-continuity.tsv",
+    "evidence/timeline.tsv",
+    "evidence/threshold-pprof-status.json"
+  ],
+  "process_cleanup_inventory": null,
+  "cleanup_limit": "Session/correlation/work queues are zero and cleanup_error_count is zero. No separate post-shell OS process inventory is present; do not infer all runner processes were independently enumerated at zero.",
+  "warning_log_scan": [
+    {
+      "member": "artifacts/logs/node1/app.log",
+      "bytes": 15717,
+      "sha256": "5cae22d1fda39709dc0c07aed16ab3e8eb5aeb8f15801fbc8b4513bb0945f691",
+      "crc32": "3bd1cfe0",
+      "observed_warning_error_panic_lines": []
+    },
+    {
+      "member": "artifacts/logs/node2/app.log",
+      "bytes": 15525,
+      "sha256": "6368ff888411b415e217ce8e2b97c5eb4af541806b9a1fcf38c3a5e512b9aa2c",
+      "crc32": "0e057a29",
+      "observed_warning_error_panic_lines": []
+    },
+    {
+      "member": "artifacts/logs/node3/app.log",
+      "bytes": 15525,
+      "sha256": "4164c556b1a65c59b46efc7f939ae304d1b9522c5e6605651c644489887713bb",
+      "crc32": "512acf5b",
+      "observed_warning_error_panic_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-1.log",
+      "bytes": 15050,
+      "sha256": "69a3d59071f0112dedb050aee053c63278a69b323ed9c1ba4eb8fd93ba59491f",
+      "crc32": "d1e73b2e",
+      "observed_warning_error_panic_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-2.log",
+      "bytes": 14857,
+      "sha256": "7f6ab4b057bf43ccc0c627d530f050d5e23de86cf7a0cb165fb67fc80e38765e",
+      "crc32": "7e26e9eb",
+      "observed_warning_error_panic_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-3.log",
+      "bytes": 14858,
+      "sha256": "6c76131d98e3ab8dd73f9bf302915816d2145d4723e7948eda458888daee1c4c",
+      "crc32": "4be21413",
+      "observed_warning_error_panic_lines": []
+    }
+  ],
+  "warning_limit": "No warning/error/panic lines in these six full retained service/app log members. This is not a universal warning-free claim. TCP Go benchmark text contains output truncation; keep that limitation."
+}

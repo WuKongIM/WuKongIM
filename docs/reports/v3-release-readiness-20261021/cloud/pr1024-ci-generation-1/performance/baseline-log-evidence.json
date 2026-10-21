@@ -1,0 +1,11 @@
+{
+  "raw_private_log": {
+    "bytes": 71191,
+    "sha256": "a01f76eca2f7d810a97a3cb55b69c5f8c37b890bd50228890b8c9e756f98a685",
+    "crc32": "a99bf384"
+  },
+  "lines": [
+    "2026-10-21T18:36:38.8945047Z HEAD is now at 4f9e71ac3 Merge c91e37b4e35e1009c9c5cb55ff351a38b870014f into cee5d51f325fb84033060f546337d326110adae5",
+    "2026-10-21T18:36:40.4282576Z {\"reason\": \"performance_inputs_changed\", \"reuse\": false}"
+  ]
+}

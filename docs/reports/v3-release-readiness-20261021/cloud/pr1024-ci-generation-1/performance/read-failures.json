@@ -1,0 +1,10 @@
+[
+  {
+    "operation": "GET run artifacts",
+    "at": "2026-10-21T18:42:05Z",
+    "exit_code": 1,
+    "stderr_bytes": 106,
+    "stderr_sha256": "ee498c8774d60f36e00c74f96b5f073a2f12ab3cdf29ead3249aec439db51f68",
+    "redacted": "Get \"[URL redacted] EOF\n"
+  }
+]

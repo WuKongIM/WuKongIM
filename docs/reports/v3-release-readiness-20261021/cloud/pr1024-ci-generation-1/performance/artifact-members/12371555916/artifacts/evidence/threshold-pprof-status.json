@@ -1,0 +1,11 @@
+{
+  "schema": "wukongim/chat-lifecycle-threshold-pprof-status/v1",
+  "status": "not_triggered",
+  "evidence_complete": true,
+  "capture_valid": true,
+  "reason": "no_measured_threshold",
+  "trigger_kind": "",
+  "trigger_previous_utc": "",
+  "trigger_current_utc": "",
+  "metadata": ""
+}

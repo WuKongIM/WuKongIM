@@ -1,12 +1,12 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 18:39Z（北京时间10月22日02:39）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 18:52Z（北京时间10月22日02:52）**；后续状态须绑定新的提交和收据。
 
 结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
 产品 #1016/#1017/#1019–#1022及packages #67–#76已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z通过，49/49场景和清理已独立核验；18:17:48Z普通rebase合并为be32eb37，同验收tree e319ee72，合并后默认/SDK检查也首次通过且部署跳过。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
 
-两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024/c91e37b4，首次Linux原policy检查正在运行。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024/c91e37b4，首次Linux候选检查因原600秒外层时限失败；默认/E2E及三节点性能通过，collector的79内嵌进程场景在该Linux运行未完成。零断言FAIL不等于全套通过，耗时原因仍待量测。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -289,6 +289,16 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 [双轴v2复核](v3-release-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-review-v2/combined-review.md)关闭原两项P2、无新增发现；Spec独立52项helper探针通过，源码前后hash匹配。root已逐字核对并提交为c91e37b4/tree47eb4e4b，创建draft [WuKongIM #1024](https://github.com/WuKongIM/WuKongIM/pull/1024)，见[提交绑定](v3-release-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-delivery/commit-source-binding.json)。首次候选39654237841和三节点39654237861正在运行；未重跑、未合并、未再次采购。Review Agent仍disabled_manually，后续仅在独审和自然CI通过后按长期授权普通合并。
 
 [D3方案独立可行性审查](v3-release-readiness-20261021/packages/provider-after-d2-plan-review/report.md)进一步确认preview仍是结构fixture，四文件实施范围未获证明；应先构造真实preview canonical audit导出并通过原planner/materializer，不能mock验签或改TEST ONLY拒绝。该结论未变成新发布承诺，也未执行新测试或云动作。
+
+## 18:52Z #1024 首次 Linux 验收
+
+[首次候选完整归档](v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/README.md)绑定c91e37b4、base cee5和实际checkout 4f9e71ac，同tree47eb4e4b。默认219包通过/15包无测试；五迁移拓扑55次历史核验、四项跨节点及单节点集群/三节点集群自聊通过，原可选负载比较一项skip。六个owned SID清理均verified且零遗留，单一服务器二进制四次hash检查一致。
+
+scripts原命名检查仍是9分钟测试时限/parallel2、600秒外层/8MiB，未重跑或放宽。600.108秒外层timeout终止，exit -15/wrapper124；已见602根PASS/6既有SKIP、0断言FAIL，但全套没有完成。包START较命令步骤晚约123秒，不能全归因为编译；最后活跃测试名也不是根因证明。collector缺失终态锚用例通过，Retention在超时前未完成，因此本次Linux没有20个Python方法/79进程场景全部完成的收据。原因仍待量测，#1024保持draft且未合并。
+
+[首次三节点性能与正确性](v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/performance/README.md)同head/checkout，七个job通过，两个条件job明确skip，baseline未复用。三个seam各三窗累计90,000 starts/completions，零errors/drops，均通过400ms；这不是单请求最大延迟或长稳证据。90秒smoke测得45,501 SEND/ACK、采样833/833、零loss，终态仍是有界operator_stop；不替代云失败或2h/72h验收。小ZIP全SHA/CRC，大正确性ZIP仅选定成员range/CRC，整包SHA只为API声明。
+
+[产品源码等价](v3-release-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-delivery/product-source-equality.json)逐项Git对象确认cmd/internal/pkg及go.mod/go.sum与cee5完全相同；构建Git元数据仍可能改变二进制。此次是采集修复，不是已证实修复历史message_loss。上述首失败永久保留，不用性能或E2E通过抵消脚本门禁失败。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

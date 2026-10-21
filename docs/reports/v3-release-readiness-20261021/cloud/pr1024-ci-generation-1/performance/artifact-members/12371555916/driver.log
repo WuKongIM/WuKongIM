@@ -1,0 +1,24 @@
+[chat-lifecycle-shakeout] building service and benchmark binaries
+go: downloading github.com/spf13/cobra v1.10.2
+go: downloading github.com/spf13/pflag v1.0.10
+go: downloading github.com/gizak/termui/v3 v3.1.0
+go: downloading github.com/mattn/go-runewidth v0.0.23
+go: downloading github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7
+go: downloading github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d
+go: downloading github.com/clipperhouse/uax29/v2 v2.7.0
+[chat-lifecycle-shakeout] service-1 ready: http://127.0.0.1:15001/readyz
+[chat-lifecycle-shakeout] service-2 ready: http://127.0.0.1:15002/readyz
+[chat-lifecycle-shakeout] service-3 ready: http://127.0.0.1:15003/readyz
+[chat-lifecycle-shakeout] worker-1 ready: http://127.0.0.1:15051/healthz
+[chat-lifecycle-shakeout] host-metrics-1 ready: http://127.0.0.1:15061/healthz
+[chat-lifecycle-shakeout] worker-2 ready: http://127.0.0.1:15052/healthz
+[chat-lifecycle-shakeout] host-metrics-2 ready: http://127.0.0.1:15062/healthz
+[chat-lifecycle-shakeout] worker-3 ready: http://127.0.0.1:15053/healthz
+[chat-lifecycle-shakeout] host-metrics-3 ready: http://127.0.0.1:15063/healthz
+[chat-lifecycle-shakeout] host-metrics-load ready: http://127.0.0.1:15060/healthz
+[chat-lifecycle-shakeout] starting coordinator
+[chat-lifecycle-shakeout] warmup evidence complete; measuring 90s at 500 offered SEND/s
+[chat-lifecycle-shakeout] measured interval elapsed: forwarding one TERM to the coordinator
+[chat-lifecycle-shakeout] post-drain product queues converged after 1 sample(s)
+[chat-lifecycle-shakeout] terminal report summary: {"outcome":"operator_stop","cause":"operator_requested","hot_sendack_p99_limit_ms":1000,"hot_sendack_count":31467,"hot_sendack_mean_ms":13.919817113515746,"sent":75502,"acknowledged":75502}
+[chat-lifecycle-shakeout] local diagnostic result: /home/runner/work/_temp/three-node-pr-39654237861-1/artifacts/local-step.json (status 0)

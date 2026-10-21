@@ -1,0 +1,12 @@
+{
+  "job_id": 119410168178,
+  "original_bytes": 86430,
+  "original_sha256": "e30f7804067bbab3355e86d5c1b2614a80440709393b758473534df5f8a36d0d",
+  "lines": [
+    "2026-10-21T18:36:39.5746621Z HEAD is now at 4f9e71ac3 Merge c91e37b4e35e1009c9c5cb55ff351a38b870014f into cee5d51f325fb84033060f546337d326110adae5",
+    "2026-10-21T18:36:54.5876609Z \u001b[36;1m  --drain-timeout 90 \\\u001b[0m",
+    "2026-10-21T18:40:44.4643710Z [chat-lifecycle-shakeout] post-drain product queues converged after 1 sample(s)",
+    "2026-10-21T18:40:47.1111364Z [chat-lifecycle-shakeout] local diagnostic result: /home/runner/work/_temp/three-node-pr-39654237861-1/artifacts/local-step.json (status 0)"
+  ],
+  "note": "Selected raw public CI lines; not exhaustive test skip proof."
+}

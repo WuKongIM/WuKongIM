@@ -1,0 +1,37 @@
+{
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "candidate": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "objects": [
+    {
+      "path": "cmd",
+      "base_git_object": "a667d96681bd972d0e839e67103652791587a9b6",
+      "candidate_git_object": "a667d96681bd972d0e839e67103652791587a9b6",
+      "identical": true
+    },
+    {
+      "path": "internal",
+      "base_git_object": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+      "candidate_git_object": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+      "identical": true
+    },
+    {
+      "path": "pkg",
+      "base_git_object": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+      "candidate_git_object": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+      "identical": true
+    },
+    {
+      "path": "go.mod",
+      "base_git_object": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "candidate_git_object": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "identical": true
+    },
+    {
+      "path": "go.sum",
+      "base_git_object": "1692c2bb1806d016e62aa440142582d0b1aa54a6",
+      "candidate_git_object": "1692c2bb1806d016e62aa440142582d0b1aa54a6",
+      "identical": true
+    }
+  ],
+  "limit": "Product source and dependencies unchanged; binaries can differ through embedded Git/build metadata. Collector fix is not a proven product message-loss repair."
+}

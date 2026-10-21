@@ -1,0 +1,12 @@
+name	alive
+service-1	true
+service-2	true
+service-3	true
+worker-1	true
+worker-2	true
+worker-3	true
+host-metrics-1	true
+host-metrics-2	true
+host-metrics-3	true
+host-metrics-load	true
+process-metrics-collector	true

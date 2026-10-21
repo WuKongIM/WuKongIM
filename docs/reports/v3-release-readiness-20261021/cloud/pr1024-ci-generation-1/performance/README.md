@@ -1,0 +1,19 @@
+# PR #1024 — first three-node CI evidence
+
+Run [39654237861](https://github.com/WuKongIM/WuKongIM/actions/runs/39654237861), attempt 1, completed successfully. Seven jobs passed; Fixed Linux SEND diagnosis and Nightly qualification were conditionally skipped. Baseline reuse was false. Actual checkout `4f9e71ac3976fab087833bb230c391cd5ea5f46e` has parents `cee5d51f325fb84033060f546337d326110adae5` and `c91e37b4e35e1009c9c5cb55ff351a38b870014f`, with exact expected tree `47eb4e4b7240441456d54c1935eb37372c80cddf`. Every source-bearing job and artifact matches that checkout; aggregate has no source checkout.
+
+| Scene | 60s window scheduled-to-completion P99 (ms) | Measured starts / completions | Errors / drops |
+| --- | --- | --- | --- |
+| channel-append | 5.534409 / 16.854217 / 18.946257 | 90,000 / 90,000 | 0 / 0 |
+| mixed-send | 14.283063 / 14.485043 / 34.653257 | 90,000 / 90,000 | 0 / 0 |
+| tcp-sendack | 178.084944 / 178.095145 / 178.085325 | 90,000 / 90,000 | 0 / 0 |
+
+All nine measured windows started at 500 QPS and passed 400ms. Warmup was a separate 60s. P99 is not a maximum request latency; the arrival report does not expose that maximum. Stage `p99-upper` histogram bounds are not maxima and are not added across populations. CPU models differ between the three hosted jobs (EPYC 7763, EPYC 9V45, Xeon 6973P), so this is not controlled same-hardware attribution.
+
+The black-box smoke measured 90s at 505.566667 SEND/s: 45,501 sent/acknowledged, 2,500 online at qualification. Its separate hot-SENDACK gate is 1,000ms. Terminal cumulative sampled/delivered=833/833, losses/duplicates/corruptions/sequence regressions=0, pending/outstanding=0. Session online/starting/closing/traffic_ready and all three product queue/inflight counts are zero; drain timeout and unexpected exit are false; cleanup errors=0. The original verdict is `operator_stop/operator_requested` after the harness's bounded TERM, while `local-step.json` says `clean`; it is not a formal soak pass. No separate post-shell OS process inventory exists, so session/queue cleanup does not prove independently enumerated zero runner processes.
+
+Nonzero signals are retained: one workload retry and one transport rejection were already recorded before warmup ended; measured deltas are zero. This is separate from CI retries (none). No WARN/error/panic lines were found in the six complete selected service/app logs; no universal warning-free claim is made. TCP benchmark output contains Go's `[output truncated]` marker. Unit/race package checks passed, including the real arrival saturation integration; individual test skips are unknown from non-verbose logs. Mixed SEND flight capture was `not_triggered`, with no trace exported; optional threshold/graceful-stop diagnostic captures were also not triggered, rather than silently counted as executed diagnostics.
+
+Three small ZIPs were fully downloaded, locally SHA256-matched to API digests, and every member CRC/path checked. The 229,513,470-byte correctness ZIP was read using bounded HTTP ranges: selected member CRC/SHA and safe central-directory paths are verified; its whole-ZIP SHA256 is API-declared only, and full ZIP CRC was not checked. Public copies are bounded report/receipt/host/performance members; raw node/coordinator logs and signed-URL transport diagnostics remain private. `correctness-summary.json` keeps bounded warning scan and checksum evidence. One artifacts-list GET returned EOF; `read-failures.json` preserves the redacted failure and private stderr hash. No CI was rerun, dispatched, canceled, edited, or merged by this audit.
+
+This evidence covers PR performance/correctness only. It does not establish Linux collector's separate 9m gate, paid long-run acceptance, production stable activation, or release completion. SHA256SUMS and archive-sha256.json bind the finite public allowlist.

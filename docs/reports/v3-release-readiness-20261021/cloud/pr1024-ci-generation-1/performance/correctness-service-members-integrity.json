@@ -1,0 +1,108 @@
+{
+  "artifact_id": 12371555916,
+  "zip_bytes": 229513470,
+  "api_zip_digest": "sha256:e8dbd5e05b910bae2efe4ef52db739e0f8388df8b96c6bb21f86129dd3d12bb8",
+  "full_zip_sha256_verified": false,
+  "full_zip_crc_verified": false,
+  "reason": "Only bounded ranges and selected members downloaded; whole ZIP digest is API-declared only.",
+  "member_count": 338,
+  "all_member_paths_safe_and_no_symlinks": true,
+  "ranges": [
+    {
+      "start": 229513448,
+      "end": 229513469,
+      "bytes": 22,
+      "sha256": "40b264297bdc0bcc9877ae85bd7c3c8550cde555c4b58328d643aa5021af4047"
+    },
+    {
+      "start": 229513428,
+      "end": 229513447,
+      "bytes": 20,
+      "sha256": "2537bcaaffc75ded8647fb912e18912e0befbee9e4525a71b88b6ea32d8d4baf"
+    },
+    {
+      "start": 229481091,
+      "end": 229513447,
+      "bytes": 32357,
+      "sha256": "de137b18a255924505f502263361281496b3d5e8cd62b9f21c60f1b8d44ffb6d"
+    },
+    {
+      "start": 228695753,
+      "end": 228695782,
+      "bytes": 30,
+      "sha256": "2c6c7c37d3a560a2fd1c234816844e42dc6cfdd8c052ac80408e884c2062c9ac"
+    },
+    {
+      "start": 228695783,
+      "end": 228695810,
+      "bytes": 28,
+      "sha256": "fe27260683726211c5c9712f3eab89be5f6c3e454aa4586f7c1f2f824f9da605"
+    },
+    {
+      "start": 228695811,
+      "end": 228696661,
+      "bytes": 851,
+      "sha256": "cb6d3962ece964b62248df38154e458064c98faddd2b687d0fcde172a2e88c2f"
+    },
+    {
+      "start": 228696678,
+      "end": 228696707,
+      "bytes": 30,
+      "sha256": "2c6c7c37d3a560a2fd1c234816844e42dc6cfdd8c052ac80408e884c2062c9ac"
+    },
+    {
+      "start": 228696708,
+      "end": 228696735,
+      "bytes": 28,
+      "sha256": "759366a38f13f0314d4c45e9fb81170018e6ecc2f6d707005213d5f0df1d356e"
+    },
+    {
+      "start": 228696736,
+      "end": 228697549,
+      "bytes": 814,
+      "sha256": "64810c2e3d8cb6d984d1fd4fd323e6feb9a11c363b4e335f7ea810d880739069"
+    },
+    {
+      "start": 228697566,
+      "end": 228697595,
+      "bytes": 30,
+      "sha256": "2c6c7c37d3a560a2fd1c234816844e42dc6cfdd8c052ac80408e884c2062c9ac"
+    },
+    {
+      "start": 228697596,
+      "end": 228697623,
+      "bytes": 28,
+      "sha256": "829eb68c0962e4964c078c82b00efcb542264fbf87c4ce2b09efe8d82dbe1f8a"
+    },
+    {
+      "start": 228697624,
+      "end": 228698431,
+      "bytes": 808,
+      "sha256": "4b9969ad42f737b94066ca26d6b0bf8d3578a77f201f70cfcc1e3e6fcb4cd5e8"
+    }
+  ],
+  "selected_members": [
+    {
+      "path": "artifacts/logs/service-1.log",
+      "bytes": 15050,
+      "sha256": "69a3d59071f0112dedb050aee053c63278a69b323ed9c1ba4eb8fd93ba59491f",
+      "crc32": "d1e73b2e",
+      "member_crc_verified": true
+    },
+    {
+      "path": "artifacts/logs/service-2.log",
+      "bytes": 14857,
+      "sha256": "7f6ab4b057bf43ccc0c627d530f050d5e23de86cf7a0cb165fb67fc80e38765e",
+      "crc32": "7e26e9eb",
+      "member_crc_verified": true
+    },
+    {
+      "path": "artifacts/logs/service-3.log",
+      "bytes": 14858,
+      "sha256": "6c76131d98e3ab8dd73f9bf302915816d2145d4723e7948eda458888daee1c4c",
+      "crc32": "4be21413",
+      "member_crc_verified": true
+    }
+  ],
+  "downloaded_range_bytes": 35046
+}

@@ -1,0 +1,535 @@
+{
+  "run_id": 39654237861,
+  "run_attempt": 1,
+  "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39654237861",
+  "conclusion": "success",
+  "source": {
+    "sha": "4f9e71ac3976fab087833bb230c391cd5ea5f46e",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/commit/4f9e71ac3976fab087833bb230c391cd5ea5f46e",
+    "tree": {
+      "sha": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/47eb4e4b7240441456d54c1935eb37372c80cddf"
+    },
+    "parents": [
+      {
+        "sha": "cee5d51f325fb84033060f546337d326110adae5"
+      },
+      {
+        "sha": "c91e37b4e35e1009c9c5cb55ff351a38b870014f"
+      }
+    ],
+    "message": "Merge c91e37b4e35e1009c9c5cb55ff351a38b870014f into cee5d51f325fb84033060f546337d326110adae5",
+    "expected_head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+    "expected_base": "cee5d51f325fb84033060f546337d326110adae5",
+    "expected_tree": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+    "tree_matches": true
+  },
+  "jobs": [
+    {
+      "id": 119410167974,
+      "name": "PR performance baseline evidence",
+      "conclusion": "success"
+    },
+    {
+      "id": 119410168167,
+      "name": "PR messaging unit and race",
+      "conclusion": "success"
+    },
+    {
+      "id": 119410168178,
+      "name": "PR three-node correctness",
+      "conclusion": "success"
+    },
+    {
+      "id": 119410170676,
+      "name": "Fixed Linux SEND diagnosis",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 119410170989,
+      "name": "Nightly direct 500 QPS qualification",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 119410305321,
+      "name": "PR 500 QPS / channel-append",
+      "conclusion": "success"
+    },
+    {
+      "id": 119410305452,
+      "name": "PR 500 QPS / mixed-send",
+      "conclusion": "success"
+    },
+    {
+      "id": 119410305551,
+      "name": "PR 500 QPS / tcp-sendack",
+      "conclusion": "success"
+    },
+    {
+      "id": 119412967704,
+      "name": "PR three-node regression",
+      "conclusion": "success"
+    }
+  ],
+  "baseline_reused": false,
+  "performance": [
+    {
+      "seam": "channel-append",
+      "artifact_id": 12371255746,
+      "measurement_seconds": 180,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 5.534409,
+          "scheduled_to_start_p99_ms": 1.101848,
+          "service_p99_ms": 4.180572
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 16.854217,
+          "scheduled_to_start_p99_ms": 1.099002,
+          "service_p99_ms": 16.409053
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 18.946257,
+          "scheduled_to_start_p99_ms": 1.403514,
+          "service_p99_ms": 18.242792
+        }
+      ],
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "single_request_max_latency_ms": null,
+      "max_latency_note": "Not provided by scheduled-arrival/v1; window P99 is not a request maximum.",
+      "cpu_model": "AMD EPYC 7763 64-Core Processor"
+    },
+    {
+      "seam": "mixed-send",
+      "artifact_id": 12371516138,
+      "measurement_seconds": 180,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 14.283063,
+          "scheduled_to_start_p99_ms": 1.110116,
+          "service_p99_ms": 13.351743
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 14.485043,
+          "scheduled_to_start_p99_ms": 1.12094,
+          "service_p99_ms": 13.50356
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 34.653257,
+          "scheduled_to_start_p99_ms": 1.444832,
+          "service_p99_ms": 34.215125
+        }
+      ],
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "single_request_max_latency_ms": null,
+      "max_latency_note": "Not provided by scheduled-arrival/v1; window P99 is not a request maximum.",
+      "cpu_model": "AMD EPYC 9V45 96-Core Processor"
+    },
+    {
+      "seam": "tcp-sendack",
+      "artifact_id": 12371360646,
+      "measurement_seconds": 180,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.084944,
+          "scheduled_to_start_p99_ms": 1.074321,
+          "service_p99_ms": 177.439392
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.095145,
+          "scheduled_to_start_p99_ms": 1.073375,
+          "service_p99_ms": 177.435533
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.085325,
+          "scheduled_to_start_p99_ms": 1.069434,
+          "service_p99_ms": 177.392731
+        }
+      ],
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "single_request_max_latency_ms": null,
+      "max_latency_note": "Not provided by scheduled-arrival/v1; window P99 is not a request maximum.",
+      "cpu_model": "Intel(R) Xeon(R) 6973P-C"
+    }
+  ],
+  "retry_scope": "No CI rerun or performance retry. One workload retry and one transport rejection already occurred during warmup; measured deltas zero. One read-only artifacts API GET failed EOF; original failure retained, followed by successful GET.",
+  "test_skips": "Two workflow-condition skipped jobs; individual Go test skip count unknown because unit/race logs are not per-test verbose.",
+  "publication": "No stable activation, release publication, long-soak or dedicated-host equivalence is implied.",
+  "public_copied_members": [
+    {
+      "public_path": "artifact-members/12371255746/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214",
+      "crc32": "4a715cd9"
+    },
+    {
+      "public_path": "artifact-members/12371255746/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+      "crc32": "81529131"
+    },
+    {
+      "public_path": "artifact-members/12371255746/arrival.json",
+      "bytes": 57536,
+      "sha256": "064bfdb33db79fca29890915bef44d867339936b156f290ade6ab2213d6dec2a",
+      "crc32": "4bcf2373"
+    },
+    {
+      "public_path": "artifact-members/12371255746/arrival.warmup.json",
+      "bytes": 19228,
+      "sha256": "4e0d4eda6faec7130cbd60dbdef385b61b8e0b0216b98aab3e44c2a0665af422",
+      "crc32": "1e96686a"
+    },
+    {
+      "public_path": "artifact-members/12371255746/benchmark.txt",
+      "bytes": 2363,
+      "sha256": "8e2581d4ef00764bf9e9a974a29dd187832e76be832d375b5b796e6002b025ad",
+      "crc32": "462698a0"
+    },
+    {
+      "public_path": "artifact-members/12371255746/binary.sha256",
+      "bytes": 127,
+      "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2",
+      "crc32": "169500e8"
+    },
+    {
+      "public_path": "artifact-members/12371255746/host.json",
+      "bytes": 4483,
+      "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401",
+      "crc32": "86213588"
+    },
+    {
+      "public_path": "artifact-members/12371255746/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f",
+      "crc32": "911946ec"
+    },
+    {
+      "public_path": "artifact-members/12371255746/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+      "crc32": "dd48af92"
+    },
+    {
+      "public_path": "artifact-members/12371255746/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+      "crc32": "77ec143c"
+    },
+    {
+      "public_path": "artifact-members/12371255746/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "dcf5ab186504343cc973d86bddc5862d6ea7f6e6b7682b92d3f185959aedf1fa",
+      "crc32": "a6e20523"
+    },
+    {
+      "public_path": "artifact-members/12371255746/counters/window.json",
+      "bytes": 576,
+      "sha256": "c5507331a3eb15475200132b2323a784940f7062f1ed2f6df27a79026df46d24",
+      "crc32": "e04ff171"
+    },
+    {
+      "public_path": "artifact-members/12371516138/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214",
+      "crc32": "4a715cd9"
+    },
+    {
+      "public_path": "artifact-members/12371516138/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+      "crc32": "81529131"
+    },
+    {
+      "public_path": "artifact-members/12371516138/arrival.json",
+      "bytes": 57571,
+      "sha256": "d7b6d7a845b336adc93142b2a8e2e03cf50969fb1402e0f31c66c45a0ad87dd6",
+      "crc32": "81d28680"
+    },
+    {
+      "public_path": "artifact-members/12371516138/arrival.warmup.json",
+      "bytes": 19269,
+      "sha256": "aba600b5d77df6060060e7661578a1f898db5f091412d00633fbbd85cba5bc7d",
+      "crc32": "3d0a3e08"
+    },
+    {
+      "public_path": "artifact-members/12371516138/benchmark.txt",
+      "bytes": 4019,
+      "sha256": "078b56eece2a7b9a9254a1050424563a336971564cf5b09134ce805ba9b35342",
+      "crc32": "224f68d4"
+    },
+    {
+      "public_path": "artifact-members/12371516138/binary.sha256",
+      "bytes": 123,
+      "sha256": "0a02679af22e0659a5b382724dc317b84972516562544c0e2af212ec45f6e770",
+      "crc32": "2143473b"
+    },
+    {
+      "public_path": "artifact-members/12371516138/host.json",
+      "bytes": 4656,
+      "sha256": "4faf2d476b88616bf2a0bbf9612e5ca27af13645b4259119ebbf675a22938d50",
+      "crc32": "757ba93f"
+    },
+    {
+      "public_path": "artifact-members/12371516138/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f",
+      "crc32": "911946ec"
+    },
+    {
+      "public_path": "artifact-members/12371516138/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+      "crc32": "dd48af92"
+    },
+    {
+      "public_path": "artifact-members/12371516138/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6",
+      "crc32": "a22f9e15"
+    },
+    {
+      "public_path": "artifact-members/12371516138/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "4dbceec15d7c6b0c118d0a4ddc62d049794fba8eb4774d71c07c4b126c4dd6a0",
+      "crc32": "01ee23e0"
+    },
+    {
+      "public_path": "artifact-members/12371516138/counters/window.json",
+      "bytes": 534,
+      "sha256": "22248a23866ecb1e077c05f80afd8d8c96bede7e98e5232cd683be9c0cc430b1",
+      "crc32": "5af84b08"
+    },
+    {
+      "public_path": "artifact-members/12371360646/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214",
+      "crc32": "4a715cd9"
+    },
+    {
+      "public_path": "artifact-members/12371360646/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+      "crc32": "81529131"
+    },
+    {
+      "public_path": "artifact-members/12371360646/arrival.json",
+      "bytes": 58111,
+      "sha256": "40945db1a2d4d8f8e57800ec6a67e598b83476ddfe3150f02f43b55e3c4aa9e8",
+      "crc32": "76cfe420"
+    },
+    {
+      "public_path": "artifact-members/12371360646/arrival.warmup.json",
+      "bytes": 19444,
+      "sha256": "9467c854261c7a294e6fc57446502943c576cca129d859a6821c780a0565c491",
+      "crc32": "ffd096ef"
+    },
+    {
+      "public_path": "artifact-members/12371360646/benchmark.txt",
+      "bytes": 2932,
+      "sha256": "194ace066678d6a3e8dbd7e0aea889db6c6ccb2ca6aec6251ab4843b19366abd",
+      "crc32": "e4d682b9"
+    },
+    {
+      "public_path": "artifact-members/12371360646/binary.sha256",
+      "bytes": 124,
+      "sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939",
+      "crc32": "6e4afa0b"
+    },
+    {
+      "public_path": "artifact-members/12371360646/host.json",
+      "bytes": 4826,
+      "sha256": "59d0294011bf325114e9e774464e01894b46bdfe43daf3ca9611621aa848ac52",
+      "crc32": "a5cf3833"
+    },
+    {
+      "public_path": "artifact-members/12371360646/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f",
+      "crc32": "911946ec"
+    },
+    {
+      "public_path": "artifact-members/12371360646/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+      "crc32": "dd48af92"
+    },
+    {
+      "public_path": "artifact-members/12371360646/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6",
+      "crc32": "a22f9e15"
+    },
+    {
+      "public_path": "artifact-members/12371360646/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "130b48380405963f40e8e90a361fe5ad9f1cf708cd434230f2c3b1c0501e118c",
+      "crc32": "4cd69a86"
+    },
+    {
+      "public_path": "artifact-members/12371555916/source.sha",
+      "bytes": 41,
+      "sha256": "1f55d1e1e554b03da5916b1c97031134e8aa2dbfba5bcee9f11994a218c52214",
+      "crc32": "4a715cd9"
+    },
+    {
+      "public_path": "artifact-members/12371555916/host.json",
+      "bytes": 4656,
+      "sha256": "4faf2d476b88616bf2a0bbf9612e5ca27af13645b4259119ebbf675a22938d50",
+      "crc32": "757ba93f"
+    },
+    {
+      "public_path": "artifact-members/12371555916/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6",
+      "crc32": "a22f9e15"
+    },
+    {
+      "public_path": "artifact-members/12371555916/driver.log",
+      "bytes": 1926,
+      "sha256": "7b961e3688ae4325c46148d681a1637497ac80b306f0917aad3396f1064988f2",
+      "crc32": "264a8936"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/local-step.json",
+      "bytes": 835,
+      "sha256": "dfb02fec752563a01f4423ea0c4ae87db26eb4680e4162634f688189a2f7dfac",
+      "crc32": "a2b9620f"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/product_queue_summary.tsv",
+      "bytes": 206,
+      "sha256": "c702ba4e097e7ea6c488bebeaafb3555280881970e0a191289f42b131a45d287",
+      "crc32": "f1b25e5b"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/report/final.json",
+      "bytes": 23487,
+      "sha256": "f21c543c8b0fc1900f277ed69b1977bc166de43ccea0ea7f4460991881838f4f",
+      "crc32": "002026ec"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/report/qualification.json",
+      "bytes": 23417,
+      "sha256": "7d4653434c3a5c00921a55f2bc74249a5faefdf9e9bd93b7192d63c1ecc6c5f0",
+      "crc32": "ab4d473d"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/report/diagnostic-status.json",
+      "bytes": 8799,
+      "sha256": "1f8651bafdcf13dfd429dffbfcd745685551243113c49d18983d63ed6f37c4c9",
+      "crc32": "64fa9931"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "84e2a4f876a19e9c69de07f68bd675f988e86848c5c60717ce7418c324242428",
+      "crc32": "052593f5"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/evidence/graceful-stop-status.json",
+      "bytes": 237,
+      "sha256": "7b7f2c9cf3b894f3b2e525714e6f592083046405ed8f0ed5da42855f83ddafec",
+      "crc32": "56200567"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/evidence/process-continuity.tsv",
+      "bytes": 212,
+      "sha256": "0279cee778f6d9c8ad40c13d63862f8f655f794408e5de1f9574312b6617ed07",
+      "crc32": "2533a7e5"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/evidence/timeline.tsv",
+      "bytes": 1941,
+      "sha256": "49b1ad2fd349f180d5cd97bda96a9e6196d7d2743fd1c8c23c46c3b5ccc65b87",
+      "crc32": "59c40559"
+    },
+    {
+      "public_path": "artifact-members/12371555916/artifacts/evidence/threshold-pprof-status.json",
+      "bytes": 287,
+      "sha256": "16fdec56e0522031eef0de1a6dad7d10d58aaed67a5afc03990d37f5d6571178",
+      "crc32": "61c4ea14"
+    }
+  ]
+}

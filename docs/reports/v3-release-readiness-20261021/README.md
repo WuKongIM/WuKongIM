@@ -393,3 +393,7 @@ immutable publication and signed native-package public-client acceptance.
 
 - [采集修复完整封存](cloud/rc-new-cee5/terminal-evidence-repair-delivery/README.md)、[v2双轴复核](cloud/rc-new-cee5/terminal-evidence-review-v2/combined-review.md)与[#1024提交绑定](cloud/rc-new-cee5/terminal-evidence-delivery/commit-source-binding.json)：79进程场景、Mac完整补充回归通过；Linux原9m和三节点首次CI待终态。
 - [D3独立可行性审查](packages/provider-after-d2-plan-review/report.md)：四文件范围未证明，必须先补真实preview canonical audit fixture；未实施或调用云。
+
+- [#1024首次候选CI](cloud/pr1024-ci-generation-1/candidate/README.md)：219默认包及迁移/消息E2E通过，scripts原600秒外层首次timeout、collector79内嵌场景未完成；六个owned SID均零遗留，不重跑或覆盖首失败。
+- [#1024首次三节点性能](cloud/pr1024-ci-generation-1/performance/README.md)：七job通过/两条件skip，三seam各90,000完成、零错误丢弃；smoke不是长稳通过，大ZIP全包SHA仅API声明。
+- [采集修复产品源码等价](cloud/rc-new-cee5/terminal-evidence-delivery/product-source-equality.json)与[本次复制校验](pr1024-first-ci-checkpoint-copy.json)：产品/依赖Git对象未变，未将采集改动称为消息丢失修复；旧immutable证据逐项不变。

@@ -1,0 +1,21 @@
+{
+  "sha": "4f9e71ac3976fab087833bb230c391cd5ea5f46e",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/4f9e71ac3976fab087833bb230c391cd5ea5f46e",
+  "tree": {
+    "sha": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/47eb4e4b7240441456d54c1935eb37372c80cddf"
+  },
+  "parents": [
+    {
+      "sha": "cee5d51f325fb84033060f546337d326110adae5"
+    },
+    {
+      "sha": "c91e37b4e35e1009c9c5cb55ff351a38b870014f"
+    }
+  ],
+  "message": "Merge c91e37b4e35e1009c9c5cb55ff351a38b870014f into cee5d51f325fb84033060f546337d326110adae5",
+  "expected_head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "expected_base": "cee5d51f325fb84033060f546337d326110adae5",
+  "expected_tree": "47eb4e4b7240441456d54c1935eb37372c80cddf",
+  "tree_matches": true
+}

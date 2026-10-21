@@ -1,0 +1,10 @@
+{
+   "filesystems": [
+      {
+         "target": "/",
+         "source": "/dev/nvme0n1p1",
+         "fstype": "ext4",
+         "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+      }
+   ]
+}

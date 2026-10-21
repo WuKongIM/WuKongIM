@@ -1,0 +1,5 @@
+go: downloading github.com/stretchr/testify v1.11.1
+go: downloading github.com/eclipse/paho.golang v0.23.0
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/pmezard/go-difflib v1.0.0
+go: downloading github.com/davecgh/go-spew v1.1.1

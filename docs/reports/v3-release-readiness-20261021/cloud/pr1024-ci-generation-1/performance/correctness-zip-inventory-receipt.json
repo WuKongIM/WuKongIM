@@ -1,0 +1,32 @@
+{
+  "artifact_id": 12371555916,
+  "zip_bytes": 229513470,
+  "api_zip_digest": "sha256:e8dbd5e05b910bae2efe4ef52db739e0f8388df8b96c6bb21f86129dd3d12bb8",
+  "full_zip_sha256_verified": false,
+  "full_zip_crc_verified": false,
+  "reason": "Only bounded ranges and selected members downloaded; whole ZIP digest is API-declared only.",
+  "member_count": 338,
+  "all_member_paths_safe_and_no_symlinks": true,
+  "ranges": [
+    {
+      "start": 229513448,
+      "end": 229513469,
+      "bytes": 22,
+      "sha256": "40b264297bdc0bcc9877ae85bd7c3c8550cde555c4b58328d643aa5021af4047"
+    },
+    {
+      "start": 229513428,
+      "end": 229513447,
+      "bytes": 20,
+      "sha256": "2537bcaaffc75ded8647fb912e18912e0befbee9e4525a71b88b6ea32d8d4baf"
+    },
+    {
+      "start": 229481091,
+      "end": 229513447,
+      "bytes": 32357,
+      "sha256": "de137b18a255924505f502263361281496b3d5e8cd62b9f21c60f1b8d44ffb6d"
+    }
+  ],
+  "selected_members": [],
+  "downloaded_range_bytes": 32399
+}

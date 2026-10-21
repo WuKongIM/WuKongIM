@@ -1,0 +1,11 @@
+{
+  "job_id": 119410305452,
+  "original_bytes": 85815,
+  "original_sha256": "93796480ee2bd49fbd5337bc128b456708f089597efe5a836358a57d102e0f94",
+  "lines": [
+    "2026-10-21T18:36:56.2540182Z HEAD is now at 4f9e71ac3 Merge c91e37b4e35e1009c9c5cb55ff351a38b870014f into cee5d51f325fb84033060f546337d326110adae5",
+    "2026-10-21T18:41:48.7936190Z    90000\t   2000062 ns/op\t         0 all-over-200ms-pct\t        24.41 all-p99-ms\t         1.445 arrival-queue-p99-ms\t         0.02529 channel-meta_apply-avg-ms\t         0.5000 channel-meta_apply-p99-upper-ms\t     87611 channel-meta_apply-samples\t         0.003485 channel-meta_resolve-avg-ms\t         0.5000 channel-meta_resolve-p99-upper-ms\t    177611 channel-meta_resolve-samples\t         2.919 channel-runtime_append-avg-ms\t        25.00 channel-runtime_append-p99-upper-ms\t     87611 channel-runtime_append-samples\t         0.001782 channel-runtime_append_reserve_wait-avg-ms\t         0.5000 channel-runtime_append_reserve_wait-p99-upper-ms\t     87611 channel-runtime_append_reserve_wait-samples\t         0.003185 channel-runtime_append_submit-avg-ms\t         0.5000 channel-runtime_append_submit-p99-upper-ms\t     87611 channel-runtime_append_submit-samples\t         2.910 channel-runtime_append_wait-avg-ms\t        25.00 channel-runtime_append_wait-p99-upper-ms\t     87611 channel-runtime_append_wait-samples\t         0 hot-over-200ms-pct\t        24.41 hot-p99-ms\t       159.0 meta-create-batches\t         3.774 meta-create-items/batch\t       500.0 offered-msg/s\t         1.276 person-directory-drain-ms\t        34.65 scheduled-p99-ms\t         2.032 stage-permission-avg-ms\t         5.000 stage-permission-p99-upper-ms\t     90000 stage-permission-samples\t         0.0004691 stage-pre_append-avg-ms\t         0.5000 stage-pre_append-p99-upper-ms\t     90000 stage-pre_append-samples\t         4.259 stage-submitter-avg-ms\t        25.00 stage-submitter-p99-upper-ms\t     90000 stage-submitter-samples\t  291958 B/op\t    2280 allocs/op",
+    "2026-10-21T18:41:48.7944243Z PASS"
+  ],
+  "note": "Selected raw public CI lines; not exhaustive test skip proof."
+}
