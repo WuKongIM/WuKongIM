@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Verify the exact open tracking Issue before cloud chat-lifecycle procurement,
+  and preserve bounded exit evidence when workload preparation stops before its
+  measurement clock starts. / 云端聊天生命周期验收在采购前检查对应的开放跟踪 Issue，
+  并在负载计时前退出时保留有界的退出证据。
+
 - Complete Analysis close and local cleanup after failures on Bash 5, and join
   active chat-lifecycle steps after operator signals while preserving the
   original exit status. / 修复 Bash 5 下失败退出时跳过 Analysis 关闭和本地清理、

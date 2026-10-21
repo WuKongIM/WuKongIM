@@ -1215,6 +1215,12 @@ specification, runbook, report, or module documentation; link to them when neede
   for host activation, bounded readiness, and typed outcomes. Behavioral tests
   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts
   and validation, not a parallel test-only execution model.
+- Paid chat-lifecycle orchestration needs one exact open, unlocked tracking Issue
+  before procurement. Read-only startup validation cannot promise future write
+  permission. A pre-clock failure label alone does not prove the deadline elapsed:
+  terminal unit state, SSH failure and deadline expiry must remain distinguishable,
+  with diagnostic evidence captured before terminating the unit. Missing evidence
+  leaves the original cause unknown.
 - Paid cloud creation requires exact start authorization and a bounded cost envelope.
   Deployment, diagnosis, status, or cleanup does not authorize buying resources.
   Preserve immutable Lease expiry and exact resource identity. A run is released

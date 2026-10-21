@@ -97,6 +97,15 @@ jobs:
         run: |
           set -euo pipefail
           scripts/chat-lifecycle/stage-orchestrate.sh
+      - name: Upload read-only Issue preflight receipt
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-preflight-${{ inputs.request_id }}
+          path: ${{ env.WK_CHAT_OUTPUT_DIR }}/issue-preflight.json
+          if-no-files-found: ignore
+          retention-days: 8
       - name: Detect publishable handoff or cleanup continuation
         id: handoff_state
         if: always()
