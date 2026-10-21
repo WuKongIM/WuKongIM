@@ -1,0 +1,81 @@
+[
+  {
+    "step": "default",
+    "command_status": "passed",
+    "elapsed_seconds": 316.954,
+    "cleanup": {
+      "session_id": 2303,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  },
+  {
+    "step": "scripts",
+    "command_status": "timeout",
+    "elapsed_seconds": 600.1,
+    "cleanup": {
+      "session_id": 2527,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        2527,
+        12897,
+        99942,
+        102156,
+        102687,
+        102829
+      ],
+      "remaining_processes": []
+    }
+  },
+  {
+    "step": "build",
+    "command_status": "passed",
+    "elapsed_seconds": 70.99,
+    "cleanup": {
+      "session_id": 2289,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  },
+  {
+    "step": "ordinary_history",
+    "command_status": "passed",
+    "elapsed_seconds": 90.077,
+    "cleanup": {
+      "session_id": 7793,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  },
+  {
+    "step": "cross_node_delivery",
+    "command_status": "passed",
+    "elapsed_seconds": 49.447,
+    "cleanup": {
+      "session_id": 13627,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  },
+  {
+    "step": "self_chat",
+    "command_status": "passed",
+    "elapsed_seconds": 38.971,
+    "cleanup": {
+      "session_id": 13945,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  }
+]

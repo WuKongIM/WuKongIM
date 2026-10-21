@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "-v",
+    "test_installed_cli_acceptance.InstalledShellPhaseTests",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative"
+  ],
+  "deadline_seconds": 90,
+  "started_at_unix": 1792612732.385164,
+  "test_source_unchanged_from_first_red": true,
+  "exit_code": 0,
+  "finished_at_unix": 1792612740.70772
+}

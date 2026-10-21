@@ -1,0 +1,351 @@
+{
+  "artifact_id": 12375564745,
+  "source": "c1a832afe71a46294a2e46054e26ea8568f6c315",
+  "local_step": {
+    "schema": "wukongim/chat-lifecycle-local-step/v1",
+    "outcome": "clean",
+    "reason": "complete",
+    "offered_rate_per_second": 500,
+    "actual_rate_per_second": 511.1333333333333,
+    "minimum_throughput_percent": 90,
+    "measured_duration_seconds": 90,
+    "qualification_reached": true,
+    "target_connections": 2500,
+    "online_connections": 2500,
+    "sent": 46002,
+    "acknowledged": 46002,
+    "expected": 45000,
+    "minimum_filesystem_free_percent": 55.9181540367449,
+    "storage_evidence_complete": true,
+    "host_io_evidence_complete": true,
+    "product_metrics_complete": true,
+    "product_queue_evidence_complete": true,
+    "product_queues_converged": true,
+    "process_continuity_complete": true,
+    "timeline_evidence_complete": true,
+    "profile_evidence_complete": true,
+    "operator_interrupted": false,
+    "harness_failure_reason": ""
+  },
+  "window": {
+    "start": "2026-10-21T19:50:48.822167075Z",
+    "warmup_end": "2026-10-21T19:51:48.822167075Z",
+    "qualification_at": "2026-10-21T19:51:48.823167075Z",
+    "final_at": "2026-10-21T19:55:48.822167075Z",
+    "end": "2026-10-21T19:53:20.915988935Z",
+    "elapsed": 152093821852
+  },
+  "final_verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 13,
+      "minute_capacity": 16,
+      "latency_samples": [
+        19,
+        19,
+        19
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "messages": {
+    "sent": 76002,
+    "send_attempts": 76002,
+    "first_attempts": 76002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 76002,
+    "send_rejected": 0,
+    "received": 98808,
+    "receive_acknowledged": 98808,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 840,
+    "delivered": 840,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 54486,
+    "work_capacity": 114500,
+    "retry_current": 0,
+    "retry_peak": 0,
+    "retry_capacity": 12288,
+    "inflight_current": 0,
+    "inflight_peak": 500,
+    "inflight_capacity": 12288,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 0
+  },
+  "sessions": {
+    "target": 2500,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0,
+    "planned_new": 2000,
+    "planned_returning": 500,
+    "completed_new": 2500,
+    "completed_returning": 0,
+    "expired": 0,
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 2500,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    }
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "product_queue_rows": [
+    {
+      "tag": "rate-500",
+      "node": "node-1",
+      "evidence": "complete",
+      "baseline_queue": "9",
+      "baseline_inflight": "2",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    },
+    {
+      "tag": "rate-500",
+      "node": "node-2",
+      "evidence": "complete",
+      "baseline_queue": "11",
+      "baseline_inflight": "7",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    },
+    {
+      "tag": "rate-500",
+      "node": "node-3",
+      "evidence": "complete",
+      "baseline_queue": "4",
+      "baseline_inflight": "3",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    }
+  ],
+  "retry_scope": {
+    "qualification_retry_attempts": 0,
+    "final_retry_attempts": 0,
+    "qualification_transport_rejected": 0,
+    "final_transport_rejected": 0,
+    "first_nonzero_retry_cut": null,
+    "limit": "Counter observations only; no inference about previous generations."
+  },
+  "warning_scan": [
+    {
+      "member": "artifacts/logs/node1/app.log",
+      "bytes": 15718,
+      "sha256": "03b083477128138565cd30fe0042eed5ebaf19b6e7a5458ba7d8548dbc713dff",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/node2/app.log",
+      "bytes": 15526,
+      "sha256": "7672a466c0263f357e48cf960b6ffcb3c9937846efb171a91f3a532675164ba6",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/node3/app.log",
+      "bytes": 15725,
+      "sha256": "bbff4f495380fa9112af41ae64ccfd79342df7851c75fd533f3d742a66e0f985",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-1.log",
+      "bytes": 15051,
+      "sha256": "7e4e45c4f65a89116005fb2ad0a40a9e94d8cd2538125027f207254cfbee6710",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-2.log",
+      "bytes": 14859,
+      "sha256": "e89d06ee61187de508e8fb6edea6ec9e5a924e2a16d79c316be1dd8915f1c962",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-3.log",
+      "bytes": 15058,
+      "sha256": "04a98a58569ef6604869c6765afeadfa8d0c29ae6f2cceb52eb641712fa7dca8",
+      "matching_lines": []
+    }
+  ],
+  "checksums_verified_selected_members": [
+    "artifacts/local-step.json",
+    "artifacts/product_queue_summary.tsv",
+    "artifacts/report/final.json",
+    "artifacts/report/qualification.json",
+    "artifacts/report/diagnostic-status.json",
+    "artifacts/report/worker-evidence.json",
+    "artifacts/evidence/graceful-stop-status.json",
+    "artifacts/evidence/process-continuity.tsv",
+    "artifacts/evidence/timeline.tsv",
+    "artifacts/evidence/threshold-pprof-status.json",
+    "artifacts/logs/coordinator.log",
+    "artifacts/logs/node1/app.log",
+    "artifacts/logs/node2/app.log",
+    "artifacts/logs/node3/app.log",
+    "artifacts/logs/service-1.log",
+    "artifacts/logs/service-2.log",
+    "artifacts/logs/service-3.log"
+  ],
+  "public_copied_members": [
+    {
+      "member": "source.sha",
+      "public_path": "correctness-members/source.sha",
+      "bytes": 41,
+      "sha256": "e8f2643c896f8a4fa43f1ca177a239449a1c8d00b0050f8ba1d34090b36bd82e"
+    },
+    {
+      "member": "host.json",
+      "public_path": "correctness-members/host.json",
+      "bytes": 4761,
+      "sha256": "76b205c0774d8057b0cbca712b250924f89713129d38c2690610006c1036e5a6"
+    },
+    {
+      "member": "data-filesystem.json",
+      "public_path": "correctness-members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "member": "artifacts/local-step.json",
+      "public_path": "correctness-members/artifacts/local-step.json",
+      "bytes": 833,
+      "sha256": "1f914ed9061b3916cc4d38422fd6ec44a6c9d66f5454fb22f90f4dc1ba91d031"
+    },
+    {
+      "member": "artifacts/product_queue_summary.tsv",
+      "public_path": "correctness-members/artifacts/product_queue_summary.tsv",
+      "bytes": 207,
+      "sha256": "ca4ba7c71412d9a57cd9110a1765aa5c2bccebd31120197a2d80a5d077542a04"
+    },
+    {
+      "member": "artifacts/report/final.json",
+      "public_path": "correctness-members/artifacts/report/final.json",
+      "bytes": 23497,
+      "sha256": "03701a9200f154cd399e1375d6e76fd8881ba497c282c8a7ce856f05559a2b52"
+    },
+    {
+      "member": "artifacts/report/qualification.json",
+      "public_path": "correctness-members/artifacts/report/qualification.json",
+      "bytes": 23431,
+      "sha256": "b03688cc21fb0aaa65e0e727bee2e32ab0ef490cf41b787abbfa18505f66974e"
+    },
+    {
+      "member": "artifacts/report/diagnostic-status.json",
+      "public_path": "correctness-members/artifacts/report/diagnostic-status.json",
+      "bytes": 8799,
+      "sha256": "9d5e896900eaadc6a093b9b62a18918c51e76cd33d381f8409486071f5542d5f"
+    },
+    {
+      "member": "artifacts/report/worker-evidence.json",
+      "public_path": "correctness-members/artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "a5ef863a2f3cdfcc892ef325551a3c3f34dff13af30f514719cd5c19e27f36e6"
+    },
+    {
+      "member": "artifacts/evidence/graceful-stop-status.json",
+      "public_path": "correctness-members/artifacts/evidence/graceful-stop-status.json",
+      "bytes": 237,
+      "sha256": "7b7f2c9cf3b894f3b2e525714e6f592083046405ed8f0ed5da42855f83ddafec"
+    },
+    {
+      "member": "artifacts/evidence/process-continuity.tsv",
+      "public_path": "correctness-members/artifacts/evidence/process-continuity.tsv",
+      "bytes": 212,
+      "sha256": "0279cee778f6d9c8ad40c13d63862f8f655f794408e5de1f9574312b6617ed07"
+    },
+    {
+      "member": "artifacts/evidence/timeline.tsv",
+      "public_path": "correctness-members/artifacts/evidence/timeline.tsv",
+      "bytes": 1941,
+      "sha256": "8dc7e9dfb2324b94a2aacbb4a476fe59fb21cc0bc1f119fc34c0e4e56fd17306"
+    },
+    {
+      "member": "artifacts/evidence/threshold-pprof-status.json",
+      "public_path": "correctness-members/artifacts/evidence/threshold-pprof-status.json",
+      "bytes": 287,
+      "sha256": "16fdec56e0522031eef0de1a6dad7d10d58aaed67a5afc03990d37f5d6571178"
+    },
+    {
+      "member": "artifacts/evidence/checksums.sha256",
+      "public_path": "correctness-members/artifacts/evidence/checksums.sha256",
+      "bytes": 8919,
+      "sha256": "6bb3dea61b6857a74a9e54230cbaeb01cc42d2749d82a7297ebb8e533dd199b3"
+    }
+  ],
+  "cleanup_limit": "No independent post-shell OS PID inventory in smoke artifact; zero sessions/queues are not runner-wide zero-process proof.",
+  "archive_limit": "230016155-byte ZIP range-read only; selected CRC/SHA checked, whole-ZIP digest API-declared only."
+}

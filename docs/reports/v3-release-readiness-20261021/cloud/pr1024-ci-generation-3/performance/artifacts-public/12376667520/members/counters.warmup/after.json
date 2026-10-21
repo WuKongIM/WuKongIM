@@ -1,0 +1,2031 @@
+{
+  "at": "2026-10-21T19:50:56.793128201Z",
+  "system": {
+    "/proc/diskstats": "   7       0 loop0 11 0 28 0 0 0 0 0 0 1 0 0 0 0 0 0 0\n   7       1 loop1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       2 loop2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       3 loop3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       4 loop4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       5 loop5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       6 loop6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       7 loop7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   8       0 sda 18254 7605 2001564 19130 136062 243069 16210875 310600 0 22897 329975 4692 292 3992384 243 0 0\n   8       1 sda1 17528 7571 1965110 18911 136036 243040 16210512 310543 0 27070 329698 4689 291 3980088 243 0 0\n   8      14 sda14 182 0 1952 47 0 0 0 0 0 45 47 0 0 0 0 0 0\n   8      15 sda15 202 0 18072 59 1 0 1 0 0 44 59 0 0 0 0 0 0\n 259       0 sda16 175 34 12046 68 20 21 258 55 0 105 124 3 1 12296 0 0 0\n",
+    "/proc/pressure/cpu": "some avg10=2.45 avg60=6.97 avg300=3.67 total=15615512\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+    "/proc/pressure/io": "some avg10=5.27 avg60=3.61 avg300=1.64 total=8244134\nfull avg10=5.02 avg60=3.37 avg300=1.44 total=6996951\n",
+    "/proc/pressure/memory": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1\n",
+    "/proc/self/cgroup": "0::/system.slice/hosted-compute-agent.service\n",
+    "/proc/self/io": "rchar: 145523815\nwchar: 367026876\nsyscr: 230126\nsyscw: 165964\nread_bytes: 0\nwrite_bytes: 474783744\ncancelled_write_bytes: 0\n",
+    "/proc/stat": "cpu  12778 2 2823 83455 2307 0 201 0 0 0\ncpu0 3003 0 695 21209 464 0 36 0 0 0\ncpu1 2750 0 751 21193 542 0 99 0 0 0\ncpu2 3351 1 633 20746 583 0 37 0 0 0\ncpu3 3672 0 742 20305 717 0 28 0 0 0\nintr 1476680 0 0 0 0 1024 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 694 17388 2950 8920 2221 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nctxt 2667092\nbtime 1792611993\nprocesses 3666\nprocs_running 2\nprocs_blocked 0\nsoftirq 447658 0 24507 29 106573 11 0 162165 78882 20 75471\n",
+    "/sys/fs/cgroup/cpu.stat": "usage_usec 158049000\nuser_usec 127802000\nsystem_usec 30247000\nnice_usec 22000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+    "/sys/fs/cgroup/io.stat": "8:0 rbytes=1024800768 wbytes=8299968000 rios=18254 wios=136062 dbytes=2044100608 dios=4692\n7:7 \n7:6 \n7:5 \n7:4 \n7:3 \n7:2 \n7:1 \n7:0 rbytes=14336 wbytes=0 rios=11 wios=0 dbytes=0 dios=0\n",
+    "process_cgroup/cpu.max": "max 100000\n",
+    "process_cgroup/cpu.stat": "usage_usec 145362884\nuser_usec 127250636\nsystem_usec 18112248\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+    "process_cgroup/io.stat": "8:0 rbytes=79630336 wbytes=3498143744 rios=2067 wios=158680 dbytes=1768169472 dios=4521\n"
+  },
+  "missing": {
+    "/sys/fs/cgroup/cpu.max": "open /sys/fs/cgroup/cpu.max: no such file or directory"
+  },
+  "families": [
+    {
+      "name": "wukongim_channelv2_replication_stage_duration_seconds",
+      "help": "Channel runtime follower replication stage latency in seconds.",
+      "type": 4,
+      "metric": [
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "follower_background_store"
+            }
+          ],
+          "histogram": {
+            "sample_count": 114,
+            "sample_sum": 0.2606533870000001,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 112,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "follower_foreground_store"
+            }
+          ],
+          "histogram": {
+            "sample_count": 940,
+            "sample_sum": 1.6494908840000013,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 935,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "peer_background_end_to_end"
+            }
+          ],
+          "histogram": {
+            "sample_count": 939,
+            "sample_sum": 50.90019147800004,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 23,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 69,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 206,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 415,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 910,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "peer_background_exchange"
+            }
+          ],
+          "histogram": {
+            "sample_count": 114,
+            "sample_sum": 0.28972728699999994,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 112,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 114,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "peer_background_queue"
+            }
+          ],
+          "histogram": {
+            "sample_count": 939,
+            "sample_sum": 48.15697493800002,
+            "bucket": [
+              {
+                "cumulative_count": 1,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 1,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 41,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 76,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 236,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 449,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 934,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "peer_foreground_end_to_end"
+            }
+          ],
+          "histogram": {
+            "sample_count": 1000,
+            "sample_sum": 2.1291922230000004,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 8,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 972,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 992,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "peer_foreground_exchange"
+            }
+          ],
+          "histogram": {
+            "sample_count": 970,
+            "sample_sum": 1.9749669139999975,
+            "bucket": [
+              {
+                "cumulative_count": 1,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 5,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 951,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 966,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 970,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "peer_foreground_queue"
+            }
+          ],
+          "histogram": {
+            "sample_count": 1000,
+            "sample_sum": 0.02795867299999997,
+            "bucket": [
+              {
+                "cumulative_count": 989,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 998,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 1000,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "quorum_local_end_to_end"
+            }
+          ],
+          "histogram": {
+            "sample_count": 940,
+            "sample_sum": 1.8513463109999988,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 1,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 927,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 939,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "quorum_local_queue"
+            }
+          ],
+          "histogram": {
+            "sample_count": 940,
+            "sample_sum": 0.1646780260000002,
+            "bucket": [
+              {
+                "cumulative_count": 915,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 918,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 940,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "quorum_local_store"
+            }
+          ],
+          "histogram": {
+            "sample_count": 937,
+            "sample_sum": 1.6640478110000008,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 1,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 930,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 935,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 937,
+                "upper_bound": 2.5
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "wukongim_storage_commit_batch_duration_seconds",
+      "help": "Grouped storage commit stage latency in seconds.",
+      "type": 4,
+      "metric": [
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "build"
+            },
+            {
+              "name": "store",
+              "value": "message"
+            }
+          ],
+          "histogram": {
+            "sample_count": 60151,
+            "sample_sum": 1.4424789279999808,
+            "bucket": [
+              {
+                "cumulative_count": 60147,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 60148,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 2.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 10
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 30
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "collect"
+            },
+            {
+              "name": "store",
+              "value": "message"
+            }
+          ],
+          "histogram": {
+            "sample_count": 60151,
+            "sample_sum": 71.33787601499901,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 60054,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 60144,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 2.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 10
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 30
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "commit"
+            },
+            {
+              "name": "store",
+              "value": "message"
+            }
+          ],
+          "histogram": {
+            "sample_count": 60151,
+            "sample_sum": 25.730173978999897,
+            "bucket": [
+              {
+                "cumulative_count": 51500,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 58762,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 60057,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 60101,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 2.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 10
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 30
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "publish"
+            },
+            {
+              "name": "store",
+              "value": "message"
+            }
+          ],
+          "histogram": {
+            "sample_count": 60151,
+            "sample_sum": 0.04707475300000036,
+            "bucket": [
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 2.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 10
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 30
+              }
+            ]
+          }
+        },
+        {
+          "label": [
+            {
+              "name": "node_id",
+              "value": "0"
+            },
+            {
+              "name": "node_name",
+              "value": "benchmark-cluster"
+            },
+            {
+              "name": "result",
+              "value": "ok"
+            },
+            {
+              "name": "stage",
+              "value": "total"
+            },
+            {
+              "name": "store",
+              "value": "message"
+            }
+          ],
+          "histogram": {
+            "sample_count": 60151,
+            "sample_sum": 98.55760367499843,
+            "bucket": [
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.0005
+              },
+              {
+                "cumulative_count": 0,
+                "upper_bound": 0.001
+              },
+              {
+                "cumulative_count": 59892,
+                "upper_bound": 0.005
+              },
+              {
+                "cumulative_count": 60066,
+                "upper_bound": 0.01
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.025
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.05
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.15
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.2
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.25
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 0.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 1
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 2.5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 5
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 10
+              },
+              {
+                "cumulative_count": 60151,
+                "upper_bound": 30
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "/cpu/classes/gc/total:cpu-seconds": 1.980488238,
+    "/cpu/classes/total:cpu-seconds": 239.776140248,
+    "/gc/cycles/total:gc-cycles": 61,
+    "/gc/pauses:seconds": {
+      "bounds": [
+        "-Inf",
+        "0",
+        "6.4e-08",
+        "1.28e-07",
+        "1.92e-07",
+        "2.56e-07",
+        "3.2e-07",
+        "3.84e-07",
+        "4.48e-07",
+        "5.12e-07",
+        "6.4e-07",
+        "7.68e-07",
+        "8.96e-07",
+        "1.024e-06",
+        "1.28e-06",
+        "1.536e-06",
+        "1.792e-06",
+        "2.048e-06",
+        "2.56e-06",
+        "3.072e-06",
+        "3.584e-06",
+        "4.096e-06",
+        "5.12e-06",
+        "6.144e-06",
+        "7.168e-06",
+        "8.192e-06",
+        "1.024e-05",
+        "1.2288e-05",
+        "1.4336e-05",
+        "1.6384e-05",
+        "2.048e-05",
+        "2.4576e-05",
+        "2.8672e-05",
+        "3.2768e-05",
+        "4.096e-05",
+        "4.9152e-05",
+        "5.7344e-05",
+        "6.5536e-05",
+        "8.192e-05",
+        "9.8304e-05",
+        "0.000114688",
+        "0.000131072",
+        "0.00016384",
+        "0.000196608",
+        "0.000229376",
+        "0.000262144",
+        "0.00032768",
+        "0.000393216",
+        "0.000458752",
+        "0.000524288",
+        "0.00065536",
+        "0.000786432",
+        "0.000917504",
+        "0.001048576",
+        "0.00131072",
+        "0.001572864",
+        "0.001835008",
+        "0.002097152",
+        "0.00262144",
+        "0.003145728",
+        "0.003670016",
+        "0.004194304",
+        "0.00524288",
+        "0.006291456",
+        "0.007340032",
+        "0.008388608",
+        "0.01048576",
+        "0.012582912",
+        "0.014680064",
+        "0.016777216",
+        "0.02097152",
+        "0.025165824",
+        "0.029360128",
+        "0.033554432",
+        "0.04194304",
+        "0.050331648",
+        "0.058720256",
+        "0.067108864",
+        "0.08388608",
+        "0.100663296",
+        "0.117440512",
+        "0.134217728",
+        "0.16777216",
+        "0.201326592",
+        "0.234881024",
+        "0.268435456",
+        "0.33554432",
+        "0.402653184",
+        "0.469762048",
+        "0.536870912",
+        "0.67108864",
+        "0.805306368",
+        "0.939524096",
+        "1.073741824",
+        "1.34217728",
+        "1.610612736",
+        "1.879048192",
+        "2.147483648",
+        "2.68435456",
+        "3.221225472",
+        "3.758096384",
+        "4.294967296",
+        "5.36870912",
+        "6.442450944",
+        "7.516192768",
+        "8.589934592",
+        "10.73741824",
+        "12.884901888",
+        "15.032385536",
+        "17.179869184",
+        "21.47483648",
+        "25.769803776",
+        "30.064771072",
+        "34.359738368",
+        "42.94967296",
+        "51.539607552",
+        "60.129542144",
+        "68.719476736",
+        "85.89934592",
+        "103.079215104",
+        "120.259084288",
+        "137.438953472",
+        "171.79869184",
+        "206.158430208",
+        "240.518168576",
+        "274.877906944",
+        "343.59738368",
+        "412.316860416",
+        "481.036337152",
+        "549.755813888",
+        "687.19476736",
+        "824.633720832",
+        "962.072674304",
+        "1099.511627776",
+        "1374.38953472",
+        "1649.267441664",
+        "1924.145348608",
+        "2199.023255552",
+        "2748.77906944",
+        "3298.534883328",
+        "3848.290697216",
+        "4398.046511104",
+        "5497.55813888",
+        "6597.069766656",
+        "7696.581394432",
+        "8796.093022208",
+        "10995.11627776",
+        "13194.139533312",
+        "15393.162788864",
+        "17592.186044416",
+        "21990.23255552",
+        "26388.279066624",
+        "30786.325577728",
+        "35184.372088832",
+        "43980.46511104",
+        "52776.558133248",
+        "61572.651155456",
+        "70368.744177664",
+        "87960.93022208",
+        "105553.116266496",
+        "123145.302310912",
+        "140737.488355328",
+        "+Inf"
+      ],
+      "counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        4,
+        5,
+        4,
+        0,
+        0,
+        0,
+        1,
+        2,
+        2,
+        8,
+        17,
+        7,
+        13,
+        12,
+        15,
+        12,
+        5,
+        9,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "/sched/latencies:seconds": {
+      "bounds": [
+        "-Inf",
+        "0",
+        "6.4e-08",
+        "1.28e-07",
+        "1.92e-07",
+        "2.56e-07",
+        "3.2e-07",
+        "3.84e-07",
+        "4.48e-07",
+        "5.12e-07",
+        "6.4e-07",
+        "7.68e-07",
+        "8.96e-07",
+        "1.024e-06",
+        "1.28e-06",
+        "1.536e-06",
+        "1.792e-06",
+        "2.048e-06",
+        "2.56e-06",
+        "3.072e-06",
+        "3.584e-06",
+        "4.096e-06",
+        "5.12e-06",
+        "6.144e-06",
+        "7.168e-06",
+        "8.192e-06",
+        "1.024e-05",
+        "1.2288e-05",
+        "1.4336e-05",
+        "1.6384e-05",
+        "2.048e-05",
+        "2.4576e-05",
+        "2.8672e-05",
+        "3.2768e-05",
+        "4.096e-05",
+        "4.9152e-05",
+        "5.7344e-05",
+        "6.5536e-05",
+        "8.192e-05",
+        "9.8304e-05",
+        "0.000114688",
+        "0.000131072",
+        "0.00016384",
+        "0.000196608",
+        "0.000229376",
+        "0.000262144",
+        "0.00032768",
+        "0.000393216",
+        "0.000458752",
+        "0.000524288",
+        "0.00065536",
+        "0.000786432",
+        "0.000917504",
+        "0.001048576",
+        "0.00131072",
+        "0.001572864",
+        "0.001835008",
+        "0.002097152",
+        "0.00262144",
+        "0.003145728",
+        "0.003670016",
+        "0.004194304",
+        "0.00524288",
+        "0.006291456",
+        "0.007340032",
+        "0.008388608",
+        "0.01048576",
+        "0.012582912",
+        "0.014680064",
+        "0.016777216",
+        "0.02097152",
+        "0.025165824",
+        "0.029360128",
+        "0.033554432",
+        "0.04194304",
+        "0.050331648",
+        "0.058720256",
+        "0.067108864",
+        "0.08388608",
+        "0.100663296",
+        "0.117440512",
+        "0.134217728",
+        "0.16777216",
+        "0.201326592",
+        "0.234881024",
+        "0.268435456",
+        "0.33554432",
+        "0.402653184",
+        "0.469762048",
+        "0.536870912",
+        "0.67108864",
+        "0.805306368",
+        "0.939524096",
+        "1.073741824",
+        "1.34217728",
+        "1.610612736",
+        "1.879048192",
+        "2.147483648",
+        "2.68435456",
+        "3.221225472",
+        "3.758096384",
+        "4.294967296",
+        "5.36870912",
+        "6.442450944",
+        "7.516192768",
+        "8.589934592",
+        "10.73741824",
+        "12.884901888",
+        "15.032385536",
+        "17.179869184",
+        "21.47483648",
+        "25.769803776",
+        "30.064771072",
+        "34.359738368",
+        "42.94967296",
+        "51.539607552",
+        "60.129542144",
+        "68.719476736",
+        "85.89934592",
+        "103.079215104",
+        "120.259084288",
+        "137.438953472",
+        "171.79869184",
+        "206.158430208",
+        "240.518168576",
+        "274.877906944",
+        "343.59738368",
+        "412.316860416",
+        "481.036337152",
+        "549.755813888",
+        "687.19476736",
+        "824.633720832",
+        "962.072674304",
+        "1099.511627776",
+        "1374.38953472",
+        "1649.267441664",
+        "1924.145348608",
+        "2199.023255552",
+        "2748.77906944",
+        "3298.534883328",
+        "3848.290697216",
+        "4398.046511104",
+        "5497.55813888",
+        "6597.069766656",
+        "7696.581394432",
+        "8796.093022208",
+        "10995.11627776",
+        "13194.139533312",
+        "15393.162788864",
+        "17592.186044416",
+        "21990.23255552",
+        "26388.279066624",
+        "30786.325577728",
+        "35184.372088832",
+        "43980.46511104",
+        "52776.558133248",
+        "61572.651155456",
+        "70368.744177664",
+        "87960.93022208",
+        "105553.116266496",
+        "123145.302310912",
+        "140737.488355328",
+        "+Inf"
+      ],
+      "counts": [
+        0,
+        55002,
+        2287,
+        5345,
+        6047,
+        5204,
+        4838,
+        3086,
+        4173,
+        8987,
+        8391,
+        7165,
+        5568,
+        7290,
+        5072,
+        4842,
+        4567,
+        5882,
+        5677,
+        4299,
+        5347,
+        14673,
+        15141,
+        11184,
+        11210,
+        16928,
+        13540,
+        7972,
+        6063,
+        8407,
+        4958,
+        3257,
+        2101,
+        3003,
+        2242,
+        1864,
+        1448,
+        1809,
+        937,
+        502,
+        336,
+        291,
+        119,
+        84,
+        73,
+        140,
+        149,
+        113,
+        77,
+        87,
+        86,
+        72,
+        43,
+        70,
+        42,
+        18,
+        16,
+        18,
+        3,
+        1,
+        5,
+        2,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}

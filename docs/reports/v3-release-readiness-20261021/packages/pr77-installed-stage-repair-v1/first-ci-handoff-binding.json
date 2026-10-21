@@ -1,0 +1,8 @@
+{
+  "archive": "/tmp/wukongim-v3-readiness-20261021/packages/pr77-ci-generation-1",
+  "files": {
+    "archive-sha256.json": "4dc93581853533f2218aca848403dff4a0ea9785e6dd8a9693ed9045aeca3906",
+    "phase-diagnostics-plan.md": "c56488d8867ecf899cd33168ad595cfc4cc6b58d575da90ecb80a5cf4bcf2e5b",
+    "first-failure.json": "bfbf0d725d06181dcdec8c64a56c6d56df9d927c7c226947e53e4bcced1dadaa"
+  }
+}

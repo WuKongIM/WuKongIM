@@ -1,0 +1,369 @@
+test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt (test_installed_cli_acceptance.InstalledShellPhaseTests.test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt) ... FAIL
+test_generated_shell_emits_only_applicable_phases_in_original_command_order (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_emits_only_applicable_phases_in_original_command_order) ... 
+  test_generated_shell_emits_only_applicable_phases_in_original_command_order (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_emits_only_applicable_phases_in_original_command_order) (family='rpm') ... FAIL
+  test_generated_shell_emits_only_applicable_phases_in_original_command_order (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_emits_only_applicable_phases_in_original_command_order) (family='apt') ... FAIL
+test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) ... 
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='checksum') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='rpm-import') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='signature') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='install') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='cli') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='missing-cli') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='checksum') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='apt-update') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='install') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='cli') ... FAIL
+  test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='missing-cli') ... FAIL
+test_installed_phases_survive_noisy_generated_shell_without_changing_capture (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture) ... FAIL
+test_installed_nonzero_retains_partial_phases_and_cannot_become_success (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success) ... FAIL
+test_installed_generated_shell_deadline_preserves_only_observed_phases (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases) ... FAIL
+test_installed_event_whitelist_preserves_duplicates_with_fixed_cap (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap) ... FAIL
+test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) ... 
+  test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) (fault='') ... FAIL
+  test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) (fault='install') ... FAIL
+test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) ... FAIL
+test_installed_output_limit_remains_authoritative (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative) ... FAIL
+
+======================================================================
+FAIL: test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt (test_installed_cli_acceptance.InstalledShellPhaseTests.test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 119, in test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt
+    self.assertEqual(observed_stage_lines(result.stdout), RPM_STAGE_EVENTS)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 's[109 chars]ete']
+
+Second list contains 8 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'signature:begin',
++  'signature:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin',
++  'cli:complete']
+
+======================================================================
+FAIL: test_generated_shell_emits_only_applicable_phases_in_original_command_order (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_emits_only_applicable_phases_in_original_command_order) (family='rpm')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 96, in test_generated_shell_emits_only_applicable_phases_in_original_command_order
+    self.assertEqual(observed_stage_lines(result.stdout), events)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 's[109 chars]ete']
+
+Second list contains 8 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'signature:begin',
++  'signature:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin',
++  'cli:complete']
+
+======================================================================
+FAIL: test_generated_shell_emits_only_applicable_phases_in_original_command_order (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_emits_only_applicable_phases_in_original_command_order) (family='apt')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 96, in test_generated_shell_emits_only_applicable_phases_in_original_command_order
+    self.assertEqual(observed_stage_lines(result.stdout), events)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'd[68 chars]ete']
+
+Second list contains 6 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin',
++  'cli:complete']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='checksum')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='rpm-import')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'signature:begin']
+
+Second list contains 3 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin', 'checksum:complete', 'signature:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='signature')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'signature:begin']
+
+Second list contains 3 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin', 'checksum:complete', 'signature:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='install')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 's[55 chars]gin']
+
+Second list contains 5 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'signature:begin',
++  'signature:complete',
++  'dependencies:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='cli')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 's[93 chars]gin']
+
+Second list contains 7 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'signature:begin',
++  'signature:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='rpm', fault='missing-cli')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 's[93 chars]gin']
+
+Second list contains 7 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'signature:begin',
++  'signature:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='checksum')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='apt-update')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'dependencies:begin']
+
+Second list contains 3 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin', 'checksum:complete', 'dependencies:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='install')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'dependencies:begin']
+
+Second list contains 3 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin', 'checksum:complete', 'dependencies:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='cli')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'd[52 chars]gin']
+
+Second list contains 5 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin']
+
+======================================================================
+FAIL: test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) (family='apt', fault='missing-cli')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_installed_cli_acceptance.py", line 110, in test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases
+    self.assertEqual(observed_stage_lines(result.stdout), events[:count])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['checksum:begin', 'checksum:complete', 'd[52 chars]gin']
+
+Second list contains 5 additional elements.
+First extra element 0:
+'checksum:begin'
+
+- []
++ ['checksum:begin',
++  'checksum:complete',
++  'dependencies:begin',
++  'dependencies:complete',
++  'cli:begin']
+
+======================================================================
+FAIL: test_installed_phases_survive_noisy_generated_shell_without_changing_capture (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 51, in test_installed_phases_survive_noisy_generated_shell_without_changing_capture
+    self.assertEqual(record.get('installed_phase_events'), self.phase_receipt(RPM_STAGE_EVENTS))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[381 chars]alse}
+
+======================================================================
+FAIL: test_installed_nonzero_retains_partial_phases_and_cannot_become_success (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 59, in test_installed_nonzero_retains_partial_phases_and_cannot_become_success
+    self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt(RPM_STAGE_EVENTS[:5]))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[258 chars]alse}
+
+======================================================================
+FAIL: test_installed_generated_shell_deadline_preserves_only_observed_phases (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 71, in test_installed_generated_shell_deadline_preserves_only_observed_phases
+    self.assertEqual(record.get('installed_phase_events'), self.phase_receipt(RPM_STAGE_EVENTS[:5]))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[258 chars]alse}
+
+======================================================================
+FAIL: test_installed_event_whitelist_preserves_duplicates_with_fixed_cap (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 82, in test_installed_event_whitelist_preserves_duplicates_with_fixed_cap
+    self.assertEqual(parsed, self.phase_receipt(RPM_STAGE_EVENTS[:5] + ['checksum:begin'] * 11, truncated=True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[708 chars]True}
+
+======================================================================
+FAIL: test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) (fault='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 94, in test_unknown_and_incomplete_markers_are_diagnostic_only
+    self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt(expected))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[381 chars]alse}
+
+======================================================================
+FAIL: test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) (fault='install')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 94, in test_unknown_and_incomplete_markers_are_diagnostic_only
+    self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt(expected))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[258 chars]alse}
+
+======================================================================
+FAIL: test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 98, in test_unknown_and_incomplete_markers_are_diagnostic_only
+    self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt([]))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != {'schema': 'wukongim/native-installed-pha[43 chars]alse}
+
+======================================================================
+FAIL: test_installed_output_limit_remains_authoritative (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_stable_clients_drill.py", line 110, in test_installed_output_limit_remains_authoritative
+    self.assertIn('installed_phase_events', record)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'installed_phase_events' not found in {'stage': 'installed-client', 'command': ['bash', '-euc', '\nprintf \'%s  %s\n\' "$WK_PACKAGE_SHA256" /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/candidate.rpm | sha256sum --check --strict\nrpm --import /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/public.asc\nrpm --checksig /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/candidate.rpm\ndnf --setopt=localpkg_gpgcheck=1 --setopt=timeout=60 install -y python3 /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/candidate.rpm\n\npython3 /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/acceptance.py --fixtures /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/fixtures --version "$WK_EXPECTED_VERSION"   --commit "$WK_EXPECTED_COMMIT" >/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpxoyrsx2n/evidence/installed-cli.json\n'], 'exit_code': -15, 'timed_out': False, 'output_limit': True, 'elapsed_seconds': 0.344, 'output_size': 0, 'output_sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'output_tail': ''}
+
+----------------------------------------------------------------------
+Ran 9 tests in 8.408s
+
+FAILED (failures=22)

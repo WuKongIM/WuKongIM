@@ -1,0 +1,49 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119447136975/logs",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T19:55:50.854579+00:00",
+  "job_id": 119447136975,
+  "run_id": 39664872153,
+  "conclusion": "success",
+  "raw_bytes": 80669,
+  "raw_sha256": "ed667133cd25b91e18d8b1ba3139667a1adc65fda1283628c0e23960a588df3b",
+  "public_bytes": 80497,
+  "public_sha256": "47515c6fa55af7c08aec04935b7344dea2ac0753756cc2e826f21cc1d29c4b99",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "size": 63,
+      "sha256": "92594a105a1babeca9df7fd58637353a3159c831a66c57f9774359e3137ed9e9"
+    },
+    {
+      "line": 26,
+      "size": 52,
+      "sha256": "a457ed730f640198a87db248b161b1c17ffe8327e3757ce8741d7718c5c3dd95"
+    },
+    {
+      "line": 39,
+      "size": 42,
+      "sha256": "df531879bb8f258e793f8cb8095e27169d3d7601dd402bd695ef6051647b8e95"
+    },
+    {
+      "line": 96,
+      "size": 211,
+      "sha256": "d79a18d5a7dcc32ac7d5fc7fc367060c9bae9d002f9fc834531eae9f9265ed67"
+    },
+    {
+      "line": 304,
+      "size": 140,
+      "sha256": "d28527ed93e1849ac8e52976561e50a383409c9821f32d8a20bdc8cc615f8120"
+    },
+    {
+      "line": 636,
+      "size": 42,
+      "sha256": "c6065791cb6bb3c895635bb00042431242671a5bc39273087c69a783439ea43c"
+    }
+  ],
+  "synthetic_sha_present": true,
+  "head_sha_present": true
+}

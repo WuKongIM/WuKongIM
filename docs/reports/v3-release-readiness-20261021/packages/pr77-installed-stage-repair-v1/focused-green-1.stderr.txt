@@ -1,0 +1,14 @@
+test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt (test_installed_cli_acceptance.InstalledShellPhaseTests.test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt) ... ok
+test_generated_shell_emits_only_applicable_phases_in_original_command_order (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_emits_only_applicable_phases_in_original_command_order) ... ok
+test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases (test_installed_cli_acceptance.InstalledShellPhaseTests.test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases) ... ok
+test_installed_phases_survive_noisy_generated_shell_without_changing_capture (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture) ... ok
+test_installed_nonzero_retains_partial_phases_and_cannot_become_success (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success) ... ok
+test_installed_generated_shell_deadline_preserves_only_observed_phases (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases) ... ok
+test_installed_event_whitelist_preserves_duplicates_with_fixed_cap (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap) ... ok
+test_unknown_and_incomplete_markers_are_diagnostic_only (test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only) ... ok
+test_installed_output_limit_remains_authoritative (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 8.236s
+
+OK

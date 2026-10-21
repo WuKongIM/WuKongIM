@@ -1,0 +1,28 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "-v",
+    "test_installed_cli_acceptance.InstalledShellPhaseTests",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only",
+    "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative"
+  ],
+  "deadline_seconds": 90,
+  "started_at_unix": 1792612628.546064,
+  "implementation_unchanged": true,
+  "source_sha256": {
+    "scripts/validate-production-package-clients.py": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+    "tests/native_stable_clients_drill.py": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+    "tests/test_installed_cli_acceptance.py": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0",
+    "tests/test_native_stable_clients_drill.py": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9",
+    "CHANGELOG.md": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+  },
+  "exit_code": 1,
+  "finished_at_unix": 1792612637.041829
+}

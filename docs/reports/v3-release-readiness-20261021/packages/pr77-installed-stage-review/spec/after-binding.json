@@ -1,0 +1,40 @@
+{
+  "all_reviewer_processes_terminal": true,
+  "equal_before": true,
+  "files": [
+    {
+      "bytes": 3965,
+      "path": "CHANGELOG.md",
+      "sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+    },
+    {
+      "bytes": 88596,
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "bytes": 71299,
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    },
+    {
+      "bytes": 17892,
+      "path": "tests/test_installed_cli_acceptance.py",
+      "sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0"
+    },
+    {
+      "bytes": 85318,
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9"
+    }
+  ],
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "network_native_CI_cloud_actions": 0,
+  "other_tracked_files_unchanged": 121,
+  "read_other_review_axis": false,
+  "review_scope_files": 5,
+  "root_rules_source_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "source_edits": 0,
+  "staged": [],
+  "untracked": []
+}

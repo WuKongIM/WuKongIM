@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim/installed-stage-repair-summary/v1",
+  "base": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "scope_count": 5,
+  "source_freeze_sha256": "38aaaba7eae628c67b85bfc2dbce4ea8411acba6563e853888a120a83266a576",
+  "patch_sha256": "71c96b15386813eafbd5609b045866ada0feb99dceea9b6a950f269efae57986",
+  "red": {
+    "test_methods": 9,
+    "failures_including_subtests": 22,
+    "errors": 0,
+    "implementation_unchanged": true
+  },
+  "focused_green": {
+    "run": 9,
+    "passed": 9,
+    "skipped": 0,
+    "tests_unchanged": true
+  },
+  "default_green": {
+    "run": 581,
+    "passed": 580,
+    "existing_local_skip": 1
+  },
+  "contract_embedded_tests_passed": 4,
+  "source_matches_freeze_at_handoff": true,
+  "all_owned_commands_terminal": true,
+  "real_49_success_proven": false,
+  "original_timeout_unique_cause": "unknown",
+  "commit_push_dispatch_provider_cloud_performed": false,
+  "m2a_status": "paused"
+}

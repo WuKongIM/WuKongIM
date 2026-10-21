@@ -1,0 +1,15 @@
+{
+  "schema": "mixed-send-flight/v1",
+  "status": "not_triggered",
+  "started_at": "2026-10-21T19:51:10.769864183Z",
+  "stopped_at": "2026-10-21T19:54:10.87441194Z",
+  "export_started_at": "0001-01-01T00:00:00Z",
+  "export_ended_at": "0001-01-01T00:00:00Z",
+  "trace_bytes": 0,
+  "trace_complete": false,
+  "counters_complete": false,
+  "handlers_completed": true,
+  "history_target_seconds": 15,
+  "runtime_byte_target": 33554432,
+  "output_byte_limit": 67108864
+}

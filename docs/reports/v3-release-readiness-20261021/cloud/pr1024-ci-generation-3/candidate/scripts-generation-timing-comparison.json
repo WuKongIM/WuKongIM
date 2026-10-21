@@ -1,0 +1,179 @@
+{
+  "rows": [
+    {
+      "generation": 2,
+      "job_id": 119428117999,
+      "artifact_id": 12373881817,
+      "step_started_at_api_second_precision": "2026-10-21T19:11:35Z",
+      "step_completed_at_api_second_precision": "2026-10-21T19:21:11Z",
+      "result_emitted_at_log": "2026-10-21T19:21:11.3548470Z",
+      "result": {
+        "status": "failed",
+        "exit_code": 1,
+        "session_id": 2323,
+        "output_bytes": 1496252,
+        "output_truncated": false,
+        "passed": false,
+        "cleanup": {
+          "session_id": 2323,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "failed",
+        "wrapper_exit_code": 1,
+        "elapsed_seconds": 575.954
+      },
+      "events": [
+        {
+          "Time": "2026-10-21T19:13:27.312204707Z",
+          "Action": "start",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts"
+        },
+        {
+          "Time": "2026-10-21T19:13:58.751144505Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        },
+        {
+          "Time": "2026-10-21T19:17:27.204028277Z",
+          "Action": "cont",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        },
+        {
+          "Time": "2026-10-21T19:17:41.991034555Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "Elapsed": 14.79
+        },
+        {
+          "Time": "2026-10-21T19:21:10.790648417Z",
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 463.478
+        }
+      ],
+      "elapsed_to_result_seconds": [
+        {
+          "Time": "2026-10-21T19:13:27.312204707Z",
+          "Action": "start",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "until_result_seconds": 464.042643
+        },
+        {
+          "Time": "2026-10-21T19:13:58.751144505Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "until_result_seconds": 432.603703
+        },
+        {
+          "Time": "2026-10-21T19:17:27.204028277Z",
+          "Action": "cont",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "until_result_seconds": 224.150819
+        },
+        {
+          "Time": "2026-10-21T19:17:41.991034555Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "Elapsed": 14.79,
+          "until_result_seconds": 209.363813
+        },
+        {
+          "Time": "2026-10-21T19:21:10.790648417Z",
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 463.478,
+          "until_result_seconds": 0.564199
+        }
+      ]
+    },
+    {
+      "generation": 3,
+      "job_id": 119447138157,
+      "artifact_id": 12378075592,
+      "step_started_at_api_second_precision": "2026-10-21T19:49:09Z",
+      "step_completed_at_api_second_precision": "2026-10-21T19:59:09Z",
+      "result_emitted_at_log": "2026-10-21T19:59:09.4268811Z",
+      "result": {
+        "status": "timeout",
+        "exit_code": -15,
+        "session_id": 2527,
+        "output_bytes": 1365587,
+        "output_truncated": false,
+        "passed": false,
+        "cleanup": {
+          "session_id": 2527,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [
+            2527,
+            12897,
+            99942,
+            102156,
+            102687,
+            102829
+          ],
+          "remaining_processes": []
+        },
+        "command_status": "timeout",
+        "wrapper_exit_code": 124,
+        "elapsed_seconds": 600.1
+      },
+      "events": [
+        {
+          "Time": "2026-10-21T19:51:15.574952871Z",
+          "Action": "start",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts"
+        },
+        {
+          "Time": "2026-10-21T19:51:51.747422408Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        },
+        {
+          "Time": "2026-10-21T19:59:05.006339399Z",
+          "Action": "cont",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        }
+      ],
+      "elapsed_to_result_seconds": [
+        {
+          "Time": "2026-10-21T19:51:15.574952871Z",
+          "Action": "start",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "until_result_seconds": 473.851929
+        },
+        {
+          "Time": "2026-10-21T19:51:51.747422408Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "until_result_seconds": 437.679459
+        },
+        {
+          "Time": "2026-10-21T19:59:05.006339399Z",
+          "Action": "cont",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "until_result_seconds": 4.420542
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "The command does not archive a distinct exact process-start wall timestamp. API step start is a second-precision bound; result emission includes wrapper cleanup/output overhead.",
+    "Go package start delay combines scheduling, dependency/build work and startup. This is not a pure compile timing.",
+    "Parallel test wall durations must not be summed as total suite elapsed time.",
+    "Generation 2 exited normally with a test assertion failure; generation 3 hit the unchanged 600-second outer limit. No historical cause is inferred."
+  ]
+}

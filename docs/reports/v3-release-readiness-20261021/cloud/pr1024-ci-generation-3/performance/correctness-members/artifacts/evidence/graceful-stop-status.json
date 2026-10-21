@@ -1,0 +1,10 @@
+{
+  "schema": "wukongim/chat-lifecycle-graceful-stop-status/v1",
+  "status": "not_triggered",
+  "reason": "",
+  "observed_at_utc": "",
+  "timeout_seconds": 0,
+  "terminal_cut_present": false,
+  "evidence_complete": true,
+  "nodes": []
+}

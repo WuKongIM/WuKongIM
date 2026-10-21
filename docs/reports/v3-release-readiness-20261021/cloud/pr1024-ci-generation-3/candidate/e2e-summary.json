@@ -1,0 +1,671 @@
+{
+  "artifact_id": 12378155467,
+  "identity": {
+    "source_sha": "c1a832afe71a46294a2e46054e26ea8568f6c315",
+    "policy_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "run_id": "39664872167",
+    "run_attempt": "1"
+  },
+  "commands": {
+    "build": {
+      "arguments": [
+        "go",
+        "build",
+        "-tags=e2e",
+        "-o",
+        "/home/runner/work/_temp/v3-candidate-39664872167-1/e2e/wukongim-e2e",
+        "./cmd/wukongim"
+      ],
+      "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+      "timeout_seconds": 720,
+      "max_output_bytes": 67108864
+    },
+    "ordinary_history": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/migration/ordinary_history",
+        "-count=1",
+        "-timeout=12m",
+        "-p=1",
+        "-parallel=1",
+        "-json"
+      ],
+      "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+      "timeout_seconds": 780,
+      "max_output_bytes": 67108864
+    },
+    "cross_node_delivery": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/cross_node_delivery",
+        "-count=1",
+        "-timeout=2m",
+        "-p=1",
+        "-json"
+      ],
+      "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+      "timeout_seconds": 180,
+      "max_output_bytes": 67108864
+    },
+    "self_chat": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/message/self_chat",
+        "-count=1",
+        "-timeout=4m",
+        "-p=1",
+        "-json"
+      ],
+      "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+      "timeout_seconds": 300,
+      "max_output_bytes": 67108864
+    }
+  },
+  "results": {
+    "build": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 2289,
+      "output_bytes": 5051,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 2289,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 70.99
+    },
+    "ordinary_history": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 7793,
+      "output_bytes": 27567,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 7793,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 90.077
+    },
+    "cross_node_delivery": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 13627,
+      "output_bytes": 8444,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 13627,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 49.447
+    },
+    "self_chat": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 13945,
+      "output_bytes": 3700,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 13945,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 38.971
+    }
+  },
+  "terminal_events": [
+    {
+      "Time": "2026-10-21T19:57:44.294562561Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+      "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+      "Elapsed": 12.54
+    },
+    {
+      "Time": "2026-10-21T19:57:54.387889886Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+      "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+      "Elapsed": 10.09
+    },
+    {
+      "Time": "2026-10-21T19:58:03.814997491Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+      "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+      "Elapsed": 9.43
+    },
+    {
+      "Time": "2026-10-21T19:58:19.719737291Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+      "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+      "Elapsed": 15.9
+    },
+    {
+      "Time": "2026-10-21T19:58:19.719764642Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+      "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T19:56:30.919193875Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "Elapsed": 17.95
+    },
+    {
+      "Time": "2026-10-21T19:56:47.506558546Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Elapsed": 16.59
+    },
+    {
+      "Time": "2026-10-21T19:56:58.970602413Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "Elapsed": 11.46
+    },
+    {
+      "Time": "2026-10-21T19:57:15.329220682Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Elapsed": 16.36
+    },
+    {
+      "Time": "2026-10-21T19:57:30.056501469Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Elapsed": 14.73
+    },
+    {
+      "Time": "2026-10-21T19:57:30.056516311Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology",
+      "Elapsed": 77.09
+    },
+    {
+      "Time": "2026-10-21T19:58:34.537866659Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+      "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+      "Elapsed": 13.47
+    },
+    {
+      "Time": "2026-10-21T19:58:58.763129118Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+      "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+      "Elapsed": 24.23
+    },
+    {
+      "Time": "2026-10-21T19:58:58.763622585Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+      "Test": "TestSelfChatPersistsAcrossClusterRestart",
+      "Elapsed": 37.7
+    }
+  ],
+  "history_verifications": [
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 5,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 5,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 4,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 5,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 4,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 5,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 4,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 5,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 4,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 5,
+      "rows": 6,
+      "temporary_retries": 0
+    }
+  ],
+  "history_verification_count": 55,
+  "binary_sha256": "73e013be8d15ccea6b601685dacd84775ee6d47a3251ff4b5db8ed0417e72f99",
+  "binary_sha256_check_count": 4,
+  "binary_sha256_check_log_lines": [
+    "2026-10-21T19:56:00.1730940Z /home/runner/work/_temp/v3-candidate-39664872167-1/e2e/wukongim-e2e: OK",
+    "2026-10-21T19:57:30.3345966Z /home/runner/work/_temp/v3-candidate-39664872167-1/e2e/wukongim-e2e: OK",
+    "2026-10-21T19:58:19.8600403Z /home/runner/work/_temp/v3-candidate-39664872167-1/e2e/wukongim-e2e: OK",
+    "2026-10-21T19:58:58.9122239Z /home/runner/work/_temp/v3-candidate-39664872167-1/e2e/wukongim-e2e: OK"
+  ],
+  "self_chat": {
+    "passed": true,
+    "hash_slots": 256,
+    "token_authentication": "production_default",
+    "suppression_window_ms": 1000,
+    "cases": [
+      {
+        "nodes": 1,
+        "phase": "complete",
+        "passed": true,
+        "binary_sha256": "73e013be8d15ccea6b601685dacd84775ee6d47a3251ff4b5db8ed0417e72f99",
+        "invalid_auth_refused": true,
+        "whole_cluster_restarts": 1,
+        "acknowledged": 6,
+        "history_checks": 3,
+        "all_history_complete": true
+      },
+      {
+        "nodes": 3,
+        "phase": "complete",
+        "passed": true,
+        "binary_sha256": "73e013be8d15ccea6b601685dacd84775ee6d47a3251ff4b5db8ed0417e72f99",
+        "invalid_auth_refused": true,
+        "whole_cluster_restarts": 1,
+        "acknowledged": 6,
+        "history_checks": 9,
+        "all_history_complete": true
+      }
+    ]
+  },
+  "limits": "Three specified E2E packages run their default test sets. The opt-in 2,000-QPS replica comparison is skipped; this is not an E2E full-tree performance run."
+}

@@ -406,3 +406,9 @@ immutable publication and signed native-package public-client acceptance.
 - [pprof取消竞态诊断](cloud/pr1024-pprof-interrupt-diagnosis/README.md)、[九项首红首绿](cloud/pr1024-pprof-interrupt-repair-v1/README.md)与[独立双轴](cloud/pr1024-pprof-interrupt-delivery/combined-review.md)：新head44de9452已推送，完整Linux仍待终态。
 - [#77首次CI终态](packages/pr77-ci-generation-1/README.md)与[五文件阶段诊断](packages/pr77-ci-generation-1/phase-diagnostics-plan.md)：M1/默认/SDK/旧native通过，49客户端为0pass/1fail/48未执行；Alma600秒首失败保留，不盲重跑。
 - [M2a真实路由读回](packages/provider-native-route-readback/README.md)、[独立只读审查](packages/provider-native-route-plan-review/report.md)与[本次复制校验](pr1024-signal-repair-and-pr77-first-ci-copy.json)：17条仅离线有限分组证明，真实PCRE和provider实现均未完成。
+
+
+- [#1024第三代首次候选](cloud/pr1024-ci-generation-3/candidate/README.md)与[性能](cloud/pr1024-ci-generation-3/performance/README.md)：head44de，默认/E2E/性能通过；新九项及原interrupt通过，scripts原600秒外层timeout、Retention未完，未重跑或合并。六个owned SID零遗留；大ZIP全包摘要仅API声明。
+- [两代原始时序](cloud/pr1024-ci-generation-3/candidate/scripts-generation-timing-comparison.json)：保留step/包START与Retention RUN/CONT/终态，不把排队时间当纯编译，也不把无断言FAIL当通过。
+- [#77安装阶段诊断首红首绿](packages/pr77-installed-stage-repair-v1/README.md)、[Spec独审](packages/pr77-installed-stage-review/spec/review.md)、[Standards独审](packages/pr77-installed-stage-review/standards/report.md)与[提交交付](packages/pr77-installed-stage-delivery/commit-identity.json)：94d63a3c/tree0c843c1a，580通过+1既有本地skip、合同4通过；首次CI待终态。阶段B只诊断，不证明历史唯一根因或49通过。
+- [第三代CI与阶段诊断复制校验](pr1024-third-ci-and-pr77-installed-diagnostics-copy.json)：311份公共文件逐项核原字节，旧10,000项先核验；仅rolling README更新，旧immutable档案保持。未冻结的耗时诊断留待单独归档，当前云已释放，无新费用。

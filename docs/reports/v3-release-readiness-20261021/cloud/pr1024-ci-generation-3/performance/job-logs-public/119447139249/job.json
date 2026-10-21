@@ -1,0 +1,27 @@
+{
+  "id": 119447139249,
+  "run_id": 39664872153,
+  "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1024 attempt 1",
+  "head_branch": "codex/v3-rc-terminal-evidence",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39664872153",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbz5qzsQ",
+  "head_sha": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119447139249",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39664872153/job/119447139249",
+  "status": "completed",
+  "conclusion": "skipped",
+  "created_at": "2026-10-21T19:48:47Z",
+  "started_at": "2026-10-21T19:48:47Z",
+  "completed_at": "2026-10-21T19:48:46Z",
+  "name": "Nightly direct 500 QPS qualification",
+  "steps": [],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119447139249",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": null,
+  "runner_name": null,
+  "runner_group_id": null,
+  "runner_group_name": null
+}

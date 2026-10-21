@@ -1,0 +1,1 @@
+{"passed": true, "pure_parser_assertions": 14, "generated_shell_probes": 1, "command_equivalence_families": 2, "all_child_processes_terminal": true}

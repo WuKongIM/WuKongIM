@@ -1,0 +1,55 @@
+{
+  "windows": [
+    [
+      "mixed-send",
+      [
+        32.549273,
+        20.541515,
+        15.454831
+      ]
+    ],
+    [
+      "channel-append",
+      [
+        7.971909,
+        9.16024,
+        10.809948
+      ]
+    ],
+    [
+      "tcp-sendack",
+      [
+        178.335572,
+        178.251687,
+        178.314672
+      ]
+    ]
+  ],
+  "correctness_sent": 46002,
+  "rate": 511.1333333333333,
+  "sampled": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 840,
+    "delivered": 840,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "retry": {
+    "qualification_retry_attempts": 0,
+    "final_retry_attempts": 0,
+    "qualification_transport_rejected": 0,
+    "final_transport_rejected": 0,
+    "first_nonzero_retry_cut": null,
+    "limit": "Counter observations only; no inference about previous generations."
+  },
+  "flight": {
+    "status": "not_triggered",
+    "trace_bytes": 0,
+    "trace_complete": false
+  },
+  "public_members": 14,
+  "range_bytes": 56968
+}

@@ -1,0 +1,167 @@
+{
+  "schema": "wukongim/finite-public-archive/v1",
+  "payload_count": 32,
+  "total_bytes": 704627,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4713,
+      "sha256": "f32e448f24f6338a90f66e23293f9702ff6303b1afa277f3c6a45510382ed02b"
+    },
+    {
+      "path": "baseline/CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+    },
+    {
+      "path": "baseline/scripts/validate-production-package-clients.py",
+      "bytes": 87886,
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    {
+      "path": "baseline/tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24"
+    },
+    {
+      "path": "baseline/tests/test_installed_cli_acceptance.py",
+      "bytes": 11707,
+      "sha256": "263191ad6b4f51ef45de9a63065a53b4f70fd4e875ad62eb49dc8fefb442c873"
+    },
+    {
+      "path": "baseline/tests/test_native_stable_clients_drill.py",
+      "bytes": 79919,
+      "sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69"
+    },
+    {
+      "path": "contract-green-1.json",
+      "bytes": 184,
+      "sha256": "0bcdcef4ca4dc3665650ae6c707990b659bc5cb3fb96153e080a3a51d9373fee"
+    },
+    {
+      "path": "contract-green-1.log",
+      "bytes": 176,
+      "sha256": "a6173884c66c1c796331db47079cffe2a89301226aba5112c2b74e7fc2ce5070"
+    },
+    {
+      "path": "default-green-1.json",
+      "bytes": 288,
+      "sha256": "13ff4571ff1c5d256d8535bfce5f0af4cb85a433f20ae13e4316673921227a74"
+    },
+    {
+      "path": "default-green-1.stderr.txt",
+      "bytes": 695,
+      "sha256": "03c981376441064f1b860406fe7d03e6b611c12de4d7c4ab486eecad0e013403"
+    },
+    {
+      "path": "default-green-1.stdout.txt",
+      "bytes": 1608,
+      "sha256": "fa9f452f2cf9c95fa41bb7e7cb6f271a93f66fd7daa0669ae31530088deb700a"
+    },
+    {
+      "path": "failure-matrix.md",
+      "bytes": 4077,
+      "sha256": "11fb7c0390f3578ede2b15441c56ecce60a4569804ab795df648d062703d94dc"
+    },
+    {
+      "path": "first-ci-handoff-binding.json",
+      "bytes": 392,
+      "sha256": "e7d5ce2226b3402f63234789daa05374f430b911c7f387906cb17fcc4e98a7a4"
+    },
+    {
+      "path": "first-red-tests/test_installed_cli_acceptance.py",
+      "bytes": 17892,
+      "sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0"
+    },
+    {
+      "path": "first-red-tests/test_native_stable_clients_drill.py",
+      "bytes": 85318,
+      "sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9"
+    },
+    {
+      "path": "first-red.json",
+      "bytes": 1667,
+      "sha256": "0655eb5f88c94a9a1749e9fcd95e34614e5059cbca179a53f2fbc7cc927ce5a6"
+    },
+    {
+      "path": "first-red.stderr.txt",
+      "bytes": 28559,
+      "sha256": "d6d05092c99c8652832eda534740d111cf3631a38ae8c74d7e4a2295bea6b147"
+    },
+    {
+      "path": "first-red.stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "focused-green-1.json",
+      "bytes": 1100,
+      "sha256": "ab8834c57faa3d83bbb52c01117d4fe311937d69eb04cfaf5a5afda8c908c9b9"
+    },
+    {
+      "path": "focused-green-1.stderr.txt",
+      "bytes": 1902,
+      "sha256": "e26f338b6a670f5af17f3fbadecd8c8686d0e8e43b54fcf4f2eaacc4fe0c7a30"
+    },
+    {
+      "path": "focused-green-1.stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "implementation.patch",
+      "bytes": 17854,
+      "sha256": "71c96b15386813eafbd5609b045866ada0feb99dceea9b6a950f269efae57986"
+    },
+    {
+      "path": "original-behavior-preservation.json",
+      "bytes": 12089,
+      "sha256": "847be7fead18f2d2b21fba9b9df93b898bf4a32d82ac2061466e2b939e7f5ff0"
+    },
+    {
+      "path": "pre-change-binding.json",
+      "bytes": 1695,
+      "sha256": "eee101a3bffcd7684a6d39624180bef8c4bb1027bfffb380c179b4100545b380"
+    },
+    {
+      "path": "public-allowlist.json",
+      "bytes": 1269,
+      "sha256": "83444d141fef1ca4a3310b2dfa42b1785b06f0681af8a246a685b8c95c833577"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 1621,
+      "sha256": "38aaaba7eae628c67b85bfc2dbce4ea8411acba6563e853888a120a83266a576"
+    },
+    {
+      "path": "source/CHANGELOG.md",
+      "bytes": 3965,
+      "sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+    },
+    {
+      "path": "source/scripts/validate-production-package-clients.py",
+      "bytes": 88596,
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "path": "source/tests/native_stable_clients_drill.py",
+      "bytes": 71299,
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    },
+    {
+      "path": "source/tests/test_installed_cli_acceptance.py",
+      "bytes": 17892,
+      "sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0"
+    },
+    {
+      "path": "source/tests/test_native_stable_clients_drill.py",
+      "bytes": 85318,
+      "sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 927,
+      "sha256": "6da12ca880a46a3571fee71441296467433b4bb95d7a65975955995a37674b12"
+    }
+  ]
+}

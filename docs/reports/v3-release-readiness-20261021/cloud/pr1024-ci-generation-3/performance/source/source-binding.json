@@ -1,0 +1,13 @@
+{
+  "head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "expected_tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "files": [
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "archive_path": "source/.github/workflows/three-node-chat-lifecycle-regression.yml.source",
+      "bytes": 13037,
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71"
+    }
+  ]
+}

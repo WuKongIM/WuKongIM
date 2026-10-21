@@ -1,0 +1,47 @@
+{
+  "schema": "wukongim/source-freeze/v1",
+  "base": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "base_tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "branch": "codex/native-preview-fixture",
+  "scope_count": 5,
+  "source_files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3965,
+      "sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "bytes": 88596,
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "bytes": 71299,
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    },
+    {
+      "path": "tests/test_installed_cli_acceptance.py",
+      "bytes": 17892,
+      "sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "bytes": 85318,
+      "sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9"
+    }
+  ],
+  "source_dir": "source",
+  "patch": {
+    "path": "implementation.patch",
+    "bytes": 17854,
+    "sha256": "71c96b15386813eafbd5609b045866ada0feb99dceea9b6a950f269efae57986"
+  },
+  "untracked": [],
+  "tests_unchanged_from_first_red": true,
+  "git_diff_check_exit": 0,
+  "no_commit_push_ci_or_cloud": true,
+  "frozen_at_utc": "2026-10-21T20:02:57.088869+00:00"
+}

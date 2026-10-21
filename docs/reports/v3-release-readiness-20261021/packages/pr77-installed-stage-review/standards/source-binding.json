@@ -1,0 +1,124 @@
+{
+  "schema": "standards-review-source-binding/v1",
+  "reviewed_at": "2026-10-21T20:06:19.874924+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "fixed_head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "base_tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "branch_commits_in_scope": [],
+  "diff_command": [
+    "git",
+    "diff",
+    "19ce29fb2233b3039e29c503963e27bd1fab972a",
+    "--",
+    "CHANGELOG.md",
+    "scripts/validate-production-package-clients.py",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_installed_cli_acceptance.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "staged": [],
+  "untracked": [],
+  "source_files": [
+    {
+      "path": "CHANGELOG.md",
+      "before_sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "after_sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a",
+      "before_bytes": 3802,
+      "after_bytes": 3965
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "before_sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+      "after_sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc",
+      "before_bytes": 87886,
+      "after_bytes": 88596
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "before_sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "after_sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb",
+      "before_bytes": 70217,
+      "after_bytes": 71299
+    },
+    {
+      "path": "tests/test_installed_cli_acceptance.py",
+      "before_sha256": "263191ad6b4f51ef45de9a63065a53b4f70fd4e875ad62eb49dc8fefb442c873",
+      "after_sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0",
+      "before_bytes": 11707,
+      "after_bytes": 17892
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "before_sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+      "after_sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9",
+      "before_bytes": 79919,
+      "after_bytes": 85318
+    }
+  ],
+  "source_freeze_sha256": "38aaaba7eae628c67b85bfc2dbce4ea8411acba6563e853888a120a83266a576",
+  "patch_sha256": "71c96b15386813eafbd5609b045866ada0feb99dceea9b6a950f269efae57986",
+  "actual_diff_equals_frozen_patch": true,
+  "rules": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/.agents/skills/code-review/SKILL.md": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/.github/CODEOWNERS": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+  },
+  "applicable_package_AGENTS": [],
+  "applicable_FLOW": [],
+  "rule_discovery": "git ls-files *AGENTS.md *FLOW.md *CONTEXT.md empty; root/scripts/tests/parent existence inspection found none; caller AGENTS and package release contract apply",
+  "review_checks": {
+    "validator_byte_identical_after_only_marker_lines_removed": true,
+    "native_byte_identical_after_only_parser_and_finally_assignment_removed": true,
+    "original49_and_resource_deadline_logic_unchanged": true,
+    "first_red_implementation_digests_match_base": true,
+    "both_test_files_byte_identical_to_first_red": true,
+    "tests_first_new_methods": 9,
+    "first_red_failures": 22,
+    "first_focused_green_methods": 9,
+    "default_tests": 581,
+    "default_existing_skips": 1,
+    "contract_tests_passed": 4
+  },
+  "evidence_sha256": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/source-freeze.json": "38aaaba7eae628c67b85bfc2dbce4ea8411acba6563e853888a120a83266a576",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/implementation.patch": "71c96b15386813eafbd5609b045866ada0feb99dceea9b6a950f269efae57986",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/pre-change-binding.json": "eee101a3bffcd7684a6d39624180bef8c4bb1027bfffb380c179b4100545b380",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/failure-matrix.md": "11fb7c0390f3578ede2b15441c56ecce60a4569804ab795df648d062703d94dc",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/first-red.json": "0655eb5f88c94a9a1749e9fcd95e34614e5059cbca179a53f2fbc7cc927ce5a6",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/first-red.stderr.txt": "d6d05092c99c8652832eda534740d111cf3631a38ae8c74d7e4a2295bea6b147",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/focused-green-1.json": "ab8834c57faa3d83bbb52c01117d4fe311937d69eb04cfaf5a5afda8c908c9b9",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/focused-green-1.stderr.txt": "e26f338b6a670f5af17f3fbadecd8c8686d0e8e43b54fcf4f2eaacc4fe0c7a30",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/default-green-1.json": "13ff4571ff1c5d256d8535bfce5f0af4cb85a433f20ae13e4316673921227a74",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/default-green-1.stderr.txt": "03c981376441064f1b860406fe7d03e6b611c12de4d7c4ab486eecad0e013403",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/contract-green-1.json": "0bcdcef4ca4dc3665650ae6c707990b659bc5cb3fb96153e080a3a51d9373fee",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/contract-green-1.log": "a6173884c66c1c796331db47079cffe2a89301226aba5112c2b74e7fc2ce5070",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/original-behavior-preservation.json": "847be7fead18f2d2b21fba9b9df93b898bf4a32d82ac2061466e2b939e7f5ff0",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/first-ci-handoff-binding.json": "e7d5ce2226b3402f63234789daa05374f430b911c7f387906cb17fcc4e98a7a4"
+  },
+  "process_terminal_state_sha256": "88d33ee27578dfba3914a546509c8788ebfa31763544d9abab1d474a77cc6f0c",
+  "findings": {
+    "hard": 0,
+    "heuristic": 0
+  },
+  "smell_baseline_assessed": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "reviewer_source_mutations": false,
+  "reviewer_tests_run": false,
+  "CI_or_cloud_called": false,
+  "original_timeout_cause_resolved": false,
+  "native49_or_release_success_claimed": false,
+  "report_sha256": "babf1ae3661063ae9e2386c2b6869d423fcb5d07c1d9252a3c65ccced876b25d"
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "local_observer_schema_assumption",
+  "exit_code": 1,
+  "error": "KeyError: 'exit_code'",
+  "stage": "read first performance result.json",
+  "workload_or_ci_failure": false,
+  "source_artifacts_modified": false
+}

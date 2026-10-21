@@ -1,12 +1,14 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 19:57Z（北京时间10月22日03:57）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 20:12Z（北京时间10月22日04:12）**；后续状态须绑定新的提交和收据。
 
 结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
 产品 #1016/#1017/#1019–#1022及packages #67–#76已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z通过，49/49场景和清理已独立核验；18:17:48Z普通rebase合并为be32eb37，同验收tree e319ee72，合并后默认/SDK检查也首次通过且部署跳过。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
 
-两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1。已复现spawn与登记之间取消竞态，44de9452修复后九项确定性回归及相关15顶层测试首次通过、两轴零发现；新head默认及性能首次通过，完整scripts/E2E仍待终态。两代原失败均保留，#1024仍未合并。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1。已复现spawn与登记之间取消竞态，44de9452修复后九项确定性回归及相关15顶层测试首次通过、两轴零发现；新head第三代首次Linux默认、E2E及性能通过，但scripts在原600秒外层时限结束：600.100秒、wrapper exit124，无断言FAIL事件；九项新回归及原interrupt均通过，Retention直到末尾才获执行且未完成，不能计作79场景通过。三代原失败均保留，#1024仍未合并。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
+
+packages #77新增五文件安装阶段诊断已提交为 `94d63a3c099dcaa69bcefda3b021bafcc8d828f6`，tree `0c843c1a30df5a75eac5e8ac0b966b5b84e20036`。测试先行与两轴复核完成，首次新head CI仍待终态；阶段B只增加诊断记录，不证明原Alma超时的唯一原因，也不证明49客户端通过。当前云请求已释放，本次归档没有重启、采购或新增费用。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -329,3 +331,14 @@ packages [#77](https://github.com/WuKongIM/packages/pull/77)已创建为draft，
 MQTT 继续默认关闭、开发预览。专项 self-chat、100 GiB/4h 迁移、生产 RPO/RTO、4,500 SEND/s 等未承诺范围不会被随意加入新的强制清单，也不凭本轮小规模通过扩大宣传范围。
 
 原始状态审计、规则 digest 与后续验证收据见 [证据目录](v3-release-readiness-20261021/README.md)。
+
+
+## 20:12Z 第三代脚本超时与安装阶段诊断交付
+
+[#1024第三代首次候选](v3-release-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/README.md)绑定head `44de9452`，实际checkout `c1a832af` 与head同tree `b69a44af`。原受保护named check仍用9分钟Go时限、600秒外层、parallel=2及8MiB输出上限。scripts于600.100秒超时，命令exit−15、wrapper124；原输出未截断。原件安全事件提取为618根PASS、6SKIP、33未终态，无断言FAIL不等于完整通过。九项新取消回归（父0.50秒）及原interrupt（0.05秒）均通过；collector Anchor通过，Retention在19:59:05.006Z才CONT，到结果发出约4.421秒，没有完成证据。未终态包含排队与执行中的测试，不能一概称卡住，也不能将包START之前的时间归为纯编译。
+
+默认219包通过、15包无测试。迁移五拓扑55次历史检查、跨节点四项功能与单节点/三节点自聊通过；既有2,000QPS比较仍按条件skip。四次校验确认同一冻结E2E二进制；六个owned SID均最终零遗留。[同head三节点性能](v3-release-readiness-20261021/cloud/pr1024-ci-generation-3/performance/README.md)七job通过、两条件skip：九个测量窗共270,000请求全部完成，错误/丢弃为零；正确性90秒46,002 SEND/ACK、抽样840/840。它们不能覆盖scripts失败或代替正式长稳。大正确性ZIP只选取22成员核验，整包SHA仍仅GitHub声明；这些边界和[两代最小时序表](v3-release-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/scripts-generation-timing-comparison.json)保留原样，没有重跑失败head。
+
+[#77安装阶段诊断](v3-release-readiness-20261021/packages/pr77-installed-stage-repair-v1/README.md)先完成9方法/22处首红，再以相同测试字节首绿；默认581项中580通过、1既有本地skip，合同4通过。[Spec](v3-release-readiness-20261021/packages/pr77-installed-stage-review/spec/review.md)与[Standards](v3-release-readiness-20261021/packages/pr77-installed-stage-review/standards/report.md)均0发现。五文件仅给现有安装命令增加固定阶段标记、从原有界输出保留最多16项诊断事件，不改签验、通过条件、600/650秒限制或49场景。[提交与推送收据](v3-release-readiness-20261021/packages/pr77-installed-stage-delivery/commit-identity.json)绑定新head `94d63a3c`/tree `0c843c1a`，首次CI待终态。原Alma首失败及未观测的子阶段继续保留，阶段B不作为根因修复或真实安装通过声明。
+
+本次仅追加已封存的公共有限证据，[复制收据](v3-release-readiness-20261021/pr1024-third-ci-and-pr77-installed-diagnostics-copy.json)逐项验证来源及旧清单；未冻结的整体耗时诊断不纳入。结论仍为NO-GO，云已释放且没有重启、续租或新费用。

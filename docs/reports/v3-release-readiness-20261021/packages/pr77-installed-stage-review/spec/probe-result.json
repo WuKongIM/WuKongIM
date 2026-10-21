@@ -1,0 +1,77 @@
+{
+  "actual_generated_shell": {
+    "all_child_processes_terminal": true,
+    "capture_hash_and_size_preserved": true,
+    "early_checksum_absent_from_tail": true,
+    "events": {
+      "events": [
+        {
+          "event": "begin",
+          "phase": "checksum"
+        },
+        {
+          "event": "complete",
+          "phase": "checksum"
+        },
+        {
+          "event": "begin",
+          "phase": "signature"
+        },
+        {
+          "event": "complete",
+          "phase": "signature"
+        },
+        {
+          "event": "begin",
+          "phase": "dependencies"
+        },
+        {
+          "event": "complete",
+          "phase": "dependencies"
+        },
+        {
+          "event": "begin",
+          "phase": "cli"
+        }
+      ],
+      "schema": "wukongim/native-installed-phase-events/v1",
+      "truncated": false
+    },
+    "family": "rpm",
+    "fault": "controlled CLI exit 23 after dependency tool emits 6000 bytes without newline",
+    "output_sha256": "ef39807bffb420b80f355bf25e585612ad3165158c33f4a399729476eb7e05d1",
+    "output_size": 6280,
+    "real_native_DNF_or_CLI_executed": false,
+    "returncode": 23
+  },
+  "command_equivalence": [
+    {
+      "argv_except_script_identical": true,
+      "family": "apt",
+      "original_script_sha256": "a2638b9b4f58e909200e071401c7b0aa21e92d24ad457dc2f419fb3ec4e7f97b",
+      "script_only_literal_markers_added": true
+    },
+    {
+      "argv_except_script_identical": true,
+      "family": "rpm",
+      "original_script_sha256": "0ce76fcd3787faac02ee8ca7b67ae4cb926610f15f1c2ff818126a763fc6be05",
+      "script_only_literal_markers_added": true
+    }
+  ],
+  "historical_timeout_subphase": "unknown; this controlled fixture is not a reproduction",
+  "other_validator_and_drill_AST_unchanged": true,
+  "parser_assertions": 14,
+  "parser_cases": [
+    "exact-eight",
+    "exact-cap",
+    "over-cap",
+    "unfinished",
+    "unknown-crlf-whitespace",
+    "noise-before-and-after",
+    "duplicates"
+  ],
+  "parser_input_types": [
+    "bytes",
+    "bytearray"
+  ]
+}

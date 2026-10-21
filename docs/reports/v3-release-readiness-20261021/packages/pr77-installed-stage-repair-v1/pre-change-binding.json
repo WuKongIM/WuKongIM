@@ -1,0 +1,22 @@
+{
+  "base": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "clean_at_start": true,
+  "source_files": {
+    "scripts/validate-production-package-clients.py": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+    "tests/native_stable_clients_drill.py": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+    "tests/test_installed_cli_acceptance.py": "263191ad6b4f51ef45de9a63065a53b4f70fd4e875ad62eb49dc8fefb442c873",
+    "tests/test_native_stable_clients_drill.py": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+    "CHANGELOG.md": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+  },
+  "rule_files": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/.agents/skills/tdd/SKILL.md": "6cfc6a5920744e55861b9b6176e12597d0c09345ea077bddc44c0d60712f2a0f",
+    "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/.github/CODEOWNERS": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+  },
+  "applicable_package_AGENTS_FLOW_CONTEXT_ADR": [],
+  "created_at_utc": "2026-10-21T19:54:07.945641+00:00"
+}

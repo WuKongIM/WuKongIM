@@ -1,0 +1,90 @@
+{
+  "schema": "review-validation-command-terminals/v1",
+  "validation_commands": [
+    {
+      "receipt": "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/first-red.json",
+      "sha256": "0655eb5f88c94a9a1749e9fcd95e34614e5059cbca179a53f2fbc7cc927ce5a6",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "-v",
+        "test_installed_cli_acceptance.InstalledShellPhaseTests",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative"
+      ],
+      "started_at_unix": 1792612628.546064,
+      "finished_at_unix": 1792612637.041829,
+      "exit_code": 1,
+      "deadline_seconds": 90,
+      "timed_out": null,
+      "terminal": true
+    },
+    {
+      "receipt": "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/focused-green-1.json",
+      "sha256": "ab8834c57faa3d83bbb52c01117d4fe311937d69eb04cfaf5a5afda8c908c9b9",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "-v",
+        "test_installed_cli_acceptance.InstalledShellPhaseTests",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_phases_survive_noisy_generated_shell_without_changing_capture",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_nonzero_retains_partial_phases_and_cannot_become_success",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_generated_shell_deadline_preserves_only_observed_phases",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_event_whitelist_preserves_duplicates_with_fixed_cap",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_unknown_and_incomplete_markers_are_diagnostic_only",
+        "test_native_stable_clients_drill.NativeStableClientsTests.test_installed_output_limit_remains_authoritative"
+      ],
+      "started_at_unix": 1792612732.385164,
+      "finished_at_unix": 1792612740.70772,
+      "exit_code": 0,
+      "deadline_seconds": 90,
+      "timed_out": null,
+      "terminal": true
+    },
+    {
+      "receipt": "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/default-green-1.json",
+      "sha256": "13ff4571ff1c5d256d8535bfce5f0af4cb85a433f20ae13e4316673921227a74",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py"
+      ],
+      "started_at_unix": 1792612801.9121358,
+      "finished_at_unix": 1792612933.718859,
+      "exit_code": 0,
+      "deadline_seconds": 600,
+      "timed_out": false,
+      "terminal": true
+    },
+    {
+      "receipt": "/tmp/wukongim-v3-readiness-20261021/packages/pr77-installed-stage-repair-v1/contract-green-1.json",
+      "sha256": "0bcdcef4ca4dc3665650ae6c707990b659bc5cb3fb96153e080a3a51d9373fee",
+      "command": [
+        "bash",
+        "tests/contract.sh"
+      ],
+      "started_at_unix": 1792612801.910315,
+      "finished_at_unix": 1792612802.734097,
+      "exit_code": 0,
+      "deadline_seconds": 90,
+      "timed_out": null,
+      "terminal": true
+    }
+  ],
+  "reviewer_started_validation_processes": false,
+  "scope": "Terminal validation command receipts; no independent descendant PID census was recorded or inferred."
+}

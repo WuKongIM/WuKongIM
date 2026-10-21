@@ -1,0 +1,10 @@
+{
+  "command": [
+    "bash",
+    "tests/contract.sh"
+  ],
+  "deadline_seconds": 90,
+  "started_at_unix": 1792612801.910315,
+  "exit_code": 0,
+  "finished_at_unix": 1792612802.734097
+}

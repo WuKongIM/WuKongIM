@@ -1,0 +1,178 @@
+{
+  "run_id": 39664872153,
+  "attempt": 1,
+  "head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "checkout": "c1a832afe71a46294a2e46054e26ea8568f6c315",
+  "windows": [
+    {
+      "seam": "mixed-send",
+      "artifact_id": 12375579850,
+      "source": "c1a832afe71a46294a2e46054e26ea8568f6c315",
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 32.549273,
+          "scheduled_to_start_p99_ms": 1.21582,
+          "service_p99_ms": 31.966694
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 20.541515,
+          "scheduled_to_start_p99_ms": 1.144875,
+          "service_p99_ms": 20.172329
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 15.454831,
+          "scheduled_to_start_p99_ms": 1.16322,
+          "service_p99_ms": 14.739031
+        }
+      ],
+      "warmup_seconds": 60,
+      "measurement_seconds": 180,
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "binary_sha256": "49a07ff32c17b1388c7586ef5810ac167beb0cb5790d5a17b03089967cc31f3c",
+      "benchmark_output_truncated_marker": false
+    },
+    {
+      "seam": "channel-append",
+      "artifact_id": 12376667520,
+      "source": "c1a832afe71a46294a2e46054e26ea8568f6c315",
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 7.971909,
+          "scheduled_to_start_p99_ms": 1.084026,
+          "service_p99_ms": 5.193741
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 9.16024,
+          "scheduled_to_start_p99_ms": 1.075754,
+          "service_p99_ms": 7.766846
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 10.809948,
+          "scheduled_to_start_p99_ms": 1.131035,
+          "service_p99_ms": 9.06715
+        }
+      ],
+      "warmup_seconds": 60,
+      "measurement_seconds": 180,
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "binary_sha256": "f9459f8008c66c83289cef9bdf68aa0efee59c15d6570457f23d9c64ae76432e",
+      "benchmark_output_truncated_marker": false
+    },
+    {
+      "seam": "tcp-sendack",
+      "artifact_id": 12377002914,
+      "source": "c1a832afe71a46294a2e46054e26ea8568f6c315",
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.335572,
+          "scheduled_to_start_p99_ms": 1.074864,
+          "service_p99_ms": 177.715142
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.251687,
+          "scheduled_to_start_p99_ms": 1.075224,
+          "service_p99_ms": 177.688387
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.314672,
+          "scheduled_to_start_p99_ms": 1.081526,
+          "service_p99_ms": 177.684124
+        }
+      ],
+      "warmup_seconds": 60,
+      "measurement_seconds": 180,
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "binary_sha256": "c7fba65f798e5bf1f0e889ae759bef3173fa221118334d9f94526fc1b69169f0",
+      "benchmark_output_truncated_marker": true
+    }
+  ],
+  "aggregate": {
+    "planned": 270000,
+    "started": 270000,
+    "completed": 270000,
+    "errors": 0,
+    "dropped": 0
+  },
+  "limits": "P99 is not maximum request latency; hosted hardware is not a controlled same-hardware comparison. Nonverbose unit/race logs do not expose every internal skip."
+}

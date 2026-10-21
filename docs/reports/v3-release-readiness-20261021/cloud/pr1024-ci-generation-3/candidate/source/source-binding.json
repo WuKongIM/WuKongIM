@@ -1,0 +1,61 @@
+{
+  "head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "expected_tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "archive_path": "source/AGENTS.md.source",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "archive_path": "source/.github/workflows/README.md.source",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "archive_path": "source/.github/workflows/v3-candidate-regression.yml.source",
+      "bytes": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "archive_path": "source/.github/review-agent/policy.json.source",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "scripts/run-v3-candidate-check.py",
+      "archive_path": "source/scripts/run-v3-candidate-check.py.source",
+      "bytes": 10569,
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "archive_path": "source/scripts/chat_lifecycle_terminal_evidence_integration_test.go.source",
+      "bytes": 4854,
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+    },
+    {
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "archive_path": "source/scripts/testdata/chat_lifecycle_terminal_evidence_test.py.source",
+      "bytes": 30494,
+      "sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1"
+    },
+    {
+      "path": "scripts/capture-wukongim-local-threshold-pprof.sh",
+      "archive_path": "source/scripts/capture-wukongim-local-threshold-pprof.sh.source",
+      "bytes": 17772,
+      "sha256": "b17347aea7acdfc6320c7db547065893814b105b7fbe5b6f9655b8b044b0780a"
+    },
+    {
+      "path": "scripts/wukongim_local_threshold_pprof_script_integration_test.go",
+      "archive_path": "source/scripts/wukongim_local_threshold_pprof_script_integration_test.go.source",
+      "bytes": 30502,
+      "sha256": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311"
+    }
+  ]
+}

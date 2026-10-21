@@ -1,0 +1,313 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5db05d8..9725471 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,9 @@
+ 
+ ## Unreleased
+ 
++- Preserve bounded installation-phase diagnostics when native client acceptance
++  fails or times out, without changing package verification or acceptance limits.
++
+ - Add a TEST ONLY native preview fixture export alongside stable A/B to check
+   signed archive recovery and offline composite delivery without cloud access.
+   Data-only fixtures do not establish product, source or public-client acceptance.
+diff --git a/scripts/validate-production-package-clients.py b/scripts/validate-production-package-clients.py
+index 0b2435a..74bb375 100755
+--- a/scripts/validate-production-package-clients.py
++++ b/scripts/validate-production-package-clients.py
+@@ -1393,22 +1393,34 @@ def _installed_cli_command(image, package, output, certificate, family, identity
+     ))
+     if family == "apt":
+         install = """
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:checksum:begin'
+ printf '%s  %s\n' "$WK_PACKAGE_SHA256" /candidate.deb | sha256sum --check --strict
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:checksum:complete'
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:dependencies:begin'
+ printf '#!/bin/sh\nexit 101\n' >/usr/sbin/policy-rc.d
+ chmod 0755 /usr/sbin/policy-rc.d
+ apt-get -o Acquire::Retries=3 update
+ DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y python3 /candidate.deb
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:dependencies:complete'
+ """
+     else:
+         install = """
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:checksum:begin'
+ printf '%s  %s\n' "$WK_PACKAGE_SHA256" /candidate.rpm | sha256sum --check --strict
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:checksum:complete'
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:signature:begin'
+ rpm --import /reviewed-key.asc
+ rpm --checksig /candidate.rpm
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:signature:complete'
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:dependencies:begin'
+ dnf --setopt=localpkg_gpgcheck=1 --setopt=timeout=60 install -y python3 /candidate.rpm
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:dependencies:complete'
+ """
+     command.extend((image, "timeout", "--kill-after=10s", "600s", "bash", "-euc", install + """
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:cli:begin'
+ python3 /acceptance.py --fixtures /fixtures --version "$WK_EXPECTED_VERSION" \
+   --commit "$WK_EXPECTED_COMMIT" >/evidence/installed-cli.json
++printf '\\n%s\\n' 'WK_INSTALLED_STAGE_V1:cli:complete'
+ """))
+     return command
+ 
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index 3ca51bd..39b09cc 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -65,6 +65,27 @@ def module(filename):
+     return value
+ 
+ 
++def _installed_phase_events(output):
++    """Retain bounded literal observations, never infer acceptance from subprocess text."""
++    markers = {f'WK_INSTALLED_STAGE_V1:{phase}:{event}'.encode(): {'phase': phase, 'event': event}
++               for phase in ('checksum', 'signature', 'dependencies', 'cli')
++               for event in ('begin', 'complete')}
++    events = []; truncated = False; start = 0
++    longest = max(map(len, markers))
++    while (end := output.find(b'\n', start)) != -1:
++        # Ignore incomplete or arbitrary lines without copying long output lines.
++        event = markers.get(bytes(output[start:end])) if end - start <= longest else None
++        start = end + 1
++        if event is None:
++            continue
++        if len(events) == 16:
++            truncated = True
++            break
++        events.append(event)
++    return {'schema': 'wukongim/native-installed-phase-events/v1',
++            'events': events, 'truncated': truncated}
++
++
+ def run_command(evidence, stage, command, *, timeout=300, maximum=MAX_LOG, env=None, cwd=None):
+     """Bound public subprocess output and time while preserving its actual exit."""
+     record = {'stage': stage, 'command': list(map(str, command)), 'exit_code': None,
+@@ -106,6 +127,8 @@ def run_command(evidence, stage, command, *, timeout=300, maximum=MAX_LOG, env=N
+         record.update(exit_code=process.returncode, elapsed_seconds=round(time.monotonic() - start, 3),
+                       output_size=len(output), output_sha256=hashlib.sha256(output).hexdigest(),
+                       output_tail=bytes(output[-4096:]).decode(errors='replace'))
++        if stage == 'installed-client':
++            record['installed_phase_events'] = _installed_phase_events(output)
+ 
+ 
+ def apt_by_hash_path(path):
+diff --git a/tests/test_installed_cli_acceptance.py b/tests/test_installed_cli_acceptance.py
+index 50da6a7..3593638 100644
+--- a/tests/test_installed_cli_acceptance.py
++++ b/tests/test_installed_cli_acceptance.py
+@@ -1,11 +1,15 @@
+ from __future__ import annotations
+ 
+ import importlib.util
++from contextlib import contextmanager
+ import hashlib
+ import io
+ import json
++import os
+ from pathlib import Path
++import shlex
+ import subprocess
++import sys
+ import tarfile
+ from tempfile import TemporaryDirectory
+ import unittest
+@@ -19,6 +23,102 @@ SPEC.loader.exec_module(acceptance)
+ FIXTURES = ROOT / 'tests/fixtures/wkcli-acceptance'
+ IDENTITY = dict(version=VERSION, commit='a' * 40, build_source='release')
+ CHECKS = ['version', 'help', 'bench_validate', 'db_query', 'migrate_diagnose', 'invalid_inputs', 'read_only_data']
++STAGE_PREFIX = 'WK_INSTALLED_STAGE_V1:'
++RPM_STAGE_EVENTS = ['checksum:begin', 'checksum:complete', 'signature:begin', 'signature:complete',
++                    'dependencies:begin', 'dependencies:complete', 'cli:begin', 'cli:complete']
++APT_STAGE_EVENTS = ['checksum:begin', 'checksum:complete', 'dependencies:begin',
++                    'dependencies:complete', 'cli:begin', 'cli:complete']
++
++
++def observed_stage_lines(output):
++    return [line.decode()[len(STAGE_PREFIX):] for line in output.split(b'\n')[:-1]
++            if line.startswith(STAGE_PREFIX.encode())]
++
++
++@contextmanager
++def generated_installation_shell(family, *, fault='', noise=0, extra=''):
++    """Run the real generated shell with only external tools and mount paths replaced."""
++    with TemporaryDirectory() as temporary:
++        root = Path(temporary)
++        tools = root / 'tools'; tools.mkdir()
++        evidence = root / 'evidence'; evidence.mkdir()
++        package = root / ('candidate.' + ('deb' if family == 'apt' else 'rpm'))
++        package.write_bytes(b'TEST ONLY package command boundary')
++        certificate = root / 'public.asc'; certificate.write_text('TEST ONLY public command boundary')
++        command = validator._installed_cli_command('fixture-image', package, evidence, certificate,
++                                                   family, IDENTITY, hashlib.sha256(package.read_bytes()).hexdigest())
++        shell = command[-1]
++        for old, new in (('/candidate.' + ('deb' if family == 'apt' else 'rpm'), package),
++                         ('/reviewed-key.asc', certificate), ('/evidence/installed-cli.json', evidence / 'installed-cli.json'),
++                         ('/usr/sbin/policy-rc.d', root / 'policy-rc.d'),
++                         ('/acceptance.py', root / 'acceptance.py'), ('/fixtures', root / 'fixtures')):
++            shell = shell.replace(old, shlex.quote(str(new)))
++        stub = '#!' + sys.executable + '\n' + '''
++import os,sys,time
++from pathlib import Path
++name=Path(sys.argv[0]).name
++phase={'sha256sum':'checksum','dnf':'install','python3':'cli'}.get(name)
++if name=='rpm':phase='rpm-import' if sys.argv[1]=='--import' else 'signature'
++if name=='apt-get':phase='apt-update' if 'update' in sys.argv else 'install'
++with open(os.environ['WK_STAGE_TRACE'],'a') as trace:trace.write(phase+'\\n')
++if phase=='checksum':sys.stdin.buffer.read()
++if phase=='install':
++ sys.stdout.write('x'*int(os.environ['WK_STAGE_NOISE']))
++ if int(os.environ['WK_STAGE_NOISE']):sys.stdout.write('\\n')
++ sys.stdout.write(os.environ['WK_STAGE_EXTRA']);sys.stdout.flush()
++fault=os.environ['WK_STAGE_FAULT']
++if fault=='block-'+phase:
++ Path(os.environ['WK_STAGE_PID']).write_text(str(os.getpid()))
++ time.sleep(10)
++if fault==phase:raise SystemExit(23)
++if fault=='missing-cli' and phase=='cli':raise SystemExit(127)
++if phase=='cli':print('{"fixture":true}')
++'''
++        for name in ('sha256sum', 'rpm', 'dnf', 'apt-get', 'python3'):
++            path = tools / name; path.write_text(stub); path.chmod(0o755)
++        env = {'PATH': str(tools) + os.pathsep + os.defpath,
++               'WK_STAGE_TRACE': str(root / 'trace'), 'WK_STAGE_PID': str(root / 'pid'),
++               'WK_STAGE_FAULT': fault, 'WK_STAGE_NOISE': str(noise), 'WK_STAGE_EXTRA': extra}
++        for index, token in enumerate(command):
++            if token == '--env':
++                name, value = command[index + 1].split('=', 1); env[name] = value
++        yield ['bash', '-euc', shell], env, root
++
++
++class InstalledShellPhaseTests(unittest.TestCase):
++    def test_generated_shell_emits_only_applicable_phases_in_original_command_order(self):
++        for family, events, trace in (
++                ('rpm', RPM_STAGE_EVENTS, ['checksum', 'rpm-import', 'signature', 'install', 'cli']),
++                ('apt', APT_STAGE_EVENTS, ['checksum', 'apt-update', 'install', 'cli'])):
++            with self.subTest(family=family), generated_installation_shell(family) as (command, env, root):
++                result = subprocess.run(command, env=env, capture_output=True, timeout=5)
++                self.assertEqual(result.returncode, 0, result.stderr)
++                self.assertEqual(observed_stage_lines(result.stdout), events)
++                self.assertEqual((root / 'trace').read_text().splitlines(), trace)
++                self.assertEqual(json.loads((root / 'evidence/installed-cli.json').read_text()), {'fixture': True})
++
++    def test_generated_shell_failures_keep_nonzero_and_never_emit_later_phases(self):
++        cases = [('rpm', 'checksum', 1), ('rpm', 'rpm-import', 3), ('rpm', 'signature', 3),
++                 ('rpm', 'install', 5), ('rpm', 'cli', 7), ('rpm', 'missing-cli', 7),
++                 ('apt', 'checksum', 1), ('apt', 'apt-update', 3), ('apt', 'install', 3),
++                 ('apt', 'cli', 5), ('apt', 'missing-cli', 5)]
++        for family, fault, count in cases:
++            with self.subTest(family=family, fault=fault), generated_installation_shell(family, fault=fault) as (command, env, root):
++                result = subprocess.run(command, env=env, capture_output=True, timeout=5)
++                self.assertEqual(result.returncode, 127 if fault == 'missing-cli' else 23)
++                events = RPM_STAGE_EVENTS if family == 'rpm' else APT_STAGE_EVENTS
++                self.assertEqual(observed_stage_lines(result.stdout), events[:count])
++                if fault not in ('cli', 'missing-cli'):
++                    self.assertNotIn('cli', (root / 'trace').read_text().splitlines())
++                    self.assertFalse((root / 'evidence/installed-cli.json').exists())
++
++    def test_complete_phase_markers_do_not_accept_an_invalid_cli_receipt(self):
++        with generated_installation_shell('rpm') as (command, env, root):
++            result = subprocess.run(command, env=env, capture_output=True, timeout=5)
++            self.assertEqual(result.returncode, 0)
++            self.assertEqual(observed_stage_lines(result.stdout), RPM_STAGE_EVENTS)
++            with self.assertRaisesRegex(validator.ClientValidationError, 'receipt is incomplete'):
++                validator._installed_cli_receipt(root / 'evidence/installed-cli.json', IDENTITY)
+ 
+ 
+ class InstalledCLIContractTest(unittest.TestCase):
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 8ea7d6b..fca4904 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -18,6 +18,7 @@ import tempfile
+ import threading
+ import unittest
+ from unittest import mock
++from test_installed_cli_acceptance import generated_installation_shell, RPM_STAGE_EVENTS, STAGE_PREFIX
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ SCRIPT = ROOT / 'tests/native_stable_clients_drill.py'
+@@ -31,6 +32,83 @@ def load():
+ 
+ 
+ class NativeStableClientsTests(unittest.TestCase):
++    def phase_receipt(self, events, *, truncated=False):
++        return {'schema': 'wukongim/native-installed-phase-events/v1',
++                'events': [dict(zip(('phase', 'event'), item.split(':'))) for item in events],
++                'truncated': truncated}
++
++    def test_installed_phases_survive_noisy_generated_shell_without_changing_capture(self):
++        drill = load(); evidence = {'commands': []}
++        with generated_installation_shell('rpm', noise=6000) as (command, env, _):
++            result = drill.run_command(evidence, 'installed-client', command, env=env, timeout=5)
++        record = evidence['commands'][0]
++        self.assertEqual(result.returncode, 0)
++        self.assertGreater(len(result.stdout), 4096)
++        self.assertNotIn(STAGE_PREFIX + 'checksum:begin', record['output_tail'])
++        self.assertEqual(record['output_size'], len(result.stdout))
++        self.assertEqual(record['output_sha256'], hashlib.sha256(result.stdout).hexdigest())
++        self.assertEqual(record['output_tail'], result.stdout[-4096:].decode())
++        self.assertEqual(record.get('installed_phase_events'), self.phase_receipt(RPM_STAGE_EVENTS))
++
++    def test_installed_nonzero_retains_partial_phases_and_cannot_become_success(self):
++        drill = load(); evidence = {'commands': []}
++        with generated_installation_shell('rpm', fault='install', noise=6000) as (command, env, _):
++            result = drill.run_command(evidence, 'installed-client', command, env=env, timeout=5)
++        self.assertEqual(result.returncode, 23)
++        self.assertEqual(evidence['commands'][0]['exit_code'], 23)
++        self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt(RPM_STAGE_EVENTS[:5]))
++
++    def test_installed_generated_shell_deadline_preserves_only_observed_phases(self):
++        drill = load(); evidence = {'commands': []}
++        with generated_installation_shell('rpm', fault='block-install') as (command, env, root):
++            with self.assertRaisesRegex(RuntimeError, 'deadline'):
++                drill.run_command(evidence, 'installed-client', command, env=env, timeout=1)
++            self.assertTrue((root / 'pid').is_file(), 'controlled dependency stage never started')
++            self.assertEqual((root / 'trace').read_text().splitlines(), ['checksum', 'rpm-import', 'signature', 'install'])
++        record = evidence['commands'][0]
++        self.assertTrue(record['timed_out'])
++        self.assertNotEqual(record['exit_code'], 0)
++        self.assertEqual(record.get('installed_phase_events'), self.phase_receipt(RPM_STAGE_EVENTS[:5]))
++
++    def test_installed_event_whitelist_preserves_duplicates_with_fixed_cap(self):
++        drill = load(); evidence = {'commands': []}
++        invalid = (STAGE_PREFIX + 'secret:complete\n' + STAGE_PREFIX + 'checksum:begin FAKE-CREDENTIAL\n'
++                   + STAGE_PREFIX + 'checksum:complete\r\n')
++        duplicates = (STAGE_PREFIX + 'checksum:begin\n') * 20
++        with generated_installation_shell('rpm', fault='install', extra=invalid + duplicates) as (command, env, _):
++            result = drill.run_command(evidence, 'installed-client', command, env=env, timeout=5)
++        self.assertEqual(result.returncode, 23)
++        parsed = evidence['commands'][0].get('installed_phase_events')
++        self.assertEqual(parsed, self.phase_receipt(RPM_STAGE_EVENTS[:5] + ['checksum:begin'] * 11, truncated=True))
++        self.assertNotIn('FAKE-CREDENTIAL', json.dumps(parsed))
++
++    def test_unknown_and_incomplete_markers_are_diagnostic_only(self):
++        drill = load()
++        for fault, extra, expected in (
++                ('', STAGE_PREFIX + 'unknown:complete\n', RPM_STAGE_EVENTS),
++                ('install', STAGE_PREFIX + 'cli:complete', RPM_STAGE_EVENTS[:5])):
++            with self.subTest(fault=fault), generated_installation_shell('rpm', fault=fault, extra=extra) as (command, env, _):
++                evidence = {'commands': []}
++                result = drill.run_command(evidence, 'installed-client', command, env=env, timeout=5)
++                self.assertEqual(result.returncode, 23 if fault else 0)
++                self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt(expected))
++        evidence = {'commands': []}
++        result = drill.run_command(evidence, 'installed-client', [sys.executable, '-c', 'print("ordinary output")'])
++        self.assertEqual(result.returncode, 0)
++        self.assertEqual(evidence['commands'][0].get('installed_phase_events'), self.phase_receipt([]))
++        drill.run_command(evidence, 'other-command', [sys.executable, '-c', 'print("ordinary output")'])
++        self.assertNotIn('installed_phase_events', evidence['commands'][1])
++
++    def test_installed_output_limit_remains_authoritative(self):
++        drill = load(); evidence = {'commands': []}
++        with generated_installation_shell('rpm', noise=10000) as (command, env, _):
++            with self.assertRaisesRegex(RuntimeError, 'output limit'):
++                drill.run_command(evidence, 'installed-client', command, env=env, timeout=5, maximum=4096)
++        record = evidence['commands'][0]
++        self.assertTrue(record['output_limit'])
++        self.assertLessEqual(record['output_size'], 4096)
++        self.assertIn('installed_phase_events', record)
++
+     def test_https_normal_response_has_authenticated_tls_eof(self):
+         """Exercise the actual fixture server with strict OpenSSL EOF handling."""
+         drill = load()
