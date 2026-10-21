@@ -1,0 +1,20 @@
+{
+  "head_sha": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "run_id": 39618754568,
+  "run_attempt": 1,
+  "conclusion": "success",
+  "source_sha_in_each_checkout_or_deploy_log": true,
+  "origin_ready": "2026-10-21T14:42:44.6885685Z origin_ready domain=origin-docs.githubim.com attempt=1 paths=5 bypass=wukongim.github.io",
+  "cdn_accepted": "2026-10-21T14:43:02.9413025Z Alibaba CDN refresh accepted: task_id=33642451940 request_id=01A15EEA-65C9-5F8C-A6AA-6E0D71F4EA55 urls=4",
+  "cdn_global_completion_verified": false,
+  "artifact_upload_log": [
+    "2026-10-21T14:41:38.7177733Z Artifact github-pages successfully finalized. Artifact ID 12354231514",
+    "2026-10-21T14:41:38.7178975Z Artifact github-pages has been successfully uploaded! Final size is 42444763 bytes. Artifact ID is 12354231514"
+  ],
+  "artifact_downloaded": false,
+  "artifact_api_read": {
+    "exit": 1,
+    "stderr_sha256": "46dab93c160afcde7dbd3acb2cc684ff0f06afe67efff2a84cffd2ecd7b75e8f",
+    "raw_stderr_public": false
+  }
+}

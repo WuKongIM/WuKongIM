@@ -1,0 +1,258 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 86b87fe..4bb4634 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -9,6 +9,8 @@
+ - Retain verified stable RPM payloads across supplied snapshot base URLs so DNF
+   can finish a download when its mirrorlist changes between metadata and package
+   requests, with exact source/content checks and unchanged signed metadata.
++- Correct TEST ONLY DNF cache persistence to include the actual repository cache
++  while retaining separate installroot state and strict metadata-read checks.
+ 
+ - Add explicit stable audit sealing with fresh source/control verification and offline composite transport planning; keep stable disabled and production publication unconnected.
+ 
+diff --git a/docs/stable-audit-transport.md b/docs/stable-audit-transport.md
+index 82a258e..29a27fa 100644
+--- a/docs/stable-audit-transport.md
++++ b/docs/stable-audit-transport.md
+@@ -164,8 +164,13 @@ cover both supported by-hash algorithms without forcing a client hash choice.
+ Request logs expose the actual URLs, response digests and cache conditionals.
+ Separate cases cover persistent caches and missing/corrupt retained objects,
+ TLS rejection, redirect escape, interrupted responses, and exact-target/source
+-identity rejection. Installed CLI containers use ordinary distro dependency
+-networking and only the already authenticated local product package; that
++identity rejection. RPM cache cases persist the final CLI cache/state paths and
++the earlier installroot paths in separate scratch directories: the pinned DNF
++versions initialize their global state before reapplying command-line paths to
++the repository cache. A state file alone does not count as metadata. Repeated
++cache acceptance still requires unchanged metadata bytes and inode plus an
++observed read after timestamp arming. Installed CLI containers use ordinary
++distro dependency networking and only the already authenticated local product package; that
+ traffic is not part of the isolated A/B proof.
+ 
+ The driver records and removes only its own container/network IDs. Controlled
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index f59b901..1a57bbe 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -423,11 +423,30 @@ def fixture_user():
+ 
+ 
+ def cache_mounts(family):
+-    """DNF's cachedir and persistdir are both relative to its explicit installroot."""
++    """Keep DNF's early installroot state and final CLI cache directories distinct."""
+     require(family in ('apt', 'rpm'), 'invalid cache family')
+     return ([('apt', '/var/lib/apt'), ('apt-cache', '/var/cache/apt')] if family == 'apt' else
+             [('dnf-cache', '/tmp/client-root/tmp/dnf-cache'),
+-             ('dnf-state', '/tmp/client-root/tmp/dnf-state')])
++             ('dnf-state', '/tmp/client-root/tmp/dnf-state'),
++             ('dnf-cli-cache', '/tmp/dnf-cache'), ('dnf-cli-state', '/tmp/dnf-state')])
++
++
++def cache_client_command(command, cache, family):
++    """Add only owned cache binds, preserving the native client body and options."""
++    require(command[:2] == ['docker', 'run'], 'cache mounts require an explicit Docker run')
++    result = list(command)
++    additions = []
++    for name, destination in cache_mounts(family):
++        # Replace an existing tmpfs only at this exact bind destination.
++        index = 0
++        while index < len(result) - 1:
++            if result[index] == '--tmpfs' and result[index + 1].startswith(destination + ':'):
++                del result[index:index + 2]
++            else:
++                index += 1
++        additions += ['--volume', str(cache / name) + ':' + destination + ':rw']
++    result[2:2] = additions
++    return result
+ 
+ 
+ def cache_inventory(root, *, arm=False):
+@@ -457,7 +476,8 @@ def cache_inventory(root, *, arm=False):
+ def cache_evidence(before, after, *, require_reuse):
+     def metadata(name):
+         return (name.startswith('apt/lists/') and '/partial/' not in name
+-                or name.startswith('dnf-cache/') and ('/repodata/' in name or name.endswith(('.solv', '.solvx'))))
++                or name.startswith(('dnf-cache/', 'dnf-cli-cache/'))
++                and ('/repodata/' in name or name.endswith(('.solv', '.solvx'))))
+     present = [name for name in after if metadata(name)]
+     require(present, 'persistent cache did not contain nonempty metadata')
+     reads = [name for name in present if name in before and after[name]['atime_ns'] > 1
+@@ -771,16 +791,10 @@ def exercise(args, evidence, owned):
+                     if cache is not None:
+                         cache.mkdir(exist_ok=True); cache.chmod(0o777)
+                         apt = 'WK_REPOSITORY_URL=https://packages.githubim.com/apt' in command
+-                        mounts = cache_mounts('apt' if apt else 'rpm')
+-                        for name, destination in mounts:
++                        family = 'apt' if apt else 'rpm'
++                        for name, _ in cache_mounts(family):
+                             directory = cache / name; directory.mkdir(exist_ok=True); directory.chmod(0o777)
+-                            # Replace an existing tmpfs at this exact destination.
+-                            index = 0
+-                            while index < len(command) - 1:
+-                                if command[index] == '--tmpfs' and command[index + 1].startswith(destination + ':'):
+-                                    del command[index:index+2]
+-                                else: index += 1
+-                            additions += ['--volume', str(directory) + ':' + destination + ':rw']
++                        command = cache_client_command(command, cache, family)
+                     command[2:2] = additions
+                 identifier = create(command)
+                 result = run_command(evidence, 'installed-client' if installed else 'download-client',
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 9895198..03a901e 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -178,28 +178,134 @@ class NativeStableClientsTests(unittest.TestCase):
+                          lambda *args: (_ for _ in ()).throw(RuntimeError('interrupted')))
+         self.assertFalse(owned.cleanup()['verified'])
+ 
+-    def test_cache_uses_installroot_mounts_and_proves_reads_of_existing_metadata(self):
++    def test_cache_covers_early_installroot_and_final_cli_paths_without_mixing_state(self):
+         drill = load()
+         self.assertEqual(drill.cache_mounts('rpm'), [('dnf-cache', '/tmp/client-root/tmp/dnf-cache'),
+-                                                   ('dnf-state', '/tmp/client-root/tmp/dnf-state')])
++                                                   ('dnf-state', '/tmp/client-root/tmp/dnf-state'),
++                                                   ('dnf-cli-cache', '/tmp/dnf-cache'),
++                                                   ('dnf-cli-state', '/tmp/dnf-state')])
++        self.assertEqual(drill.cache_mounts('apt'), [('apt', '/var/lib/apt'), ('apt-cache', '/var/cache/apt')])
++        with self.assertRaisesRegex(RuntimeError, 'cache family'):
++            drill.cache_mounts('other')
++
++    def test_cache_command_composes_real_clients_without_changing_native_parameters(self):
++        drill = load()
++        validator = drill.module('scripts/validate-production-package-clients.py')
+         with tempfile.TemporaryDirectory() as tmp:
+-            root = Path(tmp)
+-            with self.assertRaisesRegex(RuntimeError, 'nonempty metadata'):
+-                drill.cache_evidence({}, {}, require_reuse=False)
+-            path = root / 'dnf-cache/repo/repodata/primary.xml.gz'
+-            path.parent.mkdir(parents=True); path.write_bytes(b'existing authenticated metadata')
+-            before = drill.cache_inventory(root, arm=True)
+-            # Merely observing the same file a second time is not reuse.
+-            after = drill.cache_inventory(root)
+-            with self.assertRaisesRegex(RuntimeError, 'read of existing metadata'):
+-                drill.cache_evidence(before, after, require_reuse=True)
+-            before = drill.cache_inventory(root, arm=True)
+-            path.read_bytes()  # Actual OS read, not a mocked timestamp.
+-            after = drill.cache_inventory(root)
+-            value = drill.cache_evidence(before, after, require_reuse=True)
+-            self.assertEqual(value['metadata_reads'], ['dnf-cache/repo/repodata/primary.xml.gz'])
+-            self.assertEqual(value['before'], before)
+-            self.assertEqual(value['after'], after)
++            root = Path(tmp); certificate = root / 'public.asc'; certificate.write_bytes(b'public certificate')
++            bootstrap = root / 'bootstrap'; bootstrap.write_bytes(b'bootstrap input')
++            for family in ('apt', 'rpm'):
++                with self.subTest(family=family), mock.patch.object(validator, '_host_ca_bundle', return_value=certificate):
++                    command = validator.stable_client_command('fixed-image', root, certificate, family, bootstrap)
++                    destinations = [destination for _, destination in drill.cache_mounts(family)]
++                    command[2:2] = ['--tmpfs', destinations[-1] + ':rw,size=1m',
++                                    '--tmpfs', destinations[-1] + '-other:rw,size=1m']
++                    original = list(command)
++                    cache = root / ('cache-' + family)
++                    value = drill.cache_client_command(command, cache, family)
++                    self.assertEqual(command, original)
++                    self.assertFalse(cache.exists(), 'command assembly must not touch host files')
++                    self.assertEqual(value[-4:], original[-4:])
++                    self.assertEqual(value[:2], ['docker', 'run'])
++                    wanted = [str(cache / name) + ':' + destination + ':rw'
++                              for name, destination in drill.cache_mounts(family)]
++                    volumes = [value[i + 1] for i, token in enumerate(value[:-1]) if token == '--volume']
++                    self.assertEqual([item for item in volumes if item.startswith(str(cache) + '/')], wanted)
++                    self.assertEqual(len({item.split(':')[0] for item in wanted}), len(wanted))
++                    self.assertNotIn('/var/run/docker.sock', str(value))
++                    self.assertIn(destinations[-1] + '-other:rw,size=1m', value)
++                    kept = []; index = 0
++                    while index < len(original):
++                        if (original[index] == '--tmpfs'
++                                and original[index + 1].split(':', 1)[0] in destinations):
++                            index += 2
++                        else:
++                            kept.append(original[index]); index += 1
++                    without_new_binds = []; index = 0
++                    while index < len(value):
++                        if value[index] == '--volume' and value[index + 1] in wanted:
++                            index += 2
++                        else:
++                            without_new_binds.append(value[index]); index += 1
++                    self.assertEqual(without_new_binds, kept)
++            with self.assertRaisesRegex(RuntimeError, 'Docker run'):
++                drill.cache_client_command(['docker', 'exec'], root, 'rpm')
++
++    def test_cache_metadata_accepts_only_native_forms_under_the_two_cache_roots(self):
++        drill = load()
++        accepted = [prefix + suffix for prefix in ('dnf-cache/', 'dnf-cli-cache/')
++                    for suffix in ('repo/repodata/primary.xml.gz', 'repo.solv', 'repo-filelists.solvx')]
++        rejected = ['dnf-cache/expired_repos.json', 'dnf-cli-cache/expired_repos.json',
++                    'dnf-cli-cache/packages/product.rpm', 'dnf-cli-cache/log.txt',
++                    'dnf-state/repo/repodata/primary.xml.gz', 'dnf-cli-state/repo.solv',
++                    'dnf-cli-cache-other/repo.solv', 'apt/lists/partial/Packages']
++        for name in accepted + rejected:
++            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
++                root = Path(tmp); path = root / name
++                path.parent.mkdir(parents=True); path.write_bytes(b'nonempty candidate metadata')
++                after = drill.cache_inventory(root)
++                if name in accepted:
++                    self.assertFalse(drill.cache_evidence({}, after, require_reuse=False)['reuse_required'])
++                else:
++                    with self.assertRaisesRegex(RuntimeError, 'nonempty metadata'):
++                        drill.cache_evidence({}, after, require_reuse=False)
++        with self.assertRaisesRegex(RuntimeError, 'nonempty metadata'):
++            drill.cache_evidence({}, {}, require_reuse=False)
++
++    def test_cache_proves_actual_reads_and_rejects_replaced_or_unread_metadata(self):
++        drill = load()
++        for prefix in ('dnf-cache', 'dnf-cli-cache'):
++            with self.subTest(prefix=prefix), tempfile.TemporaryDirectory() as tmp:
++                root = Path(tmp); name = prefix + '/repo/repodata/primary.xml.gz'; path = root / name
++                path.parent.mkdir(parents=True); path.write_bytes(b'existing authenticated metadata')
++                before = drill.cache_inventory(root, arm=True)
++                # Merely observing the same file a second time is not reuse.
++                after = drill.cache_inventory(root)
++                with self.assertRaisesRegex(RuntimeError, 'read of existing metadata'):
++                    drill.cache_evidence(before, after, require_reuse=True)
++                before = drill.cache_inventory(root, arm=True)
++                path.read_bytes()  # Actual OS read, not a mocked timestamp.
++                after = drill.cache_inventory(root)
++                value = drill.cache_evidence(before, after, require_reuse=True)
++                self.assertEqual(value['metadata_reads'], [name])
++                self.assertEqual(value['before'], before)
++                self.assertEqual(value['after'], after)
++                for field in ('device', 'inode', 'sha256', 'size', 'atime_ns', 'absent-before', 'removed'):
++                    with self.subTest(field=field):
++                        earlier, later = copy.deepcopy(before), copy.deepcopy(after)
++                        if field == 'absent-before': earlier.clear()
++                        elif field == 'removed': later.clear()
++                        elif field == 'atime_ns': later[name][field] = 1
++                        elif field == 'sha256': later[name][field] = 'f' * 64
++                        else: later[name][field] += 1
++                        with self.assertRaises(RuntimeError):
++                            drill.cache_evidence(earlier, later, require_reuse=True)
++
++    def test_cache_new_roots_keep_inventory_guards_and_owned_removal(self):
++        drill = load()
++        for mutation in ('symlink', 'hardlink', 'oversized', 'empty'):
++            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as tmp:
++                root = Path(tmp); path = root / 'dnf-cli-cache/repo/repodata/primary.xml.gz'
++                path.parent.mkdir(parents=True); path.write_bytes(b'metadata')
++                if mutation == 'symlink': (path.parent / 'link').symlink_to(path)
++                elif mutation == 'hardlink': os.link(path, path.parent / 'link')
++                elif mutation == 'oversized':
++                    with path.open('r+b') as stream: stream.truncate(64 * 1024 * 1024 + 1)
++                else: path.write_bytes(b'')
++                if mutation == 'empty':
++                    self.assertEqual(drill.cache_inventory(root), {})
++                    with self.assertRaisesRegex(RuntimeError, 'nonempty metadata'):
++                        drill.cache_evidence({}, drill.cache_inventory(root), require_reuse=False)
++                else:
++                    with self.assertRaises(RuntimeError): drill.cache_inventory(root)
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); cache = root / 'owned'; cache.mkdir()
++            sentinel = root / 'sentinel'; sentinel.write_bytes(b'keep')
++            for name, _ in drill.cache_mounts('rpm'):
++                child = cache / name; child.mkdir(); (child / 'content').write_bytes(b'cache')
++            self.assertEqual(drill.cache_operation(cache, 'remove'), {'remaining': []})
++            self.assertEqual(list(cache.iterdir()), [])
++            self.assertEqual(sentinel.read_bytes(), b'keep')
+ 
+     def test_installed_negative_commands_preserve_install_and_original_acceptance(self):
+         drill = load()

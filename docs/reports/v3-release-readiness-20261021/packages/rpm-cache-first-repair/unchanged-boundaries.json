@@ -1,0 +1,52 @@
+{
+  "blocks": {
+    "OwnedDocker": {
+      "after_sha256": "a467749fa50f65a164a4afca0478e9c6b21c76dc4f92e97f6db64e3d5889047a",
+      "before_sha256": "a467749fa50f65a164a4afca0478e9c6b21c76dc4f92e97f6db64e3d5889047a",
+      "unchanged": true
+    },
+    "cache_evidence": {
+      "after_sha256": "6e06b1bdcab0f3807c2b08a4b3c1b28509132fb9664ea2ef337a1c58544e43d2",
+      "before_sha256": "30c4fd80e1d0af957ab54ac2bd2fe6d4e4e1b80c0df3d04d10f59508713a23df",
+      "unchanged": false
+    },
+    "cache_helper_command": {
+      "after_sha256": "58acb2d8489d4162bed439c643b265cb2ea65a7c2ab7d4797772288e65ea8389",
+      "before_sha256": "58acb2d8489d4162bed439c643b265cb2ea65a7c2ab7d4797772288e65ea8389",
+      "unchanged": true
+    },
+    "cache_inventory": {
+      "after_sha256": "e7c77534e013f0e2efb1d045b7dbe384d6e0d767a683eb30c2ad8e151b2b7f9f",
+      "before_sha256": "e7c77534e013f0e2efb1d045b7dbe384d6e0d767a683eb30c2ad8e151b2b7f9f",
+      "unchanged": true
+    },
+    "cache_operation": {
+      "after_sha256": "16d7268821e111895098e321b5a42f10cb2a66ec0b291e95e04645fab8c54c3a",
+      "before_sha256": "16d7268821e111895098e321b5a42f10cb2a66ec0b291e95e04645fab8c54c3a",
+      "unchanged": true
+    },
+    "run_command": {
+      "after_sha256": "81b06fb97bfa67ca3ac5ccac4f9b259268cd5eb20625bfae2bd3463520a0c9f0",
+      "before_sha256": "81b06fb97bfa67ca3ac5ccac4f9b259268cd5eb20625bfae2bd3463520a0c9f0",
+      "unchanged": true
+    },
+    "verify_apt_by_hash_fault": {
+      "after_sha256": "2b069a219908f2c9ec53c809513c8f19a4ae80c6e74f576b66403dfc2640035a",
+      "before_sha256": "2b069a219908f2c9ec53c809513c8f19a4ae80c6e74f576b66403dfc2640035a",
+      "unchanged": true
+    },
+    "verify_rpm_requests": {
+      "after_sha256": "949f15a812d330f47a93fa17c0f11f65aec2c9cd5a7fdf0553aad8d10a55e9d0",
+      "before_sha256": "949f15a812d330f47a93fa17c0f11f65aec2c9cd5a7fdf0553aad8d10a55e9d0",
+      "unchanged": true
+    }
+  },
+  "cache_evidence_only_change": "accepted cache root prefix tuple",
+  "changed_paths": [
+    "CHANGELOG.md",
+    "docs/stable-audit-transport.md",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "production_validator_unchanged": true
+}

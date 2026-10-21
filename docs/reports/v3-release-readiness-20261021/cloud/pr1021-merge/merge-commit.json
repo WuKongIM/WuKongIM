@@ -1,0 +1,40 @@
+{
+  "sha": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "node_id": "C_kwDOJgfwydoAKGFlYjQ1YzIxNjRiNmE1MDIxNDkyOGY1MjBlZGQyYTg4MTViN2E5NzY",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "author": {
+    "name": "WuKongIM",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T14:39:25Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-21T14:39:25Z"
+  },
+  "tree": {
+    "sha": "74bf373cd2e8cbfd9c64834af3344f0fab36d05d",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/74bf373cd2e8cbfd9c64834af3344f0fab36d05d"
+  },
+  "message": "Merge pull request #1021 from WuKongIM/codex/v3-rc-systemd-job\n\nfix: handle empty systemd Job during cloud readiness",
+  "parents": [
+    {
+      "sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/e30299fa59ea6669ea71024eabe209840f241f19",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/e30299fa59ea6669ea71024eabe209840f241f19"
+    },
+    {
+      "sha": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/ff0aa096fe1bd125be70fc1844b2f45cc7f0115e"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq2M6dCRC1aQ7uu5UhlAAAlXgQAH4eQefC3HL/sbea2qNZ90Ft\nYeh909iRvv7AA3gdkUwx4h0ml2ENo+9xmDlC87nZru8+AZ8SJlXt24wCUqHAzwPr\nrfmiUXytTTsRjIc6muFxYGAQvTWhlf7SqrqMTN3Yl8APTq08+Md6N1NhchU7Z6Lk\nVphYC/u23nSoFib7py/RqO4w9GM27nX20C0lCMzeCje/7ZVw4bn1etI/KQqvoWTb\ncx77Q9l/JsHqLJEpH/ZZFujLrhkhN9vwuteuR610TYDNxM3WVs8rUFMW4H9L3+V8\nzB+9DN/X82WHtet+9ip3Iqsfv2F5L0IsUzW0etQszGlYBOyz/LhfF0CKq5hsTcsE\nBimNCcABpdwAhgqwXFGwGWj3MAlredRaAUNIaVZ9QPrm6a68qPV7leU4FmN78GFa\nLmycsfovKQFV1fXYi1YpkD5iS13EvW84xehfkk762L1FiF+FThAdeAMMpGCzhW5G\nt73DduZiZUJePNZIr2Ipyi/vBXKMEUGjX10wYUKFPUzl39m6BSodtyloKYDiQad+\nROWbeMEX67c096uuiIdsU14Fh1nUaOf1NLMfSWjLTtk4ncJTYtpVjVcl+bf7+eox\nmcJ+WInwe1CnfaUeox2wMHnSpbrzpHgo09VAjERfvgaYX1unLBg4K6/A/11ypK8S\ng2CSKtrE7V4FDb4idvcL\n=Mo3Y\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree 74bf373cd2e8cbfd9c64834af3344f0fab36d05d\nparent e30299fa59ea6669ea71024eabe209840f241f19\nparent ff0aa096fe1bd125be70fc1844b2f45cc7f0115e\nauthor WuKongIM <tangtaoit@githubim.com> 1792593565 +0800\ncommitter GitHub <noreply@github.com> 1792593565 +0800\n\nMerge pull request #1021 from WuKongIM/codex/v3-rc-systemd-job\n\nfix: handle empty systemd Job during cloud readiness",
+    "verified_at": "2026-10-21T14:39:25Z"
+  }
+}

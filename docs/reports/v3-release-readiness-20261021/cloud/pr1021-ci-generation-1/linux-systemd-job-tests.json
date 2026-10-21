@@ -1,0 +1,353 @@
+{
+  "expected_parser_cases": [
+    "TestChatLifecycleStageServiceStateContract/activating_empty_job",
+    "TestChatLifecycleStageServiceStateContract/active_empty_job",
+    "TestChatLifecycleStageServiceStateContract/blank_extra_line",
+    "TestChatLifecycleStageServiceStateContract/deactivating_queued_job",
+    "TestChatLifecycleStageServiceStateContract/decimal_not_octal",
+    "TestChatLifecycleStageServiceStateContract/decimal_zero",
+    "TestChatLifecycleStageServiceStateContract/duplicate_active_state",
+    "TestChatLifecycleStageServiceStateContract/duplicate_empty_job",
+    "TestChatLifecycleStageServiceStateContract/empty_active_state",
+    "TestChatLifecycleStageServiceStateContract/failed_empty_job",
+    "TestChatLifecycleStageServiceStateContract/inactive_empty_job",
+    "TestChatLifecycleStageServiceStateContract/inactive_queued",
+    "TestChatLifecycleStageServiceStateContract/inactive_zero",
+    "TestChatLifecycleStageServiceStateContract/missing_active_state",
+    "TestChatLifecycleStageServiceStateContract/missing_job",
+    "TestChatLifecycleStageServiceStateContract/negative_job",
+    "TestChatLifecycleStageServiceStateContract/reloading_zero_job",
+    "TestChatLifecycleStageServiceStateContract/reverse_unterminated_state",
+    "TestChatLifecycleStageServiceStateContract/secret_nondecimal_job",
+    "TestChatLifecycleStageServiceStateContract/too_many_digits",
+    "TestChatLifecycleStageServiceStateContract/uint32_max",
+    "TestChatLifecycleStageServiceStateContract/uint32_overflow",
+    "TestChatLifecycleStageServiceStateContract/unknown_field",
+    "TestChatLifecycleStageServiceStateContract/unterminated_extra_field",
+    "TestChatLifecycleStageServiceStateContract/unterminated_job",
+    "TestChatLifecycleStageServiceStateContract/whitespace_job"
+  ],
+  "expected_actual_loop_branches": [
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/SSH_read_failed",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/actual_deadline",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/classifier_rejected",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/duplicate_empty_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/missing_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/original_active_empty_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/start_failed",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary"
+  ],
+  "darwin_skips_now_linux_passes": [
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier"
+  ],
+  "all_pass": true,
+  "events": [
+    {
+      "Time": "2026-10-21T14:12:23.254287484Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/active_empty_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.282625052Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/activating_empty_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.311854522Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/reloading_zero_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.340500607Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/failed_empty_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.369051743Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/deactivating_queued_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.397990309Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/inactive_empty_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.426118686Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/inactive_zero",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.454918077Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/inactive_queued",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.484063323Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/uint32_max",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.512450053Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/decimal_zero",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.540733776Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/decimal_not_octal",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.569309338Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/unterminated_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.597875173Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/reverse_unterminated_state",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.625967697Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/missing_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.653782027Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/missing_active_state",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.681548344Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/empty_active_state",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.709777849Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/duplicate_active_state",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.737919351Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/duplicate_empty_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.765650025Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/secret_nondecimal_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.794170154Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/negative_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.822957933Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/whitespace_job",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.850967778Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/uint32_overflow",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.87900133Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/too_many_digits",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.907404653Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/unknown_field",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.936352942Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/unterminated_extra_field",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.964810975Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract/blank_extra_line",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T14:12:23.964827356Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleStageServiceStateContract",
+      "Elapsed": 0.74
+    },
+    {
+      "Time": "2026-10-21T14:18:44.915491265Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/start_failed",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T14:18:45.09539Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/SSH_read_failed",
+      "Elapsed": 0.18
+    },
+    {
+      "Time": "2026-10-21T14:18:45.282408731Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/classifier_rejected",
+      "Elapsed": 0.19
+    },
+    {
+      "Time": "2026-10-21T14:18:45.576440937Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T14:18:45.576949808Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight",
+      "Elapsed": 0.29
+    },
+    {
+      "Time": "2026-10-21T14:18:45.873788113Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T14:18:45.874397832Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime",
+      "Elapsed": 0.3
+    },
+    {
+      "Time": "2026-10-21T14:18:46.170487806Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T14:18:46.17102464Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary",
+      "Elapsed": 0.3
+    },
+    {
+      "Time": "2026-10-21T14:18:46.350080428Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/actual_deadline",
+      "Elapsed": 0.18
+    },
+    {
+      "Time": "2026-10-21T14:18:46.527932567Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/original_active_empty_job",
+      "Elapsed": 0.18
+    },
+    {
+      "Time": "2026-10-21T14:18:46.817239233Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job/summary_command_and_classifier",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T14:18:46.817753053Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job",
+      "Elapsed": 0.29
+    },
+    {
+      "Time": "2026-10-21T14:18:46.993940832Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/missing_job",
+      "Elapsed": 0.18
+    },
+    {
+      "Time": "2026-10-21T14:18:47.171673238Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/duplicate_empty_job",
+      "Elapsed": 0.18
+    },
+    {
+      "Time": "2026-10-21T14:18:47.171694247Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill",
+      "Elapsed": 2.35
+    }
+  ]
+}

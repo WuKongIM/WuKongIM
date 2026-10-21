@@ -1,0 +1,50 @@
+{
+  "command_index": 164,
+  "stage": "create-container",
+  "mounts": [
+    {
+      "flag": "--volume",
+      "value": "/tmp/wk-scl-lq_lg3kw/https/tls.crt:/test/ca.crt:ro"
+    },
+    {
+      "flag": "--volume",
+      "value": "/tmp/wk-scl-lq_lg3kw/cache-rocky-linux-9/dnf-cache:/tmp/client-root/tmp/dnf-cache:rw"
+    },
+    {
+      "flag": "--volume",
+      "value": "/tmp/wk-scl-lq_lg3kw/cache-rocky-linux-9/dnf-state:/tmp/client-root/tmp/dnf-state:rw"
+    },
+    {
+      "flag": "--tmpfs",
+      "value": "/tmp:rw,noexec,nosuid,nodev,size=256m"
+    },
+    {
+      "flag": "--tmpfs",
+      "value": "/var/log:rw,noexec,nosuid,nodev,size=32m"
+    },
+    {
+      "flag": "--volume",
+      "value": "/tmp/wk-scl-lq_lg3kw/download-rocky-linux-9-25:/downloads:rw"
+    },
+    {
+      "flag": "--volume",
+      "value": "/tmp/wk-scl-lq_lg3kw/fixtures/A/control/keys/rpm-stable.asc:/keys/rpm-stable.asc:ro"
+    },
+    {
+      "flag": "--tmpfs",
+      "value": "/var/cache/dnf:rw,noexec,nosuid,nodev,size=256m"
+    },
+    {
+      "flag": "--tmpfs",
+      "value": "/etc/pki/rpm-gpg:rw,noexec,nosuid,nodev,size=8m"
+    },
+    {
+      "flag": "--tmpfs",
+      "value": "/etc/yum.repos.d:rw,noexec,nosuid,nodev,size=8m"
+    },
+    {
+      "flag": "--volume",
+      "value": "/tmp/wk-scl-lq_lg3kw/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm:/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm:ro"
+    }
+  ]
+}

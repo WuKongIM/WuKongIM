@@ -1,0 +1,16 @@
+01-old-source-red.log
+02-related-green.log
+03-full-suite.log
+04-contracts.log
+before-implementation/tests/native_stable_clients_drill.py
+before-implementation/tests/test_native_stable_clients_drill.py
+failure-inventory.md
+final.patch
+report.md
+source/CHANGELOG.md
+source/docs/stable-audit-transport.md
+source/tests/native_stable_clients_drill.py
+source/tests/test_native_stable_clients_drill.py
+source-freeze.json
+tests-before-implementation.json
+unchanged-boundaries.json

@@ -1,0 +1,10 @@
+{
+  "log": "native-original-job-119259885255-api.log.gz",
+  "raw_size": 13475917,
+  "raw_sha256": "67d64da031dcb80ecd9c3bb55cd4db08297f3a10e2afdfdf32cd807d20fc74d5",
+  "lines": [
+    "2026-10-21T13:47:45.7880482Z HEAD is now at e245c27 Merge 97dd5976659f1b1f86dd9180ae7fe39b2392ff44 into 335cd2569d2b62de577916ed86c097fd3a22547e",
+    "2026-10-21T13:47:50.3149024Z HEAD is now at ed7e67d Merge pull request #861 from WuKongIM/codex/native-package-release-assets",
+    "2026-10-21T13:50:52.3718109Z native-package signed repository container validation passed"
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-21T13:48:18.866946+00:00",
+  "source_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-systemd-job",
+  "branch": "codex/v3-rc-systemd-job",
+  "source_files": {
+    "AGENTS.md": {
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    ".github/workflows/README.md": {
+      "size": 84251,
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5"
+    },
+    "docs/adr/0047-retain-one-lease-across-deployment-repair.md": {
+      "size": 3197,
+      "sha256": "6ae3d060cd9e619e2ad03c24eff1f61ea0719e838a8137316c7aba3804cf03da"
+    },
+    "scripts/chat-lifecycle/classify-stage-service-state.sh": {
+      "size": 711,
+      "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+    },
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": {
+      "size": 3911,
+      "sha256": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24"
+    },
+    "scripts/chat-lifecycle/stage-orchestrate.sh": {
+      "size": 48186,
+      "sha256": "0d202be2d48e61dccfeccf795c57cb35be427753486657a1ac7b0211d2fa3625"
+    },
+    "scripts/chat_lifecycle_preclock_diagnostic_test.go": {
+      "size": 3959,
+      "sha256": "a6da05ccde2247e5ee27715df2efbfd46014203f97c10973049d5c3104ff9583"
+    },
+    "scripts/chat_lifecycle_workflows_test.go": {
+      "size": 90073,
+      "sha256": "1313da32149fc1f7b082d271f5c9026b0bffc9ee837747e2fb6e8f0ffc730847"
+    },
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": {
+      "size": 13892,
+      "sha256": "288b13777186f6eff710313b092c98f7bc76eb55cba0d3a1be45ef497549cc5d"
+    },
+    ".github/review-agent/policy.json": {
+      "size": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    }
+  },
+  "applicable_FLOW": [],
+  "FLOW_discovery_note": "scripts/cloud-deployment/FLOW.md has scope:package and is a sibling, not applicable to scripts/chat-lifecycle or scripts test package; read for boundary only. No AGENTS/FLOW/CONTEXT in target directories. No runtime Go package analyzed.",
+  "diagnosis_skill_sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e",
+  "initial_status": "",
+  "evidence_references": {
+    "README.md": {
+      "sha256": "5de684a3571dec4efd547f08f2b8abeabc0329ce9f13bbb63d650b9d36ab64a5",
+      "size": 1500
+    },
+    "bounded-unit-read/remote-replay.json": {
+      "sha256": "cd7d0b5f433f20b43b57baa1efca80381034c6c0382b93366f9eb3f422dc0c35",
+      "size": 1953
+    },
+    "bounded-unit-read/unit.json": {
+      "sha256": "8aa394df11feebba25456fae9b89593f6ea83205560bb655c8e519af287b3507",
+      "size": 963
+    },
+    "bounded-unit-read/observation.json": {
+      "sha256": "4bf7a1b0c8603970fab8b08636e720fa285bdaf5340098293226b7eb205d1b4b",
+      "size": 2373
+    }
+  }
+}

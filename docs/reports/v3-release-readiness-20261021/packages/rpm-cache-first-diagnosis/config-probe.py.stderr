@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/probe/config-probe.py", line 20, in <module>
+    result['repo'].append({'id':r.id,'cachedir':r.cachedir,'persistdir':r.persistdir,'basecachedir':r.basecachedir if hasattr(r,'basecachedir') else None})
+  File "/usr/lib/python3.9/site-packages/dnf/conf/config.py", line 67, in __getattr__
+    option = getattr(self._config, name)
+AttributeError: 'ConfigRepo' object has no attribute 'cachedir'
+Exception ignored in: <function Base.__del__ at 0x7ffffc35d310>
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 131, in __del__
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 550, in close
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 534, in _finalize_base
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 249, in _store_persistent_data
+  File "/usr/lib/python3.9/site-packages/dnf/persistor.py", line 96, in save
+  File "/usr/lib/python3.9/site-packages/dnf/persistor.py", line 64, in _write_json_db
+NameError: name 'open' is not defined

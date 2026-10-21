@@ -1,0 +1,1007 @@
+{
+  "cases": [
+    {
+      "case": "plan",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "prepare",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "sign-apt",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "sign-rpm",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "compose",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "verify-after-secret-removal",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "archive-repeat",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "audit-create",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "audit-verify",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "extracted-verify",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "rejection_category": null
+    },
+    {
+      "case": "reject-apt-detached-receipt-integrity",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-signature-receipt-integrity"
+    },
+    {
+      "case": "reject-apt-cleartext-receipt-integrity",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-signature-receipt-integrity"
+    },
+    {
+      "case": "reject-deb-bytes",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-index-payload-integrity"
+    },
+    {
+      "case": "reject-rpm-bytes",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "rpm-payload-receipt-integrity"
+    },
+    {
+      "case": "reject-bootstrap-bytes",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "bootstrap-indexed-integrity"
+    },
+    {
+      "case": "reject-download-alias",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "bootstrap-download-integrity"
+    },
+    {
+      "case": "reject-apt-index",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-index-gzip-closure"
+    },
+    {
+      "case": "reject-apt-by-hash",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-by-hash-integrity"
+    },
+    {
+      "case": "reject-rpm-compressed-metadata",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "rpm-metadata-receipt-integrity"
+    },
+    {
+      "case": "reject-apt-gzip",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-index-gzip-closure"
+    },
+    {
+      "case": "reject-source-anchor",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "external-source-asset-anchor"
+    },
+    {
+      "case": "reject-control-anchor",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "external-control-plan-anchor"
+    },
+    {
+      "case": "reject-next-key-receipt-integrity",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-signature-receipt-integrity"
+    },
+    {
+      "case": "reject-next-key-crypto",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-exact-current-signer"
+    },
+    {
+      "case": "reject-wrong-family-key-receipt-integrity",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-signature-receipt-integrity"
+    },
+    {
+      "case": "reject-wrong-family-key-crypto",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "apt-untrusted-signature"
+    },
+    {
+      "case": "reject-rpm-signed-repomd-integrity",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "rpm-repomd-receipt-integrity"
+    },
+    {
+      "case": "reject-archive-plan",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "archive-plan-external-anchor"
+    },
+    {
+      "case": "reject-default-verifier",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "preview-verifier-control-schema"
+    },
+    {
+      "case": "reject-default-audit",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "preview-audit-plan-schema"
+    },
+    {
+      "case": "reject-default-transport",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "rejection_category": "preview-only-transport-scope"
+    }
+  ],
+  "checked_in_control_unchanged": true,
+  "commands": [
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "plan",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "fa10a08f593e58e500a57cc1ff5952349133ac62c5c544964905d2bcf9cb909b",
+        "size": 3757
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "prepare",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "7a23e8e0713fa0b88e9d31ac6a101b96e1fe08913e9fb5035425366c5cdc532b",
+        "size": 729
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "sign-apt",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "2b9e90c865fb4f778e80803b970b75d2e5f529188795a7b26f940baa01a60177",
+        "size": 1055
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "sign-rpm",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "094f5ece19961e8e748a20c7f5acb8040365d05a2ccd0c7c55df0645709d3c90",
+        "size": 2268
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "compose",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "e29ba1cb032a67bc22fd463c0d857e107648faa914b9b5c25d4bec6071186931",
+        "size": 366
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "verify-after-secret-removal",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "a56ade5e956bed641dc7fe1976cc9b1bde4e77077d04e0bea27d7b9717c1e695",
+        "size": 358
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "archive-create",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "be57d15a4087323d250321ee3b2831012c1e94ced26c0a3ab249d2e0e227acff",
+        "size": 5217
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "archive-repeat",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "be57d15a4087323d250321ee3b2831012c1e94ced26c0a3ab249d2e0e227acff",
+        "size": 5217
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "audit-create",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "612c9fc815d25d448d3d54dc4610089fddf88dab7e5b4cf4b6af48bc5a2041be",
+        "size": 2624
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "audit-verify",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "612c9fc815d25d448d3d54dc4610089fddf88dab7e5b4cf4b6af48bc5a2041be",
+        "size": 2624
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "archive-inspect",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "be57d15a4087323d250321ee3b2831012c1e94ced26c0a3ab249d2e0e227acff",
+        "size": 5217
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "archive-extract",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "be57d15a4087323d250321ee3b2831012c1e94ced26c0a3ab249d2e0e227acff",
+        "size": 5217
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "extracted-verify",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "a56ade5e956bed641dc7fe1976cc9b1bde4e77077d04e0bea27d7b9717c1e695",
+        "size": 358
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-signature-receipt-integrity",
+      "stage": "reject-apt-detached-receipt-integrity",
+      "stderr": {
+        "sha256": "da9bdbb04a2a004b049d68adacf58150ba0cae97571aac70e37b781ee7995b3b",
+        "size": 129
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-signature-receipt-integrity",
+      "stage": "reject-apt-cleartext-receipt-integrity",
+      "stderr": {
+        "sha256": "259c5d8343a1972f1aeae81eaaa4f9ae4e2e3b9ac8ab323ed4af46ee27327d73",
+        "size": 125
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-index-payload-integrity",
+      "stage": "reject-deb-bytes",
+      "stderr": {
+        "sha256": "54096f04cff3171b2d243b989c9355bf5c2a56c2a9a86086733beca2ed954fa2",
+        "size": 105
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "rpm-payload-receipt-integrity",
+      "stage": "reject-rpm-bytes",
+      "stderr": {
+        "sha256": "213e0bf436d958ca581bcdced63aaf86fa837cd0f5ee4fe7eaa91e6f97cbdd99",
+        "size": 159
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "bootstrap-indexed-integrity",
+      "stage": "reject-bootstrap-bytes",
+      "stderr": {
+        "sha256": "cf167c4b4a4c1154c0d571abf2874c19fa11a73a0d0f9b02a67808cdfd9f3f6a",
+        "size": 101
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "bootstrap-download-integrity",
+      "stage": "reject-download-alias",
+      "stderr": {
+        "sha256": "8edaf3db85c25d2ae75bd8b46fcba1fdf6ab586b4303b6cf28e1bab1b3435de2",
+        "size": 101
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-index-gzip-closure",
+      "stage": "reject-apt-index",
+      "stderr": {
+        "sha256": "e2fb12069b3e1a7e9dbdf46f0203fba452eaa98970089fd4589e6b34a0b146ea",
+        "size": 83
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-by-hash-integrity",
+      "stage": "reject-apt-by-hash",
+      "stderr": {
+        "sha256": "e40181ff8c2abba9db29dedff15411a08d5e3b19a56898f9bc46d47a2a7ee36d",
+        "size": 117
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "rpm-metadata-receipt-integrity",
+      "stage": "reject-rpm-compressed-metadata",
+      "stderr": {
+        "sha256": "83cc3ddedf82640f7a14a47a0c8f958c244e2f0caf85c8dca6bd0537897c1979",
+        "size": 144
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-index-gzip-closure",
+      "stage": "reject-apt-gzip",
+      "stderr": {
+        "sha256": "e2fb12069b3e1a7e9dbdf46f0203fba452eaa98970089fd4589e6b34a0b146ea",
+        "size": 83
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "external-source-asset-anchor",
+      "stage": "reject-source-anchor",
+      "stderr": {
+        "sha256": "196e23f19b846f1086388f3bee1eb43be7f13cb7229585d42f098e847fda6aeb",
+        "size": 108
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "external-control-plan-anchor",
+      "stage": "reject-control-anchor",
+      "stderr": {
+        "sha256": "71d060b48d37ff89e1fc8e2a5964a3a7716acbb015f6695baf0fe263f92fe41b",
+        "size": 143
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-signature-receipt-integrity",
+      "stage": "reject-next-key-receipt-integrity",
+      "stderr": {
+        "sha256": "da9bdbb04a2a004b049d68adacf58150ba0cae97571aac70e37b781ee7995b3b",
+        "size": 129
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-exact-current-signer",
+      "stage": "reject-next-key-crypto",
+      "stderr": {
+        "sha256": "438ea46df479a097709bd4f7381345ad41dab93ce824c6197600504e8e9c1d13",
+        "size": 112
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-signature-receipt-integrity",
+      "stage": "reject-wrong-family-key-receipt-integrity",
+      "stderr": {
+        "sha256": "da9bdbb04a2a004b049d68adacf58150ba0cae97571aac70e37b781ee7995b3b",
+        "size": 129
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "apt-untrusted-signature",
+      "stage": "reject-wrong-family-key-crypto",
+      "stderr": {
+        "sha256": "2d6bf3471e196c30545e551ad6377d1581efffcea7845111df612ba38a831cdf",
+        "size": 93
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "rpm-repomd-receipt-integrity",
+      "stage": "reject-rpm-signed-repomd-integrity",
+      "stderr": {
+        "sha256": "948a94071684c44f84ab23365d34fcd54349fcf472a954ec9ab603367cc14ab0",
+        "size": 140
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "expected_rejection": false,
+      "program": "python3",
+      "rejection_category": null,
+      "stage": "archive-mutated-plan",
+      "stderr": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "stdout": {
+        "sha256": "f50d17dc39f5e268171a2e2fc81712c867e634fbf8813fa19f70b7c5eca1a513",
+        "size": 5217
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "archive-plan-external-anchor",
+      "stage": "reject-archive-plan",
+      "stderr": {
+        "sha256": "23022f667e3e6a26a2c24e9245bdfca5223c835b83867a629afdc56d74bfbf16",
+        "size": 108
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "preview-verifier-control-schema",
+      "stage": "reject-default-verifier",
+      "stderr": {
+        "sha256": "24d0226e789951b7d2e78185b8958156c81200f7690c4cb286520a08cb0a0608",
+        "size": 206
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "preview-audit-plan-schema",
+      "stage": "reject-default-audit",
+      "stderr": {
+        "sha256": "79b6293b52a7a19297645d8a578c14f3946417767f7f87e137df4178497814c0",
+        "size": 272
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    },
+    {
+      "exit_code": 1,
+      "expected_rejection": true,
+      "program": "python3",
+      "rejection_category": "preview-only-transport-scope",
+      "stage": "reject-default-transport",
+      "stderr": {
+        "sha256": "2af40127027990cbca864b0dabdcd222eb622317938aa41e6de9f31466dfb8e6",
+        "size": 85
+      },
+      "stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "timed_out": false
+    }
+  ],
+  "failure": null,
+  "finished_at_unix": 1792590530,
+  "input_control_files": {
+    "keys/README.md": {
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "size": 5439
+    },
+    "keys/apt-preview.asc": {
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "size": 6210
+    },
+    "keys/apt-stable.asc": {
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "size": 4772
+    },
+    "keys/rpm-preview.asc": {
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "size": 6210
+    },
+    "keys/rpm-stable.asc": {
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "size": 4772
+    },
+    "manifests/audit-access.json": {
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "size": 785
+    },
+    "manifests/bootstrap-packages.json": {
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "size": 96
+    },
+    "manifests/channels.json": {
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "size": 2579
+    },
+    "manifests/preview-signing.json": {
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "size": 1110
+    },
+    "manifests/signing-toolchain.json": {
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "size": 295
+    },
+    "manifests/source-read.json": {
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "size": 381
+    },
+    "manifests/stable-public-keys.json": {
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "size": 651
+    },
+    "manifests/trusted-toolchain.json": {
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "size": 898
+    }
+  },
+  "passed": true,
+  "payloads_executed": false,
+  "phase": "reject-changed-retained",
+  "production_keys_used": false,
+  "public_artifacts": {
+    "archive": {
+      "sha256": "fa625c15cceac2ca52e0697c13272f3aaefc277a3688c29103408ed455763ce7",
+      "size": 151552
+    },
+    "plan": {
+      "sha256": "fa10a08f593e58e500a57cc1ff5952349133ac62c5c544964905d2bcf9cb909b",
+      "size": 3757
+    },
+    "receipt": {
+      "sha256": "612c9fc815d25d448d3d54dc4610089fddf88dab7e5b4cf4b6af48bc5a2041be",
+      "size": 2624
+    },
+    "snapshot": {
+      "sha256": "b80509bd865bc25e5cdd1054c1167663e6c2f7bdf8b6954e29b42e8c30292f12",
+      "size": 5945
+    }
+  },
+  "published": false,
+  "schema": "wukongim/test-only-native-stable-candidate/v1",
+  "scratch_removed": true,
+  "secret_tree_removed_before_verification": true,
+  "source_provenance_verified": false,
+  "source_sha": "e245c2744e94dded5ebbd8911d503d28b6e7f151",
+  "started_at_unix": 1792590504,
+  "test_only": true,
+  "transport": {
+    "actual_stable_signatures_verified": true,
+    "asset_count": 2,
+    "candidate_bytes_preserved": true,
+    "plan": {
+      "sha256": "eed6770e5a5e2a60bf33216fa467af6527c9103ca2d3e6e93629f3d1557d0912",
+      "size": 52133
+    },
+    "preview_fixture": "structural-only",
+    "public_api_writes": false,
+    "request_methods": [
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "PATCH",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET"
+    ],
+    "source_provenance_verified": false
+  },
+  "transport_cases": [
+    {
+      "case": "stable-bind",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "1cbcd72b5e137cb122d038929e724d2c50d0bb8a1512447fa0abde71b1556804"
+    },
+    {
+      "case": "stable-seal",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "fcccbc1807ba43ed6a2e67c4a813be3e1df3ed9d2ad26b55ad19e3838b025bac"
+    },
+    {
+      "case": "stable-resolve",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "e2823e4a32e972e96320326fad82614be38596982f3fe71fc65ec4bc012ea4de"
+    },
+    {
+      "case": "composite-plan",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "74e608ec5994f4fd0ae6b244d46c7dd65b0b2a321c274a2d2cf54f3ee7706dac"
+    },
+    {
+      "case": "composite-repeat",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "74e608ec5994f4fd0ae6b244d46c7dd65b0b2a321c274a2d2cf54f3ee7706dac"
+    },
+    {
+      "case": "reject-test-without-optin",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "stderr_sha256": "115f4147773184e0d907208b93e151ee887f22d7b9dfe0640676ea41976083c3",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "composite-retained",
+      "exit_code": 0,
+      "expected_rejection": false,
+      "passed": true,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "65ddea2e4edb33439b03769000265098b4c41824c184fe59675c9581896d00bd"
+    },
+    {
+      "case": "reject-changed-retained",
+      "exit_code": 1,
+      "expected_rejection": true,
+      "passed": true,
+      "stderr_sha256": "2ca500592b419b56f633ae989bdf2d2a623618d554351a8a8b9e37421a030960",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

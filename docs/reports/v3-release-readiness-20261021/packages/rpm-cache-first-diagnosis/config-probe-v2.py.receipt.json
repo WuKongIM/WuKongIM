@@ -1,0 +1,103 @@
+{
+  "label": "cache-diagnosis-0c7607735e114fac88704d904ebfdcb3",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "create",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-cache-diagnosis-0c7607735e114fac88704d904ebfdcb3",
+        "--label",
+        "wk-stable-cache-diagnosis=cache-diagnosis-0c7607735e114fac88704d904ebfdcb3",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/config-probe-v2.py"
+      ],
+      "exit_code": 0,
+      "stdout": "ea5196d835ac62689dab931ba55dad419d6b3bbe12a57ce42741f67bec5d9dd2\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "wk-cache-diagnosis-0c7607735e114fac88704d904ebfdcb3"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/probe/config-probe-v2.py\", line 20, in <module>\n    result['repo'].append({'id':r.id,'native_cachedir':r._repo.getCachedir(),'native_persistdir':r._repo.getPersistdir(),'attributes':[key for key in dir(r._repo) if 'dir' in key.lower()]})\nAttributeError: 'Repo' object has no attribute 'getPersistdir'\nException ignored in: <function Base.__del__ at 0x7ffffc35c310>\nTraceback (most recent call last):\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 131, in __del__\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 550, in close\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 534, in _finalize_base\n  File \"/usr/lib/python3.9/site-packages/dnf/base.py\", line 249, in _store_persistent_data\n  File \"/usr/lib/python3.9/site-packages/dnf/persistor.py\", line 96, in save\n  File \"/usr/lib/python3.9/site-packages/dnf/persistor.py\", line 64, in _write_json_db\nNameError: name 'open' is not defined\n"
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-diagnosis=cache-diagnosis-0c7607735e114fac88704d904ebfdcb3"
+      ],
+      "exit_code": 0,
+      "stdout": "ea5196d835ac\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-cache-diagnosis\"}}",
+        "ea5196d835ac"
+      ],
+      "exit_code": 0,
+      "stdout": "/wk-cache-diagnosis-0c7607735e114fac88704d904ebfdcb3 cache-diagnosis-0c7607735e114fac88704d904ebfdcb3\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "ea5196d835ac"
+      ],
+      "exit_code": 0,
+      "stdout": "ea5196d835ac\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-diagnosis=cache-diagnosis-0c7607735e114fac88704d904ebfdcb3"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

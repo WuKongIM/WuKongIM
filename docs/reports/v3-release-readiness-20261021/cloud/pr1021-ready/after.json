@@ -1,0 +1,17 @@
+{
+  "number": 1021,
+  "state": "open",
+  "draft": false,
+  "mergeable": true,
+  "mergeable_state": "unstable",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/pull/1021",
+  "updated_at": "2026-10-21T14:34:23Z",
+  "head": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "base": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "observed_at": "2026-10-21T14:35:15.009511+00:00",
+  "ready_command_exit": 0,
+  "first_post_ready_graphql_read": {
+    "exit": 1,
+    "error": "Post https://api.github.com/graphql: EOF"
+  }
+}

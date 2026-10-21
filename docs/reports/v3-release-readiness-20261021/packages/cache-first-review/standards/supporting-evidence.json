@@ -1,0 +1,50 @@
+{
+  "base": "packages/rpm-cache-first-repair within readiness evidence root",
+  "files": [
+    {
+      "path": "report.md",
+      "sha256": "44d255ea681d587cc4d2da0dd269b50899b1980a68d75caec1d09c2a709bc230",
+      "size": 3842
+    },
+    {
+      "path": "failure-inventory.md",
+      "sha256": "7a24134335c3735446456b3ce41339e40aaa7b3278d86a0a15152190ad0ca45d",
+      "size": 2589
+    },
+    {
+      "path": "tests-before-implementation.json",
+      "sha256": "4a86cc3282ba267faf2deb599bbc14a6faecf75d403e1fd85c0d16cca13f675b",
+      "size": 378
+    },
+    {
+      "path": "unchanged-boundaries.json",
+      "sha256": "49cc26c8dfa0e5e512e2a4efc509a174275c17f8ae4465dfcdfde571dcb8126f",
+      "size": 2213
+    },
+    {
+      "path": "01-old-source-red.log",
+      "sha256": "933429b9883a81ab7247ebd9521a24c7b93293060319914059286c90ecb7aa38",
+      "size": 18045
+    },
+    {
+      "path": "02-related-green.log",
+      "sha256": "4788e73a1fb09e24915a1d0fba37b1c68c6072f72d3d0de56035347f5c6253b3",
+      "size": 13720
+    },
+    {
+      "path": "03-full-suite.log",
+      "sha256": "70eb982f4ff8de566fc7d68dadfc2ce940e165659932a6edb048efa1c74b09b3",
+      "size": 2240
+    },
+    {
+      "path": "04-contracts.log",
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6",
+      "size": 176
+    },
+    {
+      "path": "archive-sha256.json",
+      "sha256": "b260787708654a46ce3d3cd88c2a4ae118cb7c3bff24431673c326db5dc8128c",
+      "size": 3032
+    }
+  ]
+}

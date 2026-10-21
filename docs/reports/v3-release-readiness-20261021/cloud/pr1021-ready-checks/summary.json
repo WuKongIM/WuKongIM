@@ -1,0 +1,20 @@
+{
+  "schema": "wukongim.pr_ready_read/v1",
+  "read_utc": "2026-10-21T14:36:57.244189+00:00",
+  "head": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "new_run": {
+    "id": 39617990847,
+    "event": "pull_request",
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "conclusion": "success",
+    "created_at": "2026-10-21T14:34:25Z",
+    "updated_at": "2026-10-21T14:34:31Z",
+    "run_attempt": 1
+  },
+  "all_checks_terminal": true,
+  "failure_checks": [],
+  "original_ci_runs_unchanged": true,
+  "pr_mergeable_state_is_not_a_check_verdict": true,
+  "ready_event_action_observed_directly": false,
+  "ready_event_inference": "Only new PR Signal run appeared two seconds after ready mutation; source includes ready_for_review trigger. REST event field is pull_request and does not expose action."
+}

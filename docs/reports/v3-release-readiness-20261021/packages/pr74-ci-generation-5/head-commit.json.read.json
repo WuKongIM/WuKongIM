@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-21T14:26:43.600934+00:00",
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/git/commits/de43579a9fa88bf70f64e6dcd926a2ddf6057496"
+  ],
+  "exit_code": 0,
+  "stdout": {
+    "size": 1127,
+    "sha256": "9acad165bde5ff8b6eb9c2f4e21e43ee656fc3d7fd1aa16cdb3198faee8b5429"
+  },
+  "stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

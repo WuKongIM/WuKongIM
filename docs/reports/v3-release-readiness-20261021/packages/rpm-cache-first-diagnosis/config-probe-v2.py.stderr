@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/probe/config-probe-v2.py", line 20, in <module>
+    result['repo'].append({'id':r.id,'native_cachedir':r._repo.getCachedir(),'native_persistdir':r._repo.getPersistdir(),'attributes':[key for key in dir(r._repo) if 'dir' in key.lower()]})
+AttributeError: 'Repo' object has no attribute 'getPersistdir'
+Exception ignored in: <function Base.__del__ at 0x7ffffc35c310>
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 131, in __del__
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 550, in close
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 534, in _finalize_base
+  File "/usr/lib/python3.9/site-packages/dnf/base.py", line 249, in _store_persistent_data
+  File "/usr/lib/python3.9/site-packages/dnf/persistor.py", line 96, in save
+  File "/usr/lib/python3.9/site-packages/dnf/persistor.py", line 64, in _write_json_db
+NameError: name 'open' is not defined

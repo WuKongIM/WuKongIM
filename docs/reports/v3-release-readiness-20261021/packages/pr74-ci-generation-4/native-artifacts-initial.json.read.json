@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-21T13:53:56.164704+00:00",
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/runs/39611110638/artifacts"
+  ],
+  "exit_code": 0,
+  "stdout": {
+    "size": 2900,
+    "sha256": "6aca4c30d715982a287e08366b4b8a6df1cc16fa73efb2a224c71d8fb54cec74"
+  },
+  "stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

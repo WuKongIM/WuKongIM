@@ -1,0 +1,8 @@
+docker.io/library/almalinux@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e: Pulling from library/almalinux
+ef088ccc1026: Pulling fs layer
+ef088ccc1026: Verifying Checksum
+ef088ccc1026: Download complete
+ef088ccc1026: Pull complete
+Digest: sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e
+Status: Downloaded newer image for almalinux@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e
+docker.io/library/almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e

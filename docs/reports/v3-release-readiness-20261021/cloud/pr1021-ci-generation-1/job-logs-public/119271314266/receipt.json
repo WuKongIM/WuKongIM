@@ -1,0 +1,74 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119271314266/logs",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T14:18:04.405618+00:00",
+  "job_id": 119271314266,
+  "run_id": 39614360432,
+  "conclusion": "success",
+  "raw_bytes": 85937,
+  "raw_sha256": "ec9f42015e21e7f5151ac5ba07c7ae3df2346cee7def599d7e7055dbd4d7da22",
+  "public_bytes": 85666,
+  "public_sha256": "a43daa80e916e0988676d4d15d0092f7723449e519954b3e4b9869d46b8df774",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "size": 63,
+      "sha256": "a716451ed6b6ed4c91c2a87e6d5b6ccb8f7ff76a02b3e60d73c7d1b2ceda7384"
+    },
+    {
+      "line": 26,
+      "size": 52,
+      "sha256": "a2dce0e53b87bc52e4ba4ab24ad7dffcd5ba661efefb8c6d03e8e383324a5a5e"
+    },
+    {
+      "line": 40,
+      "size": 42,
+      "sha256": "28a104dae97041e3ccd0d540c33b2cb802ae7cf264e2706464f84097311dde94"
+    },
+    {
+      "line": 97,
+      "size": 211,
+      "sha256": "43842db5a7e7958e84cf0df30a7861382dfb5c7470b78bcaf9a49652096bea94"
+    },
+    {
+      "line": 305,
+      "size": 140,
+      "sha256": "30d0205b3f2dc63f939bf000990fa5855d697e99267a2b64c484fd5218a34708"
+    },
+    {
+      "line": 635,
+      "size": 42,
+      "sha256": "f53e60b217922ebb363d649d0017ac7e40d150af6164b4a315faec804cda0f97"
+    },
+    {
+      "line": 730,
+      "size": 76,
+      "sha256": "9a360b022ccdf2cf4a0748cb4dfe3bbdbbae780cab67c25a2b3fb37d8116711f"
+    },
+    {
+      "line": 731,
+      "size": 79,
+      "sha256": "d1e81a8544c6fbb36facd98b226bddfc8b477c9f357867447a4d3ad7df6b38b1"
+    },
+    {
+      "line": 732,
+      "size": 95,
+      "sha256": "57a628fd59e2f939253364d75dc608649c9e4203176f161d09d9e5fbcd45f234"
+    },
+    {
+      "line": 733,
+      "size": 79,
+      "sha256": "28d71ac5868cd37e7466518b40e3fdd3241831b7b943101293cc09bea6e1cd4a"
+    },
+    {
+      "line": 734,
+      "size": 85,
+      "sha256": "a437bf855787ce3da721ed93caefc975f4b980a2176beb781e8fc0ccb4412076"
+    }
+  ],
+  "synthetic_sha_present": true,
+  "head_sha_present": true
+}

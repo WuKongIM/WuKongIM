@@ -1,0 +1,63 @@
+{
+  "artifact": {
+    "id": 12351384266,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM1MTM4NDI2Ng==",
+    "name": "three-node-pr-1021-8cdee508fd2b5b5383e64a201e033d3ffef37ba0-1",
+    "size_in_bytes": 228926167,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12351384266",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12351384266/zip",
+    "expired": false,
+    "digest": "sha256:b8b31204235c86ceb9aa07388cd1c6f38efa1573d2d1a5af725f0b3dd51b61e0",
+    "created_at": "2026-10-21T14:14:17Z",
+    "updated_at": "2026-10-21T14:14:17Z",
+    "expires_at": "2026-10-28T14:14:01Z",
+    "workflow_run": {
+      "id": 39614360432,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-systemd-job",
+      "head_sha": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e"
+    }
+  },
+  "selected": [
+    {
+      "path": "artifacts/local-step.json",
+      "size": 835,
+      "sha256": "338f6bef3f152d5cea2598a6a5ad667bbbcb29290cf9d2854b8899da4a6bf4dc"
+    },
+    {
+      "path": "artifacts/report/final.json",
+      "size": 23503,
+      "sha256": "52a10cc9c4412831c5946ddd7d598f50f9705684fed03e731daa2101c31d1a18"
+    },
+    {
+      "path": "artifacts/report/qualification.json",
+      "size": 23437,
+      "sha256": "cf6cd6f04a455a78028219cc93cd7f640d87cf2779918734f9b92f4670883db9"
+    },
+    {
+      "path": "artifacts/report/run-start.json",
+      "size": 385,
+      "sha256": "f45d5ee6694a6d5e2ad9baf31b262cd71b1f97b9c704b3b91aa60081f0459129"
+    },
+    {
+      "path": "artifacts/report/worker-evidence.json",
+      "size": 584,
+      "sha256": "0293d82770d722dc09e6b3b05dc5973a38587b9ac007dd6dc4d08ad2c1b87e39"
+    },
+    {
+      "path": "host.json",
+      "size": 4483,
+      "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+    }
+  ],
+  "successfully_read_member_crc_verified_by_zipfile": true,
+  "full_archive_sha256_recomputed": false,
+  "full_archive_digest": "API declaration only",
+  "first_range_exit": 1,
+  "second_range_exit": 1,
+  "failures": "URLError while bounded GET; public redacted trace retained, raw stderr local 0600",
+  "first_range_budget_upper_bound_bytes": 12582912,
+  "readback_limit": "kernel/filesystem/graceful-stop metadata not retrieved; complete job log and final/local-step reports retained",
+  "no_binary_database_download": true
+}

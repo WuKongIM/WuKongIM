@@ -1,0 +1,300 @@
+{
+  "at": "2026-10-21T14:26:53.893794+00:00",
+  "groups": [
+    {
+      "path": "packages/rpm-cache-first-repair",
+      "files": [
+        {
+          "path": "01-old-source-red.log",
+          "size": 18045,
+          "sha256": "933429b9883a81ab7247ebd9521a24c7b93293060319914059286c90ecb7aa38"
+        },
+        {
+          "path": "02-related-green.log",
+          "size": 13720,
+          "sha256": "4788e73a1fb09e24915a1d0fba37b1c68c6072f72d3d0de56035347f5c6253b3"
+        },
+        {
+          "path": "03-full-suite.log",
+          "size": 2240,
+          "sha256": "70eb982f4ff8de566fc7d68dadfc2ce940e165659932a6edb048efa1c74b09b3"
+        },
+        {
+          "path": "04-contracts.log",
+          "size": 176,
+          "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+        },
+        {
+          "path": "before-implementation/tests/native_stable_clients_drill.py",
+          "size": 66272,
+          "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d"
+        },
+        {
+          "path": "before-implementation/tests/test_native_stable_clients_drill.py",
+          "size": 60420,
+          "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd"
+        },
+        {
+          "path": "failure-inventory.md",
+          "size": 2589,
+          "sha256": "7a24134335c3735446456b3ce41339e40aaa7b3278d86a0a15152190ad0ca45d"
+        },
+        {
+          "path": "final.patch",
+          "size": 16810,
+          "sha256": "35f2121c9aaf57ac6212fd2fb07062cda06d304ab7ac6707060b4227335f4821"
+        },
+        {
+          "path": "report.md",
+          "size": 3842,
+          "sha256": "44d255ea681d587cc4d2da0dd269b50899b1980a68d75caec1d09c2a709bc230"
+        },
+        {
+          "path": "source/CHANGELOG.md",
+          "size": 2594,
+          "sha256": "0bc712321b07f12d3ba4c74f1b2100410546c1fdbd798ef9c2858f0817fcf7c0"
+        },
+        {
+          "path": "source/docs/stable-audit-transport.md",
+          "size": 12245,
+          "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c"
+        },
+        {
+          "path": "source/tests/native_stable_clients_drill.py",
+          "size": 66724,
+          "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+        },
+        {
+          "path": "source/tests/test_native_stable_clients_drill.py",
+          "size": 60420,
+          "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 803,
+          "sha256": "d4d1568c49eeab820c95000c996fdc230533baa6b3d598a9f7f13e7e2984a7b4"
+        },
+        {
+          "path": "tests-before-implementation.json",
+          "size": 378,
+          "sha256": "4a86cc3282ba267faf2deb599bbc14a6faecf75d403e1fd85c0d16cca13f675b"
+        },
+        {
+          "path": "unchanged-boundaries.json",
+          "size": 2213,
+          "sha256": "49cc26c8dfa0e5e512e2a4efc509a174275c17f8ae4465dfcdfde571dcb8126f"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 1529,
+          "sha256": "91dedfd4d46878196141a9f6926cd8836dea2d3d7d2343d6639b73849060ba17"
+        },
+        {
+          "path": "ARCHIVE_ALLOWLIST.txt",
+          "size": 473,
+          "sha256": "de00dd549b59b404a72bd76a01920bea191edf4dd6bb12dc903149b5801c546d"
+        },
+        {
+          "path": "archive-sha256.json",
+          "size": 3032,
+          "sha256": "b260787708654a46ce3d3cd88c2a4ae118cb7c3bff24431673c326db5dc8128c"
+        }
+      ]
+    },
+    {
+      "path": "packages/cache-first-review/standards",
+      "files": [
+        {
+          "path": "ARCHIVE_ALLOWLIST.txt",
+          "size": 248,
+          "sha256": "a31e50c3d8f506c5a4af30b4e1b679c2fce21f3838e3a69bfaeedd217dadb18b"
+        },
+        {
+          "path": "checks.json",
+          "size": 10953,
+          "sha256": "b77f69b258a9ea0e870101647f98a432cf65d1db367ea491e2da51f546af48d3"
+        },
+        {
+          "path": "files/CHANGELOG.md",
+          "size": 2594,
+          "sha256": "0bc712321b07f12d3ba4c74f1b2100410546c1fdbd798ef9c2858f0817fcf7c0"
+        },
+        {
+          "path": "files/docs/stable-audit-transport.md",
+          "size": 12245,
+          "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c"
+        },
+        {
+          "path": "files/tests/native_stable_clients_drill.py",
+          "size": 66724,
+          "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+        },
+        {
+          "path": "files/tests/test_native_stable_clients_drill.py",
+          "size": 60420,
+          "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd"
+        },
+        {
+          "path": "report.md",
+          "size": 824,
+          "sha256": "9e79ead851f9f307f0e861c25caf031e33c595fdd24414c88388104cb11a678f"
+        },
+        {
+          "path": "review.patch",
+          "size": 16810,
+          "sha256": "35f2121c9aaf57ac6212fd2fb07062cda06d304ab7ac6707060b4227335f4821"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 2569,
+          "sha256": "c0bab2b1c27b2b5e55f8fb0e47d7dd49a4eb38893c59e7dc52c03c0f50d3bdb7"
+        },
+        {
+          "path": "supporting-evidence.json",
+          "size": 1481,
+          "sha256": "fbe190144d617580d63d5ce590b04a3aa9c75a5ca244c8b41c02d52d910e17c2"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 908,
+          "sha256": "b5bc852a2398f33edd1270b3d60b7db8079b40f798c7519a1cd0fc73d0b7a346"
+        }
+      ]
+    },
+    {
+      "path": "packages/cache-first-review/spec",
+      "files": [
+        {
+          "path": "probe-result.json",
+          "size": 5536,
+          "sha256": "28a7e184f9ca20c18cc524511409ec23baa37a72a036a1974a60fb77353f6f2d"
+        },
+        {
+          "path": "review.patch",
+          "size": 16810,
+          "sha256": "35f2121c9aaf57ac6212fd2fb07062cda06d304ab7ac6707060b4227335f4821"
+        },
+        {
+          "path": "spec-failure-inventory.md",
+          "size": 2589,
+          "sha256": "7a24134335c3735446456b3ce41339e40aaa7b3278d86a0a15152190ad0ca45d"
+        },
+        {
+          "path": "report.md",
+          "size": 545,
+          "sha256": "e3deffeca8761756726f3532094a64b2195effb738734751371aa753ba476fa3"
+        },
+        {
+          "path": "evidence.md",
+          "size": 9452,
+          "sha256": "157f6cedd59f7e94268011764871e057f2bd40d30453f1d435a41b8d54733311"
+        },
+        {
+          "path": "spec-proposal.md",
+          "size": 5317,
+          "sha256": "f3d1e305c5e22a618fb72b329629606f05db246048602ae955bacba6108b2c67"
+        },
+        {
+          "path": "evidence-sources.json",
+          "size": 1913,
+          "sha256": "b8120d332f1331a781cc065101e0f019d1066e70c88f1d04d6c4ddc81ed85b89"
+        },
+        {
+          "path": "probe.py",
+          "size": 5961,
+          "sha256": "00871ee2e314b432a8b3d832c464cd897de509cdefba35f29cd31a636ee6d59c"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 1410,
+          "sha256": "9d74f17bcc7fc45e0c379fd566a41b431bec70d1568536d8a09732caab5dc203"
+        },
+        {
+          "path": "manifest.json",
+          "size": 1864,
+          "sha256": "deaa329c7b09954cde59d0b77b771faa264265c7335d795afeaa983b5917ccd0"
+        },
+        {
+          "path": "review.json",
+          "size": 626,
+          "sha256": "cf5a1c813d2be2640c6d7b394e9c2f2580fae7ced7250a5ca8b3dc322a94fb82"
+        },
+        {
+          "path": "files/CHANGELOG.md",
+          "size": 2594,
+          "sha256": "0bc712321b07f12d3ba4c74f1b2100410546c1fdbd798ef9c2858f0817fcf7c0"
+        },
+        {
+          "path": "files/tests/test_native_stable_clients_drill.py",
+          "size": 60420,
+          "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd"
+        },
+        {
+          "path": "files/tests/native_stable_clients_drill.py",
+          "size": 66724,
+          "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f"
+        },
+        {
+          "path": "files/docs/stable-audit-transport.md",
+          "size": 12245,
+          "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c"
+        }
+      ]
+    },
+    {
+      "path": "packages/rpm-cache-first-delivery",
+      "files": [
+        {
+          "path": "commit-source-binding.json",
+          "size": 920,
+          "sha256": "4bd3609bb129e31d1a5a9f0f89ac330c8f89e5e45394d5b0ea492e2af28ef07c"
+        }
+      ]
+    },
+    {
+      "path": "cloud/post-systemd-repair-execution-options",
+      "files": [
+        {
+          "path": "ARCHIVE_ALLOWLIST.txt",
+          "size": 109,
+          "sha256": "2254cb78628cd4a569402bd13279de90d76f5ec2c96dd9da73fbd930d37e7481"
+        },
+        {
+          "path": "README.md",
+          "size": 8061,
+          "sha256": "cadd176e537851079365b422a459b12411524dd80dbca4fa661fbb062ca9b27c"
+        },
+        {
+          "path": "authority-helper-frozen.py",
+          "size": 41136,
+          "sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226"
+        },
+        {
+          "path": "options.json",
+          "size": 4731,
+          "sha256": "89a56804662d0ca33b83096cae363a026a5f705006244851517d531db7ea4e1f"
+        },
+        {
+          "path": "prepare-analysis.py",
+          "size": 5242,
+          "sha256": "201f937b4edc551d12c4681589a4baf0a46a068c30e58c6cf07abd33f2147d98"
+        },
+        {
+          "path": "source-excerpts.txt",
+          "size": 49878,
+          "sha256": "d4d38212529542a212ffa834ff5f7033b78e102b03c3ca1c3a75a7ffafd31d1a"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 2469,
+          "sha256": "3d7fb521089fa25f54602569d7e14c321a263ff41337e69f929413d67d85dce7"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 593,
+          "sha256": "64d386b351d6a28805aadf2bc7c0f11d6589ee8022f1ad273a13167bfdb708a2"
+        }
+      ]
+    }
+  ]
+}

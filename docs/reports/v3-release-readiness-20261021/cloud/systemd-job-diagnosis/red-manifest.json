@@ -1,0 +1,69 @@
+{
+  "at": "2026-10-21T13:58:29.426506+00:00",
+  "files": {
+    "red-bash3-default.jsonl": {
+      "size": 36198,
+      "sha256": "ba8172fa534070408c623ee49a2046a7344d93a395a72d3beb30d07409744863"
+    },
+    "red-bash3-default.receipt.json": {
+      "size": 4023,
+      "sha256": "dbd3e29b95d720cc73e7d220cae585e99ab5caa0465f7875690ae92f6a2401eb"
+    },
+    "red-bash3-default.stderr": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "red-bash3-integration.jsonl": {
+      "size": 54923,
+      "sha256": "9acb9f1f725860fc56e0bd725b104d39b9630228df2f3fd54adfa99a1cef46fb"
+    },
+    "red-bash3-integration.receipt.json": {
+      "size": 3694,
+      "sha256": "7b5f6f137f72a36cc85f2d49bab92d19de29ef42bbc193b1fa5b78f5269ac4df"
+    },
+    "red-bash3-integration.stderr": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "red-bash5-default.jsonl": {
+      "size": 37607,
+      "sha256": "5b3a7afa6a76dafa247d35e7328daca326eaba2346d3464b3ea828d891fe0184"
+    },
+    "red-bash5-default.receipt.json": {
+      "size": 4106,
+      "sha256": "9cd2fb4e3309b66d7087bfc56ba9d7cb3726951758850705ae5a23d6879201a0"
+    },
+    "red-bash5-default.stderr": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "red-bash5-integration.jsonl": {
+      "size": 71421,
+      "sha256": "fceecd0d11ca467adfc5edda50b20bc3e78e0f57b7abbc8362959d9b6433e89d"
+    },
+    "red-bash5-integration.receipt.json": {
+      "size": 3776,
+      "sha256": "f1f5fec650df8d35ea7a79d1ab7dc85a5d0fccf1c11e9eb93eab02338b9f1513"
+    },
+    "red-bash5-integration.stderr": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run-focused.py": {
+      "size": 3101,
+      "sha256": "b8114de6abc9a77801c9fd7cc6d96f1096d063a428dc9e4da83c85455b866cf0"
+    },
+    "tests-before-code/chat_lifecycle_preclock_capture_integration_test.go": {
+      "size": 15560,
+      "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+    },
+    "tests-before-code/chat_lifecycle_stage_state_test.go": {
+      "size": 5021,
+      "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+    },
+    "tests-before-code/freeze.json": {
+      "size": 805,
+      "sha256": "2ce8df8d52c36bf6c5e3c782300d6355d6bc01450eca3ff1a692b08ccabcb19f"
+    }
+  }
+}

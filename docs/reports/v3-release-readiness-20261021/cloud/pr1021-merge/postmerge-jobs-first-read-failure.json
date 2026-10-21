@@ -1,0 +1,6 @@
+{
+  "operation": "read jobs after completed run",
+  "exit_code": 1,
+  "stderr_retained": false,
+  "workflow_rerun": false
+}

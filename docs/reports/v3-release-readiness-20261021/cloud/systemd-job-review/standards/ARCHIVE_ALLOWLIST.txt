@@ -1,0 +1,12 @@
+ARCHIVE_ALLOWLIST.txt
+checks.json
+files/CHANGELOG.md
+files/docs/development/PROJECT_KNOWLEDGE.md
+files/scripts/chat-lifecycle/classify-stage-service-state.sh
+files/scripts/chat-lifecycle/pre-clock-diagnostic.py
+files/scripts/chat_lifecycle_preclock_capture_integration_test.go
+files/scripts/chat_lifecycle_stage_state_test.go
+report.md
+review.patch
+source-freeze.json
+tracked-diff.patch

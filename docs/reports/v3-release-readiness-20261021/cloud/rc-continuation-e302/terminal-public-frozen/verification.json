@@ -1,0 +1,73 @@
+{
+  "accepted_run_start_evidence_present": false,
+  "actual_bills": "unknown",
+  "artifact_names_do_not_prove_handoff": true,
+  "cleanup_handoff_named_members_identical": true,
+  "combined_quote_reserve_micros": 148955200,
+  "continuation_evidence_files_verified": 18,
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "current_quote_micros": 74477600,
+  "diagnostic": {
+    "before_kill": true,
+    "branch": "stage_state_parse_failed",
+    "classifier_exit": 1,
+    "elapsed_after_start_seconds": 7,
+    "job_value": "empty",
+    "safe_original_state_sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524",
+    "start_exit": 0,
+    "state_read_exit": 0,
+    "unit_state": "active/running"
+  },
+  "excluded_public_archive_members": [
+    "attempt-2/deployment-ssh-config",
+    "attempt-2/deployment-ssh-config.known_hosts"
+  ],
+  "formal_qualification_started": false,
+  "limits": [
+    "Original first-attempt cause remains unknown.",
+    "No workload run-start was accepted; no 2h/72h/capacity/recovery pass.",
+    "This offline verifier checks retained API artifact bytes and identity closure; no new live OIDC/provider call.",
+    "No bill amount or provider settlement is established by Quote reserves."
+  ],
+  "original_reserve_micros": 74477600,
+  "pass": true,
+  "rehearsal_attempt": 2,
+  "release_run_id": 39609951023,
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "schema": "wukongim.rc_continuation_terminal_verification/v1",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "terminal_artifacts": [
+    12350665875,
+    12350640944,
+    12350665865,
+    12350421112
+  ],
+  "top_conclusion": "failure",
+  "top_run_id": 39605452697,
+  "zero_inventory": {
+    "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+    "observed_at": "2026-10-21T13:40:52.048097405Z",
+    "scopes": [
+      "disk_attachments",
+      "disks",
+      "eip_associations",
+      "eips",
+      "enis",
+      "instances",
+      "nat_gateways",
+      "route_entries",
+      "security_group_rules",
+      "security_groups",
+      "vpcs",
+      "vswitches"
+    ],
+    "selector": {
+      "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+      "plan_digest": "e75273c61c954136f5c146aa62ced1b5ba6e2889090e007f553d2330535473e6",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "request_id": "chat-20261021T095421Z-cf11d65c"
+    }
+  }
+}

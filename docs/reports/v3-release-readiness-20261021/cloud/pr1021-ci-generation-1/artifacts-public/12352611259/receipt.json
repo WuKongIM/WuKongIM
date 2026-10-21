@@ -1,0 +1,33 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/artifacts/12352611259/zip",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T14:18:17.935140+00:00",
+  "artifact": {
+    "id": 12352611259,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM1MjYxMTI1OQ==",
+    "name": "v3-candidate-default-39614359934-1",
+    "size_in_bytes": 8241,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12352611259",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12352611259/zip",
+    "expired": false,
+    "digest": "sha256:2a7ea94327b3fa4e6bc5f55e6c78e98717c7b90110bca4865b8dac5442040f61",
+    "created_at": "2026-10-21T14:16:57Z",
+    "updated_at": "2026-10-21T14:16:57Z",
+    "expires_at": "2026-11-04T14:16:56Z",
+    "workflow_run": {
+      "id": 39614359934,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-systemd-job",
+      "head_sha": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e"
+    }
+  },
+  "observed_bytes": 8241,
+  "observed_sha256": "2a7ea94327b3fa4e6bc5f55e6c78e98717c7b90110bca4865b8dac5442040f61",
+  "zip_crc_pass": true,
+  "member_count": 6,
+  "retained_count": 6
+}

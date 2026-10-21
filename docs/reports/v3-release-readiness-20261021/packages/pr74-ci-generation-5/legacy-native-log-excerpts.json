@@ -1,0 +1,10 @@
+{
+  "path": "legacy-native-job.log",
+  "size": 13475175,
+  "sha256": "0d1b435561cbfd46ab669e61f396c8122381b2ffe2c6cedd58c40a5affbfadf7",
+  "excerpts": [
+    "2026-10-21T14:25:07.4021153Z HEAD is now at fcbf46a Merge de43579a9fa88bf70f64e6dcd926a2ddf6057496 into 335cd2569d2b62de577916ed86c097fd3a22547e",
+    "2026-10-21T14:25:07.8706384Z Ran 4 tests in 0.002s",
+    "2026-10-21T14:28:51.6912195Z native-package signed repository container validation passed"
+  ]
+}

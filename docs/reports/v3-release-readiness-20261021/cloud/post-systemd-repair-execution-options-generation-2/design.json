@@ -1,0 +1,34 @@
+{
+  "schema": "wukongim.cloud_rc.downward_budget_design/v1",
+  "status": "design_only_NO_GO_with_fixed_fc182",
+  "recommended_input": {
+    "name": "request_budget_limit_micros",
+    "type": "string",
+    "default": "1500000000",
+    "strict_range": "150000000 < H <= 1500000000",
+    "operational_stop_derivation": "S = H - 150000000",
+    "example_future_H": "1351044800",
+    "example_future_S": "1201044800",
+    "explicit_zero_valid": false
+  },
+  "existing_public_fields_only": [
+    "RunPlan.operational_stop_micros",
+    "RunPlan.lease_plan.budget.limit_micros",
+    "RunPlan.lease_plan.budget.operational_stop_micros",
+    "RunPlan.lease_plan.budget.committed_micros",
+    "DeploymentPlan.budget",
+    "existing root-only WK_CHAT_BUDGET_* environment"
+  ],
+  "new_cross_request_proof": false,
+  "new_ledger_or_scheduler": false,
+  "new_stage_transition_schema_required": false,
+  "carry_mechanism": "Authenticate existing full rehearsal RunPlan/Receipt; derive formal budget from that exact Plan; compare all consumers instead of adding cross-request prior authority.",
+  "legacy_continuation": "default envelope only; existing proof schema and predecessor/stop/fences unchanged",
+  "historical_reserve_micros": 148955200,
+  "reserve_is_bill": false,
+  "actual_bill": "unknown",
+  "future_product_change_required": true,
+  "future_source_selection_authorized": false,
+  "future_paid_start_authorized": false,
+  "no_go_reason": "fc182 wkcli builds from product source and its native immutable runtime guard rejects lower caps even if all control code changes."
+}

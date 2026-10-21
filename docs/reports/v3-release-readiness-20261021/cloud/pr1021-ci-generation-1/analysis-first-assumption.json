@@ -1,0 +1,8 @@
+{
+  "script_sha256": "9866beb4edfb3a143073b33b380bf2581ad699f29bb9677f6f70736c7df992f0",
+  "assertion": "All E2E events must be neither fail nor skip",
+  "outcome": "audit assertion failed, not CI failure",
+  "actual_skip": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+  "actual_diagnostic": "set WK_E2E_REPLICA_LOAD_COMPARISON=1 to compare the bounded 2/2 and 3/3 2,000 QPS profiles",
+  "correction": "Record the existing opt-in skip separately; never count it as passed"
+}

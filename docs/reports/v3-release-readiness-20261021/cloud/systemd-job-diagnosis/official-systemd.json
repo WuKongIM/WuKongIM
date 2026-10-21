@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-21T13:50:34.383347+00:00",
+  "version": "v255",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/systemd/systemd/v255/src/systemctl/systemctl-show.c",
+      "sha256": "10a1d6f67193f29a30d89ee95148f998ec9a86ab8c74c4f748cbb652b47d74cb",
+      "bytes": 114227,
+      "first_line": 1111,
+      "last_line": 1123,
+      "excerpt": "systemctl-show.c.excerpt.txt"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/systemd/systemd/v255/src/systemctl/systemctl.c",
+      "sha256": "414cc8b074f00235eae88bd1a39253f689e8ca2819289ffb5f8390528d4d5b48",
+      "bytes": 68763,
+      "first_line": 615,
+      "last_line": 619,
+      "excerpt": "systemctl.c.excerpt.txt"
+    }
+  ],
+  "dbus_contract": "https://www.freedesktop.org/software/systemd/man/255/org.freedesktop.systemd1.html#Properties",
+  "dbus_facts": "Unit.Job is (uo); u is uint32; job ID is zero when no job is scheduled or running."
+}

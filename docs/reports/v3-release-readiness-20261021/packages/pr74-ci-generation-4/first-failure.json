@@ -1,0 +1,477 @@
+{
+  "attempt": 1,
+  "cache_cleanup": [
+    {
+      "cache": "cache-ubuntu-24.04",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    },
+    {
+      "cache": "cache-debian-13",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    },
+    {
+      "cache": "cache-rocky-linux-9",
+      "result": {
+        "remaining": []
+      },
+      "verified": true
+    }
+  ],
+  "cleanup": {
+    "creation_attempts": {
+      "containers": [
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-1",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-10",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-11",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-12",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-13",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-14",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-15",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-16",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-17",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-18",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-19",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-2",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-20",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-21",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-22",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-23",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-24",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-25",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-26",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-27",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-28",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-29",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-3",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-30",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-31",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-32",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-33",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-34",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-35",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-36",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-37",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-38",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-39",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-4",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-40",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-41",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-42",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-43",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-44",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-45",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-46",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-47",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-48",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-49",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-5",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-50",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-51",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-52",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-53",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-54",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-55",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-56",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-57",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-6",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-7",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-8",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-9"
+      ],
+      "networks": [
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029"
+      ]
+    },
+    "discovered": {
+      "containers": [
+        "38427b895f59acc7621d864490f48e526cec7bc0fa5493af9ce86932b6584c18",
+        "764671d075099a0e96607082a07feb5a7ad0f03e35c63050ec136be379de3029",
+        "b472faf83043ce3fe68c73107694539336f9045cfe69370b81856d05a8a4b380"
+      ],
+      "networks": []
+    },
+    "errors": [],
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "commands": [
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "25e4d8b3a79f1a245e46841afb119f364fea16c2b4fea60fa9890dd2b9b27979"
+      ],
+      "elapsed_seconds": 1.493,
+      "exit_code": 0,
+      "index": 161,
+      "output_limit": false,
+      "output_sha256": "671f0dffca3c2465b6bd40adeeb264f412296481788d9be39c9e69ac0dfb3d38",
+      "output_size": 1070,
+      "output_tail": "warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\n/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: digests signatures OK\nImporting GPG key 0x0033CE9C:\n Userid     : \"WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>\"\n Fingerprint: 3F3C 626E 3F8C CFF8 4135 83BC 16A2 7C08 0033 CE9C\n From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable\nImporting GPG key 0x0033CE9C:\n Userid     : \"WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>\"\n Fingerprint: 3F3C 626E 3F8C CFF8 4135 83BC 16A2 7C08 0033 CE9C\n From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable\n/downloads/wukongim_3.0.0_linux_amd64.rpm: digests signatures OK\n",
+      "stage": "download-client",
+      "timed_out": false
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "87107b6f5bd03b214929672ba0e5583742df1601b63db31b64979a6781350ae3"
+      ],
+      "elapsed_seconds": 0.15,
+      "exit_code": 0,
+      "index": 163,
+      "output_limit": false,
+      "output_sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "output_size": 3,
+      "output_tail": "{}\n",
+      "stage": "cache-arm",
+      "timed_out": false
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "8fc2a89b439d7fd619363482c63b284998cd61000a6415971c446ab6d047713d"
+      ],
+      "elapsed_seconds": 1.433,
+      "exit_code": 0,
+      "index": 165,
+      "output_limit": false,
+      "output_sha256": "671f0dffca3c2465b6bd40adeeb264f412296481788d9be39c9e69ac0dfb3d38",
+      "output_size": 1070,
+      "output_tail": "warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY\n/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: digests signatures OK\nImporting GPG key 0x0033CE9C:\n Userid     : \"WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>\"\n Fingerprint: 3F3C 626E 3F8C CFF8 4135 83BC 16A2 7C08 0033 CE9C\n From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable\nImporting GPG key 0x0033CE9C:\n Userid     : \"WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>\"\n Fingerprint: 3F3C 626E 3F8C CFF8 4135 83BC 16A2 7C08 0033 CE9C\n From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable\n/downloads/wukongim_3.0.0_linux_amd64.rpm: digests signatures OK\n",
+      "stage": "download-client",
+      "timed_out": false
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "ae4e0dfb708c7bf74861d487323f8459c9a2c06d0e8aa8f1117422dcc77895a7"
+      ],
+      "elapsed_seconds": 0.143,
+      "exit_code": 0,
+      "index": 167,
+      "output_limit": false,
+      "output_sha256": "dc9984002580d1a0e58ac886f20481255c829a6035a795d630b2a2dd8a945cd4",
+      "output_size": 214,
+      "output_tail": "{\"dnf-cache/expired_repos.json\":{\"atime_ns\":1792590905627454455,\"device\":66305,\"inode\":9448642,\"mtime_ns\":1792590906261913468,\"sha256\":\"581a18a5e115a639f6a39d6210c53c27bdff9cb843d0c301530dac8bdde07956\",\"size\":19}}\n",
+      "stage": "cache-inventory",
+      "timed_out": false
+    }
+  ],
+  "executed": 24,
+  "exercise_failure": "persistent cache did not contain nonempty metadata",
+  "failure": "persistent cache did not contain nonempty metadata",
+  "first_failure": {
+    "case": "rocky-linux-9-cache-A-first",
+    "expected_rejection": false,
+    "passed": false
+  },
+  "first_failure_number": 24,
+  "head": "97dd5976659f1b1f86dd9180ae7fe39b2392ff44",
+  "job_id": 119259884842,
+  "passed": 23,
+  "previous_switch_case": {
+    "case": "rocky-linux-9-A-to-B-request-barrier",
+    "expected_rejection": false,
+    "passed": true,
+    "result": {
+      "cache": null,
+      "download": {
+        "filename": "wukongim_3.0.0_linux_amd64.rpm",
+        "sha256": "157bc7e2a669875e53009dd8f5f6dd00642c942360e6ea85efc171ac0ab55ec0",
+        "size": 38398460,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      },
+      "requests": [
+        {
+          "cache_control": "no-store",
+          "etag": "\"68ce641cc41031f594f3ef4e438f486a548b51bc4f489d0a0373455761e4fe21\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "68ce641cc41031f594f3ef4e438f486a548b51bc4f489d0a0373455761e4fe21",
+          "size": 147,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"766b4f1ae59344a61996bcad80b112db05533ff98eb79049c90784e76de4e519\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "766b4f1ae59344a61996bcad80b112db05533ff98eb79049c90784e76de4e519",
+          "size": 1352,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"f72b3146a550c15c3935f37714393159163b14d8f1388d39f5e758c85b123295\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "f72b3146a550c15c3935f37714393159163b14d8f1388d39f5e758c85b123295",
+          "size": 659,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"766b4f1ae59344a61996bcad80b112db05533ff98eb79049c90784e76de4e519\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "766b4f1ae59344a61996bcad80b112db05533ff98eb79049c90784e76de4e519",
+          "size": 1352,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"f72b3146a550c15c3935f37714393159163b14d8f1388d39f5e758c85b123295\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "f72b3146a550c15c3935f37714393159163b14d8f1388d39f5e758c85b123295",
+          "size": 659,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"caf67dca11a38e99acfca819811ac6c9877eda31b1dc4712543638e64f8ee696\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "caf67dca11a38e99acfca819811ac6c9877eda31b1dc4712543638e64f8ee696",
+          "size": 405,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"12c9e2e9f87a5fb3f578698af1e24fd37c2e8530ae340e0f09c8bdbbb5dd8eb4\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "12c9e2e9f87a5fb3f578698af1e24fd37c2e8530ae340e0f09c8bdbbb5dd8eb4",
+          "size": 1004,
+          "status": 200
+        },
+        {
+          "cache_control": "no-store",
+          "etag": "\"44a10e92cc8c92cb8e1c983c99ec8f0b25108d40a197b68afe16354915a10ad2\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "44a10e92cc8c92cb8e1c983c99ec8f0b25108d40a197b68afe16354915a10ad2",
+          "size": 147,
+          "status": 200
+        },
+        {
+          "cache_control": "public, max-age=31536000, immutable",
+          "etag": "\"157bc7e2a669875e53009dd8f5f6dd00642c942360e6ea85efc171ac0ab55ec0\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "rpm-switch",
+          "path": "/snapshots/stable/r4243-b74f3f977bf329eb2429620b0ea053dfbfefaf167c39269880695a798ff0272d/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+          "response_write_completed": true,
+          "serial": 24,
+          "sha256": "157bc7e2a669875e53009dd8f5f6dd00642c942360e6ea85efc171ac0ab55ec0",
+          "size": 38398460,
+          "status": 200
+        }
+      ],
+      "rpm_requests": {
+        "metadata_paths": [
+          "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+          "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+          "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+          "/snapshots/stable/r4242-9aaec9d5b0d2350e478ff320638e27fddf0d62d171181b02102eb05fb6e10302/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc"
+        ],
+        "payloads": [
+          {
+            "path": "/snapshots/stable/r4243-b74f3f977bf329eb2429620b0ea053dfbfefaf167c39269880695a798ff0272d/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+            "retained_alias": true,
+            "sha256": "157bc7e2a669875e53009dd8f5f6dd00642c942360e6ea85efc171ac0ab55ec0",
+            "size": 38398460,
+            "source": {
+              "audit_release_id": 4242,
+              "channel": "stable",
+              "member": "site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "reader_cleanup": {
+    "creation_attempts": {
+      "containers": [
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-1",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-10",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-11",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-12",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-13",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-14",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-15",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-16",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-17",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-18",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-19",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-2",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-20",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-21",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-22",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-23",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-24",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-25",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-26",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-27",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-28",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-29",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-3",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-30",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-31",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-32",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-33",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-34",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-35",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-36",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-37",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-38",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-39",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-4",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-40",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-41",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-42",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-43",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-44",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-45",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-46",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-47",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-48",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-49",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-5",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-50",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-51",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-52",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-53",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-54",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-6",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-7",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-8",
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029-9"
+      ],
+      "networks": [
+        "wk-scl-eb5bee517d12480488cfd10d80ab0029"
+      ]
+    },
+    "discovered": {
+      "containers": [
+        "ae4e0dfb708c7bf74861d487323f8459c9a2c06d0e8aa8f1117422dcc77895a7",
+        "8fc2a89b439d7fd619363482c63b284998cd61000a6415971c446ab6d047713d",
+        "87107b6f5bd03b214929672ba0e5583742df1601b63db31b64979a6781350ae3",
+        "25e4d8b3a79f1a245e46841afb119f364fea16c2b4fea60fa9890dd2b9b27979",
+        "97ab4407f265e72307553fc3d8992ce25541097ce1a9816e92b454d788c587c2",
+        "26a3537ac868dceff487f4a3f886195ba9092da7ba6278ca29cbb2ebaeffffa9",
+        "7d8e4766afbfdf810c3f79f85254c488d49089cb2dea6de30c55c603c6bc6afd",
+        "468ce793f368a415627f00ac304c9771819cb7d0b312f15b49b1350344551ccb",
+        "95bce4cd873b94e333ae2ef3b45af61bdd2ef69117dd13e64e57d31c297d0d93",
+        "0becd62c9d02adeee7367e2e31158c02f869cdc028c7a4d5254c22c845d27795",
+        "ab36326f2efbd6d5f84414747a965a6881f6c00b54906edbce5ac19e7bc85007",
+        "c7aab52f23c89f7c734e3ae550a1877907173d45d7bf34d21b921526eb83a5d6",
+        "2c465c39846e2ec91533eaeac4ff262fafd55674caa6bea73ab7d1b523a771e3",
+        "c53dbb60aac6b03d5822a03dce4794d250472447fea2c1781749941b6b30c064",
+        "a16ff332bb6967fc9abd51f34b946fe3c131f2293c8b4c001e300a996200ccd2",
+        "b7a15492f93cf4414cc47317752f623e0e195c95ad43aeb4154d93b213cc4d64",
+        "4c57085c6ce53d274a589dca48e4754a5d233971ec3b3faa1fc5c0d8b449070c",
+        "3fb097343aff616bd33d946bea4829528647302c3da4394f5210bc32856cc5ca",
+        "8aeca7bdbc7df83310da9322944ab0670e6dda7e33a0c2ad8d1abbe59fbcc578",
+        "15e8a0c1933b1cbac881dd2f8ea2e4475c39065f028fc6a65a4492eb245243a1",
+        "7e7df77a5f0d1a1f0b29c4715c7e3fd0055d687bf23f536437eac3dd11600f51",
+        "39f4c70873d0948e744ab02bdfd7e0475c04ace4a57bc7a06baa6063c2b70fbc",
+        "d75d0837d62139acfaf479dbdeb3d34cec21e25ff7b7a006ae64fd537888759f",
+        "dceff9bb3623efa6e74429da3fac4e3dc74f353c4260f26d5c81e3645deb2ab9",
+        "57bb8dc62892d6c732acc0bc73df18f4d3463e1d9e84386cd1135d35f222fb72",
+        "f2e5e2b49749726e135b3001e3c91ef0e2bca2774d0a08df84cecd0d489f63b5",
+        "b93ee343564f76d7ba23f6419eb7f9f9120ba6739fff22fee52a529eb07afd63",
+        "181925df435b4fd6d361f7c89012bfc2bd55c4bb02003696eda2021c036d4d94",
+        "1d47e2dd9d2c862b109c600d14cb18a2503e7767c4f55420bf15985997cb7b44",
+        "57eff643b960fdd35788a31906f58473f68c342b5bf5f241c9a93d2505f878f7",
+        "546f9f9ef585a4a6d6601bb69849ce262cb7751cc815d344b049b2f2297617ca",
+        "2c0ba18e5b98a24290aa8bcb647d9978a64777dc0daa11b2a0a0d3b43da7d171",
+        "8a58d6e85c10237c7ca6585c50bc991c20f9b3252ae2c1652929bb1fe65747f2",
+        "c4fa19efd18740741c2cda8b14c6bfed64ea247f09685cb6c1c3b09d9e787268",
+        "2072a929084e7ead32078c187bf2c19c47fe8607da675317faf716ab498042da",
+        "4437bd24f2f32a1dfeb887dc65272ba6757b3db23fbc590b2ac832eaedf14105",
+        "a117481f0521bc275639fb663244683037a068629f153577e622dc5972c2dc52",
+        "ce776d7a98b10c415c6ea8fa4787f7908deb16ab31b74741bd234c538f78090a",
+        "7d5cbfb37bb957e1e3ccb3dbf51d67861d0a2dc6583eb7419e6d998fc3d1f9d1",
+        "ee127f2740b8587493340cc549479089b29cb137a10b5e2d1d83036a0f8b0c91",
+        "1e402f6b266d9f6e2046a155564e359217dbc13bcc6cac6e706a7f5df77672e8",
+        "b410cea5bd3ac850da188f709f47bd88661b6ecd8b3b766ff172f5cded4de844",
+        "eb60f1aaed59b0b31961057e487cb70b147fa0954cd730e332fda12fe53d1c24",
+        "d3a2b80b2a928cf4d2fcf040c376699d88ff8a32439047fadc156fb83cffa205",
+        "4f93706806ed63c5dca318ddc9809da8c2289cadf5c7b481d20102570e89d95b",
+        "c60b36b15df28985ed0ff49a76e3b89587444d45fd9888a081077b532faf6fd9",
+        "84659a36048ed2fb6f4e02f27fb0181cabb1a9fbd24d2b0a60ddd3cdc3d21211",
+        "c07e2717e96bbdcc9a18704a47f06c1b09f88f1f2c206eae2cc86bae49ffeb48",
+        "96facdb849678d09e9e263d12e22590bb87a9d65dd7d895d7cea587c95452e23",
+        "c55ecbcd595a5822bdecb322d73c3729e0a4a3cd99b46021198f790a2b26cca7",
+        "c92a4bd48f2d96b65a818de18725b4be5fd859fd40c4444aadf88f34d8c37b7b",
+        "c83b867c71a3bd9155bcfc86db1ebb5e7e9cc04e5528551a3d92434c99a124b4",
+        "465d2754af74088639c9f61674bb7f34aea950ab4d90edf20ecb6873929eabd1",
+        "a37280f61768695b5b740c9191ab7b18bd1c5f6d22dfd7f0b6a34b76c837a710"
+      ],
+      "networks": [
+        "ff183b3c65e3e3f45359b69e905832a1c860ec3d3c13f6fdeecce4a98b811bdb"
+      ]
+    },
+    "errors": [],
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "request_serial": 25,
+  "run_id": 39611110638,
+  "tree": "92f8835c1b61354f4b91ebdd70579b460e62482d"
+}

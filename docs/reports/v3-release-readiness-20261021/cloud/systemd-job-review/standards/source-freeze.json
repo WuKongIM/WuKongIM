@@ -1,0 +1,98 @@
+{
+  "at": "2026-10-21T14:06:00.598378+00:00",
+  "base": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "commits": [],
+  "untracked": [
+    "scripts/chat_lifecycle_stage_state_test.go"
+  ],
+  "source_files": [
+    {
+      "path": "scripts/chat-lifecycle/classify-stage-service-state.sh",
+      "size": 1246,
+      "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a",
+      "base_sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+    },
+    {
+      "path": "scripts/chat-lifecycle/pre-clock-diagnostic.py",
+      "size": 4064,
+      "sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c",
+      "base_sha256": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24"
+    },
+    {
+      "path": "scripts/chat_lifecycle_stage_state_test.go",
+      "size": 5021,
+      "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0",
+      "base_sha256": null
+    },
+    {
+      "path": "scripts/chat_lifecycle_preclock_capture_integration_test.go",
+      "size": 15560,
+      "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45",
+      "base_sha256": "288b13777186f6eff710313b092c98f7bc76eb55cba0d3a1be45ef497549cc5d"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "size": 189447,
+      "sha256": "726e525915378e347a9a79f6bc08eaaa02ca1cee6a1ea7aec20c388bf969b561",
+      "base_sha256": "96f092e7073d65a2beb8497931f1226bad551b6da11e4f70ec03f8142517ef21"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "size": 142443,
+      "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3",
+      "base_sha256": "8ed3a9a9f09907ef574a0ca64ac0bf61ec564694f4f240a7cf9cfc402e381c35"
+    }
+  ],
+  "author_manifest": {
+    "size": 1564,
+    "sha256": "fb37e6fd2c9e58c1d3a5c64b55754991b35f3f259dba645042c9a8cad85a23d4"
+  },
+  "review_patch": {
+    "size": 15316,
+    "sha256": "4a5d2ad1ce00fa05eb2ad36e8e744fc2c3b3c3dc2343b3f4832d9e2a3448399c"
+  },
+  "tracked_diff": {
+    "size": 9957,
+    "sha256": "1ffc5236e0f1adcb367e07f9ccc7a8bd2fe482370255011a58fc103da37cefcb"
+  },
+  "rules": [
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "size": 84251,
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+      "base_sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "size": 142443,
+      "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3",
+      "base_sha256": "8ed3a9a9f09907ef574a0ca64ac0bf61ec564694f4f240a7cf9cfc402e381c35"
+    },
+    {
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+      "size": 3197,
+      "sha256": "6ae3d060cd9e619e2ad03c24eff1f61ea0719e838a8137316c7aba3804cf03da",
+      "base_sha256": "6ae3d060cd9e619e2ad03c24eff1f61ea0719e838a8137316c7aba3804cf03da"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "size": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "base_sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "size": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "base_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    }
+  ],
+  "applicable_FLOW": [],
+  "FLOW_scope_note": "Only scripts/cloud-deployment/FLOW.md exists in scripts; scope package, sibling of target. docs/wiki/AGENTS.md is unrelated. Root AGENTS applies."
+}

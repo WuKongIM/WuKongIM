@@ -1,0 +1,68 @@
+{
+  "at": "2026-10-21T14:22:04.947404+00:00",
+  "base": "97dd5976659f1b1f86dd9180ae7fe39b2392ff44",
+  "commits": [],
+  "untracked": [],
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "0bc712321b07f12d3ba4c74f1b2100410546c1fdbd798ef9c2858f0817fcf7c0",
+      "size": 2594,
+      "base_sha256": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e"
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c",
+      "size": 12245,
+      "base_sha256": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f",
+      "size": 66724,
+      "base_sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd",
+      "size": 60420,
+      "base_sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e"
+    }
+  ],
+  "patch": {
+    "sha256": "35f2121c9aaf57ac6212fd2fb07062cda06d304ab7ac6707060b4227335f4821",
+    "size": 16810
+  },
+  "author_source_freeze": {
+    "sha256": "d4d1568c49eeab820c95000c996fdc230533baa6b3d598a9f7f13e7e2984a7b4",
+    "size": 803
+  },
+  "author_archive": {
+    "sha256": "b260787708654a46ce3d3cd88c2a4ae118cb7c3bff24431673c326db5dc8128c",
+    "size": 3032
+  },
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "size": 13284
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/README.md",
+      "sha256": "5277c2df505cc17522b8edf3f811b4a875e992a7a94dfaf6b6c4104fbd5567b8",
+      "size": 10554
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/docs/stable-audit-transport.md",
+      "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c",
+      "size": 12245
+    }
+  ],
+  "applicable_AGENTS_FLOW_in_checkout": [],
+  "root_AGENTS_applied_by_user": true
+}

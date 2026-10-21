@@ -1,0 +1,26 @@
+{
+  "source_root": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-continuation-e302/terminal/verified/attempt-2/pre-clock-generation-1",
+  "source_hashes": {
+    "diagnostic.json": "563efaa29e9bf6947b211eb3821a4f5bc84d46338bab15036c053e30c0b06f13",
+    "unit.json": "ce88e9fcc7ac02fe57553778409ce9c18dd819e7f1ac796642f8c53330bb60dc"
+  },
+  "raw": {
+    "size": 104,
+    "sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524"
+  },
+  "stage_filter": "printf '%s\\n' \"$SNAPSHOT\" | sed -E '/^(LoadState|SubState|Result|ExecMainCode|ExecMainStatus)=/d'",
+  "filtered": {
+    "size": 24,
+    "sha256": "1b5f3000f57a5c314e9369fd4c5551b03b6ee7f89ab171465eb7f0b74443f705",
+    "has_final_newline": true
+  },
+  "facts": {
+    "before_kill": true,
+    "state_command_exit": 0,
+    "classifier_exit": 1,
+    "elapsed_since_readiness_start_seconds": 7,
+    "cause": "Explicit empty systemd Job rejected by e302 classifier on Bash 5",
+    "applies_to": "run33 attempt1 generation1 only",
+    "does_not_explain": "run32"
+  }
+}

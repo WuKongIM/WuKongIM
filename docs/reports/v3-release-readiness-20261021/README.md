@@ -324,3 +324,16 @@ immutable publication and signed native-package public-client acceptance.
 
 - [本次已授权Stop/Release及exact零库存](cloud/rc-continuation-e302/zero-public-frozen/README.md)：13:40:52Z十二scope清零，未开始预演计时。
 - [RPM修复规范复核](packages/rpm-generation-switch-final-review/standards/report.md)、[行为复核](packages/rpm-generation-switch-final-review/spec/report.md)、[driver红绿结果](packages/rpm-generation-switch-driver-repair/report.md)及`packages/rpm-generation-switch-combined-validation/`：六文件97dd5976已推送，完整本地514项（1既有skip）+4合同绿，待Linux49项实跑。
+
+- [续跑完整终态](cloud/rc-continuation-e302/terminal-public-frozen/README.md)：初始active/running空Job失败链、无run-start、Stop/Release/12scope零库存与旧18proof闭包均验证。
+- [空Job六文件窄修及双壳红绿](cloud/systemd-job-diagnosis/README.md)：保留事故原104B/hash，未改变付费执行资格；独审和Linux验收待完成。
+- [#74 第四代首次CI](packages/pr74-ci-generation-4/README.md)：514+4与旧native通过，23/24新案例通过；Rocky跨代已恢复，首次cache metadata缺失仍阻塞49项。
+
+- [空Job双轴独审](cloud/systemd-job-review/combined-review.md)与`cloud/systemd-job-delivery/`：0 findings、独立56输入；ff0aa096已创建draft #1021，等待首次Linux CI，未批准合并或新付费启动。
+- [固定Rocky/Alma缓存路径诊断](packages/rpm-cache-first-diagnosis/proposal.md)：真实repo cache与early persistor路径分裂、CI漏bind，全部探针已清零；后续修复仍须真实49项验收。
+
+- [DNF缓存窄修](packages/rpm-cache-first-repair/report.md)与[双轴独审](packages/cache-first-review/combined-review.md)：de43579a、本地518+4、65相关用例通过；真实49项仍待第五代首次CI。
+- [下次执行预算边界](cloud/post-systemd-repair-execution-options/README.md)与[第二版设计](cloud/post-systemd-repair-execution-options-generation-2/README.md)：fc182不接受降低预算；保留历史reserve，42项失败矩阵与新候选依赖已记录，没有新采购。
+
+- [#1021 首次Linux CI](cloud/pr1021-ci-generation-1/README.md)、[ready补读](cloud/pr1021-ready-checks/README.md)及[经单独授权的合并交付](cloud/pr1021-merge/README.md)：aeb45c21同验收tree、原任务分支已清理、文档/5路径origin通过；4URL CDN受理不等于全edge完成。
+- [#74第五代首次CI](packages/pr74-ci-generation-5/README.md)：518+4/旧native通过，新24项中23通过，DNF下载已通过但cache helper拒绝未记录stat的文件，清理全部零。

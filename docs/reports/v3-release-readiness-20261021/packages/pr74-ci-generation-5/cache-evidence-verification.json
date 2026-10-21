@@ -1,0 +1,48 @@
+{
+  "verified_executed_cache_cases": [
+    {
+      "case": "ubuntu-24.04-cache-A-first",
+      "reuse_required": false,
+      "metadata_reads": [],
+      "metadata_after_count": 2
+    },
+    {
+      "case": "ubuntu-24.04-cache-A-repeat",
+      "reuse_required": true,
+      "metadata_reads": [
+        "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+        "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+      ],
+      "metadata_after_count": 2
+    },
+    {
+      "case": "ubuntu-24.04-cache-B-target",
+      "reuse_required": false,
+      "metadata_reads": [],
+      "metadata_after_count": 2
+    },
+    {
+      "case": "debian-13-cache-A-first",
+      "reuse_required": false,
+      "metadata_reads": [],
+      "metadata_after_count": 2
+    },
+    {
+      "case": "debian-13-cache-A-repeat",
+      "reuse_required": true,
+      "metadata_reads": [
+        "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+        "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+      ],
+      "metadata_after_count": 2
+    },
+    {
+      "case": "debian-13-cache-B-target",
+      "reuse_required": false,
+      "metadata_reads": [],
+      "metadata_after_count": 2
+    }
+  ],
+  "rpm_metadata_inventory": "not available; first inventory rejected an unsupported file",
+  "rpm_repeat_atime": "not reached"
+}

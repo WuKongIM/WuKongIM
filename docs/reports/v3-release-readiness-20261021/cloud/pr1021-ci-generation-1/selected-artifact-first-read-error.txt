@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261021/cloud/pr1021-ci-generation-1/read-selected-artifact.py", line 51, in <module>
+    path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(z.read(item));selected.append(item.filename)
+                                                                   ~~~~~~^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py", line 1602, in read
+    with self.open(name, "r", pwd) as fp:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py", line 1655, in open
+    fheader = zef_file.read(sizeFileHeader)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py", line 834, in read
+    data = self._file.read(n)
+  File "/tmp/wukongim-v3-readiness-20261021/cloud/pr1021-ci-generation-1/read-selected-artifact.py", line 39, in read
+    raise RuntimeError(f'bounded artifact range failed: {type(error).__name__}') from None
+RuntimeError: bounded artifact range failed: URLError

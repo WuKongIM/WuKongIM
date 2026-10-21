@@ -1,0 +1,103 @@
+{
+  "label": "cache-diagnosis-16254c771170485bbec7a838bc4379fc",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "create",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-cache-diagnosis-16254c771170485bbec7a838bc4379fc",
+        "--label",
+        "wk-stable-cache-diagnosis=cache-diagnosis-16254c771170485bbec7a838bc4379fc",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/config-probe-v3.py"
+      ],
+      "exit_code": 0,
+      "stdout": "f9d774ac8e0af1a5eb00c7407b062a72c5d6ac07802643de92fef597efd93472\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "wk-cache-diagnosis-16254c771170485bbec7a838bc4379fc"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"args\": [\n    \"--quiet\",\n    \"--assumeyes\",\n    \"--installroot=/tmp/client-root\",\n    \"--releasever=9\",\n    \"--disablerepo=*\",\n    \"--enablerepo=wukongim-stable\",\n    \"--setopt=reposdir=/tmp/repos.d\",\n    \"--setopt=cachedir=/tmp/dnf-cache\",\n    \"--setopt=persistdir=/tmp/dnf-state\",\n    \"--setopt=keepcache=False\",\n    \"--setopt=install_weak_deps=False\",\n    \"makecache\",\n    \"--refresh\"\n  ],\n  \"dnf_version\": \"4.14.0\",\n  \"main\": {\n    \"cachedir\": \"/tmp/dnf-cache\",\n    \"installroot\": \"/tmp/client-root\",\n    \"keepcache\": false,\n    \"persistdir\": \"/tmp/dnf-state\"\n  },\n  \"repo\": [\n    {\n      \"attributes\": [\n        \"__dir__\",\n        \"getCachedir\"\n      ],\n      \"id\": \"wukongim-stable\",\n      \"native_cachedir\": \"/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885\"\n    }\n  ],\n  \"rpm_versions\": [\n    \"dnf-4.14.0-34.el9_8.rocky.0.1.noarch\",\n    \"libdnf-0.69.0-18.el9.rocky.0.1.x86_64\",\n    \"python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch\"\n  ],\n  \"source\": {\n    \"configure_repos\": \"    def _configure_repos(self, opts):\\n        self.base.read_all_repos(opts)\\n        if opts.repofrompath:\\n            for label, path in opts.repofrompath.items():\\n                this_repo = self.base.repos.add_new_repo(label, self.base.conf, baseurl=[path])\\n                this_repo._configure_from_options(opts)\\n                # do not let this repo to be disabled\\n                opts.repos_ed.append((label, \\\"enable\\\"))\\n\\n        if opts.repo:\\n            opts.repos_ed.insert(0, (\\\"*\\\", \\\"disable\\\"))\\n            opts.repos_ed.extend([(r, \\\"enable\\\") for r in opts.repo])\\n\\n        notmatch = set()\\n\\n        # Process repo enables and disables in order\\n        try:\\n            for (repo, operation) in opts.repos_ed:\\n                repolist = self.base.repos.get_matching(repo)\\n                if not repolist:\\n                    if self.base.conf.strict and operation == \\\"enable\\\":\\n                        msg = _(\\\"Unknown repo: '%s'\\\")\\n                        raise dnf.exceptions.RepoError(msg % repo)\\n                    notmatch.add(repo)\\n\\n                if operation == \\\"enable\\\":\\n                    repolist.enable()\\n                else:\\n                    repolist.disable()\\n        except dnf.exceptions.ConfigError as e:\\n            logger.critical(e)\\n            self.optparser.print_help()\\n            sys.exit(1)\\n\\n        for repo in notmatch:\\n            logger.warning(_(\\\"No repository match: %s\\\"), repo)\\n\\n        expired_repos = self.base._repo_persistor.get_expired_repos()\\n        if expired_repos is None:\\n            expired_repos = self.base.repos.keys()\\n        for rid in expired_repos:\\n            repo = self.base.repos.get(rid)\\n            if repo:\\n                repo._repo.expire()\\n\\n        # setup the progress bars/callbacks\\n        (bar, self.base._ds_callback) = self.base.output.setup_progress_callbacks()\\n        self.base.repos.all().set_progress_bar(bar)\\n        key_import = output.CliKeyImport(self.base, self.base.output)\\n        self.base.repos.all()._set_key_import(key_import)\\n\",\n    \"prepend_installroot\": \"    def prepend_installroot(self, optname):\\n        # :api\\n        prio = self._get_priority(optname)\\n        new_path = self._prepend_installroot_path(self._get_value(optname))\\n        self._set_value(optname, new_path, prio)\\n\",\n    \"repo_init\": \"    def __init__(self, name=None, parent_conf=None):\\n        # :api\\n        super(Repo, self).__init__(section=name, parent=parent_conf)\\n\\n        self._config.this.disown()  # _repo will be the owner of _config\\n        self._repo = libdnf.repo.Repo(name if name else \\\"\\\", self._config)\\n\\n        self._md_pload = MDPayload(dnf.callback.NullDownloadProgress())\\n        self._callbacks = RepoCallbacks(self)\\n        self._callbacks.this.disown()  # _repo will be the owner of callbacks\\n        self._repo.setCallbacks(self._callbacks)\\n\\n        self._pkgdir = None\\n        self._key_import = _NullKeyImport()\\n        self.metadata = None  # :api\\n        self._repo.setSyncStrategy(SYNC_ONLY_CACHE if parent_conf and parent_conf.cacheonly else self.DEFAULT_SYNC)\\n        if parent_conf:\\n            self._repo.setSubstitutions(parent_conf.substitutions)\\n        self._substitutions = dnf.conf.substitutions.Substitutions()\\n        self._check_config_file_age = parent_conf.check_config_file_age \\\\\\n            if parent_conf is not None else True\\n\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-diagnosis=cache-diagnosis-16254c771170485bbec7a838bc4379fc"
+      ],
+      "exit_code": 0,
+      "stdout": "f9d774ac8e0a\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-cache-diagnosis\"}}",
+        "f9d774ac8e0a"
+      ],
+      "exit_code": 0,
+      "stdout": "/wk-cache-diagnosis-16254c771170485bbec7a838bc4379fc cache-diagnosis-16254c771170485bbec7a838bc4379fc\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "f9d774ac8e0a"
+      ],
+      "exit_code": 0,
+      "stdout": "f9d774ac8e0a\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-cache-diagnosis=cache-diagnosis-16254c771170485bbec7a838bc4379fc"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "exit_code": 1,
+  "raw_stderr_size": 1094,
+  "raw_stderr_sha256": "b08277974504151a13dd8d80d07895cf84419a5233c71c871ca8a067c4eccba9",
+  "reason": "After first transient URLError, bounded GET only for remaining tiny kernel/filesystem/graceful-stop metadata; original read retained",
+  "archive_digest_full_verified": false,
+  "public_error": "Traceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261021/cloud/pr1021-ci-generation-1/read-selected-artifact-remaining.py\", line 42, in <module>\n    with zipfile.ZipFile(reader) as z:\n         ~~~~~~~~~~~~~~~^^^^^^^^\n  File \"/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py\", line 1385, in __init__\n    self._RealGetContents()\n    ~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py\", line 1448, in _RealGetContents\n    endrec = _EndRecData(fp)\n  File \"/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py\", line 312, in _EndRecData\n    data = fpin.read(sizeEndCentDir)\n  File \"/tmp/wukongim-v3-readiness-20261021/cloud/pr1021-ci-generation-1/read-selected-artifact-remaining.py\", line 39, in read\n    raise RuntimeError(f'bounded artifact range failed: {type(error).__name__}') from None\nRuntimeError: bounded artifact range failed: URLError\n"
+}

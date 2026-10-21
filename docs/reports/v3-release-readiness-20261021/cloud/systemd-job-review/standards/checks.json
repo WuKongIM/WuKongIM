@@ -1,0 +1,574 @@
+{
+  "schema": "wukongim.systemd_job.standards_review/v1",
+  "findings": [],
+  "tests_before_code_byte_identity": true,
+  "red_parsers_match_base": true,
+  "red_green_test_sources_match_final": true,
+  "test_tier": {
+    "default": "Synchronous Bash/Python stream parsers only; allowed by AGENTS Test Policy parser/no-background exception. No new load, listener, readiness, sleep or asynchronous process.",
+    "integration": "Existing integration-tagged actual readiness loop with fake SSH adapters; repoRoot before deadline/process resources."
+  },
+  "standards_reviewed": [
+    {
+      "rule": "AGENTS.md Testing and Validation",
+      "assessment": "Failure inventory then frozen test source, real old-code red before implementation; relevant focused checks executed by author."
+    },
+    {
+      "rule": "AGENTS.md Code Quality",
+      "assessment": "Existing two parsers only; explicit seen flags distinguish absent from empty, decimal uint32 bounded before arithmetic, explicit exits independent of errexit context. English constraint comments and no generalized framework."
+    },
+    {
+      "rule": "AGENTS.md Release Notes and Documentation/Knowledge",
+      "assessment": "Unreleased operator entry and bounded systemd fact in PROJECT_KNOWLEDGE."
+    },
+    {
+      "rule": ".github/workflows/README.md Chat lifecycle full-scale rehearsal; ADR 0047",
+      "assessment": "Orchestrator, runtime/correctness classification, deadlines, continuation, budget and provider authority remain untouched; evidence does not claim live rehearsal success."
+    }
+  ],
+  "protected_count": 81,
+  "protected_files": [
+    {
+      "path": ".agents/skill-tests.json",
+      "sha256": "85c3687447d4417204d6430ad7bfd180c522cd8d4881737574248d3cbb3f78d4",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-chat-lifecycle/SKILL.md",
+      "sha256": "adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-chat-lifecycle/agents/openai.yaml",
+      "sha256": "fdec15839a0a1237e391aef253815cafa52ebdf33cecf4ad8f01519890b839b6",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-chat-lifecycle/references/operator-workflow.md",
+      "sha256": "b675f2d97577be7ff38da3d08c7a21f7c1484158568fa65af77a8aa6d5a30e4a",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/SKILL.md",
+      "sha256": "23b2646053829392152e2eda308a1ced4384fbfda812b08fcdde7365b663b45c",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/agents/openai.yaml",
+      "sha256": "1743c2810dc78479d45fe2deae35a83fcdb488015c27de3853bae75b26cdeb5d",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/README.md",
+      "sha256": "cdf6fdd5e2440bddd4d5cd339d928dea88d133208448f5bb03741f46b76cc04b",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/healthy.json",
+      "sha256": "9953eb3bbbe5d8203ad4a7ac5a677751413b8b27d13a4f9b8df493b694507f80",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/infrastructure_interrupted.json",
+      "sha256": "8f40db0501bb75b5d2d41d7cd9fcd04e0d8365d37aff5deab6b7502849f02459",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/insufficient_evidence.json",
+      "sha256": "7a5d43f3e749e714471893b69e3ad0d6d20803c3a20d2f2b8218986a7cf98653",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/process_loss_ambiguous.json",
+      "sha256": "35838a2960b4f9a43477171f18d9022515e80319cdef17618753289ec4b4c3a0",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/product_defect.json",
+      "sha256": "716635e1df2875a2296f8ae76ae6c2fb443b4cc1f56b3fb4f4a143cf40be3f8c",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/scenario_invalid.json",
+      "sha256": "7622f23da36974bc8591e482340dc564a7eb66867e6731dc4e9f7782cb4f89fa",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/worker_status_mismatch.json",
+      "sha256": "8fc989f14e71ac9a4b5ecf6a83afffdbc8911cdc7bf0122919ba423ec86050ab",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/fixtures/worker_stop_failed.json",
+      "sha256": "e4db1cac4329f885e4bf2478f7e761dfa8c593d36ac6268778e97b694fed96d5",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/references/tool-contract.md",
+      "sha256": "85977c8f32cc1e094887acf8b1710a14d8eb71a4884330abd36b7eb3f92784ac",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-ops/SKILL.md",
+      "sha256": "e9d09baef26f51dfeeb14c7df6d0a9097c8914c93aeb48d3b859bd9cc0505751",
+      "unchanged": true
+    },
+    {
+      "path": ".agents/skills/wukongim-ops/agents/openai.yaml",
+      "sha256": "20a04358cff17fcf8593976b9899810b8ab2ef9836032f2d779c30f9d5bee49c",
+      "unchanged": true
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "a78046eaee0d42d095f820d96258305cdf50153820957ffa352f815088e6a269",
+      "unchanged": true
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug.yml",
+      "sha256": "7493ca50992cc5f73a5d504c3b94243c6df610b5836aacd99c76225c66439f2e",
+      "unchanged": true
+    },
+    {
+      "path": ".github/actions/install-review-agent-tools/action.yml",
+      "sha256": "346bebd2e3576f9fad54e5f28f285636b1cb9f08aa5327ef5f4c7de6ef3f0b51",
+      "unchanged": true
+    },
+    {
+      "path": ".github/cloud-deployment/toolchain.env",
+      "sha256": "75801f1b4d969c41468abcedc061f2d419841d4949c86d413e5ea120de78b243",
+      "unchanged": true
+    },
+    {
+      "path": ".github/cloud-sim/alibaba-bootstrap.example.json",
+      "sha256": "8383dcda76fc91dc2a739efa48b605037f49ae46842d689002ccf2baeebd397d",
+      "unchanged": true
+    },
+    {
+      "path": ".github/cloud-sim/diagnosis.schema.json",
+      "sha256": "e0804d3952f92aecf4e4f230c318b1cd593c511ec2f2c963bf98d2909cc8736c",
+      "unchanged": true
+    },
+    {
+      "path": ".github/cloud-sim/toolchain.env",
+      "sha256": "9f6426379c9efc8fc66cf2968e24e3bbb3b55ba485de632a73039250c1559346",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/build-reproduction-binaries.sh",
+      "sha256": "61d71fe6a08b036e6b25ee121a867903b90bdf94ac9e57a2b2699657020e465d",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/candidate-evidence.schema.json",
+      "sha256": "006bb72c60c7e1f9f3e546f8dca7908d66ad2feba403a3af1ec147fcb0912f77",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/context-bundle.schema.json",
+      "sha256": "f1e34ee05af5d1205b35d7e08b50d6516d03ca19674756e1aae140db91ec9812",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/engineer-result.schema.json",
+      "sha256": "9952db38b7281eb911a8e10dab533f67b65e780a99c0ae10f9ccb916d3cb6dfa",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/policy.json",
+      "sha256": "3e61ce856401063025b1a6f0b03e52c4959e1ed67ebaf576a46655260c8bee40",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/prompts/engineer.md",
+      "sha256": "8e912421e898f4e8864b1b17120f13fe2642e29c0b1b0135f522e5ef4007cf75",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/prompts/review.md",
+      "sha256": "a2b3389a7b4b027aa608b7969036261443b4d710cbe1aab5781fdd5337b8eec2",
+      "unchanged": true
+    },
+    {
+      "path": ".github/issue-agent/state.schema.json",
+      "sha256": "000c02763fd2ca5bc0c8546ebbece416e6804ad293c80c2d8b7f597dd38d6581",
+      "unchanged": true
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "sha256": "ed8438a8725e87d3b4de28c2386cbd2fb457d1d61909f106458316d32669ce12",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/explanation-result.schema.json",
+      "sha256": "f335bad98409efa9be7451c959bfe41345e18dd55f4f9309ca0353ae64d69cb4",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/network-fence.sh",
+      "sha256": "0b1a5d87af0ac52af3706887a0f854cd11636a6cc0b1afef57294f218f2dee30",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/prompts/explain.md",
+      "sha256": "15e18ffa4fc8b45cc165ba9bac82c57a680150ebacbe8208ed24cc120b3169c6",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/prompts/review.md",
+      "sha256": "ff557774dd59d4cf1906448d900d09279fb682c73c46d97a5a9343593787de59",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/responses-budget-proxy.mjs",
+      "sha256": "150d2e8f2c2f415c270cef8ef668994ab31dbd1438010c7598c8af39a89d1a72",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/responses-budget-proxy.test.mjs",
+      "sha256": "6a7476f76acb8bd87e2333b9c1f8cc74c3d061cc6d55cac32885a320f8f24262",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/review-result.schema.json",
+      "sha256": "a3499056c38baca2824a09944d08d7c2c88ed4a5aa6528c645e1b44f6203bd9f",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/state.schema.json",
+      "sha256": "f0f78a66eaa2cdadd24f626184b8c686dabc8586128b7953ffa65c88d9d6e748",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/binary-release-publish.yml",
+      "sha256": "daf0c261d5a0b7340feba1956c3273d3241a4ebdc9e65f50377ae9dc533aa3f5",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "91fc7088f634e3ab521571e468fb0526922ec1631f8c20202935cdd0139b1a3a",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "c830cbb8387e3651b70fdb0e99af893d4dec0acecf268b131903ac18492d5587",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad9597a238b812711307b1d801736daa973b50df2ae336ff20b4b396aafa29da",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-activate.yml",
+      "sha256": "74ca6dba1abe62b07738a3f723220048d64fbcc4347846b479a1359bfbd0933e",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-lease-analyze.yml",
+      "sha256": "bf94f6dea7bed588e9d7435c6516fcbfa280a980513902c201c0b83a923697bb",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-lease-observe.yml",
+      "sha256": "78333792e57c186030543804b603bc9ef652402d39f82fc1f0ff120411bccb5f",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-lease-oidc-setup.yml",
+      "sha256": "7af130a5cc0d8cb7917088d7daac2126ca4da7bed292d12b75732bb3bb8338fe",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "sha256": "f67e53fb8490108bcac5bdfdf59c94f08a41904d0fa1f124732021fab7ee4110",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-sim-analyze.yml",
+      "sha256": "a3385b568d7e64b5f2c5daabf3bb3413d5e3cd5137ae18bd1d9286a480a20b2b",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-sim-cleanup.yml",
+      "sha256": "32229373d7b6cdea3a9429df114b110a97d14f0992326c0300b597cd1b0ec46e",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-sim-monitor.yml",
+      "sha256": "7b2922f82a93958b791e11fb8e3664a3ce1bb4d6fd2f75b58d1f1cbb8eab2d80",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-sim-oidc-subject.yml",
+      "sha256": "d3c7de2aec2d2241db084440c25863f762e31d9df1ad0e4cad1f4493bf1b6302",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/cloud-sim-provision.yml",
+      "sha256": "8debc328ce3135c1889e6c02fbd38630042e3bcc97c57e9d4e673f4fb1ad6834",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/conversation-qps-diagnose.yml",
+      "sha256": "7702846f3d7adccc600bf8e1a3515a1eeeaf5e289778fed2e75462b5774d0c9f",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/conversation-qps-gate.yml",
+      "sha256": "aba751d37e696ed18d392142c9a2fea09d032cb91b9594ff04227c6dd7bbba5f",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/docker-image-publish.yml",
+      "sha256": "8590d3ed6b2cf654056f261eb48abc5926aa4594cecfeab0fa68551b6c9ff128",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/docs-cdn-certificate.yml",
+      "sha256": "e74f3cefebd2d04a895bfd46a705cfa3361a44322c6a83a43417e18da0afe66c",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/docs-pages.yml",
+      "sha256": "5b61562a02f1e07d00e5bd6becaa5ed3395b5fa92f01160ad240b19cb2dcb699",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/easy-sdk-web-docs-sync.yml",
+      "sha256": "961c3f2188ebd17af0db320a68a081775eb564817b3cdc51d24c7311f2b798d7",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/easysdk-release-acceptance.yml",
+      "sha256": "3073866aecc25a86dd1ad4cbef27b3913732e8a1c581cb53bc1a77a10a8f3ecd",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/issue-agent-engineer.yml",
+      "sha256": "dfaf527bc87fd68b03177fd0910c074fec34717766ef0e17dea45b7a5f4e9b22",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/issue-agent-pr-signal.yml",
+      "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/issue-agent.yml",
+      "sha256": "6a05376af0081b3bf717a8ef2af6fc2e81f85adde763de29022d7ce399a70a06",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/manager-browser-smoke.yml",
+      "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-preview.yml",
+      "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent-pr-signal.yml",
+      "sha256": "bd8abe4b94ec0f31d704b06fd065defd88f1ccf6edae6c3fe4724e6c4441354e",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent-run.yml",
+      "sha256": "89b94f399296e2140352265c5feedc0487587fdc36faa67789245221064a0eba",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent.yml",
+      "sha256": "c1b3baa1a61e98f29c04303a140e025df4f253e46f0256c2a5a541db13fe90dd",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+      "unchanged": true
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "0d202be2d48e61dccfeccf795c57cb35be427753486657a1ac7b0211d2fa3625",
+      "unchanged": true
+    }
+  ],
+  "validation_observed": [
+    {
+      "path": "red-bash3-default.receipt.json",
+      "size": 4023,
+      "sha256": "dbd3e29b95d720cc73e7d220cae585e99ab5caa0465f7875690ae92f6a2401eb",
+      "exit_code": 1,
+      "elapsed_seconds": 44.91782070801128,
+      "passed_events": 11,
+      "failed_events": 16,
+      "skipped_events": 0,
+      "shell": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)"
+    },
+    {
+      "path": "red-bash3-integration.receipt.json",
+      "size": 3694,
+      "sha256": "7b5f6f137f72a36cc85f2d49bab92d19de29ef42bbc193b1fa5b78f5269ac4df",
+      "exit_code": 1,
+      "elapsed_seconds": 11.436410042049829,
+      "passed_events": 8,
+      "failed_events": 4,
+      "skipped_events": 3,
+      "shell": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)"
+    },
+    {
+      "path": "red-bash5-default.receipt.json",
+      "size": 4106,
+      "sha256": "9cd2fb4e3309b66d7087bfc56ba9d7cb3726951758850705ae5a23d6879201a0",
+      "exit_code": 1,
+      "elapsed_seconds": 2.077241833030712,
+      "passed_events": 9,
+      "failed_events": 18,
+      "skipped_events": 0,
+      "shell": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+    },
+    {
+      "path": "red-bash5-integration.receipt.json",
+      "size": 3776,
+      "sha256": "f1f5fec650df8d35ea7a79d1ab7dc85a5d0fccf1c11e9eb93eab02338b9f1513",
+      "exit_code": 1,
+      "elapsed_seconds": 7.019831583020277,
+      "passed_events": 8,
+      "failed_events": 4,
+      "skipped_events": 3,
+      "shell": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+    },
+    {
+      "path": "green-bash3-default.receipt.json",
+      "size": 4022,
+      "sha256": "2311b24f99bfc6ef2651d7fd1a09af6f75cb134a200913f10788fa104da88b05",
+      "exit_code": 0,
+      "elapsed_seconds": 1.9981856669764966,
+      "passed_events": 27,
+      "failed_events": 0,
+      "skipped_events": 0,
+      "shell": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)"
+    },
+    {
+      "path": "green-bash3-integration.receipt.json",
+      "size": 3813,
+      "sha256": "5fa369dd5f39e1144b876fcceca42779c130e9875d6c601fa30aab732ec859fa",
+      "exit_code": 0,
+      "elapsed_seconds": 7.009942208009306,
+      "passed_events": 12,
+      "failed_events": 0,
+      "skipped_events": 4,
+      "shell": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)"
+    },
+    {
+      "path": "green-bash5-default.receipt.json",
+      "size": 4105,
+      "sha256": "397c29739c6ed8871f58606ff30c90d8ed27c6c392a971df29fc484cb131bae3",
+      "exit_code": 0,
+      "elapsed_seconds": 2.0579754590289667,
+      "passed_events": 27,
+      "failed_events": 0,
+      "skipped_events": 0,
+      "shell": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+    },
+    {
+      "path": "green-bash5-integration.receipt.json",
+      "size": 3896,
+      "sha256": "4ec53177ea8444b11e5de010d8e87b21258377bb31431c1ac42cac04c17430a6",
+      "exit_code": 0,
+      "elapsed_seconds": 6.742412000021432,
+      "passed_events": 12,
+      "failed_events": 0,
+      "skipped_events": 4,
+      "shell": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+    },
+    {
+      "path": "related-bash3.receipt.json",
+      "size": 6591,
+      "sha256": "a9699506ec934f137036b56af37ee01d2cd1ee7d91e5e8107d106dabd10ce562",
+      "exit_code": 0,
+      "elapsed_seconds": 8.602235417056363,
+      "passed_events": 74,
+      "failed_events": 0,
+      "skipped_events": 4,
+      "shell": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)"
+    },
+    {
+      "path": "related-bash5.receipt.json",
+      "size": 6597,
+      "sha256": "4db4a8c7128c79ca396babf1126fb2e1216f66a689f5b3c18f24716ff7582bc8",
+      "exit_code": 0,
+      "elapsed_seconds": 9.070850957999937,
+      "passed_events": 74,
+      "failed_events": 0,
+      "skipped_events": 4,
+      "shell": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+    }
+  ],
+  "flow_doc_contracts": {
+    "named_check": "flow-doc-contracts",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "contract": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    },
+    "exit_code": 0,
+    "elapsed_seconds": 0.5445044580264948,
+    "output_sha256": "d0519f92429ba5615c10ecf1cde85010b84d1bd0ea1ec980dd6295910b7eae80"
+  },
+  "limits": [
+    "Independent Standards review only; Spec axis is separate.",
+    "No tests, compilation, Bash/GPG/Docker/SSH/cloud/network or workflow invocation by this reviewer.",
+    "Author focused checks use local fake adapters. Four Darwin journal-cursor subchecks skipped; not Linux coverage.",
+    "Full repository default/scripts integration and exact-head Linux CI remain pending; no live 2h/72h proof."
+  ]
+}

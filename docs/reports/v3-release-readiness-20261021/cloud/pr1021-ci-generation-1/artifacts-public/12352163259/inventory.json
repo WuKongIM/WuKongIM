@@ -1,0 +1,119 @@
+[
+  {
+    "path": "arrival.json",
+    "size": 58100,
+    "compressed_size": 3005,
+    "crc32": "a4e500ee",
+    "retained": true,
+    "sha256": "1a7d2f79680ddd690ff1c996c4220f24860de28d4cbb9b14779002d62018417f",
+    "public_sha256": "1a7d2f79680ddd690ff1c996c4220f24860de28d4cbb9b14779002d62018417f",
+    "public_bytes": 58100,
+    "redacted_lines": []
+  },
+  {
+    "path": "arrival.warmup.json",
+    "size": 19436,
+    "compressed_size": 1181,
+    "crc32": "9c248346",
+    "retained": true,
+    "sha256": "2ad8167d7d670e0bb24ca0ca16bbcaa2035dc54a1d0b7994e0488f6561c447f0",
+    "public_sha256": "2ad8167d7d670e0bb24ca0ca16bbcaa2035dc54a1d0b7994e0488f6561c447f0",
+    "public_bytes": 19436,
+    "redacted_lines": []
+  },
+  {
+    "path": "benchmark.txt",
+    "size": 2956,
+    "compressed_size": 843,
+    "crc32": "0b4049c1",
+    "retained": true,
+    "sha256": "aec8323c2e8e99a5a983c67872f8ad866cbc479ad004806127d74576b93b7bf8",
+    "public_sha256": "aec8323c2e8e99a5a983c67872f8ad866cbc479ad004806127d74576b93b7bf8",
+    "public_bytes": 2956,
+    "redacted_lines": []
+  },
+  {
+    "path": "binary.sha256",
+    "size": 124,
+    "compressed_size": 106,
+    "crc32": "6e4afa0b",
+    "retained": true,
+    "sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939",
+    "public_sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939",
+    "public_bytes": 124,
+    "redacted_lines": []
+  },
+  {
+    "path": "data-filesystem.json",
+    "size": 244,
+    "compressed_size": 159,
+    "crc32": "77ec143c",
+    "retained": true,
+    "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+    "public_sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+    "public_bytes": 244,
+    "redacted_lines": []
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "size": 123,
+    "compressed_size": 108,
+    "crc32": "9426b7a8",
+    "retained": true,
+    "sha256": "20594e876df63d2b22c1720db891df9ab66fb5ed6939bcacd357849dafc17b40",
+    "public_sha256": "20594e876df63d2b22c1720db891df9ab66fb5ed6939bcacd357849dafc17b40",
+    "public_bytes": 123,
+    "redacted_lines": []
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33,
+    "compressed_size": 35,
+    "crc32": "dd48af92",
+    "retained": true,
+    "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+    "public_sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+    "public_bytes": 33,
+    "redacted_lines": []
+  },
+  {
+    "path": "host.json",
+    "size": 4483,
+    "compressed_size": 1178,
+    "crc32": "f38c7b89",
+    "retained": true,
+    "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490",
+    "public_sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490",
+    "public_bytes": 4483,
+    "redacted_lines": []
+  },
+  {
+    "path": "kernel.txt",
+    "size": 128,
+    "compressed_size": 115,
+    "crc32": "911946ec",
+    "retained": true,
+    "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f",
+    "public_sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f",
+    "public_bytes": 128,
+    "redacted_lines": []
+  },
+  {
+    "path": "result.json",
+    "size": 18,
+    "compressed_size": 20,
+    "crc32": "81529131",
+    "retained": true,
+    "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+    "public_sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+    "public_bytes": 18,
+    "redacted_lines": []
+  },
+  {
+    "path": "source.sha",
+    "size": 41,
+    "compressed_size": 41,
+    "crc32": "3c163122",
+    "retained": false
+  }
+]

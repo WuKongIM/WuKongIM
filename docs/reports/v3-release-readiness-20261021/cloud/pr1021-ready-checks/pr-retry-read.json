@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-21T14:36:56.228684+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/pulls/1021",
+  "exit_code": 0,
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_size": 17253,
+  "stdout_sha256": "95d5eef15086e49648ea2dcb9ae0c4ff4a860b75e886471504c47f22800ac1e8"
+}

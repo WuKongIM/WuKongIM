@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-21T14:40:12.981832+00:00",
+  "before": {
+    "primary_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "primary_status": "",
+    "worktree_status": "",
+    "branch_tip": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+    "target": "aeb45c2164b6a50214928f520edd2a8815b7a976"
+  },
+  "after": {
+    "primary_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "primary_status": "",
+    "removed_worktree": true,
+    "branch_delete": "Deleted branch codex/v3-rc-systemd-job (was ff0aa096f).\n"
+  },
+  "force": false
+}

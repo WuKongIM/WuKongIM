@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-21T14:54:19.380105+00:00",
+  "check": "flow-doc-contracts",
+  "policy_command": {
+    "arguments": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 60,
+    "max_output_bytes": 1048576
+  },
+  "exit": 1,
+  "elapsed_seconds": 0.06,
+  "output_bytes": 146
+}

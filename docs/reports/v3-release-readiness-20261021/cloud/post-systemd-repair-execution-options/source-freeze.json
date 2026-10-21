@@ -1,0 +1,73 @@
+{
+  "source_commit": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "source_role": "draft PR #1021 candidate; not a merged or paid-authorized control",
+  "product_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "bytes": 3510
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+      "bytes": 84251
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad9597a238b812711307b1d801736daa973b50df2ae336ff20b4b396aafa29da",
+      "bytes": 10261
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a",
+      "bytes": 15796
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b",
+      "bytes": 1021
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0",
+      "bytes": 1021
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "sha256": "e9166cd98f03fbda72f47b20e7c4b7ec056ae1004a208d81df73a6de76f51b76",
+      "bytes": 16336
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "90b90cd3b1ad0151d8a02459731d796228e9ce2eb34a7ea2cd6b2fbca8cf43c5",
+      "bytes": 24992
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "0d202be2d48e61dccfeccf795c57cb35be427753486657a1ac7b0211d2fa3625",
+      "bytes": 48186
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226",
+      "bytes": 41136
+    },
+    {
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+      "sha256": "daa93110f502a6f7915c1acba09ecbbe823f9f3c010f764ed4e65f0f04136f8e",
+      "bytes": 389
+    }
+  ],
+  "read_methods": [
+    "local git show",
+    "local retained public evidence"
+  ],
+  "network_calls": 0,
+  "repository_edits": 0
+}

@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-21T13:53:52.532777+00:00",
+  "files": {
+    "scope-and-failure-inventory.md": {
+      "size": 3844,
+      "sha256": "596f8c7b9661ff1326b228b4f70731cbcbb219665625808edd8f9905ec0f2c3e"
+    },
+    "original-state-safe-reconstruction.txt": {
+      "size": 104,
+      "sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524"
+    },
+    "source-freeze.json": {
+      "size": 2912,
+      "sha256": "64548bf63f3ad2c4c0c1532014bb7d87c9231cb122e0bb5137dad7324d3ff337"
+    },
+    "official-systemd.json": {
+      "size": 934,
+      "sha256": "8b9a289e2575f54068a5a527d386047d2907379374202d6b27e4ad01c4d2cebc"
+    },
+    "systemctl-show.c.excerpt.txt": {
+      "size": 624,
+      "sha256": "0b607af82894a74a066f16ee6737682f51b755f07e960d0c43a0f3358536c7d1"
+    },
+    "systemctl.c.excerpt.txt": {
+      "size": 251,
+      "sha256": "6501f506724916ecb90b34b5ef26c83e346564561821973cb7b0ff2564357c8c"
+    },
+    "local-state-replay.py": {
+      "size": 3696,
+      "sha256": "f08b94ecd9452ae9ec5ef08cac09bd69b3662e8114fb26b28213a3f30abf0d13"
+    },
+    "local-state-replay.json": {
+      "size": 28563,
+      "sha256": "23cd536671b1f65fbd156f05e4b9a17379a1e9b02b654659e7345de4673e1084"
+    }
+  }
+}

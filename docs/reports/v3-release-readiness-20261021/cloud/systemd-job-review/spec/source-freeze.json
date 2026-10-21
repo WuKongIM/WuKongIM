@@ -1,0 +1,48 @@
+{
+  "review_axis": "Spec",
+  "at": "2026-10-21T14:05:39.616535+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-systemd-job",
+  "head": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "git_status": " M CHANGELOG.md\n M docs/development/PROJECT_KNOWLEDGE.md\n M scripts/chat-lifecycle/classify-stage-service-state.sh\n M scripts/chat-lifecycle/pre-clock-diagnostic.py\n M scripts/chat_lifecycle_preclock_capture_integration_test.go\n?? scripts/chat_lifecycle_stage_state_test.go\n",
+  "files": {
+    "scripts/chat-lifecycle/classify-stage-service-state.sh": {
+      "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a",
+      "size": 1246,
+      "matches_author_freeze": true
+    },
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": {
+      "sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c",
+      "size": 4064,
+      "matches_author_freeze": true
+    },
+    "scripts/chat_lifecycle_stage_state_test.go": {
+      "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0",
+      "size": 5021,
+      "matches_author_freeze": true
+    },
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": {
+      "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45",
+      "size": 15560,
+      "matches_author_freeze": true
+    },
+    "CHANGELOG.md": {
+      "sha256": "726e525915378e347a9a79f6bc08eaaa02ca1cee6a1ea7aec20c388bf969b561",
+      "size": 189447,
+      "matches_author_freeze": true
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3",
+      "size": 142443,
+      "matches_author_freeze": true
+    }
+  },
+  "rules": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "applicable_flow_files": [],
+  "author_manifest_sha256": "fb37e6fd2c9e58c1d3a5c64b55754991b35f3f259dba645042c9a8cad85a23d4",
+  "tracked_diff_sha256": "1ffc5236e0f1adcb367e07f9ccc7a8bd2fe482370255011a58fc103da37cefcb"
+}

@@ -1,0 +1,386 @@
+{
+  "head": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "base": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "actual_checkout": "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+  "tree": "74bf373cd2e8cbfd9c64834af3344f0fab36d05d",
+  "attempt": 1,
+  "no_rerun_dispatch_or_cloud": true,
+  "candidate": {
+    "default": {
+      "artifact_id": 12352611259,
+      "identity": {
+        "source_sha": "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+        "policy_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39614359934",
+        "run_attempt": "1"
+      },
+      "results": {
+        "result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2594,
+          "output_bytes": 22029,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2594,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 428.473
+        }
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "./cmd/...",
+          "./internal/...",
+          "./pkg/...",
+          "./scripts/...",
+          "./docker/...",
+          "-count=1"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 1800,
+        "max_output_bytes": 8388608,
+        "named_check": "go-unit",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2"
+        }
+      },
+      "tested_packages": 219,
+      "packages_without_tests": 15
+    },
+    "scripts": {
+      "artifact_id": 12351959280,
+      "identity": {
+        "source_sha": "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+        "policy_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39614359934",
+        "run_attempt": "1"
+      },
+      "results": {
+        "result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2521,
+          "output_bytes": 1373379,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2521,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 573.654
+        }
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "-tags=integration",
+          "./scripts/...",
+          "-count=1",
+          "-timeout=9m",
+          "-parallel=2"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 600,
+        "max_output_bytes": 8388608,
+        "named_check": "scripts-integration",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2 -json"
+        }
+      },
+      "test_events": {
+        "pass": 1194,
+        "skip": 6
+      },
+      "top_level_pass_count": 634,
+      "skipped_tests": [
+        "TestDockerImageRuntimeContract",
+        "TestDockerImageEmbeddedPrometheus",
+        "TestEasySDKReadinessSerialDelayFixture",
+        "TestNativePackageLifecycle",
+        "TestNativePackageSignedRepository",
+        "TestNativePackageRepositoryDeadlineFixture"
+      ]
+    },
+    "e2e": {
+      "artifact_id": 12352134732,
+      "identity": {
+        "source_sha": "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+        "policy_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+        "run_id": "39614359934",
+        "run_attempt": "1"
+      },
+      "results": {
+        "cross_node_delivery/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 13826,
+          "output_bytes": 8442,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 13826,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 53.795
+        },
+        "ordinary_history/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 7957,
+          "output_bytes": 27563,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 7957,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 106.105
+        },
+        "self_chat/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 14168,
+          "output_bytes": 3699,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 14168,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 41.787
+        },
+        "build/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2511,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2511,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 97.268
+        }
+      },
+      "skipped_tests": [
+        "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS"
+      ],
+      "passed_tests": [
+        "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+        "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+        "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+        "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology",
+        "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+        "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+        "TestSelfChatPersistsAcrossClusterRestart"
+      ],
+      "binary_sha256": "4b6a048631d774b93bd8262febf376d010c9113d64b2a26a27a463ffb464f6b6",
+      "self_chat_topologies": [
+        1,
+        3
+      ]
+    }
+  },
+  "performance": {
+    "tcp-sendack": {
+      "artifact_id": 12352163259,
+      "measurement_seconds": 180,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "window_scheduled_to_completion_p99_ms": [
+        178.195483,
+        178.243606,
+        178.197012
+      ],
+      "maximum_second_scheduled_to_completion_p99_ms": 178.622366
+    },
+    "channel-append": {
+      "artifact_id": 12352237414,
+      "measurement_seconds": 180,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "window_scheduled_to_completion_p99_ms": [
+        6.803103,
+        8.065279,
+        10.747653
+      ],
+      "maximum_second_scheduled_to_completion_p99_ms": 102.318956
+    },
+    "mixed-send": {
+      "artifact_id": 12352755373,
+      "measurement_seconds": 180,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "window_scheduled_to_completion_p99_ms": [
+        15.4047,
+        17.51047,
+        18.916027
+      ],
+      "maximum_second_scheduled_to_completion_p99_ms": 116.345582
+    }
+  },
+  "three_node_correctness": {
+    "local_step": {
+      "schema": "wukongim/chat-lifecycle-local-step/v1",
+      "outcome": "clean",
+      "reason": "complete",
+      "offered_rate_per_second": 500,
+      "actual_rate_per_second": 505.55555555555554,
+      "minimum_throughput_percent": 90,
+      "measured_duration_seconds": 90,
+      "qualification_reached": true,
+      "target_connections": 2500,
+      "online_connections": 2500,
+      "sent": 45500,
+      "acknowledged": 45500,
+      "expected": 45000,
+      "minimum_filesystem_free_percent": 56.43520815706298,
+      "storage_evidence_complete": true,
+      "host_io_evidence_complete": true,
+      "product_metrics_complete": true,
+      "product_queue_evidence_complete": true,
+      "product_queues_converged": true,
+      "process_continuity_complete": true,
+      "timeline_evidence_complete": true,
+      "profile_evidence_complete": true,
+      "operator_interrupted": false,
+      "harness_failure_reason": ""
+    },
+    "final_message_counts": {
+      "sent": 75502,
+      "send_attempts": 75502,
+      "first_attempts": 75502,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 75502,
+      "send_rejected": 0,
+      "received": 98158,
+      "receive_acknowledged": 98158,
+      "receive_ack_failures": 0,
+      "retry_attempts": 0,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "final_harness": {
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 0,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "final_queues": {
+      "work_current": 0,
+      "deferred_group_routes": 0,
+      "work_peak": 54486,
+      "work_capacity": 114500,
+      "retry_current": 0,
+      "retry_peak": 0,
+      "retry_capacity": 12288,
+      "inflight_current": 0,
+      "inflight_peak": 500,
+      "inflight_capacity": 12288,
+      "transport_current": 0,
+      "transport_capacity": 0,
+      "transport_rejected": 0
+    },
+    "final_correlation": {
+      "pending_unfinished": 0,
+      "outstanding": 0,
+      "sampled": 835,
+      "delivered": 835,
+      "expired": 0,
+      "duplicate_completions": 0,
+      "conflicting_completions": 0,
+      "unknown_acknowledgments": 0
+    },
+    "measurement_sends_delta_from_qualification": 45500,
+    "artifact_download_boundary": "six selected ZIP members CRC-verified; full API archive digest not recomputed; two bounded range GET URLError failures retained"
+  },
+  "not_executed_as_independent_workflows": [
+    "EasySDK Released Package Acceptance",
+    "Native Package Preview",
+    "Manager Browser Smoke"
+  ],
+  "skipped_event_jobs": [
+    "Nightly direct 500 QPS qualification",
+    "Fixed Linux SEND diagnosis"
+  ],
+  "not_release_qualification": "No 2h cloud rehearsal, 72h soak/capacity/recovery, SDK/native rerun or release/publication is proven by this CI."
+}

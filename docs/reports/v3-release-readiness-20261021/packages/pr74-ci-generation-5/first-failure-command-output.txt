@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "/control/tests/native_stable_clients_drill.py", line 494, in cache_operation
+    if operation != 'remove': return cache_inventory(root, arm=operation == 'arm')
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/control/tests/native_stable_clients_drill.py", line 460, in cache_inventory
+    require(path.is_file() and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024,
+  File "/control/tests/native_stable_clients_drill.py", line 46, in require
+    raise RuntimeError(message)
+RuntimeError: cache contains an unsupported file

@@ -1,0 +1,9 @@
+quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5: Pulling from rockylinux/rockylinux
+879404da0799: Already exists
+e3bd828ab2a7: Pulling fs layer
+e3bd828ab2a7: Verifying Checksum
+e3bd828ab2a7: Download complete
+e3bd828ab2a7: Pull complete
+Digest: sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5
+Status: Downloaded newer image for quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5
+quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5

@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-21T14:28:12.722604+00:00",
+  "reason": "All job steps including Complete job finished success but job/check-run still pending; one bounded log GET",
+  "exit_code": 0,
+  "raw_bytes": 85338,
+  "raw_sha256": "78250c7516491731f740d7bc77d60561d6a9193dd7d7423384e267fa729b09e2",
+  "raw_stderr_bytes": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "public_sha256": "f7d57c26428d6322de9300ee148495eea7e8fcdf075cb6f5ac0dbcd6af8cfd8e",
+  "redacted": [
+    {
+      "line": 22,
+      "sha256": "7c1fb878e1b55e110882a2dbaa0ce0ed7c4ad936d84961dfd648157af914e953"
+    },
+    {
+      "line": 26,
+      "sha256": "42895b5c7605c55e1f287286ed2aaca02cfe5d4d25becfb2daa81c77ee0ed7e8"
+    },
+    {
+      "line": 41,
+      "sha256": "6b18e3b8937f4189afab33e9b0db5dd889168d3ac658ea6c3de053ad974a33b5"
+    },
+    {
+      "line": 98,
+      "sha256": "dcb9610004eb8252f9b2bba12530661887ca09f2fdb231902e00e05873d56cb5"
+    },
+    {
+      "line": 306,
+      "sha256": "c6d1ca1dc7ad72a644f16e58816ea5c2cc33ed8527b03f4c90912726c7042224"
+    },
+    {
+      "line": 665,
+      "sha256": "c082c298bb6bcc372304314c7fc439e224e37bf71125dd3f0cec894ae78180e1"
+    }
+  ],
+  "synthetic_sha_exact_output": true
+}

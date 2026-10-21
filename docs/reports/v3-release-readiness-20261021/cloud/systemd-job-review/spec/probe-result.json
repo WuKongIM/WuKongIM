@@ -1,0 +1,2853 @@
+{
+  "matrix_cases": 56,
+  "matrix_failures": [],
+  "shells": {
+    "bash3": {
+      "path": "/bin/bash",
+      "sha256": "8af1c8321ff69989d6714828ca3c83a432d3d1927d740bfb00c97f87c230638b",
+      "version": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)"
+    },
+    "bash5": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+      "sha256": "f12fc5f1a3c9a0d1869154024b24a54f9f8297d64724df07a8d410683e0fd821",
+      "version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+    }
+  },
+  "original": {
+    "bytes": 104,
+    "sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524",
+    "filtered_bytes": 24,
+    "filtered_sha256": "1b5f3000f57a5c314e9369fd4c5551b03b6ee7f89ab171465eb7f0b74443f705",
+    "original_files": {
+      "diagnostic.json": {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-continuation-e302/terminal-public-frozen/verified/attempt-2/pre-clock-generation-1/diagnostic.json",
+        "sha256": "563efaa29e9bf6947b211eb3821a4f5bc84d46338bab15036c053e30c0b06f13",
+        "same_author_copy": true
+      },
+      "unit.json": {
+        "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-continuation-e302/terminal-public-frozen/verified/attempt-2/pre-clock-generation-1/unit.json",
+        "sha256": "ce88e9fcc7ac02fe57553778409ce9c18dd819e7f1ac796642f8c53330bb60dc",
+        "same_author_copy": true
+      }
+    },
+    "replay": {
+      "bash3": {
+        "before": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "source_sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+        },
+        "after": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "source_sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+        }
+      },
+      "bash5": {
+        "before": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "",
+          "source_sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+        },
+        "after": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "source_sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+        }
+      }
+    },
+    "diagnostic": {
+      "bytes": 104,
+      "sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524",
+      "complete": true,
+      "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+      "valid": true,
+      "properties": {
+        "Result": "success",
+        "ExecMainCode": 0,
+        "ExecMainStatus": 0,
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "Job": 0
+      },
+      "field_sha256": {
+        "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+        "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+        "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+        "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+        "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "invalid_fields": [],
+      "missing_fields": [],
+      "unknown_fields": false,
+      "oversized": false
+    },
+    "original_hash_preserved": true
+  },
+  "rows": [
+    {
+      "name": "active:''",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 104,
+        "sha256": "3a09cd040914c53dba37c519607efd03c3a7ca5da51def5d3cc3bbf93762cd60",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "active:'0'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d30",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 105,
+        "sha256": "69e2ea9a3b068540dbde29062ee297b097e63fec84aa89c0d72b6ec398b0f9d9",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "active:'00'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d3030",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 106,
+        "sha256": "7b8d43ae461b1529b7443780e4ba4fadc2602bfb0e6bbe92eef3d681ce3a5a17",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "active:'0000000000'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d30303030303030303030",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "88bcd4db4bf6863ffd1c1419e3d17c28d69b4ebff56d35c99b72f52af8406c31",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "84d9c4b849506b6d8f8075a9000e7e0a254be71060ea889fad3c88395988f4fc"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "active:'0000000088'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d30303030303030303838",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "125bcaa628c3da7b506367b02cc2bc88231a905ed07ebc118b3db618482aea0f",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 88
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "b71e8fd970d0e4126a656db42708ec7772c3376d9995094692e4e09a4039b681"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "active:'4294967295'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d34323934393637323935",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "347232571198a2706f798dc224be59d7586ae414dfa59c6692815466494eeef3",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "activating:''",
+      "input_hex": "41637469766553746174653d61637469766174696e670a4a6f623d",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "a6caa83619f16677b69d2f479ba0b2b8bead441a8c2b0cc4a1421c7a6d7f3b57",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "activating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5bbd546f39b5d7c01aa2c23b65a36c4e80dda739d0d2a4a9a53cffc6e6b617ee",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "activating:'0'",
+      "input_hex": "41637469766553746174653d61637469766174696e670a4a6f623d30",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 109,
+        "sha256": "9779f8a7b67b977f59d7c45c896ddb54eef702aeee29918e2b5156448a4c51fa",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "activating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5bbd546f39b5d7c01aa2c23b65a36c4e80dda739d0d2a4a9a53cffc6e6b617ee",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "activating:'00'",
+      "input_hex": "41637469766553746174653d61637469766174696e670a4a6f623d3030",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 110,
+        "sha256": "4a675de69cbaa1f8b50301036983b23773f247e9d5788d61fe6ce9cc87bd31c5",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "activating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5bbd546f39b5d7c01aa2c23b65a36c4e80dda739d0d2a4a9a53cffc6e6b617ee",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "activating:'0000000000'",
+      "input_hex": "41637469766553746174653d61637469766174696e670a4a6f623d30303030303030303030",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 118,
+        "sha256": "c02e68cf31813b643695691ffda1200b9f201dc8414bf87c69e3f02769aa4e93",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "activating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5bbd546f39b5d7c01aa2c23b65a36c4e80dda739d0d2a4a9a53cffc6e6b617ee",
+          "Job": "84d9c4b849506b6d8f8075a9000e7e0a254be71060ea889fad3c88395988f4fc"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "activating:'0000000088'",
+      "input_hex": "41637469766553746174653d61637469766174696e670a4a6f623d30303030303030303838",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 118,
+        "sha256": "dd856b49374764fb48fe9f492e304b81a8cd8bbed633039949176ac023d01dbb",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "activating",
+          "Job": 88
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5bbd546f39b5d7c01aa2c23b65a36c4e80dda739d0d2a4a9a53cffc6e6b617ee",
+          "Job": "b71e8fd970d0e4126a656db42708ec7772c3376d9995094692e4e09a4039b681"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "activating:'4294967295'",
+      "input_hex": "41637469766553746174653d61637469766174696e670a4a6f623d34323934393637323935",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 118,
+        "sha256": "beeff036a8e692b9811177e69f56dbfd504577b97999b79763336000e82ee2c0",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "activating",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5bbd546f39b5d7c01aa2c23b65a36c4e80dda739d0d2a4a9a53cffc6e6b617ee",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reloading:''",
+      "input_hex": "41637469766553746174653d72656c6f6164696e670a4a6f623d",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 107,
+        "sha256": "cee0c8e6f97d16efff46e0e1364dd2889745e364d5e4d8c059517b5360ba633d",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "reloading",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "11747904a6b688d5993b31cfb2f79e0e3d3ae3f09b88349a4d3a94b5ce5e33db",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reloading:'0'",
+      "input_hex": "41637469766553746174653d72656c6f6164696e670a4a6f623d30",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "24ebe9af80faf1279025724f28d5ecf542dc3f616131588aa00228884d4d24d1",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "reloading",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "11747904a6b688d5993b31cfb2f79e0e3d3ae3f09b88349a4d3a94b5ce5e33db",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reloading:'00'",
+      "input_hex": "41637469766553746174653d72656c6f6164696e670a4a6f623d3030",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 109,
+        "sha256": "108401130175fbd9023707f280659868afc2bd9fc8876229d588aa53bee2f62a",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "reloading",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "11747904a6b688d5993b31cfb2f79e0e3d3ae3f09b88349a4d3a94b5ce5e33db",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reloading:'0000000000'",
+      "input_hex": "41637469766553746174653d72656c6f6164696e670a4a6f623d30303030303030303030",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 117,
+        "sha256": "5362c89d9e51f8e047212100e211a05c1399b2d6596112c7dfd000a5117244a3",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "reloading",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "11747904a6b688d5993b31cfb2f79e0e3d3ae3f09b88349a4d3a94b5ce5e33db",
+          "Job": "84d9c4b849506b6d8f8075a9000e7e0a254be71060ea889fad3c88395988f4fc"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reloading:'0000000088'",
+      "input_hex": "41637469766553746174653d72656c6f6164696e670a4a6f623d30303030303030303838",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 117,
+        "sha256": "eec78924b5e813d3c5510d3500e608d09406566bd82044aa86e3a9e94768da0f",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "reloading",
+          "Job": 88
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "11747904a6b688d5993b31cfb2f79e0e3d3ae3f09b88349a4d3a94b5ce5e33db",
+          "Job": "b71e8fd970d0e4126a656db42708ec7772c3376d9995094692e4e09a4039b681"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reloading:'4294967295'",
+      "input_hex": "41637469766553746174653d72656c6f6164696e670a4a6f623d34323934393637323935",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 117,
+        "sha256": "32c81cff95af4b2a9e1c396e0d1c09c4bce92cecdef25bf9b00af2171b458cf7",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "reloading",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "11747904a6b688d5993b31cfb2f79e0e3d3ae3f09b88349a4d3a94b5ce5e33db",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "inactive:''",
+      "input_hex": "41637469766553746174653d696e6163746976650a4a6f623d",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 106,
+        "sha256": "268d8ad3109d3f5aa4e4dd06bc64f41c82e4db242b9dbd90607fbf9f2cc03f5e",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "inactive:'0'",
+      "input_hex": "41637469766553746174653d696e6163746976650a4a6f623d30",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 107,
+        "sha256": "f75e38152559bc2795cd9fb518ccfefbda5ef3fd01f5998dfd1f8c4f7d57337a",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "inactive:'00'",
+      "input_hex": "41637469766553746174653d696e6163746976650a4a6f623d3030",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "9af6cfc28c434b1769b1427cdd0a9cb6fbf649c0349b977e494de6799e46f84c",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "inactive:'0000000000'",
+      "input_hex": "41637469766553746174653d696e6163746976650a4a6f623d30303030303030303030",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 116,
+        "sha256": "2740b720397bfa3e77c8b2d88b7b5e0d156f8063f556e2a9da57c42ed4455541",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "84d9c4b849506b6d8f8075a9000e7e0a254be71060ea889fad3c88395988f4fc"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "inactive:'0000000088'",
+      "input_hex": "41637469766553746174653d696e6163746976650a4a6f623d30303030303030303838",
+      "expected": "pending",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "pending\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "pending\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 116,
+        "sha256": "b2651c4103a5e3dea5264486b0f915e711ff9a27b90623eff5b6d08b7c6c5b82",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 88
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "b71e8fd970d0e4126a656db42708ec7772c3376d9995094692e4e09a4039b681"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "inactive:'4294967295'",
+      "input_hex": "41637469766553746174653d696e6163746976650a4a6f623d34323934393637323935",
+      "expected": "pending",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "pending\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "pending\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 116,
+        "sha256": "2bf13547e567c3d2e46d3640b5c64de6355a0d2ec7b9523dd685d987eff908c3",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "failed:''",
+      "input_hex": "41637469766553746174653d6661696c65640a4a6f623d",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 104,
+        "sha256": "edfa27ea60b547748a4296f48476c7c1d6e866da11f961d5b514df72f38c1a3c",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "failed",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5d28a90f4498a81461efbaf6f628a19d9778390bb5c81a393dd936181cc3d826",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "failed:'0'",
+      "input_hex": "41637469766553746174653d6661696c65640a4a6f623d30",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 105,
+        "sha256": "280fa5ffb525f247b7b5f676f0fed99ba5276318a70af391cda85dfa79d823f9",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "failed",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5d28a90f4498a81461efbaf6f628a19d9778390bb5c81a393dd936181cc3d826",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "failed:'00'",
+      "input_hex": "41637469766553746174653d6661696c65640a4a6f623d3030",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 106,
+        "sha256": "4b0da3c3d9850685c988f6d00a754b008b7809c713bde7cbe91573d4e1593120",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "failed",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5d28a90f4498a81461efbaf6f628a19d9778390bb5c81a393dd936181cc3d826",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "failed:'0000000000'",
+      "input_hex": "41637469766553746174653d6661696c65640a4a6f623d30303030303030303030",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "091969c3f643a5f4402bd5ef3f361db7826dcbf86c41a12ac1612d760e408a3d",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "failed",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5d28a90f4498a81461efbaf6f628a19d9778390bb5c81a393dd936181cc3d826",
+          "Job": "84d9c4b849506b6d8f8075a9000e7e0a254be71060ea889fad3c88395988f4fc"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "failed:'0000000088'",
+      "input_hex": "41637469766553746174653d6661696c65640a4a6f623d30303030303030303838",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "795a32f39119b7e73dc746b344912aec23f06f3c5068eaa8ca7a3b9a62c2a292",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "failed",
+          "Job": 88
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5d28a90f4498a81461efbaf6f628a19d9778390bb5c81a393dd936181cc3d826",
+          "Job": "b71e8fd970d0e4126a656db42708ec7772c3376d9995094692e4e09a4039b681"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "failed:'4294967295'",
+      "input_hex": "41637469766553746174653d6661696c65640a4a6f623d34323934393637323935",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "e952bf21a6d853579a31b0b670333e001f75819a404b8435ef988823034d0d24",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "failed",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "5d28a90f4498a81461efbaf6f628a19d9778390bb5c81a393dd936181cc3d826",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "deactivating:''",
+      "input_hex": "41637469766553746174653d646561637469766174696e670a4a6f623d",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 110,
+        "sha256": "a9a76bcbbf26317aa707bc9f9b19824799076fd840b4c63df1419612532ee6c9",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "deactivating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "fb0c7d3aa1f6f327683bdc7ef2736098b7ff43c2d3ab8daa5b8cb23046f11506",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "deactivating:'0'",
+      "input_hex": "41637469766553746174653d646561637469766174696e670a4a6f623d30",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 111,
+        "sha256": "3ac7387dbcbf7c73b677c31161eda37eef0fd5d763644a2908d71402f43453e9",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "deactivating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "fb0c7d3aa1f6f327683bdc7ef2736098b7ff43c2d3ab8daa5b8cb23046f11506",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "deactivating:'00'",
+      "input_hex": "41637469766553746174653d646561637469766174696e670a4a6f623d3030",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 112,
+        "sha256": "aeb205c014f4aff647204ab79a41e9af75847b00659db070aa3859472c81200c",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "deactivating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "fb0c7d3aa1f6f327683bdc7ef2736098b7ff43c2d3ab8daa5b8cb23046f11506",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "deactivating:'0000000000'",
+      "input_hex": "41637469766553746174653d646561637469766174696e670a4a6f623d30303030303030303030",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 120,
+        "sha256": "2d0eb5245eb023448b02b8136ffd9980dbecb3dd1d28b5da776c754f0529bdcf",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "deactivating",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "fb0c7d3aa1f6f327683bdc7ef2736098b7ff43c2d3ab8daa5b8cb23046f11506",
+          "Job": "84d9c4b849506b6d8f8075a9000e7e0a254be71060ea889fad3c88395988f4fc"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "deactivating:'0000000088'",
+      "input_hex": "41637469766553746174653d646561637469766174696e670a4a6f623d30303030303030303838",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 120,
+        "sha256": "a7eb51f5d6ca2a9c3c72dba634193f7baa37662bb07090245060cc7e23570b09",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "deactivating",
+          "Job": 88
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "fb0c7d3aa1f6f327683bdc7ef2736098b7ff43c2d3ab8daa5b8cb23046f11506",
+          "Job": "b71e8fd970d0e4126a656db42708ec7772c3376d9995094692e4e09a4039b681"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "deactivating:'4294967295'",
+      "input_hex": "41637469766553746174653d646561637469766174696e670a4a6f623d34323934393637323935",
+      "expected": "terminal",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "terminal\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 120,
+        "sha256": "2cd4c33ac2fa15987783856049785ba8e9ebc70f5b431a5fedc1294b53239c7e",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "deactivating",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "fb0c7d3aa1f6f327683bdc7ef2736098b7ff43c2d3ab8daa5b8cb23046f11506",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'-0'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d2d300a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 107,
+        "sha256": "e1d523795d50d4a9e6d7c2eefc73e203c7780bcf7a5e71888925ca9bd4dfed46",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "ed79f26d03f412bde3db206601a698e0bb451bea9e3cc25289636ac17ea74b0a"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'+0'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d2b300a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 107,
+        "sha256": "851a075768c056baf4b1240f3989f36efd5425643946b6546ffc305aacbf2a8f",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "c2a0b3e484ed456576794d3914eadf66693ff8e068048f0fd24ce4f32ae40e90"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:' 0'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d20300a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 107,
+        "sha256": "e37cc0d2e3db6909dfbe2f2a409f85e4f2cc950b7eaa6e492b19a9273b92f3be",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "f00d9ca07f97df0310dc4cf04a2eb3a328a0e370b65a73ec10b58d91c2e870d4"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'0 '",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d30200a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 107,
+        "sha256": "e5c701a9a0fdc0c7a1893283b3c99ca97f4f15fb8ade240a4cfd99f533456a54",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "7daed43814b633951fa277cd01695574df6e05a9cb10523f1763e842b06be0ff"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'0x10'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d307831300a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 109,
+        "sha256": "80005fe2f4d42d4587f8edbb46bc989ceb1e5373b635ceaf4384ef847f77ea35",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "bf9c4d8ecd7280186783365c73316cd064c58d6abdfe7ffbb79b6b99a21f56d0"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'0.0'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d302e300a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "1bd0f4ae02166db015085f82ad1de9d2c94647c6e94c5f4ca98f78e725d6e83e",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "8aed642bf5118b9d3c859bd4be35ecac75b6e873cce34e7b6f554b06f75550d7"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'4294967296'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d343239343936373239360a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 115,
+        "sha256": "13f9cd276d14a5d8854b8258711f02f5941898a192a97389c07afced481fca94",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "6c1ca4002509bc24e93aa4211830738fce7e205e41364e11301ac5a0635cb4b5"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'00000000000'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d30303030303030303030300a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 116,
+        "sha256": "0fff527a32f198360b0c75f88f1d7e0bf1dc28b892d15eae18ceda81334c95de",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "9c9f57efe04f8f5a65b699db1c777238d5876b44cef240654c749dd09e1790ef"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'1e2'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d3165320a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "81035681e13f10f27184d180bf227e63d2ba43625697cc2cdd6a949fd10f54e0",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "704a2369ce2da4371b814bc79e5d28ed1d43effb1f168655bd297eda01f1c315"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'a'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d610a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 106,
+        "sha256": "3e1ae1b62f0b8b8e77fc2b3eb00db970715197622d3f48809c24e7b988ec8517",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "invalid:'\uff10'",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623defbc900a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "2ead82ab0451b16f865134b391375f516af524c9f21e466b198df083b7bb92a5",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "9f3f05cdea5070e2faa70906932994696220eede79ad7a630fcf174d8493434c"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "empty",
+      "input_hex": "",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 81,
+        "sha256": "20ab5ce5bf6ff07ca3cfdeceb735313085ddc7b2b31a8f46e959917f537a7614",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [
+          "ActiveState",
+          "Job"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "missing-job",
+      "input_hex": "41637469766553746174653d616374697665",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 99,
+        "sha256": "58f7278b356d4dec5e4398671d5935e8af973fe4757855e4ea2df2483d3a257e",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef"
+        },
+        "invalid_fields": [],
+        "missing_fields": [
+          "Job"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "missing-state",
+      "input_hex": "4a6f623d",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 85,
+        "sha256": "ce0bd4e583195fa64319392b06fd8c9cf248749cff3155e3e98867de55896160",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [
+          "ActiveState"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "duplicate-empty",
+      "input_hex": "4a6f623d0a4a6f623d",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 90,
+        "sha256": "4129c8de64b20728e1ff5273987b80ebbe39e2b5fdce6b12d9bdb4c492d17b12",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [
+          "ActiveState"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "duplicate-state",
+      "input_hex": "41637469766553746174653d6163746976650a41637469766553746174653d616374697665",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 118,
+        "sha256": "592ac0e0dc7d263ae2053b4139e1c6d7932020ed27db4eff123d28f0677f1b34",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef"
+        },
+        "invalid_fields": [
+          "ActiveState"
+        ],
+        "missing_fields": [
+          "Job"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "third-line",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d0a583d30",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "e3404d84fca1d8e725ca7dfb339d574fed2c87a079c070643b0b7234866397b0",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": true,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "blank-line",
+      "input_hex": "41637469766553746174653d6163746976650a4a6f623d0a0a",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 106,
+        "sha256": "778fd3b8663f956cd35fe3b9c4a9cd3962029591afd1a76227ed9750e7b856c7",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": true,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "empty-state",
+      "input_hex": "41637469766553746174653d0a4a6f623d",
+      "expected": null,
+      "shells": {
+        "bash3": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 98,
+        "sha256": "89831335ed84e86ee3b84c32898e4cfb29febbb3f761f4a13e00706c198902c8",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [
+          "ActiveState"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    },
+    {
+      "name": "reversed-no-final-newline",
+      "input_hex": "4a6f623d0a41637469766553746174653d616374697665",
+      "expected": "running",
+      "shells": {
+        "bash3": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        },
+        "bash5": {
+          "exit": 0,
+          "stdout": "running\n",
+          "stderr": "",
+          "ok": true
+        }
+      },
+      "diagnostic": {
+        "bytes": 104,
+        "sha256": "6df0c242d09e87b4762bded69bf3aa8cdc4df99215fa417909e52deb541274f3",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "running",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "Job": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      },
+      "diagnostic_ok": true
+    }
+  ]
+}

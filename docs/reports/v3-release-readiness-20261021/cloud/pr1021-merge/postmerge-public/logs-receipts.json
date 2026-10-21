@@ -1,0 +1,49 @@
+[
+  {
+    "job": 119286259259,
+    "name": "Verify and package the static documentation site",
+    "prior_read_error": null,
+    "read_exit": 0,
+    "raw_bytes": 651944,
+    "raw_sha256": "4d6eb28dc76f54963fbc7501fd7faf68a51564b62559da9856cef64c8595017a",
+    "redacted_lines": 59,
+    "public_file": "119286259259.log.gz",
+    "public_sha256": "6951269a6874a97974ee6ce44390bef17cf57047feba26bd923a6e94f1f13e7d"
+  },
+  {
+    "job": 119287349919,
+    "name": "Deploy the verified artifact",
+    "prior_read_error": null,
+    "read_exit": 0,
+    "raw_bytes": 4521,
+    "raw_sha256": "919a716d7d1b405e92292e3f03b2fa04fb825ad96a897f4ff664967eed93a255",
+    "redacted_lines": 4,
+    "public_file": "119287349919.log.gz",
+    "public_sha256": "b7ac42b4746a688852aa77c99d54ced0f91fe6eb9b08524674fbf18c3a491cb6"
+  },
+  {
+    "job": 119287794913,
+    "name": "Verify the direct GitHub Pages origin",
+    "prior_read_error": {
+      "bytes": 518,
+      "sha256": "651dd9b071b0bddbd44edda6cef27a565bb04c10284ed30a83f3311be84673dc"
+    },
+    "read_exit": 0,
+    "raw_bytes": 15476,
+    "raw_sha256": "1e2e6a13bc12fbc8da83ec1d23f65efea29ff4a326b785b092d54ec8c4eaebf4",
+    "redacted_lines": 22,
+    "public_file": "119287794913.log.gz",
+    "public_sha256": "1b09a72701ebc2fb9c3321864a530bb4eb8e6e051d4580ae49c0a84f04e0f4c6"
+  },
+  {
+    "job": 119287925579,
+    "name": "Refresh bounded Alibaba CDN URLs",
+    "prior_read_error": null,
+    "read_exit": 0,
+    "raw_bytes": 19503,
+    "raw_sha256": "187ffde8d450e10eb96eaf7bd14aca38ed1e2c20fd628675dd109d8df3b0a2c5",
+    "redacted_lines": 42,
+    "public_file": "119287925579.log.gz",
+    "public_sha256": "fc7ea7be43967ed3cdbf6895be3b6c40628c15a66508d25385ff54fdbeb47e65"
+  }
+]

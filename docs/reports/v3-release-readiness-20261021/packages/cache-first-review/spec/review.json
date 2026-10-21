@@ -1,0 +1,24 @@
+{
+  "axis": "Spec",
+  "head": "97dd5976659f1b1f86dd9180ae7fe39b2392ff44",
+  "findings": [],
+  "missing_partial": [],
+  "scope_creep": [],
+  "incorrect_implementation": [],
+  "author_freeze_matches": true,
+  "repository_unchanged_by_review": true,
+  "offline_probe_passed": true,
+  "native_49_cases_verified": false,
+  "native_validation_pending": [
+    "Rocky/Alma cache-A-first",
+    "Rocky/Alma cache-A-repeat genuine read",
+    "Rocky/Alma cache-B-target",
+    "all unchanged49 cases"
+  ],
+  "historical_gen4": {
+    "executed": 24,
+    "passed": 23,
+    "not_reached": 25
+  },
+  "at": "2026-10-21T14:24:20.647948+00:00"
+}

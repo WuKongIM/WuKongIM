@@ -1,0 +1,71 @@
+{
+  "started_at": "2026-10-21T13:57:27.210130+00:00",
+  "elapsed_seconds": 7.019831583020277,
+  "command": [
+    "go",
+    "test",
+    "./scripts",
+    "-count=1",
+    "-json",
+    "-timeout=90s",
+    "-tags=integration",
+    "-run",
+    "^TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill$"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-systemd-job",
+  "env": {
+    "LC_ALL": "C",
+    "LANG": "C",
+    "GOTOOLCHAIN": "go1.25.11",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOCACHE": "/tmp/wukongim-v3-readiness-20261021/cloud/systemd-job-diagnosis/gocache"
+  },
+  "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+  "shell_sha256": "f12fc5f1a3c9a0d1869154024b24a54f9f8297d64724df07a8d410683e0fd821",
+  "shell_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+  "go_version": "go version go1.25.11 darwin/arm64",
+  "exit_code": 1,
+  "before": {
+    "scripts/chat-lifecycle/classify-stage-service-state.sh": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24",
+    "scripts/chat_lifecycle_stage_state_test.go": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0",
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+  },
+  "after": {
+    "scripts/chat-lifecycle/classify-stage-service-state.sh": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24",
+    "scripts/chat_lifecycle_stage_state_test.go": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0",
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+  },
+  "failed_tests": [
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/original_active_empty_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/inactive_empty_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/missing_job",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill"
+  ],
+  "passed_tests": [
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/start_failed",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/SSH_read_failed",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/classifier_rejected",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/actual_deadline",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/duplicate_empty_job"
+  ],
+  "skipped_tests": [
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier"
+  ],
+  ".jsonl": {
+    "size": 71421,
+    "sha256": "fceecd0d11ca467adfc5edda50b20bc3e78e0f57b7abbc8362959d9b6433e89d"
+  },
+  ".stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

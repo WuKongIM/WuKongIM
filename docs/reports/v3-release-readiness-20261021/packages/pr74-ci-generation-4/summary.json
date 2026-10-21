@@ -1,0 +1,105 @@
+{
+  "head": "97dd5976659f1b1f86dd9180ae7fe39b2392ff44",
+  "tree": "92f8835c1b61354f4b91ebdd70579b460e62482d",
+  "attempt": 1,
+  "pages": {
+    "run": 39611110658,
+    "job": 119259885131,
+    "status": "success",
+    "test_count": 514,
+    "skipped": 0,
+    "deploy": "skipped_PR"
+  },
+  "native": {
+    "run": 39611110638,
+    "job": 119259885255,
+    "status": "success",
+    "legacy_receipts": [
+      {
+        "path": "artifacts-read2/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+        "passed": true,
+        "cases": 6,
+        "transport_cases": 0,
+        "cleanup": {
+          "scratch_removed": true
+        }
+      },
+      {
+        "path": "artifacts-read2/native-local-signing-test-only/native-local-signing.json",
+        "passed": true,
+        "cases": 10,
+        "transport_cases": 0,
+        "cleanup": {
+          "secret_tree_removed_before_verification": true,
+          "source_inputs_unchanged": true
+        }
+      },
+      {
+        "path": "artifacts-read2/native-source-metadata-test-only/native-source-metadata.json",
+        "passed": true,
+        "cases": 7,
+        "transport_cases": 0,
+        "cleanup": {}
+      },
+      {
+        "path": "artifacts-read2/native-stable-candidate-test-only/native-stable-candidate.json",
+        "passed": true,
+        "cases": 31,
+        "transport_cases": 8,
+        "cleanup": {
+          "checked_in_control_unchanged": true,
+          "scratch_removed": true,
+          "secret_tree_removed_before_verification": true
+        }
+      }
+    ]
+  },
+  "stable": {
+    "job": 119259884842,
+    "status": "failure",
+    "planned_cases": 49,
+    "executed": 24,
+    "passed": 23,
+    "failed": 1,
+    "not_reached": 25,
+    "first_failure": "rocky-linux-9-cache-A-first",
+    "reason": "persistent cache did not contain nonempty metadata",
+    "repaired_RPM_switch": "passed_real_native",
+    "baseline": [
+      {
+        "path": "stable-artifact-read2/clients-A.json",
+        "version": "3.0.0",
+        "expected_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "distributions": [
+          "ubuntu-24.04",
+          "debian-13",
+          "rocky-linux-9",
+          "alma-linux-9"
+        ],
+        "installed_cli_verified": true
+      },
+      {
+        "path": "stable-artifact-read2/clients-B.json",
+        "version": "3.0.1",
+        "expected_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "distributions": [
+          "ubuntu-24.04",
+          "debian-13",
+          "rocky-linux-9",
+          "alma-linux-9"
+        ],
+        "installed_cli_verified": true
+      }
+    ],
+    "cleanup": {
+      "verified": true,
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    }
+  },
+  "reruns_dispatched": 0,
+  "production_mutations": 0
+}

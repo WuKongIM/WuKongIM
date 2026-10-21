@@ -1,0 +1,18 @@
+download-client 165 exit 0
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 0033ce9c: NOKEY
+/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: digests signatures OK
+Importing GPG key 0x0033CE9C:
+ Userid     : "WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>"
+ Fingerprint: 3F3C 626E 3F8C CFF8 4135 83BC 16A2 7C08 0033 CE9C
+ From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable
+Importing GPG key 0x0033CE9C:
+ Userid     : "WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>"
+ Fingerprint: 3F3C 626E 3F8C CFF8 4135 83BC 16A2 7C08 0033 CE9C
+ From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable
+/downloads/wukongim_3.0.0_linux_amd64.rpm: digests signatures OK
+
+cache-inventory 167 exit 0
+{"dnf-cache/expired_repos.json":{"atime_ns":1792590905627454455,"device":66305,"inode":9448642,"mtime_ns":1792590906261913468,"sha256":"581a18a5e115a639f6a39d6210c53c27bdff9cb843d0c301530dac8bdde07956","size":19}}

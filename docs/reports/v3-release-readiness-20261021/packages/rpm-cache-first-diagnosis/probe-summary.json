@@ -1,0 +1,23 @@
+{
+  "head": "97dd5976659f1b1f86dd9180ae7fe39b2392ff44",
+  "shipping_source_unchanged": true,
+  "native_config_probes": {
+    "early_introspection_failures_retained": [
+      "config-probe.py",
+      "config-probe-v2.py"
+    ],
+    "successful": [
+      "config-probe-v3.py",
+      "config-probe-v4.py",
+      "config-probe-alma.py"
+    ],
+    "signed_native_download_replayed": false
+  },
+  "containers_created": 5,
+  "containers_remaining": 0,
+  "networks_created": 0,
+  "cleanup_verified": true,
+  "private_keys_accessed": false,
+  "CI_reruns_dispatched": 0,
+  "next_action": "review proposal and author all repair tests before shipping implementation"
+}

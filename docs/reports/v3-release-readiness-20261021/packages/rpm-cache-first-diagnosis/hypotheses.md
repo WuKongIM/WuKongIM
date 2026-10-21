@@ -1,0 +1,9 @@
+# Ranked hypotheses before new native probes
+
+Exact failure: gen4 head97dd5976, Rocky case24, serial25. Native client command165 exits0; selected A metadata and product responses all200, RPM signature passes. Helper command167 exits0 and inventories only dnf-cache/expired_repos.json (19 bytes). First cache arm was empty. The repaired A→B case23 passes.
+
+1. **Different global and repository cache paths.** The configured main cachedir under installroot receives expired_repos.json, while libdnf repository metadata uses a separately initialized cache directory (possibly from host-relative command-line values). Prediction: exact-image native DNF configuration introspection shows main and per-repository paths differ; metadata persists outside the mounted directory.
+2. **Metadata is removed during DNF lifecycle.** Existing keepcache=False or download-only teardown removes the repository files after successful commands. Prediction: metadata exists at the mounted path after makecache, then disappears after download or object teardown with the same options. Do not change keepcache or omit native operations to obtain a pass.
+3. **Inventory or metadata classification misses existing files.** The helper excludes a legitimate native metadata form or traverses the wrong exposed bind root. Prediction: direct bounded lstat/walk sees nonempty metadata under the host cache that cache_inventory/cache_evidence omits. Against this: cache_inventory returns every nonempty regular file before metadata filtering and has no silent permission skip; a traversal or link failure would have raised.
+
+Inspect official DNF/libdnf source and the exact pinned Rocky image; preserve separation between static reasoning and native proof. No shipping source changes, forced caching, CI reruns, cloud resources or production credentials.

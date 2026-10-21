@@ -1,0 +1,142 @@
+{
+  "docker_executed": false,
+  "native_acceptance_executed": false,
+  "commands": [
+    {
+      "family": "apt",
+      "exact_tmpfs_injected": false,
+      "binds": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-apt/apt:/var/lib/apt:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-apt/apt-cache:/var/cache/apt:rw"
+      ],
+      "whole_native_body_sha256": "fd0de9f0fd0a441d84197b146f020ee66ef4cead2a706f7359ce2fbf131dfd4c",
+      "remaining_tokens_identical": true,
+      "parent_tmpfs_retained": true
+    },
+    {
+      "family": "apt",
+      "exact_tmpfs_injected": true,
+      "binds": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-apt/apt:/var/lib/apt:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-apt/apt-cache:/var/cache/apt:rw"
+      ],
+      "whole_native_body_sha256": "fd0de9f0fd0a441d84197b146f020ee66ef4cead2a706f7359ce2fbf131dfd4c",
+      "remaining_tokens_identical": true,
+      "parent_tmpfs_retained": true
+    },
+    {
+      "family": "rpm",
+      "exact_tmpfs_injected": false,
+      "binds": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-cache:/tmp/client-root/tmp/dnf-cache:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-state:/tmp/client-root/tmp/dnf-state:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-cli-cache:/tmp/dnf-cache:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-cli-state:/tmp/dnf-state:rw"
+      ],
+      "whole_native_body_sha256": "2e2c99b3d8caf3e28d5b9877d4b58ebe35e3bf4dd72d929034f3a2bc38f68ab3",
+      "remaining_tokens_identical": true,
+      "parent_tmpfs_retained": true
+    },
+    {
+      "family": "rpm",
+      "exact_tmpfs_injected": true,
+      "binds": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-cache:/tmp/client-root/tmp/dnf-cache:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-state:/tmp/client-root/tmp/dnf-state:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-cli-cache:/tmp/dnf-cache:rw",
+        "/tmp/wukongim-v3-readiness-20261021/packages/cache-first-review/spec/spec-cache-vux3hpbu/cache-rpm/dnf-cli-state:/tmp/dnf-state:rw"
+      ],
+      "whole_native_body_sha256": "2e2c99b3d8caf3e28d5b9877d4b58ebe35e3bf4dd72d929034f3a2bc38f68ab3",
+      "remaining_tokens_identical": true,
+      "parent_tmpfs_retained": true
+    }
+  ],
+  "metadata": [
+    {
+      "name": "dnf-cli-cache/repo/repodata/primary.xml.gz",
+      "accepted": true
+    },
+    {
+      "name": "dnf-cache/repo.solv",
+      "accepted": true
+    },
+    {
+      "name": "dnf-cli-cache/repo.solvx",
+      "accepted": true
+    },
+    {
+      "name": "dnf-cache/expired_repos.json",
+      "accepted": false
+    },
+    {
+      "name": "dnf-cli-cache/expired_repos.json",
+      "accepted": false
+    },
+    {
+      "name": "dnf-state/repo/repodata/primary.xml.gz",
+      "accepted": false
+    },
+    {
+      "name": "dnf-cli-state/repo.solv",
+      "accepted": false
+    },
+    {
+      "name": "dnf-cli-cache/packages/pkg.rpm",
+      "accepted": false
+    },
+    {
+      "name": "dnf-cli-cache/log.txt",
+      "accepted": false
+    },
+    {
+      "name": "apt/lists/partial/Packages",
+      "accepted": false
+    }
+  ],
+  "read_proof": [
+    {
+      "root": "dnf-cache",
+      "same_file_read_accepted": true,
+      "mere_observation_rejected": true,
+      "rejected_mutations": [
+        "device",
+        "inode",
+        "sha256",
+        "size",
+        "atime_ns",
+        "removed"
+      ]
+    },
+    {
+      "root": "dnf-cli-cache",
+      "same_file_read_accepted": true,
+      "mere_observation_rejected": true,
+      "rejected_mutations": [
+        "device",
+        "inode",
+        "sha256",
+        "size",
+        "atime_ns",
+        "removed"
+      ]
+    }
+  ],
+  "cleanup": {
+    "four_owned_children_removed": true,
+    "external_sentinel_preserved": true
+  },
+  "unchanged_blocks": {
+    "OwnedDocker": "a467749fa50f65a164a4afca0478e9c6b21c76dc4f92e97f6db64e3d5889047a",
+    "cache_inventory": "e7c77534e013f0e2efb1d045b7dbe384d6e0d767a683eb30c2ad8e151b2b7f9f",
+    "cache_operation": "16d7268821e111895098e321b5a42f10cb2a66ec0b291e95e04645fab8c54c3a",
+    "cache_helper_command": "58acb2d8489d4162bed439c643b265cb2ea65a7c2ab7d4797772288e65ea8389",
+    "run_command": "81b06fb97bfa67ca3ac5ccac4f9b259268cd5eb20625bfae2bd3463520a0c9f0",
+    "verify_rpm_requests": "949f15a812d330f47a93fa17c0f11f65aec2c9cd5a7fdf0553aad8d10a55e9d0",
+    "verify_apt_by_hash_fault": "2b069a219908f2c9ec53c809513c8f19a4ae80c6e74f576b66403dfc2640035a",
+    "build_product": "7aa7512a7ae84e9d6e531edc245dcc2b57f6554675213d47603c293c228c98ce",
+    "seal_generations": "9b208ea1a9026344372f6f68f705005ac533160ff9c55f0ca2384528506a2b5b",
+    "materialize_routes": "1122d5eda993e47845fd08113003ec6d593b32c04b9fcd6277957820c3c38830"
+  },
+  "all_case_loops_and_cleanup_unchanged": true,
+  "production_validator_unchanged_sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+}

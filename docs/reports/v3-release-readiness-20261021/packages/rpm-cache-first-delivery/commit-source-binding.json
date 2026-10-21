@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-21T14:24:29.118464+00:00",
+  "head": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "tree": "8748c88e1c8c4e8f5370581ed42e282f5ef60cfc",
+  "base": "97dd5976659f1b1f86dd9180ae7fe39b2392ff44",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "0bc712321b07f12d3ba4c74f1b2100410546c1fdbd798ef9c2858f0817fcf7c0",
+      "size": 2594
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "23dfb861d62b1936455238d5567557c9cf7326a235d516e823c606f3d0165e1c",
+      "size": 12245
+    },
+    "tests/native_stable_clients_drill.py": {
+      "sha256": "6c5317823859d87953382c36300f0275d7e6c64dfbae46f7003b7665f410484f",
+      "size": 66724
+    },
+    "tests/test_native_stable_clients_drill.py": {
+      "sha256": "4395c97b4c889ccd88a57f8c51b2ba36f9db942a206a468f830314fff30dcffd",
+      "size": 60420
+    }
+  },
+  "standards_findings": 0,
+  "spec_findings": 0,
+  "native49": "pending_new_exact_head_ci"
+}

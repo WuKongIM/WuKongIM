@@ -1,0 +1,23 @@
+{
+  "started_at": "2026-10-21T13:53:54.242249+00:00",
+  "command": [
+    "gh",
+    "run",
+    "view",
+    "39611110638",
+    "--repo",
+    "WuKongIM/packages",
+    "--job",
+    "119259885255",
+    "--log"
+  ],
+  "exit_code": 1,
+  "stdout": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stderr": {
+    "size": 81,
+    "sha256": "7070b966491e89ecf736d69bc7e7f52ac1a2e3893c7e8b30eb4bea9cc539d199"
+  }
+}

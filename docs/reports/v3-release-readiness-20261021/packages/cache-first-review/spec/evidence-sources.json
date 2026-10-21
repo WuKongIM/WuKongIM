@@ -1,0 +1,47 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-diagnosis/native-path-proof.json",
+    "sha256": "980960ca3876a43f296ef6e4ff4619f43da41eecd0079716571150e26286ee61",
+    "size": 1931
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-diagnosis/ci-client-mounts.json",
+    "sha256": "a5204717e8a15837868fb54838c35dacaaa70ff0f39c46d2c51ddf81a3c9df32",
+    "size": 1445
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-4/summary.json",
+    "sha256": "4701666033d7d28f767239cd187f97682fa722f8f91881ca82d2b901e8f15a98",
+    "size": 2834
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-repair/tests-before-implementation.json",
+    "sha256": "4a86cc3282ba267faf2deb599bbc14a6faecf75d403e1fd85c0d16cca13f675b",
+    "size": 378
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-repair/01-old-source-red.log",
+    "sha256": "933429b9883a81ab7247ebd9521a24c7b93293060319914059286c90ecb7aa38",
+    "size": 18045
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-repair/02-related-green.log",
+    "sha256": "4788e73a1fb09e24915a1d0fba37b1c68c6072f72d3d0de56035347f5c6253b3",
+    "size": 13720
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-repair/03-full-suite.log",
+    "sha256": "70eb982f4ff8de566fc7d68dadfc2ce940e165659932a6edb048efa1c74b09b3",
+    "size": 2240
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-repair/04-contracts.log",
+    "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6",
+    "size": 176
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-cache-first-repair/source-freeze.json",
+    "sha256": "d4d1568c49eeab820c95000c996fdc230533baa6b3d598a9f7f13e7e2984a7b4",
+    "size": 803
+  }
+]

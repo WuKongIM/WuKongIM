@@ -1,0 +1,74 @@
+[
+  {
+    "path": "command.json",
+    "size": 334,
+    "compressed_size": 213,
+    "crc32": "c797ebb8",
+    "retained": true,
+    "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9",
+    "public_sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9",
+    "public_bytes": 334,
+    "redacted_lines": []
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33,
+    "compressed_size": 35,
+    "crc32": "dd48af92",
+    "retained": true,
+    "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+    "public_sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+    "public_bytes": 33,
+    "redacted_lines": []
+  },
+  {
+    "path": "identity.json",
+    "size": 286,
+    "compressed_size": 190,
+    "crc32": "bc8321c3",
+    "retained": true,
+    "sha256": "a0bac35bd7cee93367ce45721e9f315c74f1b337bf45a84bcbfd2423448f4432",
+    "public_sha256": "a0bac35bd7cee93367ce45721e9f315c74f1b337bf45a84bcbfd2423448f4432",
+    "public_bytes": 286,
+    "redacted_lines": []
+  },
+  {
+    "path": "policy.json",
+    "size": 14492,
+    "compressed_size": 2758,
+    "crc32": "4b2851e1",
+    "retained": true,
+    "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "public_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "public_bytes": 14492,
+    "redacted_lines": []
+  },
+  {
+    "path": "result.json",
+    "size": 370,
+    "compressed_size": 195,
+    "crc32": "c3a6fe32",
+    "retained": true,
+    "sha256": "1ab429521bc7613ca82dcfa265c7f6c09dd17cc73291ba3ae8bfe64eb5bc1598",
+    "public_sha256": "1ab429521bc7613ca82dcfa265c7f6c09dd17cc73291ba3ae8bfe64eb5bc1598",
+    "public_bytes": 370,
+    "redacted_lines": []
+  },
+  {
+    "path": "stdout-stderr.log",
+    "size": 22029,
+    "compressed_size": 4120,
+    "crc32": "4df99144",
+    "retained": true,
+    "sha256": "159b3a4b0bf81801ec636e642f28c0e23e01b82e4f7c2bf16e12916d557ea673",
+    "public_sha256": "56df057819d64f473bf9bab0c17e045105bbe874029de36f53a746aa0e4f3030",
+    "public_bytes": 22006,
+    "redacted_lines": [
+      {
+        "line": 90,
+        "size": 86,
+        "sha256": "eb6a575e9a49d7bd317b53e61d9d1852028e3ce87171c4c48cb157d730c6f12b"
+      }
+    ]
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-21T13:55:34.542503+00:00",
+  "files": {
+    "scripts/chat_lifecycle_stage_state_test.go": {
+      "size": 5021,
+      "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+    },
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": {
+      "size": 15560,
+      "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+    },
+    "scripts/chat-lifecycle/classify-stage-service-state.sh": {
+      "size": 711,
+      "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+      "unchanged_base": true
+    },
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": {
+      "size": 3911,
+      "sha256": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24",
+      "unchanged_base": true
+    }
+  }
+}

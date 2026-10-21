@@ -1,0 +1,390 @@
+{
+  "at": "2026-10-21T14:12:39.846103+00:00",
+  "groups": [
+    {
+      "path": "cloud/systemd-job-review/standards",
+      "files": [
+        {
+          "path": "ARCHIVE_ALLOWLIST.txt",
+          "size": 387,
+          "sha256": "811ed3440beaf44e0144856d3b6fdeaafd002db3c15457f33f6913aaa124fd25"
+        },
+        {
+          "path": "checks.json",
+          "size": 21468,
+          "sha256": "2a66ddf9e50919433f72dbabc53a4735ff7ee99d269d2058d47d13ca139b22fe"
+        },
+        {
+          "path": "files/CHANGELOG.md",
+          "size": 189447,
+          "sha256": "726e525915378e347a9a79f6bc08eaaa02ca1cee6a1ea7aec20c388bf969b561"
+        },
+        {
+          "path": "files/docs/development/PROJECT_KNOWLEDGE.md",
+          "size": 142443,
+          "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3"
+        },
+        {
+          "path": "files/scripts/chat-lifecycle/classify-stage-service-state.sh",
+          "size": 1246,
+          "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+        },
+        {
+          "path": "files/scripts/chat-lifecycle/pre-clock-diagnostic.py",
+          "size": 4064,
+          "sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c"
+        },
+        {
+          "path": "files/scripts/chat_lifecycle_preclock_capture_integration_test.go",
+          "size": 15560,
+          "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+        },
+        {
+          "path": "files/scripts/chat_lifecycle_stage_state_test.go",
+          "size": 5021,
+          "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+        },
+        {
+          "path": "report.md",
+          "size": 763,
+          "sha256": "d94c95fcbce1663f947cbecfdde3ad36d9c7e842159843d28fea61bf0e902f04"
+        },
+        {
+          "path": "review.patch",
+          "size": 15316,
+          "sha256": "4a5d2ad1ce00fa05eb2ad36e8e744fc2c3b3c3dc2343b3f4832d9e2a3448399c"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 3866,
+          "sha256": "7840c756e0a943c1a4c9e4862bc4fc9c136e444fb18bbf32f5191e279090672e"
+        },
+        {
+          "path": "tracked-diff.patch",
+          "size": 9957,
+          "sha256": "1ffc5236e0f1adcb367e07f9ccc7a8bd2fe482370255011a58fc103da37cefcb"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 1179,
+          "sha256": "66dcbae2fbf00009c0b92329f192d3bf195a2fe0d1c6c231c103380d20bfb649"
+        }
+      ]
+    },
+    {
+      "path": "cloud/systemd-job-review/spec",
+      "files": [
+        {
+          "path": "probe-result.json",
+          "size": 101327,
+          "sha256": "126b614857be2a1ef53fdbfb69fd634633993e556c7568fd6cf2d1592b8a5ecd"
+        },
+        {
+          "path": "classifier-before.sh",
+          "size": 711,
+          "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+        },
+        {
+          "path": "receipt-verification.json",
+          "size": 12211,
+          "sha256": "68e9c751df028867222b78f783d389183a29a98d3e81ab2e4ad8db1a52f26eab"
+        },
+        {
+          "path": "tracked-review.patch",
+          "size": 9957,
+          "sha256": "1ffc5236e0f1adcb367e07f9ccc7a8bd2fe482370255011a58fc103da37cefcb"
+        },
+        {
+          "path": "applicable-AGENTS.md",
+          "size": 13284,
+          "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+        },
+        {
+          "path": "report.md",
+          "size": 551,
+          "sha256": "e74b1726a584493635269df683485565bd7357e6599957091526fc6b2ff02122"
+        },
+        {
+          "path": "evidence.md",
+          "size": 7925,
+          "sha256": "0e021964762d8c4e7eed362fb8c03a0d6a61bc3c7c156de70cc1f600ebdcc3b1"
+        },
+        {
+          "path": "classifier-after.sh",
+          "size": 1246,
+          "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+        },
+        {
+          "path": "spec-scope-and-failure-inventory.md",
+          "size": 3844,
+          "sha256": "596f8c7b9661ff1326b228b4f70731cbcbb219665625808edd8f9905ec0f2c3e"
+        },
+        {
+          "path": "probe.py",
+          "size": 4915,
+          "sha256": "9d2677b1858f64de78cd57421395f3c3991ef1c14af67451c406dc0e5cd6d524"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 2093,
+          "sha256": "17bbfd309cbe1d0eaeb793f860424e35507b3857c70dbffa4de7a7026272600c"
+        },
+        {
+          "path": "manifest.json",
+          "size": 2669,
+          "sha256": "9fbd4c9a7989ade3451950ae9f9758a46681a37dd879b1fbac3192b7cb12081d"
+        },
+        {
+          "path": "review.json",
+          "size": 881,
+          "sha256": "e6868e30b1efab14ebb2e4965449faba06f171abc2a8d774179d8a30a49632d6"
+        },
+        {
+          "path": "spec-README.md",
+          "size": 3629,
+          "sha256": "f1c0f3c42be3d25158ccc94f21f1d734e6e871d7884f1a2c7e4a3bc557a29aa6"
+        },
+        {
+          "path": "files/CHANGELOG.md",
+          "size": 189447,
+          "sha256": "726e525915378e347a9a79f6bc08eaaa02ca1cee6a1ea7aec20c388bf969b561"
+        },
+        {
+          "path": "files/scripts/chat_lifecycle_preclock_capture_integration_test.go",
+          "size": 15560,
+          "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+        },
+        {
+          "path": "files/scripts/chat_lifecycle_stage_state_test.go",
+          "size": 5021,
+          "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+        },
+        {
+          "path": "files/scripts/chat-lifecycle/classify-stage-service-state.sh",
+          "size": 1246,
+          "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+        },
+        {
+          "path": "files/scripts/chat-lifecycle/pre-clock-diagnostic.py",
+          "size": 4064,
+          "sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c"
+        },
+        {
+          "path": "files/docs/development/PROJECT_KNOWLEDGE.md",
+          "size": 142443,
+          "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3"
+        }
+      ]
+    },
+    {
+      "path": "cloud/systemd-job-delivery",
+      "files": [
+        {
+          "path": "pr-body.md",
+          "size": 1564,
+          "sha256": "41ae29f09bddf1f0251d509d9eb5ce47eb002cf83c75a1f65c4e1868d98a7a83"
+        },
+        {
+          "path": "commit-source-binding.json",
+          "size": 1275,
+          "sha256": "a6e5ec6277402052797443d00676301475a62e8a9a1363ce10e260ca57d42762"
+        },
+        {
+          "path": "pr-created.json",
+          "size": 213,
+          "sha256": "ada1cf42b84d4812356bc4ad9779ef0ce5d702965ef5e20bcb224b59c5c35d3b"
+        }
+      ]
+    },
+    {
+      "path": "packages/rpm-cache-first-diagnosis",
+      "files": [
+        {
+          "path": "alma-image-inspect.json",
+          "size": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+        },
+        {
+          "path": "alma-image-pull.log",
+          "size": 555,
+          "sha256": "057b7c617a985618fbcb1a03e8cb6effaad81528d8473b700dc96e37540552be"
+        },
+        {
+          "path": "ci-client-mounts.json",
+          "size": 1445,
+          "sha256": "a5204717e8a15837868fb54838c35dacaaa70ff0f39c46d2c51ddf81a3c9df32"
+        },
+        {
+          "path": "config-probe-alma.py",
+          "size": 2001,
+          "sha256": "79a9054d7dce5c312cb0440192e3cee9c3abc18a09c9162509cfcee7adde97d2"
+        },
+        {
+          "path": "config-probe-alma.py.receipt.json",
+          "size": 16351,
+          "sha256": "7e2d37f7acdb262318360e0f8cf9a01cfa4b487ba4d61b8e2ae430d4f8f38f5b"
+        },
+        {
+          "path": "config-probe-alma.py.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "config-probe-alma.py.stdout",
+          "size": 13305,
+          "sha256": "08353dce69f73005d47e9b0a9fa53816a5d580c7ce48939f31ee7efed00b6688"
+        },
+        {
+          "path": "config-probe-v2.py",
+          "size": 1705,
+          "sha256": "52131a89074624ad9ef98ae1bcef977f5518d1f375e22cde327d7c68be3d22ac"
+        },
+        {
+          "path": "config-probe-v2.py.receipt.json",
+          "size": 3527,
+          "sha256": "844700d2a99117e16aae744af66db451f673c2ba1959d8b58fb69afbe870e00d"
+        },
+        {
+          "path": "config-probe-v2.py.stderr",
+          "size": 970,
+          "sha256": "6e937e9fae035800ab1d251d58e57a2e88f7d37cd4773be7a1ee4e396b6a0ff2"
+        },
+        {
+          "path": "config-probe-v2.py.stdout",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "config-probe-v3.py",
+          "size": 1661,
+          "sha256": "71279a1b73eb39d370554fc29f444f1eb365009b3b5d3e4f997cbd99ca36fdae"
+        },
+        {
+          "path": "config-probe-v3.py.receipt.json",
+          "size": 7203,
+          "sha256": "3290f655cb47aa02de91ede5144854b2d5d7290a63af2211589debfc8995167d"
+        },
+        {
+          "path": "config-probe-v3.py.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "config-probe-v3.py.stdout",
+          "size": 4429,
+          "sha256": "696e2ded66a3d2d437aa43bcddeec60c3d5f9033e80166ec170d45d4e0a5d4e4"
+        },
+        {
+          "path": "config-probe-v4.py",
+          "size": 2001,
+          "sha256": "79a9054d7dce5c312cb0440192e3cee9c3abc18a09c9162509cfcee7adde97d2"
+        },
+        {
+          "path": "config-probe-v4.py.receipt.json",
+          "size": 16387,
+          "sha256": "7b29052cce8c7853a813342a4be94c51b0d62f33212397cf906d6ea6aeb91824"
+        },
+        {
+          "path": "config-probe-v4.py.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "config-probe-v4.py.stdout",
+          "size": 13314,
+          "sha256": "5aaf76322831b4e4eba0f644d6e339f63ea3e132b8a01e55537953801d7ff4b2"
+        },
+        {
+          "path": "config-probe.py",
+          "size": 1638,
+          "sha256": "6ec00534c4a6f1db68f4c71ff3fd59b7535ff2cf0d745428819457bd37b4a493"
+        },
+        {
+          "path": "config-probe.py.receipt.json",
+          "size": 3619,
+          "sha256": "501d554fef060f128cbb287d7fd977439cf0f6ec7af93ac556b268447d81ba0a"
+        },
+        {
+          "path": "config-probe.py.stderr",
+          "size": 1061,
+          "sha256": "e8412dab39d4307277673c01dbaa0e3841f539b14cdeebcf0f5ea13ae51cccc0"
+        },
+        {
+          "path": "config-probe.py.stdout",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "failure-inventory.md",
+          "size": 2589,
+          "sha256": "7a24134335c3735446456b3ce41339e40aaa7b3278d86a0a15152190ad0ca45d"
+        },
+        {
+          "path": "hypotheses.md",
+          "size": 1827,
+          "sha256": "ec7250449f6566e690bd0cc4c92443c6e1f9a47caa9847456d500fa03c0a8689"
+        },
+        {
+          "path": "image-pull.json",
+          "size": 310,
+          "sha256": "65315a571539b9bedcd6aed308a1637b2713f2dbe63e037fc7df7a0e89629349"
+        },
+        {
+          "path": "image-pull.log",
+          "size": 621,
+          "sha256": "49aea046bb064f7201d1f99a69c70ca7df63ec484c3b64ff0d1c893f54906f8a"
+        },
+        {
+          "path": "native-path-proof.json",
+          "size": 1931,
+          "sha256": "980960ca3876a43f296ef6e4ff4619f43da41eecd0079716571150e26286ee61"
+        },
+        {
+          "path": "probe-summary.json",
+          "size": 657,
+          "sha256": "57623e82385c14b5ca08faac7330831c05d4a15e9fb0dc0d8660d63bbd95b455"
+        },
+        {
+          "path": "proposal.md",
+          "size": 5317,
+          "sha256": "f3d1e305c5e22a618fb72b329629606f05db246048602ae955bacba6108b2c67"
+        },
+        {
+          "path": "run-owned-probe-alma.py",
+          "size": 1909,
+          "sha256": "f95c978d503fafc2d7721a80b529bb46e892065ed42f09d224ce7239d3ea6dac"
+        },
+        {
+          "path": "run-owned-probe.py",
+          "size": 1938,
+          "sha256": "bcc2810e7daf962c421083c38ceeb7b00c7d13caf8352a5a976408d311f6359b"
+        },
+        {
+          "path": "source/scripts/validate-production-package-clients.py",
+          "size": 87886,
+          "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+        },
+        {
+          "path": "source/tests/native_stable_clients_drill.py",
+          "size": 66272,
+          "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 3082,
+          "sha256": "8a9e54f82a268760a1af3cb779bae2c1d40ed32847e30e39488dc305e8a8d58f"
+        },
+        {
+          "path": "ARCHIVE_ALLOWLIST.txt",
+          "size": 838,
+          "sha256": "972b9a1d3e9282ecbfef988c42e8a456bd9f7770b404b1d5fff56a58c82dae39"
+        },
+        {
+          "path": "archive-sha256.json",
+          "size": 5617,
+          "sha256": "11e93754130543d1aaaa4adc65aadd4969840eb42e518b1dfe07fa07233afb5a"
+        }
+      ]
+    }
+  ]
+}

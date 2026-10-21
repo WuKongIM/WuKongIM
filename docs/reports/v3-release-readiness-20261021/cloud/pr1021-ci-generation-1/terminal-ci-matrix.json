@@ -1,0 +1,227 @@
+{
+  "observed_at": "2026-10-21T14:32:57.494315+00:00",
+  "snapshot": "snapshots/20261021T143135Z",
+  "runs": [
+    {
+      "id": 39614359600,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T14:09:26Z",
+      "updated_at": "2026-10-21T14:09:38Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614359600"
+    },
+    {
+      "id": 39614359934,
+      "name": "V3 Candidate Regression pull_request 1021 attempt 1",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T14:09:26Z",
+      "updated_at": "2026-10-21T14:28:27Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614359934"
+    },
+    {
+      "id": 39614360432,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1021 attempt 1",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T14:09:26Z",
+      "updated_at": "2026-10-21T14:15:08Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432"
+    }
+  ],
+  "jobs": [
+    {
+      "id": 119271307650,
+      "name": "Emit credential-free wake-up",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:29Z",
+      "completed_at": "2026-10-21T14:09:32Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614359600/job/119271307650"
+    },
+    {
+      "id": 119271309902,
+      "name": "Candidate scripts integration",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:29Z",
+      "completed_at": "2026-10-21T14:19:30Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614359934/job/119271309902"
+    },
+    {
+      "id": 119271310355,
+      "name": "Candidate default suite (go-unit)",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:29Z",
+      "completed_at": "2026-10-21T14:16:59Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614359934/job/119271310355"
+    },
+    {
+      "id": 119275338999,
+      "name": "Candidate migration and messaging E2E",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:17:02Z",
+      "completed_at": "2026-10-21T14:22:28Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614359934/job/119275338999"
+    },
+    {
+      "id": 119271314266,
+      "name": "PR three-node correctness",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:29Z",
+      "completed_at": "2026-10-21T14:14:19Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271314266"
+    },
+    {
+      "id": 119271314842,
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:29Z",
+      "completed_at": "2026-10-21T14:11:38Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271314842"
+    },
+    {
+      "id": 119271314879,
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:29Z",
+      "completed_at": "2026-10-21T14:09:43Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271314879"
+    },
+    {
+      "id": 119271316694,
+      "name": "Nightly direct 500 QPS qualification",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T14:09:27Z",
+      "completed_at": "2026-10-21T14:09:27Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271316694"
+    },
+    {
+      "id": 119271316879,
+      "name": "Fixed Linux SEND diagnosis",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T14:09:27Z",
+      "completed_at": "2026-10-21T14:09:27Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271316879"
+    },
+    {
+      "id": 119271454719,
+      "name": "PR 500 QPS / tcp-sendack",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:46Z",
+      "completed_at": "2026-10-21T14:14:29Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271454719"
+    },
+    {
+      "id": 119271454789,
+      "name": "PR 500 QPS / mixed-send",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:46Z",
+      "completed_at": "2026-10-21T14:15:02Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271454789"
+    },
+    {
+      "id": 119271454807,
+      "name": "PR 500 QPS / channel-append",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:09:45Z",
+      "completed_at": "2026-10-21T14:14:39Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119271454807"
+    },
+    {
+      "id": 119274269176,
+      "name": "PR three-node regression",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T14:15:04Z",
+      "completed_at": "2026-10-21T14:15:07Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39614360432/job/119274269176"
+    }
+  ],
+  "job_checkout_identity": [
+    {
+      "job_id": 119271307650,
+      "observed_exact_git_log_SHA_outputs": []
+    },
+    {
+      "job_id": 119271309902,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271310355,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271314266,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271314842,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271314879,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271454719,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271454789,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119271454807,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    },
+    {
+      "job_id": 119274269176,
+      "observed_exact_git_log_SHA_outputs": []
+    },
+    {
+      "job_id": 119275338999,
+      "observed_exact_git_log_SHA_outputs": [
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0",
+        "8cdee508fd2b5b5383e64a201e033d3ffef37ba0"
+      ]
+    }
+  ],
+  "executed_jobs": 11,
+  "event_skipped_jobs": 2
+}

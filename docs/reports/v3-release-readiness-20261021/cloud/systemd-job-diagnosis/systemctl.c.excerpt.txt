@@ -1,0 +1,5 @@
+615: 
+616:                         /* If the user asked for a particular property, show it, even if it is empty. */
+617:                         SET_FLAG(arg_print_flags, BUS_PRINT_PROPERTY_SHOW_EMPTY, true);
+618: 
+619:                         break;

@@ -1,0 +1,78 @@
+{
+  "applicable-AGENTS.md": {
+    "bytes": 13284,
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "classifier-after.sh": {
+    "bytes": 1246,
+    "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+  },
+  "classifier-before.sh": {
+    "bytes": 711,
+    "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+  },
+  "evidence.md": {
+    "bytes": 7925,
+    "sha256": "0e021964762d8c4e7eed362fb8c03a0d6a61bc3c7c156de70cc1f600ebdcc3b1"
+  },
+  "files/CHANGELOG.md": {
+    "bytes": 189447,
+    "sha256": "726e525915378e347a9a79f6bc08eaaa02ca1cee6a1ea7aec20c388bf969b561"
+  },
+  "files/docs/development/PROJECT_KNOWLEDGE.md": {
+    "bytes": 142443,
+    "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3"
+  },
+  "files/scripts/chat-lifecycle/classify-stage-service-state.sh": {
+    "bytes": 1246,
+    "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+  },
+  "files/scripts/chat-lifecycle/pre-clock-diagnostic.py": {
+    "bytes": 4064,
+    "sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c"
+  },
+  "files/scripts/chat_lifecycle_preclock_capture_integration_test.go": {
+    "bytes": 15560,
+    "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+  },
+  "files/scripts/chat_lifecycle_stage_state_test.go": {
+    "bytes": 5021,
+    "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+  },
+  "probe-result.json": {
+    "bytes": 101327,
+    "sha256": "126b614857be2a1ef53fdbfb69fd634633993e556c7568fd6cf2d1592b8a5ecd"
+  },
+  "probe.py": {
+    "bytes": 4915,
+    "sha256": "9d2677b1858f64de78cd57421395f3c3991ef1c14af67451c406dc0e5cd6d524"
+  },
+  "receipt-verification.json": {
+    "bytes": 12211,
+    "sha256": "68e9c751df028867222b78f783d389183a29a98d3e81ab2e4ad8db1a52f26eab"
+  },
+  "report.md": {
+    "bytes": 551,
+    "sha256": "e74b1726a584493635269df683485565bd7357e6599957091526fc6b2ff02122"
+  },
+  "review.json": {
+    "bytes": 881,
+    "sha256": "e6868e30b1efab14ebb2e4965449faba06f171abc2a8d774179d8a30a49632d6"
+  },
+  "source-freeze.json": {
+    "bytes": 2093,
+    "sha256": "17bbfd309cbe1d0eaeb793f860424e35507b3857c70dbffa4de7a7026272600c"
+  },
+  "spec-README.md": {
+    "bytes": 3629,
+    "sha256": "f1c0f3c42be3d25158ccc94f21f1d734e6e871d7884f1a2c7e4a3bc557a29aa6"
+  },
+  "spec-scope-and-failure-inventory.md": {
+    "bytes": 3844,
+    "sha256": "596f8c7b9661ff1326b228b4f70731cbcbb219665625808edd8f9905ec0f2c3e"
+  },
+  "tracked-review.patch": {
+    "bytes": 9957,
+    "sha256": "1ffc5236e0f1adcb367e07f9ccc7a8bd2fe482370255011a58fc103da37cefcb"
+  }
+}

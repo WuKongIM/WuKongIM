@@ -1,0 +1,108 @@
+{
+  "head": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "tree": "8748c88e1c8c4e8f5370581ed42e282f5ef60cfc",
+  "attempt": 1,
+  "pages": {
+    "run": 39616623261,
+    "job": 119279318650,
+    "status": "success",
+    "test_count": 518,
+    "skipped": 0,
+    "deploy": "skipped_PR"
+  },
+  "native": {
+    "run": 39616623120,
+    "job": 119279319042,
+    "status": "success",
+    "legacy_receipts": [
+      {
+        "path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+        "passed": true,
+        "cases": 6,
+        "transport_cases": 0,
+        "cleanup": {
+          "scratch_removed": true
+        }
+      },
+      {
+        "path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+        "passed": true,
+        "cases": 10,
+        "transport_cases": 0,
+        "cleanup": {
+          "secret_tree_removed_before_verification": true,
+          "source_inputs_unchanged": true
+        }
+      },
+      {
+        "path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+        "passed": true,
+        "cases": 7,
+        "transport_cases": 0,
+        "cleanup": {}
+      },
+      {
+        "path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+        "passed": true,
+        "cases": 31,
+        "transport_cases": 8,
+        "cleanup": {
+          "checked_in_control_unchanged": true,
+          "secret_tree_removed_before_verification": true,
+          "scratch_removed": true
+        }
+      }
+    ]
+  },
+  "stable": {
+    "job": 119279318689,
+    "status": "failure",
+    "planned_cases": 49,
+    "executed": 24,
+    "passed": 23,
+    "failed": 1,
+    "not_reached": 25,
+    "first_failure": "rocky-linux-9-cache-A-first",
+    "reason": "native stage failed: cache-inventory",
+    "failed_command_index": 167,
+    "download_before_inventory_exit_code": 0,
+    "repaired_RPM_switch": "passed_real_native",
+    "RPM_metadata_and_atime_gate": "not passed; inventory failed before evidence assessment",
+    "baseline": [
+      {
+        "path": "stable-artifact/clients-A.json",
+        "version": "3.0.0",
+        "expected_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "distributions": [
+          "ubuntu-24.04",
+          "debian-13",
+          "rocky-linux-9",
+          "alma-linux-9"
+        ],
+        "installed_cli_verified": true
+      },
+      {
+        "path": "stable-artifact/clients-B.json",
+        "version": "3.0.1",
+        "expected_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "distributions": [
+          "ubuntu-24.04",
+          "debian-13",
+          "rocky-linux-9",
+          "alma-linux-9"
+        ],
+        "installed_cli_verified": true
+      }
+    ],
+    "cleanup": {
+      "verified": true,
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      }
+    }
+  },
+  "reruns_dispatched": 0,
+  "production_mutations": 0
+}

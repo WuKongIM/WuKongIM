@@ -1,0 +1,7 @@
+{
+  "exit_code": 1,
+  "raw_stderr_size": 1200,
+  "raw_stderr_sha256": "7d69a8c63c54efd49d99d2965b4337953df6599f50ca376ecdf0c3a2edd61f7d",
+  "archive_digest_full_verified": false,
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/artifacts/12351384266/zip"
+}

@@ -1,0 +1,44 @@
+{
+  "args": [
+    "--quiet",
+    "--assumeyes",
+    "--installroot=/tmp/client-root",
+    "--releasever=9",
+    "--disablerepo=*",
+    "--enablerepo=wukongim-stable",
+    "--setopt=reposdir=/tmp/repos.d",
+    "--setopt=cachedir=/tmp/dnf-cache",
+    "--setopt=persistdir=/tmp/dnf-state",
+    "--setopt=keepcache=False",
+    "--setopt=install_weak_deps=False",
+    "makecache",
+    "--refresh"
+  ],
+  "dnf_version": "4.14.0",
+  "main": {
+    "cachedir": "/tmp/dnf-cache",
+    "installroot": "/tmp/client-root",
+    "keepcache": false,
+    "persistdir": "/tmp/dnf-state"
+  },
+  "repo": [
+    {
+      "attributes": [
+        "__dir__",
+        "getCachedir"
+      ],
+      "id": "wukongim-stable",
+      "native_cachedir": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885"
+    }
+  ],
+  "rpm_versions": [
+    "dnf-4.14.0-34.el9_8.rocky.0.1.noarch",
+    "libdnf-0.69.0-18.el9.rocky.0.1.x86_64",
+    "python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch"
+  ],
+  "source": {
+    "configure_repos": "    def _configure_repos(self, opts):\n        self.base.read_all_repos(opts)\n        if opts.repofrompath:\n            for label, path in opts.repofrompath.items():\n                this_repo = self.base.repos.add_new_repo(label, self.base.conf, baseurl=[path])\n                this_repo._configure_from_options(opts)\n                # do not let this repo to be disabled\n                opts.repos_ed.append((label, \"enable\"))\n\n        if opts.repo:\n            opts.repos_ed.insert(0, (\"*\", \"disable\"))\n            opts.repos_ed.extend([(r, \"enable\") for r in opts.repo])\n\n        notmatch = set()\n\n        # Process repo enables and disables in order\n        try:\n            for (repo, operation) in opts.repos_ed:\n                repolist = self.base.repos.get_matching(repo)\n                if not repolist:\n                    if self.base.conf.strict and operation == \"enable\":\n                        msg = _(\"Unknown repo: '%s'\")\n                        raise dnf.exceptions.RepoError(msg % repo)\n                    notmatch.add(repo)\n\n                if operation == \"enable\":\n                    repolist.enable()\n                else:\n                    repolist.disable()\n        except dnf.exceptions.ConfigError as e:\n            logger.critical(e)\n            self.optparser.print_help()\n            sys.exit(1)\n\n        for repo in notmatch:\n            logger.warning(_(\"No repository match: %s\"), repo)\n\n        expired_repos = self.base._repo_persistor.get_expired_repos()\n        if expired_repos is None:\n            expired_repos = self.base.repos.keys()\n        for rid in expired_repos:\n            repo = self.base.repos.get(rid)\n            if repo:\n                repo._repo.expire()\n\n        # setup the progress bars/callbacks\n        (bar, self.base._ds_callback) = self.base.output.setup_progress_callbacks()\n        self.base.repos.all().set_progress_bar(bar)\n        key_import = output.CliKeyImport(self.base, self.base.output)\n        self.base.repos.all()._set_key_import(key_import)\n",
+    "prepend_installroot": "    def prepend_installroot(self, optname):\n        # :api\n        prio = self._get_priority(optname)\n        new_path = self._prepend_installroot_path(self._get_value(optname))\n        self._set_value(optname, new_path, prio)\n",
+    "repo_init": "    def __init__(self, name=None, parent_conf=None):\n        # :api\n        super(Repo, self).__init__(section=name, parent=parent_conf)\n\n        self._config.this.disown()  # _repo will be the owner of _config\n        self._repo = libdnf.repo.Repo(name if name else \"\", self._config)\n\n        self._md_pload = MDPayload(dnf.callback.NullDownloadProgress())\n        self._callbacks = RepoCallbacks(self)\n        self._callbacks.this.disown()  # _repo will be the owner of callbacks\n        self._repo.setCallbacks(self._callbacks)\n\n        self._pkgdir = None\n        self._key_import = _NullKeyImport()\n        self.metadata = None  # :api\n        self._repo.setSyncStrategy(SYNC_ONLY_CACHE if parent_conf and parent_conf.cacheonly else self.DEFAULT_SYNC)\n        if parent_conf:\n            self._repo.setSubstitutions(parent_conf.substitutions)\n        self._substitutions = dnf.conf.substitutions.Substitutions()\n        self._check_config_file_age = parent_conf.check_config_file_age \\\n            if parent_conf is not None else True\n"
+  }
+}

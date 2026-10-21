@@ -1,0 +1,54 @@
+[
+  {
+    "distribution": "Rocky",
+    "native_versions": [
+      "dnf-4.14.0-34.el9_8.rocky.0.1.noarch",
+      "libdnf-0.69.0-18.el9.rocky.0.1.x86_64",
+      "python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch"
+    ],
+    "main_cachedir": "/tmp/dnf-cache",
+    "repository_cachedir": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+    "persistor": {
+      "cachedir": "/tmp/client-root/tmp/dnf-cache",
+      "db_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+      "expired_to_add": "set()",
+      "reset_last_makecache": "False"
+    },
+    "files_after_close": [
+      "/tmp/repos.d/wukongim-stable.repo",
+      "/tmp/client-root/var/log/dnf.log",
+      "/tmp/client-root/var/log/dnf.librepo.log",
+      "/tmp/client-root/var/log/dnf.rpm.log",
+      "/tmp/client-root/tmp/dnf-cache/expired_repos.json"
+    ],
+    "repository_cache_persisted_by_CI_mount": false,
+    "persistor_db_persisted_by_CI_mount": true,
+    "source": "config-probe-v4.py.stdout"
+  },
+  {
+    "distribution": "Alma",
+    "native_versions": [
+      "dnf-4.14.0-34.el9_8.alma.1.noarch",
+      "libdnf-0.69.0-18.el9.alma.1.x86_64",
+      "python3-dnf-4.14.0-34.el9_8.alma.1.noarch"
+    ],
+    "main_cachedir": "/tmp/dnf-cache",
+    "repository_cachedir": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+    "persistor": {
+      "cachedir": "/tmp/client-root/tmp/dnf-cache",
+      "db_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+      "expired_to_add": "set()",
+      "reset_last_makecache": "False"
+    },
+    "files_after_close": [
+      "/tmp/repos.d/wukongim-stable.repo",
+      "/tmp/client-root/var/log/dnf.log",
+      "/tmp/client-root/var/log/dnf.librepo.log",
+      "/tmp/client-root/var/log/dnf.rpm.log",
+      "/tmp/client-root/tmp/dnf-cache/expired_repos.json"
+    ],
+    "repository_cache_persisted_by_CI_mount": false,
+    "persistor_db_persisted_by_CI_mount": true,
+    "source": "config-probe-alma.py.stdout"
+  }
+]

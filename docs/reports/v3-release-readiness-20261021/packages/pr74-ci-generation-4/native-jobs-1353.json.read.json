@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-21T13:53:21.671914+00:00",
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/runs/39611110638/jobs"
+  ],
+  "exit_code": 0,
+  "stdout": {
+    "size": 8456,
+    "sha256": "2b821a4f20a35afa3447592d6c4b0eff5ff892584e5eeb612f62ae337b19b9f0"
+  },
+  "stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

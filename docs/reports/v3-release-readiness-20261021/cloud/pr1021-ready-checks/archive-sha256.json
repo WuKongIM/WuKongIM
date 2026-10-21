@@ -1,0 +1,68 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "size": 645,
+      "sha256": "7a4865a0785461b7f2fa88c8cadd834ed5218d697fffb360e5ce7b481cbb4a2f"
+    },
+    {
+      "path": "checks-read.json",
+      "size": 398,
+      "sha256": "6af6630303c3d0618119e9d8a10aec37eb3ff8fc7bf39d5b7e6b69572ac3c0af"
+    },
+    {
+      "path": "checks.json",
+      "size": 49305,
+      "sha256": "1fad1823803960ca7debbb47769c966fd3ae3c8c1e3ed60855fecef4686953be"
+    },
+    {
+      "path": "pr-read.json",
+      "size": 333,
+      "sha256": "bbc6cd0f208c71184317cc010da503670e29e824b0452d61a6c649df8addfc88"
+    },
+    {
+      "path": "pr-retry-read.json",
+      "size": 336,
+      "sha256": "4cc668ccd65cf5dbe666093dc28fa338f27da93602bb262fb2daa785c900a94d"
+    },
+    {
+      "path": "pr-retry.json",
+      "size": 17253,
+      "sha256": "95d5eef15086e49648ea2dcb9ae0c4ff4a860b75e886471504c47f22800ac1e8"
+    },
+    {
+      "path": "runs-read.json",
+      "size": 401,
+      "sha256": "329f0e45bf5f4211f5d46e16dd8bfc710bd0375f937e5aa14d086f44c6992261"
+    },
+    {
+      "path": "runs.json",
+      "size": 49869,
+      "sha256": "d017aa3701aae73d40d0557a4b80d225ef0d0862711ac9fadd5cd810af0a77ff"
+    },
+    {
+      "path": "signal-jobs-read.json",
+      "size": 354,
+      "sha256": "22dbe596afa15e97381e64c0d18d768f633ea6ea39018c045ea57d88ae1c2248"
+    },
+    {
+      "path": "signal-jobs.json",
+      "size": 1442,
+      "sha256": "40eca89a7b448368fff9cb243c9f0e92dc7472678645d525823f8a0ca99953b2"
+    },
+    {
+      "path": "signal-workflow-source.yml",
+      "size": 609,
+      "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45"
+    },
+    {
+      "path": "summary.json",
+      "size": 805,
+      "sha256": "e6776e9c38ef438994c260a50f3d81ae2bf9cd384cb9ee687400eda261c86191"
+    }
+  ],
+  "payload_count": 12,
+  "payload_bytes": 121750,
+  "allowlist_sha256": "bbe17124b20bbe5944be312e9d2b2f480efc8857a8b078e924f65a06ed9f40bf",
+  "sha256sums_sha256": "a3e08dd8a5db5b9d952f9270496e13f0beb88a196cfbdddfefd771ece953e12d"
+}

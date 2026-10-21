@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-21T14:00:41.179936+00:00",
+  "reason": "First static harness asserted empty stderr before recording; this bounded replay retains each command output under same ambient locale. Shipping source unchanged.",
+  "first_tool_output": "Traceback (most recent call last): File <stdin>, line 6, AssertionError",
+  "checks": [
+    {
+      "command": [
+        "/bin/bash",
+        "-n",
+        "scripts/chat-lifecycle/classify-stage-service-state.sh"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-n",
+        "scripts/chat-lifecycle/classify-stage-service-state.sh"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor\n"
+    },
+    {
+      "command": [
+        "gofmt",
+        "-l",
+        "scripts/chat_lifecycle_stage_state_test.go",
+        "scripts/chat_lifecycle_preclock_capture_integration_test.go"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

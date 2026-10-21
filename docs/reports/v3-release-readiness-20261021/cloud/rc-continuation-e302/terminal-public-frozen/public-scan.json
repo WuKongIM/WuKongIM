@@ -1,0 +1,8 @@
+{
+  "private_key_pem_present": false,
+  "github_token_pattern_present": false,
+  "temporary_signed_url_present": false,
+  "files_scanned": 67,
+  "content_values_printed": false,
+  "limitations": "Pattern scan supplements the explicit public file allowlist; not a universal secret detector."
+}

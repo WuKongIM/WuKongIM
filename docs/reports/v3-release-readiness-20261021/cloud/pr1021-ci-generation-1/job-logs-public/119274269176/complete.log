@@ -1,0 +1,43 @@
+﻿2026-10-21T14:15:04.8592509Z Current runner version: '2.338.0'
+2026-10-21T14:15:04.8611666Z ##[group]Runner Image Provisioner
+2026-10-21T14:15:04.8612405Z Hosted Compute Agent
+2026-10-21T14:15:04.8612775Z Version: 20261015.610
+2026-10-21T14:15:04.8613166Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-21T14:15:04.8613664Z Build Date: 2026-10-14T17:06:54Z
+2026-10-21T14:15:04.8614125Z Worker ID: {cc4b669d-db26-4db4-9bf3-c8be76fb1cdc}
+2026-10-21T14:15:04.8614628Z Region: centralus
+2026-10-21T14:15:04.8614979Z Cloud: Azure
+2026-10-21T14:15:04.8615313Z ##[endgroup]
+2026-10-21T14:15:04.8616178Z ##[group]Operating System
+2026-10-21T14:15:04.8616588Z Ubuntu
+2026-10-21T14:15:04.8616942Z 24.04.5
+2026-10-21T14:15:04.8617288Z LTS
+2026-10-21T14:15:04.8617619Z ##[endgroup]
+2026-10-21T14:15:04.8618000Z ##[group]Runner Image
+2026-10-21T14:15:04.8618430Z Image: ubuntu-24.04
+2026-10-21T14:15:04.8618817Z Version: 20261018.339.1
+2026-10-21T14:15:04.8619623Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T14:15:04.8620539Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T14:15:04.8621180Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T14:15:04.8623344Z Contents: read
+2026-10-21T14:15:04.8623742Z Metadata: read
+2026-10-21T14:15:04.8624143Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T14:15:04.8626187Z Cache mode: write
+2026-10-21T14:15:04.8626627Z Prepare workflow directory
+2026-10-21T14:15:04.8878017Z Prepare all required actions
+2026-10-21T14:15:04.8956173Z Complete job name: PR three-node regression
+2026-10-21T14:15:04.9705441Z ##[group]Run [[ "$UNIT_RESULT" == success && "$CORRECTNESS_RESULT" == success ]]
+2026-10-21T14:15:04.9706522Z [36;1m[[ "$UNIT_RESULT" == success && "$CORRECTNESS_RESULT" == success ]][0m
+2026-10-21T14:15:04.9707303Z [36;1m[[ "$PERFORMANCE_RESULT" == success ]] ||[0m
+2026-10-21T14:15:04.9708555Z [36;1m  [[ "$PERFORMANCE_RESULT" == skipped && "$BASELINE_RESULT" == success && "$BASELINE_REUSED" == true ]][0m
+2026-10-21T14:15:05.0389027Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T14:15:05.0389618Z env:
+2026-10-21T14:15:05.0389880Z   UNIT_RESULT: success
+2026-10-21T14:15:05.0390167Z   CORRECTNESS_RESULT: success
+2026-10-21T14:15:05.0390478Z   PERFORMANCE_RESULT: success
+2026-10-21T14:15:05.0390783Z   BASELINE_RESULT: success
+2026-10-21T14:15:05.0391070Z   BASELINE_REUSED: false
+2026-10-21T14:15:05.0391486Z ##[endgroup]
+2026-10-21T14:15:05.0637114Z Cleaning up orphan processes

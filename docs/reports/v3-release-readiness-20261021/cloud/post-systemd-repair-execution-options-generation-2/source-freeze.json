@@ -1,0 +1,144 @@
+{
+  "analysis_control_candidate": "ff0aa096fe1bd125be70fc1844b2f45cc7f0115e",
+  "known_merged_control_baseline": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "fixed_product_source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "future_control_source": null,
+  "future_product_source": null,
+  "runtime_guard_source_identical_product_to_candidate": true,
+  "runtime_guard_product_sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+  "frozen_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "bytes": 3510
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "bytes": 4567
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "bytes": 2327
+    },
+    {
+      "path": "internal/infra/clouddeploy/FLOW.md",
+      "sha256": "b5405ce2d1b14e140202ddaee651143f5e5d550a5a032a991bf888a1fbf61245",
+      "bytes": 1552
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    {
+      "path": "scripts/cloud-deployment/FLOW.md",
+      "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80",
+      "bytes": 2788
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+      "bytes": 84251
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+      "bytes": 17342
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "sha256": "abbfff7c6eb088c548896e4151103657327d95c92722faaff263647b25ffaa75",
+      "bytes": 12358
+    },
+    {
+      "path": "internal/usecase/clouddeploy/deployment.go",
+      "sha256": "56637327515c88b189f29eadeede163b9192e5e169ee984528659379bddcdf9f",
+      "bytes": 33229
+    },
+    {
+      "path": "internal/usecase/cloudlease/control.go",
+      "sha256": "4b9f73a03d25833e08186a5c23b16c46654c738b8f36edd08e8301842915a71f",
+      "bytes": 34885
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "90b90cd3b1ad0151d8a02459731d796228e9ce2eb34a7ea2cd6b2fbca8cf43c5",
+      "bytes": 24992
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "sha256": "e9166cd98f03fbda72f47b20e7c4b7ec056ae1004a208d81df73a6de76f51b76",
+      "bytes": 16336
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226",
+      "bytes": 41136
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "0d202be2d48e61dccfeccf795c57cb35be427753486657a1ac7b0211d2fa3625",
+      "bytes": 48186
+    },
+    {
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+      "sha256": "daa93110f502a6f7915c1acba09ecbbe823f9f3c010f764ed4e65f0f04136f8e",
+      "bytes": 389
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad9597a238b812711307b1d801736daa973b50df2ae336ff20b4b396aafa29da",
+      "bytes": 10261
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a",
+      "bytes": 15796
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "c830cbb8387e3651b70fdb0e99af893d4dec0acecf268b131903ac18492d5587",
+      "bytes": 33988
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "91fc7088f634e3ab521571e468fb0526922ec1631f8c20202935cdd0139b1a3a",
+      "bytes": 30143
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4",
+      "bytes": 8145
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-activate.yml",
+      "sha256": "74ca6dba1abe62b07738a3f723220048d64fbcc4347846b479a1359bfbd0933e",
+      "bytes": 24727
+    },
+    {
+      "path": "scripts/chat-lifecycle/diagnosis-budget.sh",
+      "sha256": "b518222af1ddc48c5f0ef34a5ea253da55897373c5e18f446dcc514d06a8cf8b",
+      "bytes": 1479
+    },
+    {
+      "path": "scripts/chat-lifecycle/accrued-cost.sh",
+      "sha256": "23c02bcf61b7999cef24244e01c53897cf1fb6a8fc946fd1d41c6f87259defa2",
+      "bytes": 2354
+    }
+  ],
+  "network_api_ssh_cloud_calls": 0,
+  "repository_edits": 0,
+  "shipping_tests_written_or_run": false
+}

@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-21T13:50:06.124010+00:00",
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/runs/39611110638"
+  ],
+  "exit_code": 0,
+  "stdout": {
+    "size": 12466,
+    "sha256": "eb1a4caae0b6ff19ad93d4b5dce0abee2fa848e6030a628cd47891aaa57f8bef"
+  },
+  "stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

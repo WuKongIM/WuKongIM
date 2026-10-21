@@ -1,0 +1,11 @@
+{
+  "command": [
+    "docker",
+    "pull",
+    "--platform",
+    "linux/amd64",
+    "quay.io/rockylinux/rockylinux:9-ubi-init@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+  ],
+  "exit_code": 0,
+  "output_sha256": "49aea046bb064f7201d1f99a69c70ca7df63ec484c3b64ff0d1c893f54906f8a"
+}

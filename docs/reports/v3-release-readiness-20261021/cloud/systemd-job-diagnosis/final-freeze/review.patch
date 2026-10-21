@@ -1,0 +1,292 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index eafb270b7..d856634c6 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Accept systemd's empty `Job=` as no queued job during cloud chat-lifecycle
++  startup, while rejecting missing or malformed state fields consistently on
++  Bash 3 and Bash 5. / 云端聊天生命周期启动兼容 systemd 用空 `Job=` 表示无排队
++  任务，避免误停正常运行的服务；Bash 3/5 均明确拒绝缺失或畸形状态字段。
++
+ - Preserve the full prior cloud Quote reserve when explicitly restarting a
+   released pre-clock rehearsal, authenticate its cleanup and producer evidence,
+   and carry that reserve through formal qualification without blocking cleanup.
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 4598316f5..ff4b65030 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1221,6 +1221,11 @@ specification, runbook, report, or module documentation; link to them when neede
+   terminal unit state, SSH failure and deadline expiry must remain distinguishable,
+   with diagnostic evidence captured before terminating the unit. Missing evidence
+   leaves the original cause unknown.
++- `systemctl show --property=Job` can render the uint32 zero job ID as `Job=`.
++  Both pre-clock parsers treat that explicitly present empty value as zero while
++  preserving its raw digest; missing/duplicate fields remain invalid. Nonempty
++  IDs are bounded decimal uint32, including leading zeros. Shell rejection uses
++  explicit exits so Bash 3 and Bash 5 make the same decision.
+ - Released pre-clock continuation is an explicit single new start, not a runtime
+   retry. Its original first rehearsal must be the immediately preceding run of
+   the same numeric protected Workflow, both attempt 1, with exact authenticated
+diff --git a/scripts/chat-lifecycle/classify-stage-service-state.sh b/scripts/chat-lifecycle/classify-stage-service-state.sh
+index 513dd8a6e..af18f0da1 100755
+--- a/scripts/chat-lifecycle/classify-stage-service-state.sh
++++ b/scripts/chat-lifecycle/classify-stage-service-state.sh
+@@ -3,24 +3,38 @@ set -euo pipefail
+ 
+ active_state=''
+ job=''
++active_seen=0
++job_seen=0
+ line_count=0
+-while IFS= read -r line; do
++while IFS= read -r line || [[ -n "$line" ]]; do
+   line_count=$(( line_count + 1 ))
+   (( line_count <= 2 )) || exit 2
+   case "$line" in
+     ActiveState=*)
+-      [[ -z "$active_state" ]]
++      [[ "$active_seen" == 0 ]] || exit 2
++      active_seen=1
+       active_state="${line#ActiveState=}"
+       ;;
+     Job=*)
+-      [[ -z "$job" ]]
++      [[ "$job_seen" == 0 ]] || exit 2
++      job_seen=1
+       job="${line#Job=}"
+       ;;
+     *) exit 2 ;;
+   esac
+ done
+ 
+-[[ -n "$active_state" && "$job" =~ ^[0-9]+$ ]]
++# systemctl show renders a present, zero-valued Job as empty. Missing fields
++# remain invalid; explicit exits preserve that contract on Bash 3 and Bash 5.
++[[ "$active_seen" == 1 && "$job_seen" == 1 && -n "$active_state" ]] || exit 2
++if [[ -z "$job" ]]; then
++  job=0
++else
++  [[ "$job" =~ ^[0-9]+$ && ${#job} -le 10 ]] || exit 2
++  # Job is uint32. Bound digits before arithmetic and treat leading zeros as decimal.
++  job=$(( 10#$job ))
++  (( job <= 4294967295 )) || exit 2
++fi
+ case "$active_state" in
+   active|activating|reloading)
+     printf 'running\n'
+diff --git a/scripts/chat-lifecycle/pre-clock-diagnostic.py b/scripts/chat-lifecycle/pre-clock-diagnostic.py
+index 606cfad44..f1c22136e 100644
+--- a/scripts/chat-lifecycle/pre-clock-diagnostic.py
++++ b/scripts/chat-lifecycle/pre-clock-diagnostic.py
+@@ -59,6 +59,9 @@ def reduce_stream(mode):
+             continue
+         if name in enums and text in enums[name]:
+             values[name] = text
++        elif name == "Job" and text == "":
++            # systemctl renders no queued job as empty; keep its raw hash above.
++            values[name] = 0
+         elif name in numbers and text.isascii() and text.isdecimal() and len(text) <= 10 and int(text) <= numbers[name]:
+             values[name] = int(text)
+         else:
+diff --git a/scripts/chat_lifecycle_preclock_capture_integration_test.go b/scripts/chat_lifecycle_preclock_capture_integration_test.go
+index e4ec00844..315951e30 100644
+--- a/scripts/chat_lifecycle_preclock_capture_integration_test.go
++++ b/scripts/chat_lifecycle_preclock_capture_integration_test.go
+@@ -4,6 +4,7 @@ package scripts_test
+ 
+ import (
+ 	"context"
++	"crypto/sha256"
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
+@@ -177,6 +178,9 @@ printf 'status=%s\ncleanup\n' "$status"
+ 
+ func TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill(t *testing.T) {
+ 	root := repoRoot(t)
++	if len(originalActiveEmptyJob) != 104 || fmt.Sprintf("%x", sha256.Sum256([]byte(originalActiveEmptyJob))) != originalActiveEmptyJobSHA {
++		t.Fatal("original pre-kill public state fixture changed")
++	}
+ 	source := readFile(t, filepath.Join(root, "scripts/chat-lifecycle/stage-orchestrate.sh"))
+ 	start := strings.Index(source, "    stage_terminal_code=''\n")
+ 	if start < 0 {
+@@ -207,6 +211,10 @@ func TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill(t *testing
+ 		{"terminal runtime", "stage_terminal_before_run_start", "ActiveState=failed\nJob=0\n", "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=runtime worker_runtime_code=engine_cpu_saturated preflight_code= report=unavailable", 0, 0},
+ 		{"terminal unknown summary", "stage_terminal_before_run_start", "ActiveState=failed\nJob=0\n", "secret-canary-do-not-publish", 0, 0},
+ 		{"actual deadline", "stage_readiness_deadline_elapsed", "ActiveState=active\nJob=0\n", "", 0, 0},
++		{"original active empty job", "stage_readiness_deadline_elapsed", originalActiveEmptyJob, "", 0, 0},
++		{"inactive empty job", "stage_terminal_before_run_start", "ActiveState=inactive\nJob=\n", "", 0, 0},
++		{"missing job", "stage_state_parse_failed", "ActiveState=active\n", "", 0, 0},
++		{"duplicate empty job", "stage_state_parse_failed", "ActiveState=active\nJob=\nJob=0\n", "", 0, 0},
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {
+ 			dir := t.TempDir()
+@@ -219,7 +227,7 @@ set -eu
+ case "$*" in
+  *"reset-failed"*) printf 'start-secret-canary' >&2; exit "$START_EXIT";;
+  *"sudo test -f"*) exit 1;;
+- *"systemctl show"*) printf '%s' "$STATE_OUTPUT"; printf 'LoadState=loaded\nSubState=failed\nResult=exit-code\nExecMainCode=1\nExecMainStatus=2\n'; exit "$STATE_EXIT";;
++ *"systemctl show"*) printf '%s' "$UNIT_OUTPUT"; exit "$STATE_EXIT";;
+  *"journalctl"*) printf '%s' "$SUMMARY_OUTPUT"; exit 0;;
+  *"systemctl kill"*) test -s "$pre_clock_directory/diagnostic.json"; cp "$pre_clock_directory/diagnostic.json" "$pre_clock_directory/before-kill.json"; exit 0;;
+  *) exit 93;;
+@@ -248,7 +256,11 @@ stage_duration_seconds=7200
+ 			defer cancel()
+ 			cmd := exec.CommandContext(ctx, "bash", "-c", body)
+ 			cmd.Dir = root
+-			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "pre_clock_directory="+dir, "attempt_dir="+dir, "WK_CHAT_OUTPUT_DIR="+dir, "WK_CLOUD_SSH_CONFIG=fixture", "WK_CHAT_REQUEST_ID=fixture", "WK_CHAT_SOURCE_SHA="+strings.Repeat("a", 40), "deployment_control_sha="+strings.Repeat("b", 40), "bundle_digest=sha256:"+strings.Repeat("c", 64), "chat_stage=rehearsal", "deployment_generation=1", "CLOCK_MARKER="+filepath.Join(dir, "clock"), fmt.Sprintf("START_EXIT=%d", tc.startExit), fmt.Sprintf("STATE_EXIT=%d", tc.stateExit), "STATE_OUTPUT="+tc.state, "SUMMARY_OUTPUT="+tc.summary)
++			unitOutput := tc.state + "LoadState=loaded\nSubState=failed\nResult=exit-code\nExecMainCode=1\nExecMainStatus=2\n"
++			if tc.state == originalActiveEmptyJob {
++				unitOutput = tc.state
++			}
++			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "pre_clock_directory="+dir, "attempt_dir="+dir, "WK_CHAT_OUTPUT_DIR="+dir, "WK_CLOUD_SSH_CONFIG=fixture", "WK_CHAT_REQUEST_ID=fixture", "WK_CHAT_SOURCE_SHA="+strings.Repeat("a", 40), "deployment_control_sha="+strings.Repeat("b", 40), "bundle_digest=sha256:"+strings.Repeat("c", 64), "chat_stage=rehearsal", "deployment_generation=1", "CLOCK_MARKER="+filepath.Join(dir, "clock"), fmt.Sprintf("START_EXIT=%d", tc.startExit), fmt.Sprintf("STATE_EXIT=%d", tc.stateExit), "UNIT_OUTPUT="+unitOutput, "SUMMARY_OUTPUT="+tc.summary)
+ 			out, err := runPreClockFixture(cmd)
+ 			if err != nil || string(out) != "cleanup\n" {
+ 				t.Fatalf("actual loop failed: %v / %q", err, out)
+@@ -277,6 +289,29 @@ stage_duration_seconds=7200
+ 			if tc.branch == "stage_state_parse_failed" && (receipt.Classifier == nil || *receipt.Classifier != 2) {
+ 				t.Fatalf("exact classifier rejection status lost: %s", b)
+ 			}
++			if tc.branch == "stage_terminal_before_run_start" || tc.branch == "stage_readiness_deadline_elapsed" {
++				if receipt.Classifier == nil || *receipt.Classifier != 0 {
++					t.Fatalf("valid state must not trigger parse failure: %s", b)
++				}
++			}
++			if tc.state == originalActiveEmptyJob {
++				unitBytes, err := os.ReadFile(filepath.Join(dir, "unit.json"))
++				if err != nil {
++					t.Fatal(err)
++				}
++				var unit struct {
++					Valid      bool           `json:"valid"`
++					Bytes      int            `json:"bytes"`
++					SHA        string         `json:"sha256"`
++					Properties map[string]any `json:"properties"`
++				}
++				if err := json.Unmarshal(unitBytes, &unit); err != nil {
++					t.Fatal(err)
++				}
++				if !unit.Valid || unit.Bytes != 104 || unit.SHA != originalActiveEmptyJobSHA || unit.Properties["ActiveState"] != "active" || unit.Properties["Job"] != float64(0) {
++					t.Fatalf("original unit evidence must remain valid and exact: %s", unitBytes)
++				}
++			}
+ 			if tc.branch == "stage_terminal_before_run_start" {
+ 				t.Run("summary_command_and_classifier", func(t *testing.T) {
+ 					if !cursorSupported {
+diff --git a/scripts/chat_lifecycle_stage_state_test.go b/scripts/chat_lifecycle_stage_state_test.go
+new file mode 100644
+index 000000000..5e587a2b7
+--- /dev/null
++++ b/scripts/chat_lifecycle_stage_state_test.go
+@@ -0,0 +1,108 @@
++package scripts_test
++
++import (
++	"crypto/sha256"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++// This public reconstruction matches the pre-kill unit digest from run 33.
++// It deliberately has no final newline, as captured by the stage shell.
++const originalActiveEmptyJob = "Result=success\nExecMainCode=0\nExecMainStatus=0\nLoadState=loaded\nActiveState=active\nSubState=running\nJob="
++const originalActiveEmptyJobSHA = "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524"
++
++func TestChatLifecycleStageServiceStateContract(t *testing.T) {
++	root := repoRoot(t)
++	classifier := filepath.Join(root, "scripts/chat-lifecycle/classify-stage-service-state.sh")
++	diagnostic := filepath.Join(root, "scripts/chat-lifecycle/pre-clock-diagnostic.py")
++	for _, tc := range []struct {
++		name, input, want string
++		job               float64
++	}{
++		{"active empty job", "ActiveState=active\nJob=\n", "running\n", 0},
++		{"activating empty job", "ActiveState=activating\nJob=\n", "running\n", 0},
++		{"reloading zero job", "ActiveState=reloading\nJob=0\n", "running\n", 0},
++		{"failed empty job", "ActiveState=failed\nJob=\n", "terminal\n", 0},
++		{"deactivating queued job", "ActiveState=deactivating\nJob=88\n", "terminal\n", 88},
++		{"inactive empty job", "ActiveState=inactive\nJob=\n", "terminal\n", 0},
++		{"inactive zero", "ActiveState=inactive\nJob=0\n", "terminal\n", 0},
++		{"inactive queued", "ActiveState=inactive\nJob=8841\n", "pending\n", 8841},
++		{"uint32 max", "ActiveState=inactive\nJob=4294967295\n", "pending\n", 4294967295},
++		{"decimal zero", "ActiveState=inactive\nJob=00\n", "terminal\n", 0},
++		{"decimal not octal", "ActiveState=inactive\nJob=0000000088\n", "pending\n", 88},
++		{"unterminated job", "ActiveState=inactive\nJob=0", "terminal\n", 0},
++		{"reverse unterminated state", "Job=\nActiveState=active", "running\n", 0},
++		{"missing job", "ActiveState=active\n", "", 0},
++		{"missing active state", "Job=0\n", "", 0},
++		{"empty active state", "ActiveState=\nJob=0\n", "", 0},
++		{"duplicate active state", "ActiveState=active\nActiveState=active\n", "", 0},
++		{"duplicate empty job", "ActiveState=active\nJob=\nJob=0\n", "", 0},
++		{"secret nondecimal job", "ActiveState=active\nJob=secret-canary-do-not-publish\n", "", 0},
++		{"negative job", "ActiveState=active\nJob=-1\n", "", 0},
++		{"whitespace job", "ActiveState=active\nJob= 0\n", "", 0},
++		{"uint32 overflow", "ActiveState=active\nJob=4294967296\n", "", 0},
++		{"too many digits", "ActiveState=active\nJob=00000000000\n", "", 0},
++		{"unknown field", "ActiveState=active\nUnexpected=0\n", "", 0},
++		{"unterminated extra field", "ActiveState=active\nJob=0\nUnexpected=0", "", 0},
++		{"blank extra line", "ActiveState=active\nJob=0\n\n", "", 0},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			command := exec.Command("bash", classifier)
++			command.Stdin = strings.NewReader(tc.input)
++			out, err := command.CombinedOutput()
++			if tc.want != "" {
++				if err != nil || string(out) != tc.want {
++					t.Errorf("classification = %q, %v; want %q", out, err, tc.want)
++				}
++			} else {
++				var exit *exec.ExitError
++				if !errors.As(err, &exit) || exit.ExitCode() != 2 || len(out) != 0 {
++					t.Errorf("invalid input must exit 2 without output: %q / %v", out, err)
++				}
++			}
++
++			input := "LoadState=loaded\nSubState=running\nResult=success\nExecMainCode=0\nExecMainStatus=0\n" + tc.input
++			command = exec.Command("python3", "-B", diagnostic, "state")
++			command.Stdin = strings.NewReader(input)
++			out, err = command.CombinedOutput()
++			if err != nil {
++				t.Fatalf("diagnostic: %v / %s", err, out)
++			}
++			var got struct {
++				Valid      bool              `json:"valid"`
++				Bytes      int               `json:"bytes"`
++				SHA        string            `json:"sha256"`
++				Properties map[string]any    `json:"properties"`
++				FieldSHA   map[string]string `json:"field_sha256"`
++				Missing    []string          `json:"missing_fields"`
++				Invalid    []string          `json:"invalid_fields"`
++			}
++			if err := json.Unmarshal(out, &got); err != nil {
++				t.Fatal(err)
++			}
++			if got.Valid != (tc.want != "") || got.Bytes != len(input) || got.SHA != fmt.Sprintf("%x", sha256.Sum256([]byte(input))) {
++				t.Errorf("wrong bounded diagnostic: %s", out)
++			}
++			if got.Valid && got.Properties["Job"] != tc.job {
++				t.Errorf("Job must be typed decimal %v: %s", tc.job, out)
++			}
++			if strings.Contains(string(out), "secret-canary-do-not-publish") {
++				t.Fatal("raw value escaped diagnostic boundary")
++			}
++			if strings.Contains(tc.input, "Job=\n") && got.FieldSHA["Job"] != fmt.Sprintf("%x", sha256.Sum256(nil)) {
++				t.Errorf("empty Job raw digest changed: %s", out)
++			}
++			if tc.name == "missing job" && strings.Join(got.Missing, ",") != "Job" {
++				t.Errorf("missing Job was confused with explicit empty Job: %s", out)
++			}
++			if tc.name == "duplicate empty job" && (strings.Join(got.Invalid, ",") != "Job" || got.Properties["Job"] != nil) {
++				t.Errorf("duplicate empty Job must remain invalid: %s", out)
++			}
++		})
++	}
++}

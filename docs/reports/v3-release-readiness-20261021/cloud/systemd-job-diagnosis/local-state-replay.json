@@ -1,0 +1,755 @@
+{
+  "at": "2026-10-21T13:49:00.205775+00:00",
+  "source_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "classifier_sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+  "reducer_sha256": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24",
+  "shell_versions": {
+    "/bin/bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)",
+    "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)"
+  },
+  "cases": [
+    {
+      "case": "observed-inactive-empty",
+      "input": "ActiveState=inactive\nJob=\n",
+      "input_sha256": "3312c4db2e45834ea37a5a336aeddde2b8207352ac3a81ebcc589857b07464fe",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 104,
+        "sha256": "23dcfac20a7fed7f6985d36ba5b664ea40744161ce38282a8f64bc8f476c623c",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "active-empty",
+      "input": "ActiveState=active\nJob=\n",
+      "input_sha256": "1b5f3000f57a5c314e9369fd4c5551b03b6ee7f89ab171465eb7f0b74443f705",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "running\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 102,
+        "sha256": "b75bcd828776559036e8aac814adfc4a820da4d57bcbf113aff7c199d82f6a8d",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "inactive-zero",
+      "input": "ActiveState=inactive\nJob=0\n",
+      "input_sha256": "8d4ee7067c719ca3c39817fbadfdbcdd7bf335b2159a1e38e6121cefc2bac00a",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "terminal\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 0,
+          "stdout": "terminal\n",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 105,
+        "sha256": "ba7aecf3df02cab384babfa63126884d30a76a50209136ad6348c96ee1386935",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "inactive-queued",
+      "input": "ActiveState=inactive\nJob=8841\n",
+      "input_sha256": "233479ad9449a3aa54befd845157c7d94d756223287fe856a5cc23db161a1ff6",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "6d48c1fa4064d46a60dc2ffef3a0dc414a59b7308dfe61d7de22beb331dcb924",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 8841
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "48e6d088c751a0bd26be61e1279c16d39b810de6b18c91ac178b4bab87f0ffd4"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "invalid-job",
+      "input": "ActiveState=active\nJob=not-a-job\n",
+      "input_sha256": "bd76d1b113bbafaaff45e0eb75b0e1d3a1e9abff8055f5d8c1ca9288085b7cfc",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "running\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 111,
+        "sha256": "70b0a2bc5f816447c3c00a4588c4a4a273bdd946791592c3e5b34b2ffd494945",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "efde3e247bd598800c0e6ecd7c0dd314d84d794da70f7b5f85381262a9cd9f61"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "missing-job",
+      "input": "ActiveState=active\n",
+      "input_sha256": "56595e3e4e4190fa944d6800f7d5edf5035fda485065e9a4c90866b086e97c13",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "running\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 97,
+        "sha256": "2b36502ef113043e4dec5bfea583ca8d73c9137731a4ca479a743022abd72ad4",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef"
+        },
+        "invalid_fields": [],
+        "missing_fields": [
+          "Job"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "duplicate-active",
+      "input": "ActiveState=active\nActiveState=active\n",
+      "input_sha256": "329971156a074120d65126b3bc784f8f7cdfbc75c04397f01454b4e906786555",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "running\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 116,
+        "sha256": "f0654c4e90108a477bee14c1da5e1f2d18d577249aa8e27ad5f543be34d2458d",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef"
+        },
+        "invalid_fields": [
+          "ActiveState"
+        ],
+        "missing_fields": [
+          "Job"
+        ],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "duplicate-job-empty",
+      "input": "ActiveState=inactive\nJob=\nJob=0\n",
+      "input_sha256": "983e4dd07ddc970f06fec5b7d8ff7da06f05181ce1a3e2bad516233c4ddd8bca",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 2,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 2,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 110,
+        "sha256": "61674e644b13a155d317d5ab50f007f171c875bdb9c2f6ff9e62ce3acf18f493",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "overflow-job",
+      "input": "ActiveState=inactive\nJob=4294967296\n",
+      "input_sha256": "daf3a45c212cec5804e2434b5f8b9be2116bd65ef7fe8f8b8dae68e6e8323032",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "4cd6c979f5e24901c45fd46a271525e64362f2ecc48e964b67a188782766c1c9",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive"
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "6c1ca4002509bc24e93aa4211830738fce7e205e41364e11301ac5a0635cb4b5"
+        },
+        "invalid_fields": [
+          "Job"
+        ],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "max-job",
+      "input": "ActiveState=inactive\nJob=4294967295\n",
+      "input_sha256": "3a4049aca1b58c95cd785c7d77e56e90ce84e546919dc6f0c3d260d21ee35dc5",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 114,
+        "sha256": "e6be0f02dd3da05aa0558a6e174ccc711a00b21bb39040f29031d295e84fa7a5",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 4294967295
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "f807212b6748a8300fc3702322caa515edf0a6ed9bbc86e94c451e351b080c60"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "zero-padded-job",
+      "input": "ActiveState=inactive\nJob=00\n",
+      "input_sha256": "b81da7a2bd85a2ddf210ac4f02e4a34738a955ed356259039bdde3c655a5518c",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 106,
+        "sha256": "4ec69d443a7095fd58ea85b81332acbff3a53f22a26c96da28a8ac4a727d676b",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "f1534392279bddbf9d43dde8701cb5be14b82f76ec6607bf8d6ad557f60f304e"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "unterminated-job",
+      "input": "ActiveState=inactive\nJob=0",
+      "input_sha256": "0f06243a11d6bc9e8d04140a2966834d7dd308031cc4048fa3e0f65719bb5c96",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "pending\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 1,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 104,
+        "sha256": "247bcf5a0907920adb2132aba078a5d5f9ac408796524986d25e43869238eaf9",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "inactive",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    },
+    {
+      "case": "trailing-unterminated-garbage",
+      "input": "ActiveState=active\nJob=0\nUnexpected=x",
+      "input_sha256": "abb48587ac1a1e4f60d1d32d1b4c4ad88bc91b78cb32c2e36036d426d76b799f",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 0,
+          "stdout": "running\n",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 0,
+          "stdout": "running\n",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 115,
+        "sha256": "f6b89c5464fec93098a52da88e0a07b7e9aec42b7c106b991e4499f582aba226",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": false,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "active",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": true,
+        "oversized": false
+      }
+    },
+    {
+      "case": "diagnostic-only-known-state",
+      "input": "ActiveState=maintenance\nJob=0\n",
+      "input_sha256": "5fc7da055295fd7ab498e5c4332badd73883e3872c35a994daa53c1cf2f54478",
+      "classifier": [
+        {
+          "shell": "/bin/bash",
+          "exit_code": 2,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+          "exit_code": 2,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "diagnostic_exit": 0,
+      "diagnostic": {
+        "bytes": 108,
+        "sha256": "9004725dbda07feb1b3bc018590e3fa2dbf9ee6ac8c2d8f1eb7630f9de0d2668",
+        "complete": true,
+        "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+        "valid": true,
+        "properties": {
+          "LoadState": "loaded",
+          "SubState": "dead",
+          "Result": "success",
+          "ExecMainCode": 0,
+          "ExecMainStatus": 0,
+          "ActiveState": "maintenance",
+          "Job": 0
+        },
+        "field_sha256": {
+          "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+          "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+          "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+          "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "ActiveState": "8589c63b0943a62bfda9b35dccc71a30f5677386f6f7c644c3307465ce2cfa55",
+          "Job": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+        },
+        "invalid_fields": [],
+        "missing_fields": [],
+        "unknown_fields": false,
+        "oversized": false
+      }
+    }
+  ],
+  "guard_probes": [
+    {
+      "shell": "/bin/bash",
+      "case": "bare-combined",
+      "command": "set -e; active=x; job=\"\"; [[ -n \"$active\" && \"$job\" =~ ^[0-9]+$ ]]; printf survived",
+      "exit_code": 0,
+      "stdout": "survived",
+      "stderr": ""
+    },
+    {
+      "shell": "/bin/bash",
+      "case": "explicit-combined",
+      "command": "set -e; active=x; job=\"\"; [[ -n \"$active\" && \"$job\" =~ ^[0-9]+$ ]] || exit 2; printf survived",
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "shell": "/bin/bash",
+      "case": "bare-single",
+      "command": "set -e; job=\"\"; [[ \"$job\" =~ ^[0-9]+$ ]]; printf survived",
+      "exit_code": 0,
+      "stdout": "survived",
+      "stderr": ""
+    },
+    {
+      "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+      "case": "bare-combined",
+      "command": "set -e; active=x; job=\"\"; [[ -n \"$active\" && \"$job\" =~ ^[0-9]+$ ]]; printf survived",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+      "case": "explicit-combined",
+      "command": "set -e; active=x; job=\"\"; [[ -n \"$active\" && \"$job\" =~ ^[0-9]+$ ]] || exit 2; printf survived",
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+      "case": "bare-single",
+      "command": "set -e; job=\"\"; [[ \"$job\" =~ ^[0-9]+$ ]]; printf survived",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "limits": "Local public-input CLI replay only; no systemctl/SSH/cloud/Actions/package build. Observed host capture was post-kill; no claim of original pre-kill linkage."
+}

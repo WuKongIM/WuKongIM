@@ -1,0 +1,13 @@
+1111: 
+1112:                 if (contents[0] == SD_BUS_TYPE_UINT32 && streq(name, "Job")) {
+1113:                         uint32_t u;
+1114: 
+1115:                         r = sd_bus_message_read(m, "(uo)", &u, NULL);
+1116:                         if (r < 0)
+1117:                                 return bus_log_parse_error(r);
+1118: 
+1119:                         if (u > 0)
+1120:                                 bus_print_property_valuef(name, expected_value, flags, "%"PRIu32, u);
+1121:                         else
+1122:                                 bus_print_property_value(name, expected_value, flags, NULL);
+1123: 

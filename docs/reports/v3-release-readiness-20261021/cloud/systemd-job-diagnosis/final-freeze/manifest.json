@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-21T14:01:33.540764+00:00",
+  "base": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-systemd-job",
+  "branch": "codex/v3-rc-systemd-job",
+  "files": {
+    "scripts/chat-lifecycle/classify-stage-service-state.sh": {
+      "size": 1246,
+      "sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+    },
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": {
+      "size": 4064,
+      "sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c"
+    },
+    "scripts/chat_lifecycle_stage_state_test.go": {
+      "size": 5021,
+      "sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+    },
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": {
+      "size": 15560,
+      "sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+    },
+    "CHANGELOG.md": {
+      "size": 189447,
+      "sha256": "726e525915378e347a9a79f6bc08eaaa02ca1cee6a1ea7aec20c388bf969b561"
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "size": 142443,
+      "sha256": "30bc49c6a3dc7255bfd2a9ff8e3918f7e4999e76d63de92bb8540ff5b62f74e3"
+    }
+  },
+  "patch": {
+    "size": 15316,
+    "sha256": "4a5d2ad1ce00fa05eb2ad36e8e744fc2c3b3c3dc2343b3f4832d9e2a3448399c"
+  },
+  "shipping_tests_unchanged_since_red": true,
+  "protected_paths_unchanged": [
+    "AGENTS.md",
+    ".agents/",
+    ".github/",
+    "scripts/chat-lifecycle/stage-orchestrate.sh"
+  ],
+  "no_commit_push_cloud_or_ci": true
+}

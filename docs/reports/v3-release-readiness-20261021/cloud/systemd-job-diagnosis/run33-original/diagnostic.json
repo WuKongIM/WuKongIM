@@ -1,0 +1,67 @@
+{
+  "schema": "wukongim.chat_lifecycle.pre_clock_diagnostic/v1",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8",
+  "stage": "rehearsal",
+  "generation": 1,
+  "branch": "stage_state_parse_failed",
+  "state": "unreachable",
+  "start_command_exit": 0,
+  "state_command_exit": 0,
+  "state_classifier_exit": 1,
+  "summary_classifier_exit": null,
+  "observed_epoch": 1792589214,
+  "readiness_deadline_epoch": 1792596407,
+  "before_kill": true,
+  "readiness_started_epoch": 1792589207,
+  "deadline_checked_epoch": null,
+  "stdout_normalization": "shell_command_substitution_removes_trailing_newlines",
+  "unit": {
+    "bytes": 104,
+    "sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524",
+    "complete": true,
+    "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+    "valid": false,
+    "properties": {
+      "Result": "success",
+      "ExecMainCode": 0,
+      "ExecMainStatus": 0,
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "field_sha256": {
+      "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+      "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+      "ActiveState": "96879611650f80a81392a52e0db9b0237669087c4518e1c130e541a505e0eeef",
+      "SubState": "c071cf5f5ed6f884cc70155b6f05f755fd46a302d05e4261b7e92ce878bbfed8",
+      "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "invalid_fields": [
+      "Job"
+    ],
+    "missing_fields": [],
+    "unknown_fields": false,
+    "oversized": false
+  },
+  "summary": {
+    "available": false
+  },
+  "start_stderr": {
+    "bytes": 107,
+    "sha256": "fd78d8194a2d4b9324852ea1ac2ee63e4a92078b4d35a22f1f98a7c994d636eb",
+    "complete": true
+  },
+  "state_stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "complete": true
+  },
+  "summary_command": {
+    "available": false
+  }
+}

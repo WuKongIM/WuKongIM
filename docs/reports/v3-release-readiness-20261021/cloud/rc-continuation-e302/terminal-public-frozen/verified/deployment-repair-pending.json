@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim.chat_lifecycle.rehearsal_deployment_repair/v1",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+  "failure_code": "stage_state_parse_failed",
+  "last_successful_gate": "deployment_receipt",
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "repair_deadline": "2026-10-21T16:20:38Z",
+  "acquire_run_id": 39606834198,
+  "deployment_run_id": 39607092610,
+  "generation": 1
+}

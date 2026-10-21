@@ -1,0 +1,15 @@
+{
+  "arguments": [
+    "go",
+    "test",
+    "-tags=e2e",
+    "./test/e2e/message/cross_node_delivery",
+    "-count=1",
+    "-timeout=2m",
+    "-p=1",
+    "-json"
+  ],
+  "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+  "timeout_seconds": 180,
+  "max_output_bytes": 67108864
+}

@@ -1,0 +1,16 @@
+{
+  "source": "exec tool initial observed output; not a raw subprocess capture",
+  "command": [
+    "gh",
+    "pr",
+    "view",
+    "74",
+    "--repo",
+    "WuKongIM/packages",
+    "--json",
+    "headRefOid,statusCheckRollup,url"
+  ],
+  "diagnostic": "Post \"https://api.github.com/graphql\": EOF",
+  "source_head": "de43579a9fa88bf70f64e6dcd926a2ddf6057496",
+  "working_tree_status": "clean"
+}

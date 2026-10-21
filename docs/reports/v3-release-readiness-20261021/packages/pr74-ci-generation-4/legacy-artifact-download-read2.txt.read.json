@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-10-21T13:56:09.489814+00:00",
+  "command": [
+    "gh",
+    "run",
+    "download",
+    "39611110638",
+    "--repo",
+    "WuKongIM/packages",
+    "--name",
+    "native-source-metadata-test-only",
+    "--name",
+    "native-local-signing-test-only",
+    "--name",
+    "native-bootstrap-preparation-test-only",
+    "--name",
+    "native-stable-candidate-test-only",
+    "--dir",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-4/artifacts-read2"
+  ],
+  "exit_code": 0,
+  "stdout": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

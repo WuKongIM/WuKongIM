@@ -1,0 +1,29 @@
+{
+  "review_axis": "Spec",
+  "head": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "findings": [],
+  "missing_or_partial": [],
+  "scope_creep": [],
+  "incorrect_implementation": [],
+  "independent_probe": {
+    "cases": 56,
+    "failed": 0,
+    "shells": [
+      "local Darwin Bash3.2.57",
+      "local Darwin Bash5.2.21"
+    ],
+    "real_linux": false
+  },
+  "pending_validation": [
+    "Full exact-source Linux CI",
+    "Cloud rehearsal/formal qualification"
+  ],
+  "repository_unchanged_by_reviewer": true,
+  "author_freeze_matches": true,
+  "sources_unchanged_at_end": true,
+  "original_diagnostic_sha256": "563efaa29e9bf6947b211eb3821a4f5bc84d46338bab15036c053e30c0b06f13",
+  "original_unit_sha256": "ce88e9fcc7ac02fe57553778409ce9c18dd819e7f1ac796642f8c53330bb60dc",
+  "report": "report.md",
+  "evidence": "evidence.md",
+  "recorded_at": "2026-10-21T14:07:54.894998+00:00"
+}
