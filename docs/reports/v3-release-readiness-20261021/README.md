@@ -69,6 +69,9 @@ regression attempts; it is not a published release or a long-run qualification.
 - `packages/stable-signing-user-confirmation.json`: evolving user statements.
   NAS availability supplies a potential encrypted-backup location, not an
   established offline/hardware signing environment or generated stable keys.
+- `packages/stable-environment-options/`: exact contract and official platform
+  evidence. A second computer is not required; the existing Mac may support an
+  isolated external system, subject to an implemented and verified ceremony.
 - `packages/object-storage-plan/`, `packages/transport-plan-review/`:
   failure-first implementation, independent resource-limit finding and fix,
   then ordinary-name RPM metadata support with complete closure validation.

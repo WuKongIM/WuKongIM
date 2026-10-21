@@ -1,0 +1,26 @@
+{
+  "packages_main": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "result": "No mandatory second/dedicated machine clause. Existing Apple-silicon Mac offers conditional external-OS or compatible hardware-backed routes; ceremony not yet established.",
+  "stable_public_keys_present": false,
+  "existing_backups": "preview only (human/root evidence, not independently opened)",
+  "private_material_or_nas_accessed": false,
+  "key_generation": false,
+  "system_or_cloud_mutation": false,
+  "host": {
+    "architecture": "arm64",
+    "model": "Mac16,10",
+    "macos": "15.1"
+  },
+  "open_items": [
+    "Named stable custodian and chosen ceremony",
+    "Available external media plus authorized proven offline boot, or existing token model/firmware/slot mapping",
+    "Custody/backup/reconnect boundary",
+    "Independent stable public certificates and actual toolchain signing validation"
+  ],
+  "limitations": [
+    "No actual offline reboot or signing performed",
+    "No assertion that current preview importer supports hardware tokens",
+    "NAS backup encryption/custody not inspected",
+    "Not a new GA gate or procurement requirement"
+  ]
+}

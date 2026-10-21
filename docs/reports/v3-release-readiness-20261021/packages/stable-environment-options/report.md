@@ -1,0 +1,11 @@
+**现有 Mac 的 stable 签名环境选择（只读核对，2026-10-21）**
+
+**不需要先有第二台电脑，但目前还不能确认签名环境已落实。** 合同原句是“Stable private keys never enter GitHub-hosted CI. Stable publication uses an offline or hardware-backed signing ceremony.”（[release-contract L362–365](https://github.com/WuKongIM/packages/blob/45619df14b931ef0da3eae7a6e3d5402307daa60/docs/release-contract.md#L362-L365)）。已核对的合同、keys 文档及适用 AGENTS 均无“专用／第二台电脑”硬要求；专机只是隔离建议。已有备份是 preview，stable 公钥尚未创建；在线生成的旧主密钥不能追认为离线生成（[L348–360](https://github.com/WuKongIM/packages/blob/45619df14b931ef0da3eae7a6e3d5402307daa60/docs/release-contract.md#L348-L360)）。
+
+| 路径 | 可行性与边界 |
+| --- | --- |
+| 当前日常系统临时断网 | 可以构成离线操作时段，合同未禁止复用这台 Mac；**仅关网不足以证明仪式完成**。GnuPG 会保存[私钥文件](https://gnupg.org/documentation/manuals/gnupg/Agent-Configuration.html)并[缓存口令](https://www.gnupg.org/documentation/manuals/gnupg/Agent-Options.html)。风险分析：既有系统若已被攻陷，断网不能消除它；恢复联网后，仍可读取的密钥、缓存或备份仍可能外泄。须明确密钥从生成、使用到恢复联网后的隔离流程，不能只靠删除承诺。 |
+| 同一 Mac，独立外置系统 | 本机只读确认 **arm64 / Mac16,10 / macOS 15.1**。Apple 支持 USB／Thunderbolt 上安装完整 macOS；Apple silicon 仍依赖正常内置盘及[外置系统授权](https://support.apple.com/en-ca/guide/security/sec7d92dc49f/web)，不是任意通用 Live USB（[Apple 外置启动](https://support.apple.com/en-us/111336)）。候选建议：先准备系统／工具并验证离线启动，再离线创建独立 stable 密钥；密钥介质保持离线，关机移除后才回日常联网系统，不在联网系统挂载它。共享硬件／固件仍在信任范围内；这不是已经演练通过的方案。 |
+| 硬件保护签名 | 合同允许。设备须提供可用于 OpenPGP／GnuPG 的签名接口，RPM 全拓扑为 **RSA 3072／4096，签名 SHA-256**（[keys L24–30](https://github.com/WuKongIM/packages/blob/45619df14b931ef0da3eae7a6e3d5402307daa60/keys/README.md#L24-L30)）。[官方硬件能力示例](https://docs.yubico.com/hardware/yubikey/yk-tech-manual/yk5-apps-openpgp.html)支持这些 RSA 长度，但仅一个 OpenPGP 签名槽；不能假定一把设备覆盖 APT／RPM 独立证书及 current／next。Apple 文档的 [Secure Enclave Security 接口](https://developer.apple.com/documentation/Security/protecting-keys-with-the-secure-enclave?changes=la)为 P-256，不能据此满足 RPM RSA。现有 preview 导入器[拒绝 token 引用](https://github.com/WuKongIM/packages/blob/45619df14b931ef0da3eae7a6e3d5402307daa60/scripts/validate-signing-material.py#L579-L581)，硬件方案还需 stable 适配和实际签名验证；[rpmsign 可调用 GnuPG](https://rpm.org/docs/4.20.x/man/rpmsign.8)并不证明本仓库已兼容。 |
+
+**真正缺失的信息／工作：** stable 具名保管负责人及选定的仪式；是否有可用外置介质与经授权的离线启动条件，或已有硬件密钥的型号／固件／槽位安排；密钥保管、备份与恢复联网边界；独立 stable 公共证书及工具链签名验证。极空间目前只是联网备份位置，不能证明离线仪式；未读取或评判其加密备份。以上是既有 stable 交付的实现选择，未新增专机采购或 GA 门槛。本次未读私钥／NAS、未生成密钥、未更改系统／仓库／云资源。

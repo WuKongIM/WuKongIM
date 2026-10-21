@@ -88,7 +88,7 @@ preview 的 beta.21–24 四个 active 版本已达数量上限 4；若先发 RC
 
 签名状态经用户最新澄清已更新：**目前只有 preview 备份，没有独立 stable 密钥。** 仓库两份公开证书与 preview manifest 相符，文档命名 preview 保管人为 `tangtaoit`；用户后来指定的本地目录 README 六个公开指纹也全部匹配这套 preview。早先“另有 stable 密钥”的陈述已被最新信息取代。私钥和吊销文件未读取，任何备份内容均未归档。见[公开证书核对](v3-release-readiness-20261021/packages/public-signing-observation.json)、[本地备份分类](v3-release-readiness-20261021/packages/local-backup-classification.json)及[stable 密钥准备单](2026-10-21-v3-stable-key-preparation.md)。正式签名需要在合同要求的离线/硬件环境新建独立身份，不能改名或复用 preview 证书。
 
-用户随后提供极空间 NAS 作为可用存储位置，并进一步确认只有当前联网电脑与极空间。已将 NAS 记录为**加密备份候选位置**；离线或硬件签名环境尚未具备，实际保管负责人仍待明确。没有访问 NAS、写入备份或生成生产密钥；这项信息不解除 stable 签名阻塞，也不再按“已有 stable 公钥待提供”等待。
+用户随后提供极空间 NAS 作为可用存储位置，并进一步确认只有当前联网电脑与极空间。已将 NAS 记录为**加密备份候选位置**；离线或硬件签名仪式尚未落实，实际保管负责人仍待明确。重新核对合同后明确：**没有第二台或专用电脑硬要求**，现有 Mac 的独立外置系统是候选路径，仍需选定介质并验证离线操作及恢复联网时的密钥隔离。见[环境方案核对](v3-release-readiness-20261021/packages/stable-environment-options/report.md)。没有访问 NAS、写入备份或生成生产密钥；这项信息不解除 stable 签名阻塞，也不再按“已有 stable 公钥待提供”等待。
 
 [渠道实施计划](2026-10-20-v3-stable-channel-plan.md)保留 preview 兼容及独立签名边界；PR #67（head `0ce7184bbf69472f607159f74a096e9160852843`）的两个新版 PR CI 均首次通过，且现已合并，见[证据](v3-release-readiness-20261021/packages/preflight-ci/README.md)；Pages配置、上传和部署均skipped。七个真实原生元数据场景及既有完整TEST ONLY演练不代表stable生产签名或公网发布。
 

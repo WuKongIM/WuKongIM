@@ -1,0 +1,17 @@
+{
+  "background_research_attempt": "spawn and completed-child followup both rejected at 4 active agent thread limit; proceeded read-only and informed root; no user confirmation needed",
+  "captured_at": "2026-10-21T06:42:59.593127+00:00",
+  "files_sha256": {
+    "README.md": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+    "docs/release-contract.md": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871",
+    "keys/README.md": "65675b17d39c760c427120971b742412bdd9aabf6421dcc6fb33e65012ef71d1",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "scripts/validate-signing-material.py": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+    "toolchain/native-package-signing/Dockerfile": "45c8d63f5580e51db968d70fb62777fa9a05c6e0ed019032f6365e491a1481bd"
+  },
+  "governing_root_AGENTS_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "package_AGENTS_FLOW": [],
+  "packages_main": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "research_skill": "/Users/tt/.agents/skills/research/SKILL.md",
+  "scope": "Read-only options; minimal uname/hw.model/macOS version captured separately; no serial/system profile/private key/revocation certificate/NAS read; no key generation, control/cloud/system mutation or user question"
+}

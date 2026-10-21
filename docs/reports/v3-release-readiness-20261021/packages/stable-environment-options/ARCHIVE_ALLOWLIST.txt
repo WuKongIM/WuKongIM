@@ -1,0 +1,8 @@
+host-facts.json
+main-reference.json
+official-sources.json
+report.md
+source-freeze.json
+summary.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

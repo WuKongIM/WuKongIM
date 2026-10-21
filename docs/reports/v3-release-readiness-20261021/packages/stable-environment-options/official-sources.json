@@ -1,0 +1,54 @@
+{
+  "accessed_at": "2026-10-21T06:47:06.640753+00:00",
+  "sources": [
+    {
+      "publisher": "Apple",
+      "title": "Use an external storage device as a Mac startup disk",
+      "url": "https://support.apple.com/en-us/111336",
+      "supported_fact": "USB/Thunderbolt full macOS installation; model specific; Apple silicon requires functioning internal startup disk."
+    },
+    {
+      "publisher": "Apple",
+      "title": "Startup Disk security policy control for a Mac with Apple silicon",
+      "url": "https://support.apple.com/en-ca/guide/security/sec7d92dc49f/web",
+      "supported_fact": "External OS requires authenticated recoveryOS restart and per-OS LocalPolicy; not the T2 media-boot toggle."
+    },
+    {
+      "publisher": "Apple",
+      "title": "About Startup Security Utility on a Mac with the Apple T2 Security Chip",
+      "url": "https://support.apple.com/en-us/102522",
+      "supported_fact": "Read to distinguish T2 from this arm64 host. T2 external media defaults disabled; Full Security may require updated integrity information online. Not applied to this host."
+    },
+    {
+      "publisher": "GnuPG",
+      "title": "Agent Configuration",
+      "url": "https://gnupg.org/documentation/manuals/gnupg/Agent-Configuration.html",
+      "supported_fact": "private-keys-v1.d contains private key files; protect backups."
+    },
+    {
+      "publisher": "GnuPG",
+      "title": "Agent Options",
+      "url": "https://www.gnupg.org/documentation/manuals/gnupg/Agent-Options.html",
+      "supported_fact": "Passphrase caches have default and maximum TTL; disconnect does not itself clear them."
+    },
+    {
+      "publisher": "Yubico",
+      "title": "OpenPGP Specifics",
+      "url": "https://docs.yubico.com/hardware/yubikey/yk-tech-manual/yk5-apps-openpgp.html",
+      "supported_fact": "GnuPG compatible; one key per authentication/signing/encryption role; RSA3072/4096 supported. Capability example only, not a purchasing recommendation or proof of current owned device."
+    },
+    {
+      "publisher": "Apple",
+      "title": "Protecting keys with the Secure Enclave",
+      "url": "https://developer.apple.com/documentation/Security/protecting-keys-with-the-secure-enclave?changes=la",
+      "supported_fact": "Security-framework interface described is P-256 and creates keys in hardware. Does not establish OpenPGP RSA support; no assertion that every Secure Enclave interface or chip supports only P-256."
+    },
+    {
+      "publisher": "RPM",
+      "title": "rpmsign 4.20.x",
+      "url": "https://rpm.org/docs/4.20.x/man/rpmsign.8",
+      "supported_fact": "rpmsign invokes configurable GnuPG/key identity/keyring; does not by itself establish repository hardware compatibility."
+    }
+  ],
+  "interpretation": "Reconnect exposure and proposed removable offline key environment are analysis/recommendations, not new repository MUSTs. No web content used as operational instructions."
+}

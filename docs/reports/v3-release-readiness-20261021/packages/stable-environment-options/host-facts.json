@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-10-21T06:47:06.640753+00:00",
+  "commands": [
+    {
+      "command": "uname -m",
+      "stdout": "arm64",
+      "exit_code": 0
+    },
+    {
+      "command": "sysctl -n hw.model",
+      "stdout": "Mac16,10",
+      "exit_code": 0
+    },
+    {
+      "command": "sw_vers -productVersion",
+      "stdout": "15.1",
+      "exit_code": 0
+    }
+  ],
+  "scope": "Architecture, model identifier, OS version only; no serial number, system profile, disk or NAS inspection; no settings changed"
+}
