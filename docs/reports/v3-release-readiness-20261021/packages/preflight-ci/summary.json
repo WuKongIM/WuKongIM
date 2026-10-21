@@ -1,0 +1,117 @@
+{
+  "verified": true,
+  "source_head": "0ce7184bbf69472f607159f74a096e9160852843",
+  "synthetic_merge_sha": "4e73d6fbeb255d1206409537d00f1d76eb151623",
+  "tree_sha": "ccfaa2893b024a61902ce1d3bf6dd35d9f38eb99",
+  "synthetic_merge_tree_equals_head": true,
+  "artifact": {
+    "id": 12321989695,
+    "size": 1267,
+    "sha256": "d42eff76246d803cad1c4d55a583df8630da6e488419c8fbd4ccc4dee127ded2",
+    "member_sha256": "be9678ca62e5122a2aec22d9a38984ba35b04f8d211ad750bc8c43778c15d833",
+    "zip_crc_verified": true
+  },
+  "actual_native_signature_tags": [
+    "RSAHEADER"
+  ],
+  "native_tools": {
+    "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).",
+    "gpg": "gpg (GnuPG) 2.4.4",
+    "rpm": "RPM version 4.18.2"
+  },
+  "limits": [
+    "TEST ONLY synthetic source receipt is not a published stable Release or GitHub provenance proof.",
+    "Native rejection actually exercised RSAHEADER; other signature field tests use a tool-boundary stub.",
+    "Metadata fixture payloads were not executed; existing complete TEST ONLY repository drill separately installs its own test packages.",
+    "Stable publication is still disabled; no production signing/deployment occurred."
+  ],
+  "runs": [
+    {
+      "id": 39549984615,
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39549984615",
+      "attempt": 1,
+      "conclusion": "success",
+      "actual_checkout": "4e73d6fbeb255d1206409537d00f1d76eb151623",
+      "token_permissions": [
+        "Contents: read",
+        "Metadata: read"
+      ]
+    },
+    {
+      "id": 39549984616,
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39549984616",
+      "attempt": 1,
+      "conclusion": "success",
+      "actual_checkout": "4e73d6fbeb255d1206409537d00f1d76eb151623",
+      "token_permissions": [
+        "Contents: read",
+        "Metadata: read"
+      ]
+    }
+  ],
+  "native_case_results": [
+    {
+      "case": "stable",
+      "passed": true,
+      "exit_code": 0,
+      "error": ""
+    },
+    {
+      "case": "wrong-channel",
+      "passed": true,
+      "exit_code": 1,
+      "error": "source package metadata verification failed: preview source tag must be strict pre-release SemVer"
+    },
+    {
+      "case": "wrong-deb-version",
+      "passed": true,
+      "exit_code": 1,
+      "error": "source package metadata verification failed: DEB Version mismatch: expected '3.1.1', got '3.1.0'"
+    },
+    {
+      "case": "preview",
+      "passed": true,
+      "exit_code": 0,
+      "error": ""
+    },
+    {
+      "case": "wrong-rpm-version",
+      "passed": true,
+      "exit_code": 1,
+      "error": "source package metadata verification failed: RPM VERSION mismatch: expected '3.1.0', got '3.1.0~rc.1_hotfix'"
+    },
+    {
+      "case": "wrong-rpm-epoch",
+      "passed": true,
+      "exit_code": 1,
+      "error": "source package metadata verification failed: RPM EPOCHNUM mismatch: expected '0', got '9'"
+    },
+    {
+      "case": "signed-rpm",
+      "passed": true,
+      "exit_code": 1,
+      "error": "source package metadata verification failed: RPM RSAHEADER:pgpsig mismatch: expected '(none)', got 'RSA/SHA256, Wed Oct 21 05:31:11 2026, Key ID c76ffeba405096c3'"
+    }
+  ],
+  "snapshot_unit_tests": {
+    "count": 342,
+    "seconds": 100.482,
+    "result": "OK",
+    "skipped": 0
+  },
+  "pages_configure": "skipped",
+  "pages_upload": "skipped",
+  "pages_deploy_job": "skipped",
+  "full_test_only_repository_step": {
+    "result": "success",
+    "started_at": "2026-10-21T05:32:18Z",
+    "completed_at": "2026-10-21T05:36:43Z",
+    "final_log": "native-package signed repository container validation passed",
+    "trusted_source_commit": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+    "installed_test_version": "0.0.0~SNAPSHOT_ed7e67d-1.x86_64"
+  },
+  "stable_enabled": false,
+  "read_only_monitoring_only": true,
+  "rerun_or_dispatch": false,
+  "repository_modified": false
+}

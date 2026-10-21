@@ -1,0 +1,97 @@
+[
+  {
+    "path": "binary.sha256",
+    "size": 122,
+    "compressed_size": 105
+  },
+  {
+    "path": "driver-cpu.pprof",
+    "size": 23859,
+    "compressed_size": 23869
+  },
+  {
+    "path": "build.txt",
+    "size": 8943,
+    "compressed_size": 5028
+  },
+  {
+    "path": "gate/report.json",
+    "size": 3178767,
+    "compressed_size": 214100
+  },
+  {
+    "path": "gate/test.log",
+    "size": 10747,
+    "compressed_size": 1790
+  },
+  {
+    "path": "host.json",
+    "size": 4633,
+    "compressed_size": 1245
+  },
+  {
+    "path": "kernel.txt",
+    "size": 128,
+    "compressed_size": 115
+  },
+  {
+    "path": "node1-alloc-after.pprof",
+    "size": 115465,
+    "compressed_size": 115505
+  },
+  {
+    "path": "node1-alloc-before.pprof",
+    "size": 113223,
+    "compressed_size": 113258
+  },
+  {
+    "path": "node1-cpu.pprof",
+    "size": 57002,
+    "compressed_size": 57022
+  },
+  {
+    "path": "node2-alloc-after.pprof",
+    "size": 115804,
+    "compressed_size": 115844
+  },
+  {
+    "path": "node2-alloc-before.pprof",
+    "size": 113553,
+    "compressed_size": 113588
+  },
+  {
+    "path": "node2-cpu.pprof",
+    "size": 56745,
+    "compressed_size": 56762
+  },
+  {
+    "path": "node3-alloc-after.pprof",
+    "size": 118906,
+    "compressed_size": 118946
+  },
+  {
+    "path": "node3-alloc-before.pprof",
+    "size": 116306,
+    "compressed_size": 116346
+  },
+  {
+    "path": "node3-cpu.pprof",
+    "size": 60616,
+    "compressed_size": 60631
+  },
+  {
+    "path": "report.json",
+    "size": 1787029,
+    "compressed_size": 112024
+  },
+  {
+    "path": "test.log",
+    "size": 1646,
+    "compressed_size": 428
+  },
+  {
+    "path": "wukongim-e2e",
+    "size": 96611992,
+    "compressed_size": 44896947
+  }
+]

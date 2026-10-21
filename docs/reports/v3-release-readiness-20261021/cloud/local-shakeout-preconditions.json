@@ -1,0 +1,25 @@
+{
+  "observed_at": "2026-10-21T05:26:52.337145+00:00",
+  "source_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "source_clean": true,
+  "filesystem_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-release-recovery",
+  "filesystem": {
+    "f_bsize": 1048576,
+    "f_frsize": 4096,
+    "f_blocks": 242837545,
+    "f_bfree": 2249754,
+    "f_bavail": 2249754,
+    "capacity_bytes": 994662584320,
+    "available_bytes": 9214992384,
+    "available_percent": 0.9264440554280846,
+    "reserve_percent": 5,
+    "minimum_additional_available_bytes": 40518136832
+  },
+  "file_sha256": {
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "7d971edd64be172ff8e36a170e2defdeec42b0617ec245da17d4f9372f6339a4",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "234db9313fb0d1bddb2bfc6a4cce4ed1d6396b0d065781aac2d4cfd24fad31ac",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "efc49bb068de1b5dd714ebd12dc077b4c34a27fede0d995bdf59b37caf3386af"
+  },
+  "status": "not_run_host_disk_reserve_unsatisfied",
+  "scope": "Static prerequisite check only; no workload, coordinator preflight, cloud operation, or deletion was performed. Existing fixed 5-percent reserve retained. This is not a shakeout result."
+}

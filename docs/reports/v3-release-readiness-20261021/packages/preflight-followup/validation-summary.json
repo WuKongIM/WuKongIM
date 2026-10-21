@@ -1,0 +1,100 @@
+{
+  "baseline_sha": "dafbc9dbcd88eefeaabfcafa319a6dabb37738f1",
+  "working_tree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-source-classification",
+  "files": {
+    ".github/workflows/native-package-repository-drill.yml": "38b0d7248c2eb34c86564ca81cce3079bf027eb0ff7ef046769ddc894ddb377b",
+    ".github/workflows/source-release-preflight.yml": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+    "CHANGELOG.md": "05aacc450ddd9e8e05d910f02902ea90a2f7d865a8028871b0a8e97a382cfc8d",
+    "README.md": "a0c6e8d2cde642f6bdb471d977f4ca5f8ee126a48f10320f037eade4d802f8a1",
+    "docs/release-contract.md": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871",
+    "tests/contract.sh": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+    "scripts/verify-source-package-metadata.py": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+    "tests/native_source_metadata_drill.py": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1",
+    "tests/test_source_preflight_workflow.py": "5f8f7efbe39fb858546669d6db240bf5613fe2579f998bbafc345df097ef1069",
+    "tests/test_verify_source_package_metadata.py": "5b97c01d0e10e7aa3f20cc0a82164d9e55eeec65faa29dfde1f0ca45b0d03cea"
+  },
+  "validation": [
+    {
+      "command": "python3 -B -m unittest discover -s tests -p 'test_verify_source_package_metadata.py' -v",
+      "log": "01-metadata-red.log",
+      "exit_code": 1,
+      "kind": "first red, CLI absent",
+      "tests": 14,
+      "failures": 22
+    },
+    {
+      "log": "02-metadata-red.log",
+      "exit_code": 1,
+      "kind": "signature rejection cases added before implementation",
+      "tests": 14,
+      "failures": 24
+    },
+    {
+      "log": "03-metadata-green.log",
+      "exit_code": 0,
+      "tests": 14,
+      "seconds": 8.035
+    },
+    {
+      "log": "04-epoch-red.log",
+      "exit_code": 1,
+      "kind": "Epoch was accepted without validation",
+      "tests": 14,
+      "failures": 1
+    },
+    {
+      "log": "05-workflow-red.log",
+      "exit_code": 1,
+      "tests": 2,
+      "failures": 2
+    },
+    {
+      "log": "06-workflow-green.log",
+      "exit_code": 0,
+      "tests": 2
+    },
+    {
+      "command": "./tests/contract.sh",
+      "log": "07-contract.log",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -B -m unittest discover -s tests -p 'test_*source*.py' -v",
+      "log": "08-source-tests-green.log",
+      "exit_code": 0,
+      "tests": 52,
+      "seconds": 11.763
+    },
+    {
+      "command": "/tmp/wukongim-v3-readiness-20261021/ci/actionlint/actionlint .github/workflows/source-release-preflight.yml .github/workflows/native-package-repository-drill.yml",
+      "log": "09-actionlint.log",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "log": "10-diff-check.log",
+      "exit_code": 0
+    },
+    {
+      "command": "ast.parse for 4 changed/new Python files",
+      "exit_code": 0
+    }
+  ],
+  "native_linux_status": "not executed locally; dpkg-deb/rpm unavailable and Docker daemon unavailable; seven cases are now mandatory in existing credential-free TEST ONLY PR drill",
+  "native_linux_cases": [
+    "stable pass",
+    "wrong channel reject",
+    "wrong DEB version reject",
+    "preview pass",
+    "wrong RPM version reject",
+    "wrong RPM epoch reject",
+    "real RSAHEADER signed RPM reject"
+  ],
+  "signature_coverage": "SIGPGP/SIGGPG/RSAHEADER/DSAHEADER each rejected via CLI tool boundary tests; native drill requires actual RSAHEADER and records all observed tags, does not claim it creates every historical format",
+  "stable_publishing_enabled": false,
+  "protected_manifests_keys_toolchain_permissions_changed": false,
+  "committed": false,
+  "pushed": false,
+  "dispatched": false,
+  "independent_review": "independent-review.md"
+}

@@ -1,0 +1,26 @@
+{
+  "artifact_id": 12323346011,
+  "archive_size": 46125929,
+  "downloaded_range_bytes": 1228656,
+  "selected_entries": [
+    "binary.sha256",
+    "driver-cpu.pprof",
+    "build.txt",
+    "gate/report.json",
+    "gate/test.log",
+    "host.json",
+    "kernel.txt",
+    "node1-alloc-after.pprof",
+    "node1-alloc-before.pprof",
+    "node1-cpu.pprof",
+    "node2-alloc-after.pprof",
+    "node2-alloc-before.pprof",
+    "node2-cpu.pprof",
+    "node3-alloc-after.pprof",
+    "node3-alloc-before.pprof",
+    "node3-cpu.pprof",
+    "report.json",
+    "test.log"
+  ],
+  "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked"
+}

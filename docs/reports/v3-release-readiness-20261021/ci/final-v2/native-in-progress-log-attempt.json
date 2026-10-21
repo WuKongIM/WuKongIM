@@ -1,0 +1,15 @@
+{
+  "observed_at": "2026-10-21T05:33:20.385914+00:00",
+  "run_id": 39548558092,
+  "job_id": 119052223640,
+  "purpose": "single read-only in-progress log request after AlmaLinux installation step exceeded peer durations",
+  "command": [
+    "gh",
+    "api",
+    "-i",
+    "repos/WuKongIM/WuKongIM/actions/jobs/119052223640/logs"
+  ],
+  "exit_code": 1,
+  "stdout": "HTTP/1.1 404 The specified blob does not exist.\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: x-ms-request-id,Server,x-ms-version,x-ms-error-code,Content-Length,Date,Transfer-Encoding\r\nContent-Length: 215\r\nContent-Type: application/xml\r\nDate: Wed, 21 Oct 2026 05:33:19 GMT\r\nServer: Windows-Azure-Blob/1.0 Microsoft-HTTPAPI/2.0\r\nX-Ms-Error-Code: BlobNotFound\r\nX-Ms-Request-Id: b6926060-a01e-0044-791d-611971000000\r\nX-Ms-Version: 2025-11-05\r\n\r\n\ufeff<?xml version=\"1.0\" encoding=\"utf-8\"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\nRequestId:b6926060-a01e-0044-791d-611971000000\nTime:2026-10-21T05:33:20.3770253Z</Message></Error>",
+  "stderr": "gh: HTTP 404\n"
+}

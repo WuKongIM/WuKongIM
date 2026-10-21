@@ -1,0 +1,12 @@
+{
+  "recorded_at": "2026-10-21T05:34:41.898612+00:00",
+  "user_confirms_existing_keys_and_custody_plan": true,
+  "user_confirms_separate_stable_public_keys": true,
+  "public_certificate_path_or_fingerprint": "pending user supplement",
+  "stable_owner": "not yet independently established",
+  "cryptographic_compatibility_verified": false,
+  "private_material_requested_or_read": false,
+  "latest_clarification_at": "2026-10-21T05:40:10.441510+00:00",
+  "earlier_stable_key_existence_claim_superseded": true,
+  "current_state": "Only existing preview backup is available; independent stable keys not yet created, confirmed by user."
+}

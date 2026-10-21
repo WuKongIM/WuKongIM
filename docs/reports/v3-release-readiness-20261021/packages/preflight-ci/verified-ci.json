@@ -1,0 +1,403 @@
+{
+  "verified": true,
+  "source_head": "0ce7184bbf69472f607159f74a096e9160852843",
+  "synthetic_merge_sha": "4e73d6fbeb255d1206409537d00f1d76eb151623",
+  "tree_sha": "ccfaa2893b024a61902ce1d3bf6dd35d9f38eb99",
+  "synthetic_merge_tree_equals_head": true,
+  "run_facts": [
+    {
+      "actual_checkout": "4e73d6fbeb255d1206409537d00f1d76eb151623",
+      "token_permissions": [
+        "Contents: read",
+        "Metadata: read"
+      ],
+      "logs_sha256": "0760d605b8c7d3efd46b48841cefa2f240e4c097bc7ec6f3d2a7cfcf6a0a45ed",
+      "run_id": 39549984615,
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39549984615",
+      "attempt": 1,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "Validate complete Pages snapshot",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-21T05:30:57Z",
+              "completed_at": "2026-10-21T05:30:59Z"
+            },
+            {
+              "name": "Check out exact publication control",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-21T05:30:59Z",
+              "completed_at": "2026-10-21T05:31:00Z"
+            },
+            {
+              "name": "Validate repository contracts",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-21T05:31:00Z",
+              "completed_at": "2026-10-21T05:32:42Z"
+            },
+            {
+              "name": "Configure Pages",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 4,
+              "started_at": "2026-10-21T05:32:42Z",
+              "completed_at": "2026-10-21T05:32:42Z"
+            },
+            {
+              "name": "Upload complete Pages artifact",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 5,
+              "started_at": "2026-10-21T05:32:42Z",
+              "completed_at": "2026-10-21T05:32:42Z"
+            },
+            {
+              "name": "Post Check out exact publication control",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-21T05:32:42Z",
+              "completed_at": "2026-10-21T05:32:42Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-21T05:32:42Z",
+              "completed_at": "2026-10-21T05:32:42Z"
+            }
+          ]
+        },
+        {
+          "name": "Deploy complete Pages snapshot",
+          "conclusion": "skipped",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "actual_checkout": "4e73d6fbeb255d1206409537d00f1d76eb151623",
+      "token_permissions": [
+        "Contents: read",
+        "Metadata: read"
+      ],
+      "logs_sha256": "24e2eda84b15394e3562acc3d70d63708d3af09c43b198de94436f0943a30ae5",
+      "run_id": 39549984616,
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39549984616",
+      "attempt": 1,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "TEST ONLY signed APT/RPM repository",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-21T05:30:57Z",
+              "completed_at": "2026-10-21T05:30:58Z"
+            },
+            {
+              "name": "Check out exact package-repository control",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-21T05:30:58Z",
+              "completed_at": "2026-10-21T05:30:58Z"
+            },
+            {
+              "name": "Validate reviewed control",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-21T05:30:58Z",
+              "completed_at": "2026-10-21T05:30:59Z"
+            },
+            {
+              "name": "Check out immutable trusted repository tools",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-21T05:30:59Z",
+              "completed_at": "2026-10-21T05:31:03Z"
+            },
+            {
+              "name": "Verify trusted repository tool bytes",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-21T05:31:03Z",
+              "completed_at": "2026-10-21T05:31:03Z"
+            },
+            {
+              "name": "Check real native source metadata in isolated TEST ONLY fixtures",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-21T05:31:03Z",
+              "completed_at": "2026-10-21T05:31:11Z"
+            },
+            {
+              "name": "Preserve TEST ONLY native metadata evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-21T05:31:11Z",
+              "completed_at": "2026-10-21T05:31:12Z"
+            },
+            {
+              "name": "Set up fixed GoReleaser toolchain",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-21T05:31:12Z",
+              "completed_at": "2026-10-21T05:31:35Z"
+            },
+            {
+              "name": "Install fixed GoReleaser version",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-21T05:31:35Z",
+              "completed_at": "2026-10-21T05:31:42Z"
+            },
+            {
+              "name": "Restore exact source Go toolchain",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-21T05:31:42Z",
+              "completed_at": "2026-10-21T05:32:08Z"
+            },
+            {
+              "name": "Build unsigned TEST ONLY packages",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-21T05:32:08Z",
+              "completed_at": "2026-10-21T05:32:18Z"
+            },
+            {
+              "name": "Build, sign, verify, and install TEST ONLY repositories",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-21T05:32:18Z",
+              "completed_at": "2026-10-21T05:36:43Z"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-21T05:36:43Z",
+              "completed_at": "2026-10-21T05:36:43Z"
+            },
+            {
+              "name": "Post Restore exact source Go toolchain",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 23,
+              "started_at": "2026-10-21T05:36:43Z",
+              "completed_at": "2026-10-21T05:36:53Z"
+            },
+            {
+              "name": "Post Set up fixed GoReleaser toolchain",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 24,
+              "started_at": "2026-10-21T05:36:53Z",
+              "completed_at": "2026-10-21T05:36:53Z"
+            },
+            {
+              "name": "Post Check out immutable trusted repository tools",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 25,
+              "started_at": "2026-10-21T05:36:53Z",
+              "completed_at": "2026-10-21T05:36:53Z"
+            },
+            {
+              "name": "Post Check out exact package-repository control",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 26,
+              "started_at": "2026-10-21T05:36:53Z",
+              "completed_at": "2026-10-21T05:36:54Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 27,
+              "started_at": "2026-10-21T05:36:54Z",
+              "completed_at": "2026-10-21T05:36:54Z"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "artifact": {
+    "id": 12321989695,
+    "size": 1267,
+    "sha256": "d42eff76246d803cad1c4d55a583df8630da6e488419c8fbd4ccc4dee127ded2",
+    "member_sha256": "be9678ca62e5122a2aec22d9a38984ba35b04f8d211ad750bc8c43778c15d833",
+    "zip_crc_verified": true
+  },
+  "native_cases": [
+    {
+      "case": "stable",
+      "exit_code": 0,
+      "expected_error": null,
+      "metadata": {
+        "assets_revalidated_after_metadata": true,
+        "channel": "stable",
+        "deb": {
+          "architecture": "amd64",
+          "asset": {
+            "id": 4,
+            "name": "wukongim_3.1.0_linux_amd64.deb",
+            "sha256": "2582f40e911b31621a6d398ba3f7e440604f21a7c9d6134dcc727c90be483dda",
+            "size": 590
+          },
+          "version": "3.1.0"
+        },
+        "package": "wukongim",
+        "rpm": {
+          "architecture": "x86_64",
+          "asset": {
+            "id": 5,
+            "name": "wukongim_3.1.0_linux_amd64.rpm",
+            "sha256": "202916c83c3f944f07a722f850b36686a8eadee174a9491caaa6564f3bc7fb9c",
+            "size": 6211
+          },
+          "epoch": "0",
+          "release": "1",
+          "signed": false,
+          "version": "3.1.0"
+        },
+        "schema": "wukongim/source-package-metadata/v2",
+        "source": {
+          "release_id": 4242,
+          "repository": "WuKongIM/WuKongIM",
+          "source_sha": "1111111111111111111111111111111111111111",
+          "tag": "v3.1.0"
+        },
+        "version": "3.1.0"
+      },
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "case": "wrong-channel",
+      "exit_code": 1,
+      "expected_error": "preview source tag",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: preview source tag must be strict pre-release SemVer\n"
+    },
+    {
+      "case": "wrong-deb-version",
+      "exit_code": 1,
+      "expected_error": "DEB Version mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: DEB Version mismatch: expected '3.1.1', got '3.1.0'\n"
+    },
+    {
+      "case": "preview",
+      "exit_code": 0,
+      "expected_error": null,
+      "metadata": {
+        "assets_revalidated_after_metadata": true,
+        "channel": "preview",
+        "deb": {
+          "architecture": "amd64",
+          "asset": {
+            "id": 4,
+            "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.deb",
+            "sha256": "48bc4e2692c3eb94a286cd6cd5ee0d822972fdc16486aa625aea617ff37a9d9c",
+            "size": 598
+          },
+          "version": "3.1.0~rc.1-hotfix"
+        },
+        "package": "wukongim",
+        "rpm": {
+          "architecture": "x86_64",
+          "asset": {
+            "id": 5,
+            "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.rpm",
+            "sha256": "be2f844a1d5995111cb4ade39ee4fbde8262cd60f15c9ed7fc1790bdf33922c9",
+            "size": 6299
+          },
+          "epoch": "0",
+          "release": "1",
+          "signed": false,
+          "version": "3.1.0~rc.1_hotfix"
+        },
+        "schema": "wukongim/source-package-metadata/v2",
+        "source": {
+          "release_id": 4242,
+          "repository": "WuKongIM/WuKongIM",
+          "source_sha": "1111111111111111111111111111111111111111",
+          "tag": "v3.1.0-rc.1-hotfix"
+        },
+        "version": "3.1.0-rc.1-hotfix"
+      },
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "case": "wrong-rpm-version",
+      "exit_code": 1,
+      "expected_error": "RPM VERSION mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: RPM VERSION mismatch: expected '3.1.0', got '3.1.0~rc.1_hotfix'\n"
+    },
+    {
+      "case": "wrong-rpm-epoch",
+      "exit_code": 1,
+      "expected_error": "RPM EPOCHNUM mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: RPM EPOCHNUM mismatch: expected '0', got '9'\n"
+    },
+    {
+      "case": "signed-rpm",
+      "exit_code": 1,
+      "expected_error": "mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: RPM RSAHEADER:pgpsig mismatch: expected '(none)', got 'RSA/SHA256, Wed Oct 21 05:31:11 2026, Key ID c76ffeba405096c3'\n"
+    }
+  ],
+  "actual_native_signature_tags": [
+    "RSAHEADER"
+  ],
+  "native_tools": {
+    "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).",
+    "gpg": "gpg (GnuPG) 2.4.4",
+    "rpm": "RPM version 4.18.2"
+  },
+  "limits": [
+    "TEST ONLY synthetic source receipt is not a published stable Release or GitHub provenance proof.",
+    "Native rejection actually exercised RSAHEADER; other signature field tests use a tool-boundary stub.",
+    "Metadata fixture payloads were not executed; existing complete TEST ONLY repository drill separately installs its own test packages.",
+    "Stable publication is still disabled; no production signing/deployment occurred."
+  ]
+}

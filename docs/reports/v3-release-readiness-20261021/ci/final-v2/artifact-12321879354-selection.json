@@ -1,0 +1,30 @@
+{
+  "artifact_id": 12321879354,
+  "name": "v3-candidate-e2e-39548558671-1",
+  "archive_size": 16560,
+  "archive_sha256": "3cd1b2859e588a4b2e39647edea064cbc024900bbcce509c232d9098163f4a22",
+  "full_archive_digest_verified": true,
+  "selected_entries": [
+    "binary.sha256",
+    "build/command.json",
+    "build/result.json",
+    "binary-build-info.txt",
+    "build/stderr.log",
+    "build/stdout.jsonl",
+    "cross_node_delivery/command.json",
+    "cross_node_delivery/result.json",
+    "cross_node_delivery/stderr.log",
+    "cross_node_delivery/stdout.jsonl",
+    "go-version.txt",
+    "identity.json",
+    "ordinary_history/command.json",
+    "ordinary_history/result.json",
+    "ordinary_history/stderr.log",
+    "ordinary_history/stdout.jsonl",
+    "self_chat/command.json",
+    "self_chat/report.json",
+    "self_chat/result.json",
+    "self_chat/stderr.log",
+    "self_chat/stdout.jsonl"
+  ]
+}

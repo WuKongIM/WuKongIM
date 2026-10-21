@@ -9,7 +9,9 @@
 
 因此服务商已明确为阿里云，生产包资源仍待预置。建议为包仓库使用专用私有 OSS Bucket，沿用公共入口 `packages.githubim.com`，按完整快照迁移 preview 与后续 stable；现有文档 CDN 和备份 Bucket 保持各自用途。专用 Bucket 名称/地域、回源域名、最小权限角色、缓存切换策略和预算需要在部署实现及测试后形成精确变更单，再批准外部预置；不得把拥有控制台登录态当作 IAM 变更或付费授权。
 
-包签名使用独立 OpenPGP 信任根，不能由 CDN 的 HTTPS 证书替代。用户已确认有签名密钥和保管方案，将补充负责人；后续需对接具体离线/硬件流程及公开证书/指纹，不能将其描述为已验证的生产 stable signer。已建立的 [PR #67](https://github.com/WuKongIM/packages/pull/67) 仅完成只读来源分类；两项 CI 是既有 preview 兼容演练，不是 stable 发布演练。下面各阶段尚未因此完成。
+包签名使用独立 OpenPGP 信任根，不能由 CDN 的 HTTPS 证书替代。用户最后澄清目前只有现有 preview 备份，**没有独立 stable 密钥**。仓库公开证书与用户所指本地目录 README 的六个指纹均匹配 preview；私钥/吊销文件未读取。见[核对记录](v3-release-readiness-20261021/packages/local-backup-classification.json)与[密钥准备单](2026-10-21-v3-stable-key-preparation.md)，后续需先确定离线/硬件环境、负责人和 stable 签名协议。
+
+[PR #67](https://github.com/WuKongIM/packages/pull/67) 已推进至 `0ce7184bbf69472f607159f74a096e9160852843`：来源分类、固定工作流 provenance 与 native metadata 的只读链已连通，52 项相关测试和独立审查通过；新版 TEST ONLY Linux 七个真实元数据场景及完整 PR CI 均首次通过。这仍不是 stable 生产签名或发布演练，下面各阶段尚未因此全部完成。
 
 ## 固定基线与核对范围
 
@@ -26,7 +28,7 @@
 | 环节 | 当前限制 | 必需的改变 |
 | --- | --- | --- |
 | 控制模型 | validator 与 composer 强制 stable 禁用 | 版本化频道、发布计划、快照及审计 receipt 契约，保持未知字段与重复键拒绝 |
-| 来源预检 | resolver 和 attestation verifier 只接受 prerelease | 按频道校验严格 SemVer 与 GitHub prerelease 标记，保留 immutable/祖先关系/七资产/证明闭包 |
+| 来源预检 | main 仍只接受 prerelease；PR #67 已实现显式频道的只读完整预检 | 合并经验证的来源/provenance/native metadata 链；保留 immutable/祖先关系/七资产/证明闭包 |
 | 签名 | 只有 preview APT/RPM，现 signer 要求加密本地子钥匙 | stable 独立证书、离线或硬件签名流程及结果验证，stable 私钥不得进入 hosted CI |
 | 审计身份 | draft/bind/seal 和审计标签/资产名固定 preview | stable 身份、规则覆盖及可恢复状态机，不得改绑或覆盖既有标签与 Release |
 | 发布承载 | 整站 Pages artifact/deploy | 对象存储/CDN 的完整快照部署、切换、缓存闭包和可验证回滚 |

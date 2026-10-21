@@ -1,0 +1,15 @@
+{
+  "artifact_id": 12322449766,
+  "name": "v3-candidate-default-39548558671-1",
+  "archive_size": 8226,
+  "archive_sha256": "eba5cf416e6f17596162b275e4abc01da71b6bf34ddc2149215d05a7ca66b0c5",
+  "full_archive_digest_verified": true,
+  "selected_entries": [
+    "command.json",
+    "identity.json",
+    "go-version.txt",
+    "policy.json",
+    "result.json",
+    "stdout-stderr.log"
+  ]
+}

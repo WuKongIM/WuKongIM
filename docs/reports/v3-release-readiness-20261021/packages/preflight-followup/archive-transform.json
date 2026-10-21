@@ -1,0 +1,104 @@
+[
+  {
+    "source": "01-metadata-red.log",
+    "archive": "01-metadata-red.log.gz",
+    "source_sha256": "725995dd00b5275874721daad104b1339592263519f10c1bee066b2ffe26fd99",
+    "archive_sha256": "480833ebd258fb200060fff1632119b6394f4364ff5683f9bf679d9c6f1d7bdf"
+  },
+  {
+    "source": "02-metadata-red.log",
+    "archive": "02-metadata-red.log.gz",
+    "source_sha256": "333968fb4f708345ffe47e02c4a7a0bb1b99dcd030f6bec77278fd34d233028a",
+    "archive_sha256": "28a4f6c64fa442d61ebdfc15ca04a5131cf0b38bfa50072ccad20cd1bde21cba"
+  },
+  {
+    "source": "03-metadata-green.log",
+    "archive": "03-metadata-green.log.gz",
+    "source_sha256": "53aea8ba463315014d49bc49cf060d4310e6c6ce090a818ece75f1cbe6f5d0fd",
+    "archive_sha256": "2a577e2412c6c80f61e3653d7759a1619f273f33f7ac002cc0f02e61829b7971"
+  },
+  {
+    "source": "04-epoch-red.log",
+    "archive": "04-epoch-red.log.gz",
+    "source_sha256": "be70420a3c16d99fc50958cea2e5232e32e636edf45e9a3adf14faaaa4b9555f",
+    "archive_sha256": "2df033e98a0ca5832a2fc9f0cc0d66e3966a403aa80e3f00cc68666cb6b6b3ce"
+  },
+  {
+    "source": "05-workflow-red.log",
+    "archive": "05-workflow-red.log.gz",
+    "source_sha256": "de742ea603b2d77838f425f55c98d230b2480bea73695796b21a07c0e676ed24",
+    "archive_sha256": "f3c241b47619945e00fd3b73a0ad7f873ae1a9857fa94911e81b864c1860278e"
+  },
+  {
+    "source": "06-workflow-green.log",
+    "archive": "06-workflow-green.log.gz",
+    "source_sha256": "1a12be678d9bebad55ae054fc0a83dc0a7eed461f970bc710fab4ee4ab009519",
+    "archive_sha256": "3a81757fcda353d16b9c27fe8b16c66ffbf42939cdc85337ff1ecec84586379b"
+  },
+  {
+    "source": "07-contract.log",
+    "archive": "07-contract.log.gz",
+    "source_sha256": "2f62abd07c6fc44d93fa5b2bb62a83d228dcb998ef7efdf186eaa86633c4889f",
+    "archive_sha256": "ebb97c9e3f29b5ba131af106817c117578056771c732bcacd1226efc63cf9609"
+  },
+  {
+    "source": "08-source-tests-green.log",
+    "archive": "08-source-tests-green.log.gz",
+    "source_sha256": "52e0db2ffd2597ec839660b1de128c88d2db8e12a32152cd538d41091fb95731",
+    "archive_sha256": "def6247d4440c54294bcd0a4bf4c589813d455c4558f1287177e1c9526fffc19"
+  },
+  {
+    "source": "09-actionlint.log",
+    "archive": "09-actionlint.log.gz",
+    "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+  },
+  {
+    "source": "10-diff-check.log",
+    "archive": "10-diff-check.log.gz",
+    "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+  },
+  {
+    "source": "SHA256SUMS",
+    "archive": "SHA256SUMS",
+    "source_sha256": "4a517bc35e1ccc916b426e5b1bd22bb01add3e213e511cdf5118b851d097adaa",
+    "archive_sha256": "4a517bc35e1ccc916b426e5b1bd22bb01add3e213e511cdf5118b851d097adaa"
+  },
+  {
+    "source": "baseline.json",
+    "archive": "baseline.json",
+    "source_sha256": "3c964ae7daee986a0d18ef62a9d9534c50986f1da0057e324d9d98ccb7d1b834",
+    "archive_sha256": "3c964ae7daee986a0d18ef62a9d9534c50986f1da0057e324d9d98ccb7d1b834"
+  },
+  {
+    "source": "failure-inventory.md",
+    "archive": "failure-inventory.md",
+    "source_sha256": "2b55e3c1012150b7aa9e268c6ad7da4356e803483b5d2e61f84b944b986c5698",
+    "archive_sha256": "2b55e3c1012150b7aa9e268c6ad7da4356e803483b5d2e61f84b944b986c5698"
+  },
+  {
+    "source": "handoff.md",
+    "archive": "handoff.md",
+    "source_sha256": "866121d30305101ba5e0e3a71ba6c17fb672d2bd83ec3f6258a5835ea0d4076c",
+    "archive_sha256": "866121d30305101ba5e0e3a71ba6c17fb672d2bd83ec3f6258a5835ea0d4076c"
+  },
+  {
+    "source": "independent-review.md",
+    "archive": "independent-review.md",
+    "source_sha256": "e8a4b3fd8f170c947092df0fcc8d51cf3d9823cb0c87cd0a22b186e1e3d4c337",
+    "archive_sha256": "e8a4b3fd8f170c947092df0fcc8d51cf3d9823cb0c87cd0a22b186e1e3d4c337"
+  },
+  {
+    "source": "preflight-followup.patch",
+    "archive": "preflight-followup.patch",
+    "source_sha256": "4dafc1215de5ea0e476c5f71346f2ff718e2b75990cf26dbca911ed9acecbafd",
+    "archive_sha256": "4dafc1215de5ea0e476c5f71346f2ff718e2b75990cf26dbca911ed9acecbafd"
+  },
+  {
+    "source": "validation-summary.json",
+    "archive": "validation-summary.json",
+    "source_sha256": "eb4114713e38b40fa0122a98fdf83a1cb32388c185a060cad0653517f8a47f2d",
+    "archive_sha256": "eb4114713e38b40fa0122a98fdf83a1cb32388c185a060cad0653517f8a47f2d"
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "path": "command.json",
+    "size": 334,
+    "compressed_size": 213
+  },
+  {
+    "path": "identity.json",
+    "size": 286,
+    "compressed_size": 192
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33,
+    "compressed_size": 35
+  },
+  {
+    "path": "policy.json",
+    "size": 14492,
+    "compressed_size": 2758
+  },
+  {
+    "path": "result.json",
+    "size": 370,
+    "compressed_size": 192
+  },
+  {
+    "path": "stdout-stderr.log",
+    "size": 22029,
+    "compressed_size": 4106
+  }
+]

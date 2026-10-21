@@ -1,0 +1,108 @@
+{
+  "schema": "wukongim.stable_storage_design_source_freeze/v1",
+  "captured_at_utc": "2026-10-21T05:38:43.853788+00:00",
+  "repository": "WuKongIM/packages",
+  "source_commit": "0ce7184bbf69472f607159f74a096e9160852843",
+  "production_control_base": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "working_tree_clean": true,
+  "applicable_packages_AGENTS_or_FLOW": [],
+  "parent_supplied_WuKongIM_rules_apply": true,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "a0c6e8d2cde642f6bdb471d977f4ca5f8ee126a48f10320f037eade4d802f8a1",
+      "size": 7138,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871",
+      "size": 31622,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "size": 27,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+      "size": 103240,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "size": 2579,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "size": 1110,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "size": 96,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "size": 381,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "size": 785,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "size": 898,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "size": 295,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+      "size": 105274,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+      "size": 30568,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "scripts/build-repository-bootstrap-packages.py",
+      "sha256": "bfc5ce71b422eda9695c3a915af83cbb8eb025651e4bcace0f5051c981adcf0b",
+      "size": 28255,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+      "size": 71062,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a",
+      "size": 73349,
+      "access": "full manifest/document or selected source regions; no claim of full package review"
+    }
+  ]
+}

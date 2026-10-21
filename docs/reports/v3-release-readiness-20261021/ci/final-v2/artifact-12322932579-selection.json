@@ -1,0 +1,19 @@
+{
+  "artifact_id": 12322932579,
+  "name": "500qps-tcp-sendack-7e9da7df100d193330b3d509cfdbe079ea32a6f8-1",
+  "archive_size": 8102,
+  "archive_sha256": "4fc17fa135fbb3a18c825d3aa5d772b0766d677b04b69041f457ae9bbe0c548c",
+  "full_archive_digest_verified": true,
+  "selected_entries": [
+    "arrival.json",
+    "arrival.warmup.json",
+    "benchmark.txt",
+    "binary.sha256",
+    "data-filesystem.json",
+    "filesystem-preflight.txt",
+    "go-version.txt",
+    "host.json",
+    "kernel.txt",
+    "result.json"
+  ]
+}

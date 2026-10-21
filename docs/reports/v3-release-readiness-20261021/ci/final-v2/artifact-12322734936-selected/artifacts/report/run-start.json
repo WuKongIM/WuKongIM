@@ -1,0 +1,9 @@
+{
+  "schema": "wukongim.chat_lifecycle.run_start/v1",
+  "stage": "shakeout",
+  "started_at": "2026-10-21T05:17:56.942522298Z",
+  "expected_end_at": "2026-10-21T05:31:26.942522298Z",
+  "run_hash": "sha256:e5a62fe5c09fabf7d72d3a298bfdcf0bd334001f4eebf6971b1ded483ed3e9e9",
+  "assignment_hash": "sha256:ca770957eaee30d558b05ebf3ae35c14872873fe363eb3c56ed4dcb8e88d0437",
+  "generation": 1
+}

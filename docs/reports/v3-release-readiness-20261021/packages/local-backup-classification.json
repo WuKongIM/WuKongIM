@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-10-21T05:37:32.300253+00:00",
+  "source": "README.txt in the local backup directory explicitly supplied by the user",
+  "comparison_manifest": "WuKongIM/packages@feb7f21503d35133cf23df7d7ab250c5d4129e71:manifests/preview-signing.json",
+  "known_preview_public_fingerprints_match": {
+    "apt": [
+      "primary",
+      "current",
+      "next"
+    ],
+    "rpm": [
+      "primary",
+      "current",
+      "next"
+    ]
+  },
+  "preview_marker_present": true,
+  "stable_marker_present": false,
+  "private_keys_read": false,
+  "revocation_files_read": false,
+  "private_paths_or_file_contents_archived": false,
+  "conclusion": "The supplied backup is documented as the existing preview key set. It does not establish independent stable key identity; another key set may still exist elsewhere."
+}

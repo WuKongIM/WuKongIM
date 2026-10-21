@@ -1,0 +1,100 @@
+{
+  "observed_at": "2026-10-21T05:32:25.455985+00:00",
+  "repository": "https://github.com/WuKongIM/packages",
+  "main_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "public_keys_tree": [
+    "keys/README.md",
+    "keys/apt-preview.asc",
+    "keys/rpm-preview.asc"
+  ],
+  "certificates": {
+    "apt": {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "keys": [
+        {
+          "record": "pub",
+          "validity": "-",
+          "bits": 4096,
+          "algorithm": 1,
+          "key_id": "318ABB2BD40B6BB1",
+          "created_epoch": 1788279410,
+          "expires_epoch": null,
+          "capabilities": "cSC",
+          "fingerprint": "D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1"
+        },
+        {
+          "record": "sub",
+          "validity": "-",
+          "bits": 4096,
+          "algorithm": 1,
+          "key_id": "F88A82679D9B5284",
+          "created_epoch": 1788279412,
+          "expires_epoch": 1798647412,
+          "capabilities": "s",
+          "fingerprint": "1A4D90C85D398C2A27DFEB21F88A82679D9B5284"
+        },
+        {
+          "record": "sub",
+          "validity": "-",
+          "bits": 4096,
+          "algorithm": 1,
+          "key_id": "322AA32C980A761D",
+          "created_epoch": 1788279413,
+          "expires_epoch": 1803831413,
+          "capabilities": "s",
+          "fingerprint": "BB10665FA963B85DBC22AC5A322AA32C980A761D"
+        }
+      ],
+      "manifest_fingerprints_match": true
+    },
+    "rpm": {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "keys": [
+        {
+          "record": "pub",
+          "validity": "-",
+          "bits": 4096,
+          "algorithm": 1,
+          "key_id": "0FB64C9DD0801459",
+          "created_epoch": 1788279415,
+          "expires_epoch": null,
+          "capabilities": "cSC",
+          "fingerprint": "A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459"
+        },
+        {
+          "record": "sub",
+          "validity": "-",
+          "bits": 4096,
+          "algorithm": 1,
+          "key_id": "0AD7BE4E6B5A0853",
+          "created_epoch": 1788279417,
+          "expires_epoch": 1798647417,
+          "capabilities": "s",
+          "fingerprint": "C2ED4800DA17788D0DF150F50AD7BE4E6B5A0853"
+        },
+        {
+          "record": "sub",
+          "validity": "-",
+          "bits": 4096,
+          "algorithm": 1,
+          "key_id": "881C44C01E3EBCF7",
+          "created_epoch": 1788279418,
+          "expires_epoch": 1803831418,
+          "capabilities": "s",
+          "fingerprint": "DA062F3CCD52F4CA72FF4B4B881C44C01E3EBCF7"
+        }
+      ],
+      "manifest_fingerprints_match": true
+    }
+  },
+  "documented_preview_operator": "tangtaoit",
+  "codeowners": [
+    "tangtaoit",
+    "No8blackball"
+  ],
+  "stable_certificate_manifest_present": false,
+  "stable_owner_verified": false,
+  "custody_limit": "User reports keys/custody exist; provided repository publishes preview certificates only. Preview custodian and CODEOWNERS do not prove stable key ownership. No private key or credential store accessed."
+}

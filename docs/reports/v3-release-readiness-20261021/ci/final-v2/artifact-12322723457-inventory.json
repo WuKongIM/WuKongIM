@@ -1,0 +1,97 @@
+[
+  {
+    "path": "arrival.json",
+    "size": 57524,
+    "compressed_size": 3415
+  },
+  {
+    "path": "benchmark.txt",
+    "size": 4017,
+    "compressed_size": 1023
+  },
+  {
+    "path": "arrival.warmup.json",
+    "size": 19298,
+    "compressed_size": 1337
+  },
+  {
+    "path": "binary.sha256",
+    "size": 123,
+    "compressed_size": 107
+  },
+  {
+    "path": "counters/after.json",
+    "size": 314111,
+    "compressed_size": 13816
+  },
+  {
+    "path": "counters/before.json",
+    "size": 313425,
+    "compressed_size": 13441
+  },
+  {
+    "path": "counters/window.json",
+    "size": 534,
+    "compressed_size": 319
+  },
+  {
+    "path": "counters.warmup/after.json",
+    "size": 313421,
+    "compressed_size": 13444
+  },
+  {
+    "path": "counters.warmup/before.json",
+    "size": 310884,
+    "compressed_size": 11915
+  },
+  {
+    "path": "counters.warmup/window.json",
+    "size": 477,
+    "compressed_size": 294
+  },
+  {
+    "path": "data-filesystem.json",
+    "size": 249,
+    "compressed_size": 163
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "size": 123,
+    "compressed_size": 109
+  },
+  {
+    "path": "flight/retention-status.txt",
+    "size": 28,
+    "compressed_size": 30
+  },
+  {
+    "path": "flight/window.json",
+    "size": 2089123,
+    "compressed_size": 171793
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33,
+    "compressed_size": 35
+  },
+  {
+    "path": "host.json",
+    "size": 4656,
+    "compressed_size": 1249
+  },
+  {
+    "path": "kernel.txt",
+    "size": 128,
+    "compressed_size": 115
+  },
+  {
+    "path": "result.json",
+    "size": 18,
+    "compressed_size": 20
+  },
+  {
+    "path": "source.sha",
+    "size": 41,
+    "compressed_size": 42
+  }
+]

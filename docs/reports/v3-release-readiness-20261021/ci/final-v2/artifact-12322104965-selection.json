@@ -1,0 +1,27 @@
+{
+  "artifact_id": 12322104965,
+  "name": "500qps-mixed-send-7e9da7df100d193330b3d509cfdbe079ea32a6f8-1",
+  "archive_size": 237286,
+  "archive_sha256": "0d701d63f1be63624421c51b4e82c67c6ab116dac8fcc83c0dc78a54e417a362",
+  "full_archive_digest_verified": true,
+  "selected_entries": [
+    "arrival.json",
+    "arrival.warmup.json",
+    "benchmark.txt",
+    "binary.sha256",
+    "counters/after.json",
+    "counters/before.json",
+    "counters/window.json",
+    "counters.warmup/after.json",
+    "counters.warmup/before.json",
+    "counters.warmup/window.json",
+    "data-filesystem.json",
+    "filesystem-preflight.txt",
+    "flight/retention-status.txt",
+    "flight/window.json",
+    "go-version.txt",
+    "host.json",
+    "kernel.txt",
+    "result.json"
+  ]
+}

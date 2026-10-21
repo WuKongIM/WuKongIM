@@ -1,0 +1,1266 @@
+{
+  "schema_version": "wukongim/chat-lifecycle-report/v5",
+  "threshold_version": "wukongim/chat-lifecycle-thresholds/v1",
+  "design_profile": "chat-lifecycle-soak/2026-08-04",
+  "config_digest": "sha256:ccd650da0be88233f80054f64bbe54eb519f89f3c595fca67711d017409da934",
+  "dataset_digest": "sha256:9352ab83eb7184357a6d0acf7a4be35ec473b141760c5a1888ca04c80ae25371",
+  "thresholds": {
+    "minimum_data_filesystem_bytes": 10000000000,
+    "disk_safe_stop_free_percent": 5,
+    "correctness": {
+      "terminal_sends": 0,
+      "activation_rejections": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0,
+      "overall_first_attempt_failure": {
+        "max_failures": 1,
+        "per_attempts": 1,
+        "operator": "\u003c="
+      },
+      "any_minute_first_attempt_failure": {
+        "max_failures": 1,
+        "per_attempts": 1,
+        "operator": "\u003c="
+      }
+    },
+    "latency": {
+      "hot_sendack": {
+        "p99": 400000000,
+        "p999": 1000000000
+      },
+      "cold": {
+        "p99": 2000000000,
+        "p999": 5000000000
+      },
+      "sync": {
+        "p99": 1000000000,
+        "p999": 3000000000
+      },
+      "single_anomaly": 10000000000,
+      "sustained_breach_window": 300000000000
+    },
+    "resource": {
+      "forced_gc_live_heap_growth_percent": 5,
+      "forced_gc_live_heap_window": 21600000000000,
+      "goroutine_growth_percent": 5,
+      "goroutine_growth_window": 86400000000000,
+      "host_cpu_percent": 90,
+      "host_memory_percent": 85,
+      "bounded_queue_percent": 80,
+      "sustained_saturation_window": 900000000000,
+      "minimum_load_filesystem_bytes": 10000000000,
+      "prometheus_safe_stop_bytes": 140000000000
+    },
+    "cluster": {
+      "health_poll_every": 5000000000,
+      "unhealthy_fail_after": 30000000000,
+      "max_hot_replica_lag_entries": 64,
+      "leader_imbalance_percent": 20,
+      "leader_imbalance_for": 600000000000
+    },
+    "timeline": {
+      "warmup": 60000000000,
+      "checkpoint": 60001000000,
+      "final": 810000000000
+    }
+  },
+  "profile": "local",
+  "mode": "soak",
+  "stage": "shakeout",
+  "kind": "qualification",
+  "final": false,
+  "continue": true,
+  "continuous": false,
+  "fence": {
+    "run_hash": "sha256:e5a62fe5c09fabf7d72d3a298bfdcf0bd334001f4eebf6971b1ded483ed3e9e9",
+    "assignment_hash": "sha256:ca770957eaee30d558b05ebf3ae35c14872873fe363eb3c56ed4dcb8e88d0437",
+    "generation": 1
+  },
+  "window": {
+    "start": "2026-10-21T05:17:56.942522298Z",
+    "warmup_end": "2026-10-21T05:18:56.942522298Z",
+    "qualification_at": "2026-10-21T05:18:56.943522298Z",
+    "final_at": "2026-10-21T05:31:26.942522298Z",
+    "end": "2026-10-21T05:18:56.960979125Z",
+    "elapsed": 60018456825
+  },
+  "minimum_worker_uptime": 75056177004,
+  "topology": {
+    "validated": true,
+    "logical_slot_groups": 12,
+    "hash_slots": 256,
+    "slot_replicas": 3,
+    "channel_replicas": 3
+  },
+  "worker_generations": [
+    {
+      "worker_index": 0,
+      "generation": 1,
+      "snapshot_sequence": 12,
+      "phase": "running"
+    },
+    {
+      "worker_index": 1,
+      "generation": 1,
+      "snapshot_sequence": 12,
+      "phase": "running"
+    },
+    {
+      "worker_index": 2,
+      "generation": 1,
+      "snapshot_sequence": 12,
+      "phase": "running"
+    }
+  ],
+  "sessions": {
+    "target": 2500,
+    "online": 2500,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 2500,
+    "planned_new": 2000,
+    "planned_returning": 500,
+    "completed_new": 2500,
+    "completed_returning": 0,
+    "expired": 0,
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 0,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    }
+  },
+  "generated": {
+    "primary": 30500,
+    "person": 27450,
+    "group": 3050,
+    "canary": 1,
+    "payload_bytes": 23267840
+  },
+  "messages": {
+    "sent": 30007,
+    "send_attempts": 30007,
+    "first_attempts": 30007,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 29991,
+    "send_rejected": 0,
+    "received": 38989,
+    "receive_acknowledged": 38989,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "sync": {
+    "completed_new": 2500,
+    "completed_returning": 0,
+    "factory_failed": 0,
+    "factory_canceled": 0,
+    "connect_started": 2500,
+    "connect_completed": 2500,
+    "connect_failed": 0,
+    "connect_canceled": 0,
+    "sync_started": 2500,
+    "sync_completed": 2500,
+    "sync_failed": 0,
+    "sync_canceled": 0,
+    "failures": 0,
+    "connect_latency": {
+      "count": 2500,
+      "sum_nanos": 157976499471,
+      "max_nanos": 143716515,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        12,
+        22,
+        28,
+        65,
+        658,
+        1530,
+        185,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "latency": {
+      "count": 2500,
+      "sum_nanos": 10447241552,
+      "max_nanos": 30000996,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        384,
+        505,
+        919,
+        470,
+        197,
+        25,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "thresholds": {
+      "P99Limit": 1000000000,
+      "P999Limit": 3000000000,
+      "Count": 2500,
+      "AboveP99": 0,
+      "AboveP999": 0,
+      "Above10Seconds": 0
+    }
+  },
+  "correlation": {
+    "pending_unfinished": 16,
+    "outstanding": 1,
+    "sampled": 330,
+    "delivered": 329,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "queues": {
+    "work_current": 496,
+    "deferred_group_routes": 0,
+    "work_peak": 54487,
+    "work_capacity": 114500,
+    "retry_current": 0,
+    "retry_peak": 0,
+    "retry_capacity": 12288,
+    "inflight_current": 14,
+    "inflight_peak": 500,
+    "inflight_capacity": 12288,
+    "transport_current": 0,
+    "transport_capacity": 320000,
+    "transport_rejected": 0
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "evidence_counts": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "lifecycle": {
+    "candidates": 0,
+    "loaded": 0,
+    "cold_eligible": 0,
+    "reheated": 0,
+    "completed": 0,
+    "product_failures": 0,
+    "product_failure_reasons": {
+      "initial_load": 0,
+      "runtime_state": 0,
+      "role_disagreement": 0,
+      "watermark_regression": 0,
+      "continued_loading": 0,
+      "premature_absence": 0,
+      "reheat_timeout": 0,
+      "partial_reheat": 0,
+      "sequence_proof": 0,
+      "unexpected_reload": 0,
+      "control_transition": 0
+    },
+    "harness_failures": 0,
+    "reheat_latency": {
+      "count": 0,
+      "sum_nanos": 0,
+      "max_nanos": 0,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "meta_create": {
+    "expected_unique": 6485,
+    "created": 9436,
+    "already_existing": 0,
+    "errors": 0,
+    "external_demo_activity": 2951,
+    "checkpoints": 1,
+    "expected_by_slot": [
+      553,
+      568,
+      577,
+      556,
+      535,
+      522,
+      545,
+      490,
+      521,
+      564,
+      534,
+      520
+    ],
+    "created_by_slot": [
+      800,
+      818,
+      822,
+      808,
+      786,
+      822,
+      809,
+      722,
+      753,
+      815,
+      745,
+      736
+    ],
+    "already_existing_by_slot": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "errors_by_slot": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "latency": {
+    "hot_sendack": {
+      "count": 6002,
+      "sum_nanos": 234873729700,
+      "max_nanos": 494309631,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        401,
+        1324,
+        3019,
+        968,
+        230,
+        43,
+        17,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "cold_first_create_sendack": {
+      "count": 23989,
+      "sum_nanos": 1330724617742,
+      "max_nanos": 485913963,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        1415,
+        3822,
+        8511,
+        7443,
+        2310,
+        334,
+        154,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "worker_lifecycle_reheat_sendack": {
+      "count": 0,
+      "sum_nanos": 0,
+      "max_nanos": 0,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "receive_ack": {
+      "count": 38989,
+      "sum_nanos": 2880792325,
+      "max_nanos": 6314246,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        38773,
+        147,
+        64,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "send_pending_to_write": {
+      "count": 29991,
+      "sum_nanos": 46907105371,
+      "max_nanos": 15114100,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        17,
+        25574,
+        4160,
+        231,
+        9,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "send_write_to_ack": {
+      "count": 29991,
+      "sum_nanos": 1518153291092,
+      "max_nanos": 492644895,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        47,
+        2296,
+        5624,
+        10883,
+        8207,
+        2396,
+        370,
+        168,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "full_sync": {
+      "count": 2500,
+      "sum_nanos": 10447241552,
+      "max_nanos": 30000996,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        384,
+        505,
+        919,
+        470,
+        197,
+        25,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "anomaly_count": 0,
+    "retention": {
+      "minute_samples": 12,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "resources": {
+    "nodes": [
+      {
+        "data_filesystem_bytes": 154894188544,
+        "data_filesystem_available_bytes": 86307332096,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 130741848,
+        "heap_end_bytes": 130741848,
+        "goroutine_start": 2355,
+        "goroutine_end": 2355,
+        "sched_latency_mean_nanos": 12693,
+        "sched_latency_mean_peak_nanos": 31739,
+        "queue_baseline": 171,
+        "queue_current": 8,
+        "inflight_baseline": 198,
+        "inflight_current": 5
+      },
+      {
+        "data_filesystem_bytes": 154894188544,
+        "data_filesystem_available_bytes": 86307332096,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 109611424,
+        "heap_end_bytes": 109611424,
+        "goroutine_start": 2413,
+        "goroutine_end": 2413,
+        "sched_latency_mean_nanos": 12930,
+        "sched_latency_mean_peak_nanos": 35053,
+        "queue_baseline": 134,
+        "queue_current": 7,
+        "inflight_baseline": 180,
+        "inflight_current": 9
+      },
+      {
+        "data_filesystem_bytes": 154894188544,
+        "data_filesystem_available_bytes": 86307332096,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 127679928,
+        "heap_end_bytes": 127679928,
+        "goroutine_start": 2405,
+        "goroutine_end": 2405,
+        "sched_latency_mean_nanos": 13223,
+        "sched_latency_mean_peak_nanos": 23182,
+        "queue_baseline": 66,
+        "queue_current": 7,
+        "inflight_baseline": 44,
+        "inflight_current": 6
+      }
+    ],
+    "retention": {
+      "minute_samples": 12,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    },
+    "capacity": {
+      "samples": 12,
+      "missing_samples": 0,
+      "sustained_window": 900000000000,
+      "host_cpu_percent_basis_points": [
+        7582,
+        7582,
+        7582,
+        7584
+      ],
+      "host_memory_percent_basis_points": [
+        1999,
+        1999,
+        1999,
+        1999
+      ],
+      "service_queue_percent_basis_points": [
+        0,
+        0,
+        39
+      ],
+      "cpu_high_samples": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "memory_high_samples": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "queue_high_samples": [
+        0,
+        0,
+        0
+      ],
+      "cpu_sustained_events": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "memory_sustained_events": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "queue_sustained_events": [
+        0,
+        0,
+        0
+      ],
+      "cpu_sustained_active": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "memory_sustained_active": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "queue_sustained_active": [
+        false,
+        false,
+        false
+      ],
+      "worker_queue_samples": 12,
+      "worker_queue_missing_samples": 0,
+      "worker_queue_percent_basis_points": [
+        [
+          43,
+          0,
+          15,
+          0
+        ],
+        [
+          44,
+          0,
+          5,
+          0
+        ],
+        [
+          43,
+          0,
+          15,
+          0
+        ]
+      ],
+      "worker_queue_high_samples": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "worker_queue_sustained_events": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "worker_queue_sustained_active": [
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "worker_queues_complete": true,
+      "data_filesystem_bytes": [
+        154894188544,
+        154894188544,
+        154894188544,
+        154894188544
+      ],
+      "data_filesystem_available_bytes": [
+        86307332096,
+        86307332096,
+        86307332096,
+        86307332096
+      ],
+      "system_filesystem_bytes": [
+        154894188544,
+        154894188544,
+        154894188544,
+        154894188544
+      ],
+      "system_filesystem_available_bytes": [
+        86307332096,
+        86307332096,
+        86307332096,
+        86307332096
+      ],
+      "prometheus_bytes": 6114,
+      "network_transmit_bytes": 3166810,
+      "process_up": [
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          true,
+          true,
+          true,
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "process_cpu_jiffies": [
+        [
+          5900,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5700,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5700,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          500,
+          500,
+          500,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "process_resident_memory_bytes": [
+        [
+          560775168,
+          50515968,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          553996288,
+          50917376,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          551309312,
+          50950144,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          51077120,
+          298811392,
+          276738048,
+          278642688,
+          66633728,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "processes_complete": true,
+      "accrued_cost_micros": 0,
+      "lease_remaining_seconds": 0,
+      "complete": true
+    }
+  },
+  "cluster": {
+    "healthy_samples": 12,
+    "unhealthy_samples": 0,
+    "logical_slot_groups": 12,
+    "leader_groups": 12,
+    "full_replica_groups": 12,
+    "hot_replica_lag_breaches": 0,
+    "leader_imbalance_warnings": 0
+  },
+  "verdict": {
+    "terminal": false,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 12,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "capacity": {
+    "attempted": false,
+    "completed": false,
+    "lower_bound": false,
+    "maximum_passing_rate": 0,
+    "first_failing_rate": 0,
+    "recovery_passed": false
+  }
+}

@@ -1,0 +1,630 @@
+{
+  "identity": {
+    "source_sha": "305bbdc63fcdb210c3a8bd0670147fb6c6d2c913",
+    "policy_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "run_id": "39548558671",
+    "run_attempt": "1"
+  },
+  "binary_sha256": "18f44a05979ac388ae736ae46b406886e9b7cb38a1f460b1ff8fe8d9a0781146",
+  "commands": {
+    "build": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 2282,
+      "output_bytes": 5051,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 2282,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 71.721
+    },
+    "ordinary_history": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 7757,
+      "output_bytes": 27559,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 7757,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 92.737
+    },
+    "cross_node_delivery": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 13631,
+      "output_bytes": 8449,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 13631,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 48.575
+    },
+    "self_chat": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 13940,
+      "output_bytes": 3700,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 13940,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 41.413
+    }
+  },
+  "tests": {
+    "build": [],
+    "ordinary_history": [
+      {
+        "Time": "2026-10-21T05:24:03.250857333Z",
+        "Action": "pass",
+        "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+        "Elapsed": 18.38
+      },
+      {
+        "Time": "2026-10-21T05:24:19.313283389Z",
+        "Action": "pass",
+        "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+        "Elapsed": 16.06
+      },
+      {
+        "Time": "2026-10-21T05:24:30.497520254Z",
+        "Action": "pass",
+        "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+        "Elapsed": 11.18
+      },
+      {
+        "Time": "2026-10-21T05:24:47.438187061Z",
+        "Action": "pass",
+        "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+        "Elapsed": 16.94
+      },
+      {
+        "Time": "2026-10-21T05:25:04.098789162Z",
+        "Action": "pass",
+        "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+        "Elapsed": 16.66
+      },
+      {
+        "Time": "2026-10-21T05:25:04.098803854Z",
+        "Action": "pass",
+        "Test": "TestOriginalOrdinaryHistoryTopology",
+        "Elapsed": 79.23
+      }
+    ],
+    "cross_node_delivery": [
+      {
+        "Time": "2026-10-21T05:25:17.469370539Z",
+        "Action": "pass",
+        "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+        "Elapsed": 11.54
+      },
+      {
+        "Time": "2026-10-21T05:25:27.57402724Z",
+        "Action": "pass",
+        "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+        "Elapsed": 10.1
+      },
+      {
+        "Time": "2026-10-21T05:25:40.174969044Z",
+        "Action": "pass",
+        "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+        "Elapsed": 12.6
+      },
+      {
+        "Time": "2026-10-21T05:25:52.916046027Z",
+        "Action": "pass",
+        "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+        "Elapsed": 12.74
+      },
+      {
+        "Time": "2026-10-21T05:25:52.916105436Z",
+        "Action": "skip",
+        "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+        "Elapsed": 0
+      }
+    ],
+    "self_chat": [
+      {
+        "Time": "2026-10-21T05:26:08.09232069Z",
+        "Action": "pass",
+        "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+        "Elapsed": 13.77
+      },
+      {
+        "Time": "2026-10-21T05:26:34.406441496Z",
+        "Action": "pass",
+        "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+        "Elapsed": 26.31
+      },
+      {
+        "Time": "2026-10-21T05:26:34.406860087Z",
+        "Action": "pass",
+        "Test": "TestSelfChatPersistsAcrossClusterRestart",
+        "Elapsed": 40.08
+      }
+    ]
+  },
+  "migration_history": [
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 5,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 2
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 5,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 4,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 5,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 4,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 5,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 4,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 5,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 4,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 5,
+      "rows": 6,
+      "temporary_retries": 0
+    }
+  ],
+  "self_chat": {
+    "schema_version": 1,
+    "started_at": "2026-10-21T05:25:54.325907102Z",
+    "finished_at": "2026-10-21T05:26:34.406378316Z",
+    "passed": true,
+    "hash_slots": 256,
+    "token_authentication": "production_default",
+    "suppression_window_ms": 1000,
+    "cases": [
+      {
+        "nodes": 1,
+        "phase": "complete",
+        "passed": true,
+        "binary_sha256": "18f44a05979ac388ae736ae46b406886e9b7cb38a1f460b1ff8fe8d9a0781146",
+        "invalid_auth_refused": true,
+        "whole_cluster_restarts": 1,
+        "sender_suppression_windows": 4,
+        "acknowledged_count": 6,
+        "message_seqs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "receives_count": 16,
+        "duplicate_delivery_count": 8,
+        "history_read_count": 3,
+        "history_all_complete": true,
+        "history_temporary_retries": 0,
+        "history_phases": [
+          "generation-0",
+          "whole-cluster-restart-before-any-send",
+          "generation-1"
+        ]
+      },
+      {
+        "nodes": 3,
+        "phase": "complete",
+        "passed": true,
+        "binary_sha256": "18f44a05979ac388ae736ae46b406886e9b7cb38a1f460b1ff8fe8d9a0781146",
+        "invalid_auth_refused": true,
+        "whole_cluster_restarts": 1,
+        "sender_suppression_windows": 4,
+        "acknowledged_count": 6,
+        "message_seqs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "receives_count": 16,
+        "duplicate_delivery_count": 8,
+        "history_read_count": 9,
+        "history_all_complete": true,
+        "history_temporary_retries": 0,
+        "history_phases": [
+          "generation-0",
+          "whole-cluster-restart-before-any-send",
+          "generation-1"
+        ]
+      }
+    ]
+  }
+}

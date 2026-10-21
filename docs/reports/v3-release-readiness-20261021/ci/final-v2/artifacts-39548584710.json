@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12323346011,
+      "node_id": "MDg6QXJ0aWZhY3QxMjMyMzM0NjAxMQ==",
+      "name": "conversation-mixed-39548584710-1",
+      "size_in_bytes": 46125929,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12323346011",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12323346011/zip",
+      "expired": false,
+      "digest": "sha256:b5e8caf651fe7db8d5e3be4ad0924a8e8d744e5de1b9972251ad2400ba36c41f",
+      "created_at": "2026-10-21T05:29:29Z",
+      "updated_at": "2026-10-21T05:29:29Z",
+      "expires_at": "2027-01-19T05:16:06Z",
+      "workflow_run": {
+        "id": 39548584710,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-release-recovery",
+        "head_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8"
+      }
+    }
+  ]
+}

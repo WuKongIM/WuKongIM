@@ -1,0 +1,27 @@
+{
+  "classification": "environment/package-repository metadata download latency; successful step, no test failure",
+  "job_id": 119052223640,
+  "log": "job-119052223640.log",
+  "evidence": [
+    {
+      "line": 2312,
+      "text": "2026-10-21T05:20:52.3729500Z + dnf install -y /tmp/wukongim.rpm"
+    },
+    {
+      "line": 2313,
+      "text": "2026-10-21T05:24:47.6635298Z AlmaLinux 9 - AppStream                         130 kB/s |  30 MB     03:55    "
+    },
+    {
+      "line": 2314,
+      "text": "2026-10-21T05:34:55.1251784Z AlmaLinux 9 - BaseOS                             82 kB/s |  48 MB     10:03    "
+    },
+    {
+      "line": 2315,
+      "text": "2026-10-21T05:34:58.6165709Z AlmaLinux 9 - Extras                            101 kB/s |  33 kB     00:00    "
+    },
+    {
+      "line": 2316,
+      "text": "2026-10-21T05:34:59.4351616Z Dependencies resolved."
+    }
+  ]
+}

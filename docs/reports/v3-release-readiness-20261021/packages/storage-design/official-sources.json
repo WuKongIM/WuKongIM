@@ -1,0 +1,55 @@
+{
+  "captured_at_utc": "2026-10-21T05:39:06.067912+00:00",
+  "sources": [
+    {
+      "title": "OSS consistency",
+      "url": "https://www.alibabacloud.com/help/en/oss/user-guide/what-is-oss",
+      "bounded_support": "Single-object atomicity and strong consistency; not a multi-object transaction."
+    },
+    {
+      "title": "OSS PutObject",
+      "url": "https://www.alibabacloud.com/help/en/oss/developer-reference/putobject",
+      "bounded_support": "Flat namespace; 5 GB simple upload; forbid-overwrite is invalid with versioning enabled or suspended."
+    },
+    {
+      "title": "CDN origin rewrite",
+      "url": "https://www.alibabacloud.com/help/en/cdn/user-guide/rewrite-urls-in-back-to-origin-requests",
+      "bounded_support": "Origin URI rewrite does not change cache key; up to 50 rules; ordering matters."
+    },
+    {
+      "title": "CDN cache",
+      "url": "https://www.alibabacloud.com/help/en/cdn/user-guide/configure-the-cdn-cache-expiration-time",
+      "bounded_support": "Origin no-cache honored unless ignored; prior cache rules stay with already-cached objects."
+    },
+    {
+      "title": "CDN refresh",
+      "url": "https://www.alibabacloud.com/help/en/cdn/user-guide/refresh-and-prefetch-resources",
+      "bounded_support": "Invalidation tasks and soft purge/304 semantics; not a transaction or all-POP instantaneous guarantee."
+    },
+    {
+      "title": "Private OSS origin",
+      "url": "https://www.alibabacloud.com/help/en/cdn/user-guide/grant-alibaba-cloud-cdn-access-permissions-on-private-oss-buckets",
+      "bounded_support": "STS same-account origin fetch; documented default role example has account-wide List*/Get*; domain can expose bucket resources."
+    },
+    {
+      "title": "OSS/CDN integration",
+      "url": "https://www.alibabacloud.com/help/en/oss/user-guide/cdn-acceleration",
+      "bounded_support": "Origin Host must match; cache can hide misconfigured origin; verify uncached origin access before traffic switch."
+    },
+    {
+      "title": "CDN configuration API",
+      "url": "https://www.alibabacloud.com/help/en/cdn/developer-reference/api-cdn-2018-05-10-batchsetcdndomainconfig",
+      "bounded_support": "Domain-level action; ConfigId=0 means not applied; table lists ram:CreateServiceLinkedRole dependency, no function-specific condition key."
+    },
+    {
+      "title": "Debian repository format",
+      "url": "https://wiki.debian.org/DebianRepository/Format",
+      "bounded_support": "By-hash current mandatory and at least two prior index versions recommended. Search retrieval available; direct open was 403."
+    },
+    {
+      "title": "DNF configuration",
+      "url": "https://dnf.readthedocs.io/en/latest/conf_ref.html",
+      "bounded_support": "Native mirrorlist, baseurl, repo_gpgcheck, gpgcheck, metadata_expire options. Does not by itself prove pinned distro A/B request trace."
+    }
+  ]
+}

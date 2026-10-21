@@ -1,0 +1,13 @@
+{
+  "arguments": [
+    "go",
+    "build",
+    "-tags=e2e",
+    "-o",
+    "/home/runner/work/_temp/v3-candidate-39548558671-1/e2e/wukongim-e2e",
+    "./cmd/wukongim"
+  ],
+  "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+  "timeout_seconds": 720,
+  "max_output_bytes": 67108864
+}

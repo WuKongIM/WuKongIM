@@ -1,0 +1,58 @@
+{
+  "artifact_id": 12323346011,
+  "api_declared_archive_sha256": "b5e8caf651fe7db8d5e3be4ad0924a8e8d744e5de1b9972251ad2400ba36c41f",
+  "entire_archive_digest_recomputed": false,
+  "transport": "Authenticated artifact redirect followed by bounded HTTPS blob Range requests; each selected ZIP entry CRC validated",
+  "files": [
+    {
+      "path": "artifact-12323346011-selected/driver-cpu.pprof",
+      "bytes": 23859,
+      "sha256": "cafd22f0bab8850beb9ee122d512a02336f746905a49f6388dcbc336881d6e98"
+    },
+    {
+      "path": "artifact-12323346011-selected/node1-alloc-after.pprof",
+      "bytes": 115465,
+      "sha256": "16b57e10afc5838ba9db9270cf682afdc52a907df77b7e232a89dceff293889f"
+    },
+    {
+      "path": "artifact-12323346011-selected/node1-alloc-before.pprof",
+      "bytes": 113223,
+      "sha256": "4955f2cb19aaa9b717f61c55154517d0a4bf1f07a3bd2420c6dd680d4d8e75fa"
+    },
+    {
+      "path": "artifact-12323346011-selected/node1-cpu.pprof",
+      "bytes": 57002,
+      "sha256": "6512db23bac9d15b7387517b26aafc4c1a3fa7ba467a85192aa4e2b0297e74bb"
+    },
+    {
+      "path": "artifact-12323346011-selected/node2-alloc-after.pprof",
+      "bytes": 115804,
+      "sha256": "273b6594f34bdfbb286b659e6c29f349d067c2a51fe7d3425755fed3119e5cc3"
+    },
+    {
+      "path": "artifact-12323346011-selected/node2-alloc-before.pprof",
+      "bytes": 113553,
+      "sha256": "12df64c6c0b683bcd831e262ed9f4556675f842d3c538c4e4ddb3ff79b497dfb"
+    },
+    {
+      "path": "artifact-12323346011-selected/node2-cpu.pprof",
+      "bytes": 56745,
+      "sha256": "d1dc78618f5fa41a2b5e1db0acfe33244fdbbfc07e94332fc094c45d7dae4f5d"
+    },
+    {
+      "path": "artifact-12323346011-selected/node3-alloc-after.pprof",
+      "bytes": 118906,
+      "sha256": "8955f81fb95261e2d8713922d253706a8adff9407207c33fb15542b7592063a1"
+    },
+    {
+      "path": "artifact-12323346011-selected/node3-alloc-before.pprof",
+      "bytes": 116306,
+      "sha256": "15ee301ec6e97bad7088ece5e4397433d79610486a719c4f77ae9afb69f57354"
+    },
+    {
+      "path": "artifact-12323346011-selected/node3-cpu.pprof",
+      "bytes": 60616,
+      "sha256": "bb988fdbd5cf7ac629a35228e0e06237700cfef88636fe895b5389fb3cd1d410"
+    }
+  ]
+}

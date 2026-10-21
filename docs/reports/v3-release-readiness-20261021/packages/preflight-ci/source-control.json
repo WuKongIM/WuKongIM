@@ -1,0 +1,24 @@
+{
+  "head_sha": "0ce7184bbf69472f607159f74a096e9160852843",
+  "stable": {
+    "enabled": false,
+    "status": "object_storage_required",
+    "releases": []
+  },
+  "signing_toolchain": {
+    "schema": "wukongim.native_package_signing_toolchain/v1",
+    "enabled": true,
+    "image": "ghcr.io/wukongim/native-package-signing-toolchain",
+    "digest": "sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922",
+    "workflow_sha": "1db16ff24b066d14cbfd312b2d92e3331d052150"
+  },
+  "protected_paths_changed_since_base": [],
+  "source_files_sha256": {
+    ".github/workflows/pages.yml": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+    ".github/workflows/native-package-repository-drill.yml": "38b0d7248c2eb34c86564ca81cce3079bf027eb0ff7ef046769ddc894ddb377b",
+    ".github/workflows/source-release-preflight.yml": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+    "scripts/verify-source-package-metadata.py": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+    "tests/native_source_metadata_drill.py": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1",
+    "tests/test_source_preflight_workflow.py": "5f8f7efbe39fb858546669d6db240bf5613fe2579f998bbafc345df097ef1069"
+  }
+}

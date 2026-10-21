@@ -24,6 +24,8 @@ regression attempts; it is not a published release or a long-run qualification.
 - `cloud/`: bounded read-only preparation audit, exact public configuration,
   frozen control sources, historical cleanup payloads and their limitations.
   This does not establish today's provider inventory or authorize procurement.
+  `local-shakeout-preconditions.json` records the current host below the existing
+  5-percent disk reserve; no local 30-minute run was attempted.
 - `ci/session-cleanup-probes/`, `ci/candidate-workflow-validation.json`,
   `review.md`: original cross-PGID cleanup failure, real-process macOS probes,
   static validation and independent review. Linux results are separate CI evidence.
@@ -40,6 +42,18 @@ regression attempts; it is not a published release or a long-run qualification.
   actual executed/skipped steps, source-tree identity and workload numbers.
   Its allowlist retains bounded reports and logs; archive-level digest claims
   distinguish full downloads from CRC-checked selected ZIP members.
+
+- `ci/final-v2/second-generation-summary.md`: seven updated-candidate CI runs, all
+  first-attempt successes, exact source/binary identity, full matrix and native
+  lifecycle results; original first-generation failures remain preserved.
+- `packages/preflight-followup/`, `packages/preflight-ci/`: test-first source
+  preflight implementation, independent review, and both new CI results including
+  seven actual native metadata cases. No production deployment occurred.
+- `packages/public-signing-observation.json`, `local-backup-classification.json`
+  (under `packages/`): public fingerprint comparisons only. The latest user
+  clarification confirms independent stable keys are not yet created.
+- `packages/storage-design/`: source-frozen OSS/CDN design and official sources;
+  not an implemented transport or cloud authorization.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.

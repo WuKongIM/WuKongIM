@@ -1,0 +1,32 @@
+[
+  {
+    "source": "SHA256SUMS",
+    "archive": "SHA256SUMS",
+    "source_sha256": "7a1566910922ace01db1226cc03c01fed3ccb7401ce3169048788999f35f9cb6",
+    "archive_sha256": "7a1566910922ace01db1226cc03c01fed3ccb7401ce3169048788999f35f9cb6"
+  },
+  {
+    "source": "design.md",
+    "archive": "design.md",
+    "source_sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311",
+    "archive_sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311"
+  },
+  {
+    "source": "official-sources.json",
+    "archive": "official-sources.json",
+    "source_sha256": "01926ed3ab2c5c492fd829c08ea7d8dda396ed1152750d078dcf5f7ccb113c84",
+    "archive_sha256": "01926ed3ab2c5c492fd829c08ea7d8dda396ed1152750d078dcf5f7ccb113c84"
+  },
+  {
+    "source": "source-freeze.json",
+    "archive": "source-freeze.json",
+    "source_sha256": "9cf3d7bd05c6ad8479883eee41b1a5cd79234e26d44abf633b1f68f4e73ae98f",
+    "archive_sha256": "9cf3d7bd05c6ad8479883eee41b1a5cd79234e26d44abf633b1f68f4e73ae98f"
+  },
+  {
+    "source": "summary.json",
+    "archive": "summary.json",
+    "source_sha256": "05fe6b510ee2c4a79c44eb9a14f62a3d9f89d5278876d998c2642141021dfb84",
+    "archive_sha256": "05fe6b510ee2c4a79c44eb9a14f62a3d9f89d5278876d998c2642141021dfb84"
+  }
+]

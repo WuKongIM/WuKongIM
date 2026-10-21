@@ -1,0 +1,161 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 119052311987,
+      "run_id": 39548584710,
+      "workflow_name": "Agent Tool - Diagnose Conversation QPS",
+      "head_branch": "codex/v3-release-recovery",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39548584710",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbuBIdsw",
+      "head_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119052311987",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39548584710/job/119052311987",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T05:16:06Z",
+      "started_at": "2026-10-21T05:16:08Z",
+      "completed_at": "2026-10-21T05:29:33Z",
+      "name": "diagnose",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T05:16:09Z",
+          "completed_at": "2026-10-21T05:16:11Z"
+        },
+        {
+          "name": "Checkout exact product without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T05:16:11Z",
+          "completed_at": "2026-10-21T05:16:20Z"
+        },
+        {
+          "name": "Bind clean product source and four-CPU host",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T05:16:20Z",
+          "completed_at": "2026-10-21T05:16:20Z"
+        },
+        {
+          "name": "Set up exact failing-run Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T05:16:20Z",
+          "completed_at": "2026-10-21T05:16:35Z"
+        },
+        {
+          "name": "Build product before adding diagnostic checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T05:16:35Z",
+          "completed_at": "2026-10-21T05:17:00Z"
+        },
+        {
+          "name": "Checkout optional comparison product without credentials",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-21T05:17:00Z",
+          "completed_at": "2026-10-21T05:17:00Z"
+        },
+        {
+          "name": "Build exact comparison product on the same host",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-21T05:17:00Z",
+          "completed_at": "2026-10-21T05:17:00Z"
+        },
+        {
+          "name": "Checkout diagnostic harness separately",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T05:17:00Z",
+          "completed_at": "2026-10-21T05:17:05Z"
+        },
+        {
+          "name": "Collect comparison windows with the identical harness and preset",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-10-21T05:17:05Z",
+          "completed_at": "2026-10-21T05:17:05Z"
+        },
+        {
+          "name": "Collect three fixed windows then separate profiles",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T05:17:05Z",
+          "completed_at": "2026-10-21T05:22:14Z"
+        },
+        {
+          "name": "Validate the complete unchanged release matrix without publication",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T05:22:14Z",
+          "completed_at": "2026-10-21T05:29:26Z"
+        },
+        {
+          "name": "Retain all diagnostic evidence including rejected windows",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T05:29:26Z",
+          "completed_at": "2026-10-21T05:29:30Z"
+        },
+        {
+          "name": "Post Checkout diagnostic harness separately",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-21T05:29:30Z",
+          "completed_at": "2026-10-21T05:29:30Z"
+        },
+        {
+          "name": "Post Set up exact failing-run Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-21T05:29:30Z",
+          "completed_at": "2026-10-21T05:29:30Z"
+        },
+        {
+          "name": "Post Checkout exact product without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-21T05:29:30Z",
+          "completed_at": "2026-10-21T05:29:30Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-21T05:29:30Z",
+          "completed_at": "2026-10-21T05:29:30Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119052311987",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024092,
+      "runner_name": "GitHub Actions 1000024092",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

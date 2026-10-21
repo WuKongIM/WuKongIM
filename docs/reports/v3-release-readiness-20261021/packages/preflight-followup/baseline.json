@@ -1,0 +1,19 @@
+{
+  "source_sha": "dafbc9dbcd88eefeaabfcafa319a6dabb37738f1",
+  "working_tree": "",
+  "applicable_flow_files": [],
+  "source_sha256": {
+    "docs/release-contract.md": "6d8b9e953e2691a9474b4a580765cc5f6e2344d4cc4caf58e5f098884bfe5f0b",
+    ".github/workflows/source-release-preflight.yml": "586229caeee268198f74651ae5559ec89934096b66032ba0bf12410cf0d85b0e",
+    "scripts/resolve-source-release.py": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+    "scripts/verify-source-attestations.py": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "tests/contract.sh": "65926b2610c11542dce7bcff94c945527e8946ff7101b1a9a3f0c4c7e4f7cc15"
+  },
+  "governing_agents_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "seams": [
+    "metadata inspector CLI with receipt/assets/channel",
+    "read-only hosted preflight source-channel wiring"
+  ],
+  "validation_environment": "macOS; dpkg-deb/rpm unavailable; Docker daemon unavailable; no host packages or cloud provisioned"
+}

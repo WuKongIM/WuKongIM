@@ -1,0 +1,68 @@
+[
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 22,
+    "text": "2026-10-21T05:30:57.3397084Z ##[group]GITHUB_TOKEN Permissions",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 23,
+    "text": "2026-10-21T05:30:57.3398701Z Contents: read",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 24,
+    "text": "2026-10-21T05:30:57.3399251Z Metadata: read",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 104,
+    "text": "2026-10-21T05:30:59.6806291Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +4e73d6fbeb255d1206409537d00f1d76eb151623:refs/remotes/pull/67/merge",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 106,
+    "text": "2026-10-21T05:31:00.4636369Z  * [new ref]         4e73d6fbeb255d1206409537d00f1d76eb151623 -> pull/67/merge",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 133,
+    "text": "2026-10-21T05:31:00.5298377Z [command]/usr/bin/git log -1 --format=%H",
+    "next": "2026-10-21T05:31:00.5331747Z 4e73d6fbeb255d1206409537d00f1d76eb151623"
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 134,
+    "text": "2026-10-21T05:31:00.5331747Z 4e73d6fbeb255d1206409537d00f1d76eb151623",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 173,
+    "text": "2026-10-21T05:31:00.8880813Z publication control validation passed",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 176,
+    "text": "2026-10-21T05:31:01.0378244Z Ran 2 tests in 0.001s",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 179,
+    "text": "2026-10-21T05:31:01.5017779Z package repository contracts passed",
+    "next": null
+  },
+  {
+    "member": "1_Validate complete Pages snapshot.txt",
+    "line": 182,
+    "text": "2026-10-21T05:32:42.3460806Z Ran 342 tests in 100.482s",
+    "next": null
+  }
+]

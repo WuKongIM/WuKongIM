@@ -1,0 +1,940 @@
+diff --git a/.github/workflows/native-package-repository-drill.yml b/.github/workflows/native-package-repository-drill.yml
+index 341d844..48b64e0 100644
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -57,6 +57,40 @@ jobs:
+             '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \
+             manifests/trusted-toolchain.json | sha256sum --check --strict
+ 
++      - name: Check real native source metadata in isolated TEST ONLY fixtures
++        shell: bash
++        run: |
++          set -euo pipefail
++          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
++          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
++          docker pull "$image"
++          metadata_output="$RUNNER_TEMP/source-metadata-native"
++          mkdir "$metadata_output"
++          chmod 0777 "$metadata_output"
++          container="wk-source-metadata-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
++          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
++          trap 'exit 130' INT
++          trap 'exit 143' TERM
++          timeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \
++            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
++            --user 65532:65532 --cpus 1 --memory 512m --pids-limit 128 \
++            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
++            --volume "$GITHUB_WORKSPACE:/control:ro" \
++            --volume "$metadata_output:/evidence" \
++            --workdir /tmp "$image" \
++            python3 -B /control/tests/native_source_metadata_drill.py --output-dir /evidence
++          jq -e '.test_only == true and .passed == true and (.cases | length) == 7 and all(.cases[]; .passed == true)' \
++            "$metadata_output/native-source-metadata.json" >/dev/null
++
++      - name: Preserve TEST ONLY native metadata evidence
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: native-source-metadata-test-only
++          path: ${{ runner.temp }}/source-metadata-native/
++          if-no-files-found: warn
++          retention-days: 30
++
+       - name: Set up fixed GoReleaser toolchain
+         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+         with:
+diff --git a/.github/workflows/source-release-preflight.yml b/.github/workflows/source-release-preflight.yml
+index bda24bf..16cb071 100644
+--- a/.github/workflows/source-release-preflight.yml
++++ b/.github/workflows/source-release-preflight.yml
+@@ -7,6 +7,14 @@ on:
+         description: Numeric immutable WuKongIM source Release id
+         required: true
+         type: string
++      source_channel:
++        description: Expected source classification for read-only inspection only
++        required: true
++        type: choice
++        default: preview
++        options:
++          - preview
++          - stable
+ 
+ permissions: {}
+ 
+@@ -27,6 +35,7 @@ jobs:
+     outputs:
+       control_sha: ${{ steps.request.outputs.control_sha }}
+       source_release_id: ${{ steps.request.outputs.source_release_id }}
++      source_channel: ${{ steps.request.outputs.source_channel }}
+     steps:
+       - name: Check out exact protected control
+         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+@@ -39,6 +48,7 @@ jobs:
+         shell: bash
+         env:
+           SOURCE_RELEASE_ID: ${{ inputs.source_release_id }}
++          SOURCE_CHANNEL: ${{ inputs.source_channel }}
+         run: |
+           set -euo pipefail
+           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+@@ -51,6 +61,10 @@ jobs:
+             echo 'source_release_id must be a positive numeric GitHub Release id' >&2
+             exit 64
+           }
++          case "$SOURCE_CHANNEL" in preview|stable) ;;
++            *) echo 'source_channel must be preview or stable' >&2; exit 64 ;;
++          esac
++          echo "source_channel=$SOURCE_CHANNEL" >> "$GITHUB_OUTPUT"
+           echo "control_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+           echo "source_release_id=$SOURCE_RELEASE_ID" >> "$GITHUB_OUTPUT"
+ 
+@@ -93,10 +107,12 @@ jobs:
+         env:
+           GH_TOKEN: ${{ steps.source-token.outputs.token }}
+           SOURCE_RELEASE_ID: ${{ needs.control.outputs.source_release_id }}
++          SOURCE_CHANNEL: ${{ needs.control.outputs.source_channel }}
+           SOURCE_ASSETS: ${{ runner.temp }}/source-assets
+           SOURCE_RECEIPT: ${{ runner.temp }}/source-release.json
+         run: >-
+           ./scripts/resolve-source-release.py
++          --channel "$SOURCE_CHANNEL"
+           --release-id "$SOURCE_RELEASE_ID"
+           --output-dir "$SOURCE_ASSETS"
+           --token-env GH_TOKEN
+@@ -105,11 +121,13 @@ jobs:
+       - name: Verify fixed workflow attestations for all seven assets
+         env:
+           GH_TOKEN: ${{ steps.source-token.outputs.token }}
++          SOURCE_CHANNEL: ${{ needs.control.outputs.source_channel }}
+           SOURCE_ASSETS: ${{ runner.temp }}/source-assets
+           SOURCE_RECEIPT: ${{ runner.temp }}/source-release.json
+           SOURCE_ATTESTATIONS: ${{ runner.temp }}/source-attestations
+         run: >-
+           ./scripts/verify-source-attestations.py
++          --channel "$SOURCE_CHANNEL"
+           --receipt "$SOURCE_RECEIPT"
+           --asset-dir "$SOURCE_ASSETS"
+           --evidence-dir "$SOURCE_ATTESTATIONS"
+@@ -123,69 +141,15 @@ jobs:
+       - name: Inspect unsigned package identities without executing payloads
+         shell: bash
+         env:
++          SOURCE_CHANNEL: ${{ needs.control.outputs.source_channel }}
+           SOURCE_ASSETS: ${{ runner.temp }}/source-assets
+           SOURCE_RECEIPT: ${{ runner.temp }}/source-release.json
+-        run: |
+-          set -euo pipefail
+-          export LC_ALL=C
+-
+-          assert_metadata() {
+-            local label="$1"
+-            local expected="$2"
+-            local actual="$3"
+-            if [[ "$actual" != "$expected" ]]; then
+-              printf '%s mismatch: expected <%s>, got <%s>\n' \
+-                "$label" "$expected" "$actual" >&2
+-              exit 1
+-            fi
+-          }
+-
+-          version="$(jq -r '.version' "$SOURCE_RECEIPT")"
+-          deb="$SOURCE_ASSETS/wukongim_${version}_linux_amd64.deb"
+-          rpm_package="$SOURCE_ASSETS/wukongim_${version}_linux_amd64.rpm"
+-          release_core="${version%%-*}"
+-          prerelease="${version#*-}"
+-          [[ "$release_core" != "$version" && -n "$prerelease" ]] || {
+-            echo 'source package version must be a pre-release' >&2
+-            exit 1
+-          }
+-          # Do not use Bash pattern replacement with a bare tilde: Bash expands
+-          # it to $HOME and silently corrupts the expected package version.
+-          expected_deb_version="${release_core}~${prerelease}"
+-          expected_rpm_version="${expected_deb_version//-/_}"
+-
+-          deb_package="$(dpkg-deb --field "$deb" Package)"
+-          deb_architecture="$(dpkg-deb --field "$deb" Architecture)"
+-          deb_version="$(dpkg-deb --field "$deb" Version)"
+-          rpm_name="$(rpm -qp --queryformat '%{NAME}' "$rpm_package")"
+-          rpm_architecture="$(rpm -qp --queryformat '%{ARCH}' "$rpm_package")"
+-          rpm_version="$(rpm -qp --queryformat '%{VERSION}' "$rpm_package")"
+-          rpm_release="$(rpm -qp --queryformat '%{RELEASE}' "$rpm_package")"
+-          rpm_signature_pgp="$(rpm -qp --queryformat '%{SIGPGP:pgpsig}' "$rpm_package")"
+-          rpm_signature_gpg="$(rpm -qp --queryformat '%{SIGGPG:pgpsig}' "$rpm_package")"
+-
+-          assert_metadata 'DEB package' wukongim "$deb_package"
+-          assert_metadata 'DEB architecture' amd64 "$deb_architecture"
+-          assert_metadata 'DEB version' "$expected_deb_version" "$deb_version"
+-          assert_metadata 'RPM package' wukongim "$rpm_name"
+-          assert_metadata 'RPM architecture' x86_64 "$rpm_architecture"
+-          assert_metadata 'RPM version' "$expected_rpm_version" "$rpm_version"
+-          assert_metadata 'RPM release' 1 "$rpm_release"
+-          assert_metadata 'RPM SIGPGP' '(none)' "$rpm_signature_pgp"
+-          assert_metadata 'RPM SIGGPG' '(none)' "$rpm_signature_gpg"
+-
+-          jq -n \
+-            --arg schema 'wukongim/source-package-metadata/v1' \
+-            --arg version "$version" \
+-            --arg deb_version "$deb_version" \
+-            --arg rpm_version "$rpm_version" \
+-            '{
+-              schema: $schema,
+-              package: "wukongim",
+-              version: $version,
+-              deb: {version: $deb_version, architecture: "amd64"},
+-              rpm: {version: $rpm_version, release: "1", architecture: "x86_64", signed: false}
+-            }' >"$RUNNER_TEMP/source-package-metadata.json"
++        run: >-
++          ./scripts/verify-source-package-metadata.py
++          --channel "$SOURCE_CHANNEL"
++          --receipt "$SOURCE_RECEIPT"
++          --asset-dir "$SOURCE_ASSETS"
++          >"$RUNNER_TEMP/source-package-metadata.json"
+ 
+       - name: Upload public verification evidence
+         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3cf6737..8799a39 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,3 +5,7 @@
+ - Allow explicit read-only stable source identity and provenance checks with
+   `--channel stable`; existing commands and production workflows retain their
+   preview default, and stable package publication remains disabled.
++
++- Extend read-only source preflight through exact stable/preview DEB/RPM metadata
++  verification and preserve source identity in its evidence. Stable publication
++  stays disabled; the TEST ONLY drill now checks real native package metadata.
+diff --git a/README.md b/README.md
+index e7b0055..8832730 100644
+--- a/README.md
++++ b/README.md
+@@ -107,12 +107,20 @@ downloads all seven assets by numeric asset ID, verifies their exact checksum
+ closure and fixed-workflow GitHub attestations, and inspects DEB/RPM metadata
+ without executing either package payload.
+ 
+-For read-only preparation of a stable source release, the standalone
+-`resolve-source-release.py` and `verify-source-attestations.py` commands accept
+-`--channel stable`. Both commands default to `preview` and reject a source from
+-the other channel. This verifies source identity and provenance only; the
+-hosted preflight, package metadata checks, signing, and publication workflows
+-remain preview-only, and stable publication remains disabled.
++The read-only source preflight accepts `source_channel: stable` for a stable
++source Release; its default remains `preview`. The resolver, attestation
++verifier, and `verify-source-package-metadata.py` all receive the same explicit
++channel. Their standalone commands likewise accept `--channel stable` and
++reject a source from the other channel. Metadata evidence binds the numeric
++Release ID, tag, source commit and exact DEB/RPM bytes; packages are never
++installed or executed by this preflight. This is source verification only:
++stable signing, storage, installation bootstrap and publication remain disabled.
++
++The credential-free TEST ONLY PR drill also exercises real native metadata
++tools in the existing digest-pinned, network-disabled toolchain. It builds tiny
++data-only stable/preview fixtures, rejects mismatched versions and RPM epochs,
++and rejects a locally generated TEST ONLY RSA-signed RPM. Its synthetic source
++identity is not GitHub provenance or a successful stable publication.
+ 
+ See [docs/release-contract.md](docs/release-contract.md) for the release,
+ retention, signing, and recovery contracts.
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index 724376f..e663406 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -89,30 +89,52 @@ protected control-plane review.
+ ## Source preflight
+ 
+ The read-only source preflight accepts a numeric Release ID, never a release
+-name or download URL. It requires a published immutable prerelease with the
++name or download URL. It requires a published immutable source Release with the
+ exact four archives, unsigned amd64 DEB and RPM, and checksum asset. It peels
+ the Git tag, proves the source commit remains reachable from `main`, downloads
+ each asset by numeric asset ID, checks API and local SHA-256 values plus the
+ checksum closure, then repeats the Release, tag, and ancestry checks after the
+ downloads.
+ 
+-The standalone resolver and source-attestation verifier also support explicit
++The hosted preflight accepts an expected `source_channel` of `preview` or
++`stable`, and passes it unchanged to source resolution, attestation verification,
++and metadata inspection. The three standalone commands also accept explicit
+ `--channel stable` for read-only source preparation. Their default remains
+ `preview`: it requires a SemVer prerelease and `prerelease: true`. Stable
+ inspection requires a strict version without a prerelease suffix and
+-`prerelease: false`. Both commands reject build metadata, invalid numeric
++`prerelease: false`. All three commands reject build metadata, invalid numeric
+ identifiers, and inconsistent source classification. The source-resolution
+ receipt retains its existing schema with the exact tag, version, and
+ classification; selecting a source channel does not authorize publishing it.
+ 
+-Stable preparation must pass `--channel stable` to both
+-`scripts/resolve-source-release.py` and `scripts/verify-source-attestations.py`.
+-It retains the same numeric Release ID, immutable identity, seven-asset
+-checksum closure, main ancestry, exact source SHA, and fixed signer-workflow
+-checks. This is not a complete stable package preflight: the hosted workflow
+-and its DEB/RPM metadata mapping still support preview only. The reviewed
+-stable channel, signing, storage, bootstrap and publication gates remain
+-disabled until their separate implementation and provisioning are complete.
++Stable preparation must pass `--channel stable` to
++`scripts/resolve-source-release.py`, `scripts/verify-source-attestations.py`,
++and `scripts/verify-source-package-metadata.py`. It retains the same numeric
++Release ID, immutable identity, seven-asset checksum closure, main ancestry,
++exact source SHA, and fixed signer-workflow checks. Selecting an expected source
++classification cannot alter the reviewed publication controls. The stable
++channel, signing, storage, bootstrap and publication gates remain disabled
++until their separate implementation and provisioning are complete.
++
++Metadata inspection validates the complete source receipt and all seven asset
++bytes before and after native queries. Stable package versions are exactly
++`X.Y.Z`; preview DEB versions are `X.Y.Z~prerelease`, with remaining hyphens
++changed to underscores for RPM. Both families must be named `wukongim` with
++amd64/x86_64 architecture. RPM requires release `1`, epoch `0` (including an
++unset epoch), and no SIGPGP, SIGGPG, RSAHEADER or DSAHEADER signature. Native
++queries run with a fresh home and without inherited credentials. The v2
++metadata receipt binds the expected channel, numeric source Release ID, tag,
++source SHA, and each package's asset ID, digest and size. It is metadata evidence,
++not an independent proof of GitHub provenance; the preceding attestation step
++remains mandatory for a successful hosted preflight.
++
++The TEST ONLY PR drill builds tiny data-only stable and preview DEB/RPM fixtures
++inside the existing pinned toolchain with networking disabled. It uses a
++scratch-only ephemeral RSA key to exercise actual RSAHEADER rejection; fixture
++packages are never installed or executed, and private test material is never
++uploaded. Native evidence names the signature tags actually observed. Separate
++CLI tests reject each legacy/header signature field independently; they do not
++claim all historical signing formats were produced by the current native tools.
+ 
+ After those checks succeed, the resolver seals the public source assets as
+ read-only files in a read-and-traverse-only directory (`0444` files and a
+diff --git a/tests/contract.sh b/tests/contract.sh
+index 22e5b4a..7bf69b0 100755
+--- a/tests/contract.sh
++++ b/tests/contract.sh
+@@ -115,27 +115,9 @@ grep -Fq 'permission-attestations: read' "$SOURCE_PREFLIGHT"
+ grep -Fq 'GH_TOKEN: ${{ steps.source-token.outputs.token }}' "$SOURCE_PREFLIGHT"
+ grep -Fq './scripts/resolve-source-release.py' "$SOURCE_PREFLIGHT"
+ grep -Fq './scripts/verify-source-attestations.py' "$SOURCE_PREFLIGHT"
+-grep -Fq 'assert_metadata() {' "$SOURCE_PREFLIGHT"
+-grep -Fq 'release_core="${version%%-*}"' "$SOURCE_PREFLIGHT"
+-grep -Fq 'prerelease="${version#*-}"' "$SOURCE_PREFLIGHT"
+-grep -Fq 'expected_deb_version="${release_core}~${prerelease}"' "$SOURCE_PREFLIGHT"
+-grep -Fq "assert_metadata 'DEB version' \"\$expected_deb_version\" \"\$deb_version\"" "$SOURCE_PREFLIGHT"
+-grep -Fq "assert_metadata 'RPM SIGPGP' '(none)' \"\$rpm_signature_pgp\"" "$SOURCE_PREFLIGHT"
+-grep -Fq 'export LC_ALL=C' "$SOURCE_PREFLIGHT"
++grep -Fq './scripts/verify-source-package-metadata.py' "$SOURCE_PREFLIGHT"
+ grep -Fq 'retention-days: 30' "$SOURCE_PREFLIGHT"
+-if grep -Fq '${version/-/~}' "$SOURCE_PREFLIGHT"; then
+-  echo 'source Release preflight must not use Bash tilde-expanding replacement syntax' >&2
+-  exit 1
+-fi
+-(
+-  version='3.1.0-rc.1-hotfix'
+-  release_core="${version%%-*}"
+-  prerelease="${version#*-}"
+-  expected_deb_version="${release_core}~${prerelease}"
+-  expected_rpm_version="${expected_deb_version//-/_}"
+-  test "$expected_deb_version" = '3.1.0~rc.1-hotfix'
+-  test "$expected_rpm_version" = '3.1.0~rc.1_hotfix'
+-)
++python3 -B -m unittest discover -s "$ROOT_DIR/tests" -p 'test_source_preflight_workflow.py'
+ if grep -Eq 'contents: write|pages: write|id-token: write' "$SOURCE_PREFLIGHT"; then
+   echo 'source Release preflight must remain read-only' >&2
+   exit 1
+diff --git a/scripts/verify-source-package-metadata.py b/scripts/verify-source-package-metadata.py
+new file mode 100755
+index 0000000..d291654
+--- /dev/null
++++ b/scripts/verify-source-package-metadata.py
+@@ -0,0 +1,131 @@
++#!/usr/bin/env python3
++"""Inspect resolved source DEB/RPM metadata without installing or running payloads."""
++
++from __future__ import annotations
++
++import argparse
++import importlib.util
++import json
++import os
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++from typing import Any
++
++
++# Reuse the source verifier's strict receipt and byte-closure boundary. Loading
++# this reviewed sibling does not invoke GitHub or run attestation verification.
++SPEC = importlib.util.spec_from_file_location(
++    "source_attestations", Path(__file__).with_name("verify-source-attestations.py")
++)
++assert SPEC is not None and SPEC.loader is not None
++SOURCE = importlib.util.module_from_spec(SPEC)
++SPEC.loader.exec_module(SOURCE)
++VerificationError = SOURCE.VerificationError
++MAX_QUERY_BYTES = 4096
++QUERY_TIMEOUT_SECONDS = 15
++
++
++def _query(command: list[str], environment: dict[str, str]) -> str:
++    """Run only a fixed native metadata query, with no inherited credentials."""
++    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
++        try:
++            result = subprocess.run(
++                command, stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
++                env=environment, timeout=QUERY_TIMEOUT_SECONDS, check=False,
++            )
++        except FileNotFoundError as error:
++            raise VerificationError(f"metadata inspector {command[0]} is unavailable") from error
++        except subprocess.TimeoutExpired as error:
++            raise VerificationError(f"metadata query {command[0]} exceeded its deadline") from error
++        if result.returncode != 0:
++            raise VerificationError(f"metadata query {command[0]} failed with exit {result.returncode}")
++        output.seek(0)
++        data = output.read(MAX_QUERY_BYTES + 1)
++    if not data or len(data) > MAX_QUERY_BYTES:
++        raise VerificationError("metadata query output is empty or exceeds its size limit")
++    try:
++        return data.decode("utf-8").rstrip("\n")
++    except UnicodeDecodeError as error:
++        raise VerificationError("metadata query output is not UTF-8") from error
++
++
++def _expect(label: str, expected: str, actual: str) -> None:
++    if expected != actual:
++        raise VerificationError(f"{label} mismatch: expected {expected!r}, got {actual!r}")
++
++
++def verify_metadata(receipt_path: Path, asset_dir: Path, channel: str) -> dict[str, Any]:
++    """Bind metadata-only evidence to the same complete source receipt and bytes."""
++    original = SOURCE._read_safe_json(receipt_path, "source receipt")
++    receipt = SOURCE._validate_receipt(original, channel)
++    SOURCE._validate_asset_directory(asset_dir, receipt["assets"])
++    version = receipt["version"]
++    core, separator, prerelease = version.partition("-")
++    deb_version = f"{core}~{prerelease}" if separator else core
++    rpm_version = deb_version.replace("-", "_")
++    deb_name = f"wukongim_{version}_linux_amd64.deb"
++    rpm_name = f"wukongim_{version}_linux_amd64.rpm"
++    deb = str((asset_dir / deb_name).resolve(strict=True))
++    rpm = str((asset_dir / rpm_name).resolve(strict=True))
++
++    # A fresh home avoids user RPM configuration; only tool lookup and locale
++    # survive into the inspector processes. No package payload is executed.
++    with tempfile.TemporaryDirectory(prefix="wk-source-metadata-") as home:
++        environment = {"PATH": os.environ.get("PATH", os.defpath), "HOME": home, "LC_ALL": "C"}
++        for field, expected in (("Package", "wukongim"), ("Architecture", "amd64"),
++                                ("Version", deb_version)):
++            _expect(f"DEB {field}", expected,
++                    _query(["dpkg-deb", "--field", deb, field], environment))
++        rpm_fields = (("NAME", "wukongim"), ("ARCH", "x86_64"),
++                      ("VERSION", rpm_version), ("RELEASE", "1"), ("EPOCHNUM", "0"),
++                      ("SIGPGP:pgpsig", "(none)"), ("SIGGPG:pgpsig", "(none)"),
++                      ("RSAHEADER:pgpsig", "(none)"), ("DSAHEADER:pgpsig", "(none)"))
++        for field, expected in rpm_fields:
++            _expect(f"RPM {field}", expected,
++                    _query(["rpm", "-qp", "--queryformat", f"%{{{field}}}", rpm], environment))
++
++    # Native inspectors run outside Python. Recheck all seven assets and the
++    # original receipt after those subprocesses before emitting any success.
++    SOURCE._validate_asset_directory(asset_dir, receipt["assets"])
++    if SOURCE._read_safe_json(receipt_path, "source receipt") != original:
++        raise VerificationError("source receipt changed during metadata inspection")
++
++    def asset(name: str) -> dict[str, Any]:
++        fact = receipt["assets"][name]
++        return {key: fact[key] for key in ("id", "name", "size", "sha256")}
++
++    return {
++        "schema": "wukongim/source-package-metadata/v2",
++        "channel": channel,
++        "source": {"repository": SOURCE.SOURCE_REPOSITORY, "release_id": receipt["release_id"],
++                   "tag": receipt["tag"], "source_sha": receipt["source_sha"]},
++        "package": "wukongim",
++        "version": version,
++        "deb": {"asset": asset(deb_name), "version": deb_version, "architecture": "amd64"},
++        "rpm": {"asset": asset(rpm_name), "version": rpm_version, "release": "1", "epoch": "0",
++                "architecture": "x86_64", "signed": False},
++        "assets_revalidated_after_metadata": True,
++    }
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--receipt", required=True, type=Path)
++    parser.add_argument("--asset-dir", required=True, type=Path)
++    parser.add_argument("--channel", choices=("preview", "stable"), default="preview",
++                        help="expected source classification; does not enable publication")
++    args = parser.parse_args()
++    try:
++        receipt = verify_metadata(args.receipt, args.asset_dir, args.channel)
++    except (VerificationError, OSError) as error:
++        print(f"source package metadata verification failed: {error}", file=sys.stderr)
++        return 1
++    json.dump(receipt, sys.stdout, sort_keys=True, separators=(",", ":"))
++    sys.stdout.write("\n")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tests/native_source_metadata_drill.py b/tests/native_source_metadata_drill.py
+new file mode 100644
+index 0000000..401f931
+--- /dev/null
++++ b/tests/native_source_metadata_drill.py
+@@ -0,0 +1,186 @@
++#!/usr/bin/env python3
++"""TEST ONLY: exercise the metadata CLI with real, tiny DEB/RPM packages.
++
++Run only inside the existing digest-pinned, network-disabled toolchain. No
++package is installed or executed. Ephemeral test keys never leave scratch.
++The synthetic receipt is not GitHub provenance or release qualification.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import os
++import shutil
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++
++
++ROOT = Path(__file__).resolve().parents[1]
++INSPECTOR = ROOT / "scripts/verify-source-package-metadata.py"
++
++
++def run(command: list[str], *, environment: dict | None = None) -> str:
++    result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
++                            text=True, timeout=90, env=environment)
++    if result.returncode:
++        raise RuntimeError(f"TEST ONLY command failed: {command[0]}\n{result.stderr}")
++    return result.stdout.strip()
++
++
++def build_packages(root: Path, deb_version: str, rpm_version: str,
++                   *, epoch: int = 0) -> tuple[Path, Path]:
++    """Build data-only fixtures; neither package contains an executable payload."""
++    deb_root = root / "deb"
++    (deb_root / "DEBIAN").mkdir(parents=True)
++    (deb_root / "DEBIAN/control").write_text(
++        f"Package: wukongim\nVersion: {deb_version}\nArchitecture: amd64\n"
++        "Maintainer: TEST ONLY <test-only@invalid>\nDescription: TEST ONLY metadata fixture\n"
++    )
++    data = deb_root / "usr/share/doc/wukongim/TEST-ONLY"
++    data.parent.mkdir(parents=True)
++    data.write_text("TEST ONLY, no product binary\n")
++    deb = root / "fixture.deb"
++    run(["dpkg-deb", "--build", "--root-owner-group", str(deb_root), str(deb)])
++    top = root / "rpmbuild"
++    top.mkdir()
++    spec = root / "fixture.spec"
++    spec.write_text(
++        f"Name: wukongim\nVersion: {rpm_version}\nRelease: 1\nEpoch: {epoch}\n"
++        "Summary: TEST ONLY metadata fixture\nLicense: Apache-2.0\nBuildArch: x86_64\n"
++        "%description\nTEST ONLY, no product binary.\n"
++        "%install\nmkdir -p %{buildroot}/usr/share/doc/wukongim\n"
++        "printf 'TEST ONLY, no product binary\\n' > %{buildroot}/usr/share/doc/wukongim/TEST-ONLY\n"
++        "%files\n/usr/share/doc/wukongim/TEST-ONLY\n"
++    )
++    run(["rpmbuild", "-bb", "--define", f"_topdir {top}",
++         "--define", f"_tmppath {root}", "--define", "_build_id_links none", str(spec)])
++    rpms = list((top / "RPMS").rglob("*.rpm"))
++    if len(rpms) != 1:
++        raise RuntimeError("TEST ONLY build did not produce exactly one RPM")
++    return deb, rpms[0]
++
++
++def fixture_receipt(root: Path, version: str, deb: Path, rpm: Path) -> tuple[Path, Path]:
++    assets = root / "assets"
++    assets.mkdir(parents=True)
++    prefix = f"wukongim_{version}"
++    for platform in ("darwin_amd64", "darwin_arm64", "linux_amd64", "linux_arm64"):
++        (assets / f"{prefix}_{platform}.tar.gz").write_bytes(b"TEST ONLY opaque archive\n")
++    shutil.copyfile(deb, assets / f"{prefix}_linux_amd64.deb")
++    shutil.copyfile(rpm, assets / f"{prefix}_linux_amd64.rpm")
++    checksums = [{"name": p.name, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
++                 for p in sorted(assets.iterdir())]
++    checksum_name = f"{prefix}_checksums.txt"
++    (assets / checksum_name).write_text("".join(f"{c['sha256']}  {c['name']}\n" for c in checksums))
++    facts = [{"id": i, "name": p.name, "downloaded_file": p.name,
++              "sha256": hashlib.sha256(p.read_bytes()).hexdigest(), "size": p.stat().st_size}
++             for i, p in enumerate(sorted(assets.iterdir()), 1)]
++    receipt = {"schema": "wukongim/source-release-resolution/v1", "repository": "WuKongIM/WuKongIM",
++               "release_id": 4242, "tag": f"v{version}", "version": version,
++               "prerelease": "-" in version, "published_at": "2026-01-01T00:00:00Z",
++               "source_sha": "1" * 40, "initial_main_sha": "2" * 40,
++               "final_main_sha": "2" * 40, "main_sha": "2" * 40,
++               "asset_count": 7, "total_size": sum(a["size"] for a in facts),
++               "assets": facts, "checksum_asset": checksum_name, "checksum_entries": checksums,
++               "release_revalidated": True, "tag_revalidated": True, "main_ancestry_revalidated": True}
++    path = root / "source.json"
++    path.write_text(json.dumps(receipt))
++    for p in assets.iterdir():
++        p.chmod(0o444)
++    assets.chmod(0o555)
++    return path, assets
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--output-dir", required=True, type=Path)
++    args = parser.parse_args()
++    if not args.output_dir.is_dir() or any(args.output_dir.iterdir()):
++        parser.error("output directory must exist and be empty")
++    required = ("dpkg-deb", "rpm", "rpmbuild", "rpmsign", "gpg", "gpgconf")
++    for tool in required:
++        if shutil.which(tool) is None:
++            raise RuntimeError(f"required real native tool is unavailable: {tool}")
++    evidence = {"schema": "wukongim/test-only-native-source-metadata/v1", "test_only": True,
++                "payloads_executed": False, "synthetic_source_provenance": True,
++                "passed": False, "cases": [], "native_signature_tags": []}
++    try:
++        with tempfile.TemporaryDirectory(prefix="wk-metadata-TEST-ONLY-") as temporary:
++            scratch = Path(temporary)
++            inspector_home = scratch / "home"
++            inspector_home.mkdir(mode=0o700)
++            os.environ["HOME"] = str(inspector_home)
++            evidence["tool_versions"] = {tool: run([tool, "--version"]).splitlines()[0]
++                                         for tool in ("dpkg-deb", "rpm", "gpg")}
++
++            def check(name: str, version: str, channel: str, deb: Path, rpm: Path,
++                      expected_error: str | None = None) -> None:
++                receipt, assets = fixture_receipt(scratch / name, version, deb, rpm)
++                result = subprocess.run(
++                    [sys.executable, "-B", str(INSPECTOR), "--receipt", str(receipt),
++                     "--asset-dir", str(assets), "--channel", channel],
++                    capture_output=True, text=True, timeout=180,
++                )
++                passed = (result.returncode == 0) if expected_error is None else (
++                    result.returncode != 0 and not result.stdout and expected_error in result.stderr)
++                item = {"case": name, "passed": passed, "exit_code": result.returncode,
++                        "expected_error": expected_error, "stderr": result.stderr,
++                        "metadata": json.loads(result.stdout) if result.returncode == 0 else None}
++                evidence["cases"].append(item)
++                if not passed:
++                    raise RuntimeError(f"native metadata case failed: {name}: {result.stderr}")
++
++            stable = scratch / "stable-build"
++            stable.mkdir()
++            deb, rpm = build_packages(stable, "3.1.0", "3.1.0")
++            check("stable", "3.1.0", "stable", deb, rpm)
++            check("wrong-channel", "3.1.0", "preview", deb, rpm, "preview source tag")
++            check("wrong-deb-version", "3.1.1", "stable", deb, rpm, "DEB Version mismatch")
++            preview = scratch / "preview-build"
++            preview.mkdir()
++            preview_deb, preview_rpm = build_packages(preview, "3.1.0~rc.1-hotfix", "3.1.0~rc.1_hotfix")
++            check("preview", "3.1.0-rc.1-hotfix", "preview", preview_deb, preview_rpm)
++            check("wrong-rpm-version", "3.1.0", "stable", deb, preview_rpm, "RPM VERSION mismatch")
++            epoch = scratch / "epoch-build"
++            epoch.mkdir()
++            _, epoch_rpm = build_packages(epoch, "3.1.0", "3.1.0", epoch=9)
++            check("wrong-rpm-epoch", "3.1.0", "stable", deb, epoch_rpm, "RPM EPOCHNUM mismatch")
++
++            home = scratch / "test-only-gnupg"
++            home.mkdir(mode=0o700)
++            try:
++                run(["gpg", "--homedir", str(home), "--batch", "--pinentry-mode", "loopback",
++                     "--passphrase", "", "--quick-generate-key",
++                     "Native metadata TEST ONLY <test-only@invalid>", "rsa3072", "sign", "1d"])
++                listing = run(["gpg", "--homedir", str(home), "--batch", "--with-colons", "--list-keys"])
++                fingerprint = next(line.split(":")[9] for line in listing.splitlines() if line.startswith("fpr:"))
++                signed = scratch / "signed.rpm"
++                shutil.copyfile(rpm, signed)
++                run(["rpmsign", "--define", f"_gpg_name {fingerprint}", "--define", f"_gpg_path {home}",
++                     "--define", "__gpg /usr/bin/gpg", "--define", "_gpg_digest_algo sha256", "--addsign", str(signed)])
++                for tag in ("SIGPGP", "SIGGPG", "RSAHEADER", "DSAHEADER"):
++                    signature = run(["rpm", "-qp", "--queryformat", f"%{{{tag}:pgpsig}}", str(signed)])
++                    if signature != "(none)":
++                        evidence["native_signature_tags"].append(tag)
++                if "RSAHEADER" not in evidence["native_signature_tags"]:
++                    raise RuntimeError("native signed fixture must exercise an actual RSAHEADER")
++                check("signed-rpm", "3.1.0", "stable", deb, signed, "mismatch")
++            finally:
++                run(["gpgconf", "--homedir", str(home), "--kill", "all"])
++            evidence["passed"] = True
++        return 0
++    finally:
++        # Only public metadata results leave the isolated scratch tree.
++        output = args.output_dir / "native-source-metadata.json"
++        with output.open("x") as stream:
++            json.dump(evidence, stream, sort_keys=True, indent=2)
++            stream.write("\n")
++        print(json.dumps(evidence, sort_keys=True))
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tests/test_source_preflight_workflow.py b/tests/test_source_preflight_workflow.py
+new file mode 100644
+index 0000000..c37eb77
+--- /dev/null
++++ b/tests/test_source_preflight_workflow.py
+@@ -0,0 +1,42 @@
++from pathlib import Path
++import re
++import unittest
++
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++class SourcePreflightWorkflowTest(unittest.TestCase):
++    def test_one_explicit_channel_is_passed_to_the_entire_read_only_chain(self) -> None:
++        workflow = (ROOT / ".github/workflows/source-release-preflight.yml").read_text()
++        self.assertRegex(workflow, r"source_channel:\n(?:[^\n]*\n){0,4}\s+type: choice\n\s+default: preview\n\s+options:\n\s+- preview\n\s+- stable")
++        self.assertIn("source_channel: ${{ steps.request.outputs.source_channel }}", workflow)
++        self.assertIn("SOURCE_CHANNEL: ${{ inputs.source_channel }}", workflow)
++        self.assertIn('case "$SOURCE_CHANNEL" in preview|stable) ;;', workflow)
++        self.assertIn('echo "source_channel=$SOURCE_CHANNEL" >> "$GITHUB_OUTPUT"', workflow)
++        for tool in ("resolve-source-release.py", "verify-source-attestations.py", "verify-source-package-metadata.py"):
++            step = next(s for s in workflow.split("      - name:") if f"./scripts/{tool}" in s)
++            self.assertIn("SOURCE_CHANNEL: ${{ needs.control.outputs.source_channel }}", step)
++            self.assertIn('--channel "$SOURCE_CHANNEL"', step)
++        self.assertLess(workflow.index("./scripts/resolve-source-release.py"), workflow.index("./scripts/verify-source-attestations.py"))
++        self.assertLess(workflow.index("./scripts/verify-source-attestations.py"), workflow.index("./scripts/verify-source-package-metadata.py"))
++        self.assertNotIn("assert_metadata()", workflow)
++        self.assertNotRegex(workflow, r"contents: write|pages: write|id-token: write|deploy-pages|rpmsign|sign-package-family")
++        self.assertEqual(2, workflow.count("secrets."))
++        metadata = next(s for s in workflow.split("      - name:") if "./scripts/verify-source-package-metadata.py" in s)
++        self.assertNotRegex(metadata, r"GH_TOKEN|secrets\.|source-token")
++
++    def test_native_drill_uses_existing_fixed_toolchain_without_credentials_or_network(self) -> None:
++        workflow = (ROOT / ".github/workflows/native-package-repository-drill.yml").read_text()
++        step = next((s for s in workflow.split("      - name:") if "tests/native_source_metadata_drill.py" in s), "")
++        self.assertTrue(step, "missing real native metadata drill")
++        self.assertIn("manifests/signing-toolchain.json", step)
++        for argument in ("--network none", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", ":/control:ro", "--output-dir /evidence"):
++            self.assertIn(argument, step)
++        self.assertNotRegex(step, r"secrets\.|GH_TOKEN|GITHUB_TOKEN|id-token: write|contents: write")
++        self.assertIn("source-metadata-native/", workflow)
++        self.assertIn("if: always()", workflow)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_verify_source_package_metadata.py b/tests/test_verify_source_package_metadata.py
+new file mode 100644
+index 0000000..527f842
+--- /dev/null
++++ b/tests/test_verify_source_package_metadata.py
+@@ -0,0 +1,217 @@
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++import subprocess
++import sys
++import unittest
++from pathlib import Path
++from tempfile import TemporaryDirectory
++
++from test_resolve_source_release import FixtureState, RELEASE_ID, SOURCE_SHA, serve
++
++
++ROOT = Path(__file__).resolve().parents[1]
++SCRIPT = ROOT / "scripts" / "verify-source-package-metadata.py"
++RESOLVER = ROOT / "scripts" / "resolve-source-release.py"
++
++
++class SourcePackageMetadataTest(unittest.TestCase):
++    def setUp(self) -> None:
++        self.temporary = TemporaryDirectory()
++        self.addCleanup(self.temporary.cleanup)
++        self.root = Path(self.temporary.name)
++        self.assets = self.root / "assets"
++        self.receipt_path = self.root / "source.json"
++        self.log = self.root / "commands.jsonl"
++        self.config_path = self.root / "queries.json"
++        self.bin = self.root / "bin"
++        self.bin.mkdir()
++        # Stub only the native-tool process boundary. The source receipt,
++        # downloaded files and verifier CLI remain real.
++        query = '''#!/usr/bin/env python3
++import json, os, pathlib, sys
++config = json.loads(pathlib.Path(CONFIG).read_text())
++with pathlib.Path(LOG).open('a') as log:
++    log.write(json.dumps([pathlib.Path(sys.argv[0]).name, *sys.argv[1:]]) + '\\n')
++if config.get('fail'):
++    sys.exit(2)
++if config.get('invalid_utf8'):
++    sys.stdout.buffer.write(b'\\xff')
++    sys.exit(0)
++if config.get('oversized'):
++    print('x' * 5000)
++    sys.exit(0)
++if config.get('mutate'):
++    target = pathlib.Path(config['mutate'])
++    target.chmod(0o600)
++    target.write_bytes(b'changed bytes')
++if pathlib.Path(sys.argv[0]).name == 'dpkg-deb':
++    assert len(sys.argv) == 4 and sys.argv[1] == '--field', sys.argv
++    field = sys.argv[3]
++    assert field in ('Package', 'Architecture', 'Version'), field
++    print(config['deb'][field])
++else:
++    assert len(sys.argv) == 5 and sys.argv[1:3] == ['-qp', '--queryformat'], sys.argv
++    field = sys.argv[3]
++    assert field in ('%{NAME}', '%{ARCH}', '%{VERSION}', '%{RELEASE}', '%{EPOCHNUM}', '%{SIGPGP:pgpsig}', '%{SIGGPG:pgpsig}', '%{RSAHEADER:pgpsig}', '%{DSAHEADER:pgpsig}'), field
++    print(config['rpm'][field])
++'''.replace("CONFIG", repr(str(self.config_path))).replace("LOG", repr(str(self.log)))
++        for name in ("dpkg-deb", "rpm"):
++            tool = self.bin / name
++            tool.write_text(query)
++            tool.chmod(0o755)
++
++    def prepare(self, tag: str = "v3.1.0", channel: str = "stable") -> dict:
++        with serve(FixtureState(tag, channel == "preview")) as (api, download):
++            resolved = subprocess.run(
++                [sys.executable, str(RESOLVER), "--release-id", str(RELEASE_ID),
++                 "--channel", channel, "--output-dir", str(self.assets),
++                 "--api-base-url", api, "--download-base-url", download,
++                 "--token-env", ""], capture_output=True, text=True, timeout=10,
++            )
++        self.assertEqual(0, resolved.returncode, resolved.stderr)
++        self.receipt_path.write_text(resolved.stdout)
++        self.receipt = json.loads(resolved.stdout)
++        self.config = {
++            "deb": {"Package": "wukongim", "Architecture": "amd64", "Version": "3.1.0"},
++            "rpm": {"%{NAME}": "wukongim", "%{ARCH}": "x86_64", "%{VERSION}": "3.1.0",
++                    "%{RELEASE}": "1", "%{EPOCHNUM}": "0", "%{SIGPGP:pgpsig}": "(none)", "%{SIGGPG:pgpsig}": "(none)",
++                    "%{RSAHEADER:pgpsig}": "(none)", "%{DSAHEADER:pgpsig}": "(none)"},
++        }
++        return self.receipt
++
++    def verify(self, channel: str | None = "stable") -> subprocess.CompletedProcess:
++        self.config_path.write_text(json.dumps(self.config))
++        command = [sys.executable, str(SCRIPT), "--receipt", str(self.receipt_path),
++                   "--asset-dir", str(self.assets)]
++        if channel is not None:
++            command.extend(["--channel", channel])
++        return subprocess.run(command, capture_output=True, text=True, timeout=10,
++                              env={**os.environ, "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}"})
++
++    def rejected(self, result: subprocess.CompletedProcess, message: str) -> None:
++        self.assertNotEqual(0, result.returncode)
++        self.assertEqual("", result.stdout)
++        self.assertIn(message, result.stderr)
++
++    def test_stable_metadata_binds_source_and_exact_package_bytes(self) -> None:
++        receipt = self.prepare()
++        before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.assets.iterdir()}
++        result = self.verify()
++        self.assertEqual(0, result.returncode, result.stderr)
++        evidence = json.loads(result.stdout)
++        self.assertEqual("wukongim/source-package-metadata/v2", evidence["schema"])
++        self.assertEqual("stable", evidence["channel"])
++        self.assertEqual({"repository": "WuKongIM/WuKongIM", "release_id": RELEASE_ID,
++                          "tag": "v3.1.0", "source_sha": SOURCE_SHA}, evidence["source"])
++        self.assertEqual("3.1.0", evidence["version"])
++        self.assertTrue(evidence["assets_revalidated_after_metadata"])
++        for family in ("deb", "rpm"):
++            fact = next(a for a in receipt["assets"] if a["name"].endswith("." + family))
++            self.assertEqual({key: fact[key] for key in ("id", "name", "size", "sha256")}, evidence[family]["asset"])
++            self.assertEqual("3.1.0", evidence[family]["version"])
++        self.assertEqual("1", evidence["rpm"]["release"])
++        self.assertIs(False, evidence["rpm"]["signed"])
++        self.assertEqual(before, {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.assets.iterdir()})
++
++    def test_default_preview_preserves_hyphen_and_tilde_mapping(self) -> None:
++        self.prepare("v3.1.0-rc.1-hotfix", "preview")
++        self.config["deb"]["Version"] = "3.1.0~rc.1-hotfix"
++        self.config["rpm"]["%{VERSION}"] = "3.1.0~rc.1_hotfix"
++        result = self.verify(None)
++        self.assertEqual(0, result.returncode, result.stderr)
++        evidence = json.loads(result.stdout)
++        self.assertEqual("preview", evidence["channel"])
++        self.assertEqual("3.1.0~rc.1-hotfix", evidence["deb"]["version"])
++        self.assertEqual("3.1.0~rc.1_hotfix", evidence["rpm"]["version"])
++
++    def test_default_preview_rejects_stable_before_native_queries(self) -> None:
++        self.prepare()
++        self.rejected(self.verify(None), "preview source tag")
++        self.assertFalse(self.log.exists())
++
++    def test_stable_rejects_preview_before_native_queries(self) -> None:
++        self.prepare("v3.1.0-rc.1", "preview")
++        self.rejected(self.verify(), "stable source tag")
++        self.assertFalse(self.log.exists())
++
++    def test_unknown_channel_rejected_before_native_queries(self) -> None:
++        self.prepare()
++        self.rejected(self.verify("production"), "invalid choice")
++        self.assertFalse(self.log.exists())
++
++    def test_each_native_package_field_must_match(self) -> None:
++        self.prepare()
++        for family in ("deb", "rpm"):
++            for field in self.config[family]:
++                with self.subTest(family=family, field=field):
++                    original = self.config[family][field]
++                    self.config[family][field] = "unexpected"
++                    self.rejected(self.verify(), "mismatch")
++                    self.config[family][field] = original
++
++    def test_invalid_receipt_classification_rejected_before_queries(self) -> None:
++        self.prepare()
++        self.receipt["prerelease"] = "false"
++        self.receipt_path.write_text(json.dumps(self.receipt))
++        self.rejected(self.verify(), "classification conflicts")
++        self.assertFalse(self.log.exists())
++
++    def test_receipt_unknown_and_duplicate_keys_fail_closed(self) -> None:
++        self.prepare()
++        self.receipt_path.write_text(json.dumps({**self.receipt, "unexpected": True}))
++        self.rejected(self.verify(), "unexpected")
++        self.receipt_path.write_text('{"version":"wrong",' + json.dumps(self.receipt)[1:])
++        self.rejected(self.verify(), "duplicate key")
++        self.assertFalse(self.log.exists())
++
++    def test_changed_package_rejected_before_queries(self) -> None:
++        self.prepare()
++        target = next(self.assets.glob("*.deb"))
++        target.chmod(0o600)
++        target.write_bytes(b"wrong bytes")
++        self.rejected(self.verify(), "conflicts with receipt")
++        self.assertFalse(self.log.exists())
++
++    def test_missing_asset_rejected_before_queries(self) -> None:
++        self.prepare()
++        self.assets.chmod(0o755)
++        next(self.assets.glob("*.tar.gz")).unlink()
++        self.rejected(self.verify(), "exact seven receipt assets")
++        self.assertFalse(self.log.exists())
++
++    def test_linked_package_rejected_before_queries(self) -> None:
++        self.prepare()
++        target = next(self.assets.glob("*.deb"))
++        self.assets.chmod(0o755)
++        outside = self.root / "original.deb"
++        target.rename(outside)
++        target.symlink_to(outside)
++        self.rejected(self.verify(), "regular single-link file")
++        target.unlink()
++        os.link(outside, target)
++        self.rejected(self.verify(), "regular single-link file")
++        self.assertFalse(self.log.exists())
++
++    def test_native_query_failure_never_emits_success_receipt(self) -> None:
++        self.prepare()
++        self.config["fail"] = True
++        self.rejected(self.verify(), "failed")
++
++    def test_invalid_native_output_never_emits_success_receipt(self) -> None:
++        self.prepare()
++        for mode in ("invalid_utf8", "oversized"):
++            self.config[mode] = True
++            self.rejected(self.verify(), "output")
++            del self.config[mode]
++
++    def test_package_mutation_during_queries_never_emits_success_receipt(self) -> None:
++        self.prepare()
++        self.config["mutate"] = str(next(self.assets.glob("*.deb")))
++        self.rejected(self.verify(), "conflicts with receipt")
++
++
++if __name__ == "__main__":
++    unittest.main()

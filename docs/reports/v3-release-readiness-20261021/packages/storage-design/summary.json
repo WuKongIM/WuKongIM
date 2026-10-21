@@ -1,0 +1,38 @@
+{
+  "schema": "wukongim.stable_storage_design/v1",
+  "status": "reviewable_design_not_implemented",
+  "source_commit": "0ce7184bbf69472f607159f74a096e9160852843",
+  "cloud_mutations": false,
+  "repository_mutations": false,
+  "whole_site_atomicity_proven": false,
+  "recommended_shape": [
+    "dedicated private OSS bucket",
+    "existing packages.githubim.com through CDN",
+    "immutable per-audit snapshot namespaces",
+    "append-only APT by-hash/payload closure",
+    "stable DNF mirrorlist to immutable snapshot base URL",
+    "bounded entrypoint rewrite with public exact-version validation"
+  ],
+  "first_independent_slice": "credential-free transport planner plus real native A/B client drill",
+  "unverified": [
+    "cloud resource identities and least-privilege origin role",
+    "CDN configuration convergence",
+    "DNF mirrorlist request-generation behavior on pinned Rocky/Alma clients",
+    "independent stable certificate creation and offline/hardware signing custody"
+  ],
+  "new_product_GA_gate": false,
+  "report": "design.md",
+  "source_freeze": "source-freeze.json",
+  "existing_preview": {
+    "version": "3.0.0-beta.24",
+    "audit_release_id": 402342684,
+    "snapshot_sha256": "242af0efec792b089661a5411e0b57b954998432cf13df9c657fb2d823851be8",
+    "archive_downloaded_and_verified_by_this_subtask": false
+  },
+  "stable_signing_status": {
+    "state": "independent_stable_certificates_not_created",
+    "latest_user_clarification": "No stable public certificates exist; supplied directory contains existing preview private-key backups only. This supersedes the earlier statement that stable keys and custody already existed.",
+    "root_read_only_observation": "Six public fingerprints in the backup README match preview; private-key and revocation files were not read.",
+    "required_preparation": "Create independent stable certificates and establish or verify their offline/hardware signing custody; do not reuse preview backups as stable keys."
+  }
+}

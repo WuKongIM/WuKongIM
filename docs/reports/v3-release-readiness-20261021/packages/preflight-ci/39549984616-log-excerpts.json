@@ -1,0 +1,151 @@
+[
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 22,
+    "text": "2026-10-21T05:30:57.2328523Z ##[group]GITHUB_TOKEN Permissions",
+    "next": null
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 23,
+    "text": "2026-10-21T05:30:57.2331573Z Contents: read",
+    "next": null
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 24,
+    "text": "2026-10-21T05:30:57.2332622Z Metadata: read",
+    "next": null
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 102,
+    "text": "2026-10-21T05:30:58.4315111Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +4e73d6fbeb255d1206409537d00f1d76eb151623:refs/remotes/pull/67/merge",
+    "next": null
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 104,
+    "text": "2026-10-21T05:30:58.7909634Z  * [new ref]         4e73d6fbeb255d1206409537d00f1d76eb151623 -> pull/67/merge",
+    "next": null
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 131,
+    "text": "2026-10-21T05:30:58.8264476Z [command]/usr/bin/git log -1 --format=%H",
+    "next": "2026-10-21T05:30:58.8302092Z 4e73d6fbeb255d1206409537d00f1d76eb151623"
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 132,
+    "text": "2026-10-21T05:30:58.8302092Z 4e73d6fbeb255d1206409537d00f1d76eb151623",
+    "next": null
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 275,
+    "text": "2026-10-21T05:31:03.0439747Z [command]/usr/bin/git log -1 --format=%H",
+    "next": "2026-10-21T05:31:03.0477706Z ed7e67d8f781b4f92872e42116c11b304fe03b5c"
+  },
+  {
+    "member": "0_TEST ONLY signed APT_RPM repository.txt",
+    "line": 356,
+    "text": "2026-10-21T05:31:09.0304246Z Digest: sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922",
+    "next": null
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 41,
+    "text": "2026-10-21T05:32:25.2654182Z The following additional packages will be installed:"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 70,
+    "text": "2026-10-21T05:32:25.4690274Z The following NEW packages will be installed:"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 88,
+    "text": "2026-10-21T05:32:25.5408441Z 1 upgraded, 89 newly installed, 0 to remove and 2 not upgraded."
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 181,
+    "text": "2026-10-21T05:32:26.2919384Z debconf: delaying package configuration, since apt-utils is not installed"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 205,
+    "text": "2026-10-21T05:32:26.3419195Z (Reading database ... 4381 files and directories currently installed.)"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 239,
+    "text": "2026-10-21T05:32:27.1704208Z (Reading database ... 4700 files and directories currently installed.)"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 276,
+    "text": "2026-10-21T05:32:27.3431130Z (Reading database ... 5263 files and directories currently installed.)"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 321,
+    "text": "2026-10-21T05:32:27.6627760Z (Reading database ... 5706 files and directories currently installed.)"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 365,
+    "text": "2026-10-21T05:32:28.2275848Z (Reading database ... 7787 files and directories currently installed.)"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 685,
+    "text": "2026-10-21T05:32:34.0870515Z TEST ONLY native-package keyring generated at /work/keyring"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 695,
+    "text": "2026-10-21T05:32:34.7944734Z gpgv: Good signature from \"WuKongIM Native Package APT TEST ONLY <test-only@invalid>\""
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 698,
+    "text": "2026-10-21T05:32:34.7999531Z gpgv: Good signature from \"WuKongIM Native Package APT TEST ONLY <test-only@invalid>\""
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 701,
+    "text": "2026-10-21T05:32:34.8689781Z gpgv: Good signature from \"WuKongIM Native Package RPM TEST ONLY <test-only@invalid>\""
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 725,
+    "text": "2026-10-21T05:36:40.3428267Z  Userid     : \"WuKongIM Native Package RPM TEST ONLY <test-only@invalid>\""
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 781,
+    "text": "2026-10-21T05:36:41.7194790Z Key imported successfully"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 784,
+    "text": "2026-10-21T05:36:41.9264966Z  Userid     : \"WuKongIM Native Package RPM TEST ONLY <test-only@invalid>\""
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 787,
+    "text": "2026-10-21T05:36:41.9283642Z Key imported successfully"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 854,
+    "text": "2026-10-21T05:36:43.3750297Z Installed:"
+  },
+  {
+    "member": "TEST ONLY signed APT_RPM repository/12_Build, sign, verify, and install TEST ONLY repositories.txt",
+    "line": 868,
+    "text": "2026-10-21T05:36:43.6258317Z native-package signed repository container validation passed"
+  }
+]

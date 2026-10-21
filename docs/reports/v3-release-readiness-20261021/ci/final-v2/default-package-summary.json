@@ -1,0 +1,900 @@
+{
+  "passed_package_count": 219,
+  "no_test_package_count": 15,
+  "failed_package_lines": [],
+  "passed_packages": [
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkanalysis",
+      "result": "0.094s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkchatlifecycle",
+      "result": "0.041s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "result": "0.028s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+      "result": "6.357s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database",
+      "result": "11.687s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics",
+      "result": "0.014s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops",
+      "result": "0.087s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim",
+      "result": "0.199s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top",
+      "result": "0.012s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudanalysisbridge",
+      "result": "0.010s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudbootstrap",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudbundle",
+      "result": "0.028s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudgate",
+      "result": "0.013s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudhost",
+      "result": "0.097s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudlease",
+      "result": "0.018s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudleaseoidc",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudsim",
+      "result": "0.028s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudview",
+      "result": "0.015s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkissueagent",
+      "result": "0.010s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkreviewagent",
+      "result": "0.011s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkreviewcheck",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wkreviewcheckmcp",
+      "result": "0.010s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "result": "1.414s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal",
+      "result": "1.258s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/api",
+      "result": "0.118s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/api/demoui",
+      "result": "0.010s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/cloudanalysismcp",
+      "result": "0.050s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/cloudview",
+      "result": "0.020s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/gateway",
+      "result": "0.027s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/issueagentcli",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/manager",
+      "result": "0.088s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/manager/webui",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/migratecli",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/mqtt",
+      "result": "0.021s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/node",
+      "result": "0.029s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/opsmcp",
+      "result": "0.022s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/plugin",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/reviewagentcheckmcp",
+      "result": "0.143s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/access/reviewagentcli",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/app",
+      "result": "2.867s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/arrival",
+      "result": "0.021s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/capacity",
+      "result": "0.025s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+      "result": "11.748s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/config",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/coordinator",
+      "result": "0.961s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/devsim",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/localbaseline",
+      "result": "0.199s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/messageevent",
+      "result": "0.012s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/metrics",
+      "result": "0.014s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/planner",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/report",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+      "result": "0.315s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/wkproto",
+      "result": "0.185s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/worker",
+      "result": "5.106s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/bench/workload",
+      "result": "2.704s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/config",
+      "result": "0.058s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/authority",
+      "result": "0.001s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/backup",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers",
+      "result": "0.001s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/messageevents",
+      "result": "0.001s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta",
+      "result": "0.001s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit",
+      "result": "0.009s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/backup",
+      "result": "0.424s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cloudanalysis",
+      "result": "0.034s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/clouddeploy",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/alibaba",
+      "result": "0.046s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/alibaba",
+      "result": "0.047s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/deploy",
+      "result": "0.203s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/fake",
+      "result": "0.007s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+      "result": "1.775s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/delivery",
+      "result": "0.016s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub",
+      "result": "3.114s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/migrationv2",
+      "result": "21.752s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/migrationv3",
+      "result": "1.297s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/mqttowner",
+      "result": "0.048s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/reviewagentgithub",
+      "result": "1.012s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/infra/webhook",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/log",
+      "result": "0.010s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics",
+      "result": "0.070s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/observability/taskaudit",
+      "result": "0.019s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/backup",
+      "result": "0.164s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend",
+      "result": "1.391s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/cloudviewstate",
+      "result": "0.508s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery",
+      "result": "0.158s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/issueagentverify",
+      "result": "0.013s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession",
+      "result": "0.066s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/online",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory",
+      "result": "0.017s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook",
+      "result": "0.104s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/presence",
+      "result": "0.239s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/readavailability",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify",
+      "result": "0.016s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/runtime/webhook",
+      "result": "0.045s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/backup",
+      "result": "0.679s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal",
+      "result": "0.015s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/channel",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerepair",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/cloudanalysis",
+      "result": "0.009s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/clouddeploy",
+      "result": "0.302s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/conversation",
+      "result": "0.139s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/management",
+      "result": "0.478s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/message",
+      "result": "0.133s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/migration",
+      "result": "1.239s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+      "result": "20.758s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/plugin",
+      "result": "0.029s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent",
+      "result": "0.024s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/internal/usecase/user",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/backup",
+      "result": "0.048s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/bench/model",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel",
+      "result": "0.007s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/machine",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor",
+      "result": "1.336s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/replication",
+      "result": "0.684s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/service",
+      "result": "0.281s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/store",
+      "result": "0.499s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/testkit",
+      "result": "0.081s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/transport",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/channel/worker",
+      "result": "0.285s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/client",
+      "result": "0.799s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster",
+      "result": "2.886s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/channels",
+      "result": "1.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/control",
+      "result": "0.215s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/net",
+      "result": "0.033s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/observe",
+      "result": "0.033s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/propose",
+      "result": "1.160s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/routing",
+      "result": "0.025s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/slots",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/tasks",
+      "result": "0.025s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller",
+      "result": "0.019s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/command",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/fsm",
+      "result": "0.262s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/planner",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/raft",
+      "result": "0.059s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore",
+      "result": "0.179s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/server",
+      "result": "0.053s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/state",
+      "result": "0.086s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/statefile",
+      "result": "0.012s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/controller/sync",
+      "result": "0.084s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/dataformat",
+      "result": "0.009s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db",
+      "result": "0.312s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/inspect",
+      "result": "0.091s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/internal/cache",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit",
+      "result": "0.405s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine",
+      "result": "0.052s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/internal/schema",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/message",
+      "result": "7.218s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/meta",
+      "result": "4.259s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/db/transfer",
+      "result": "13.368s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/flowdoc",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway",
+      "result": "0.007s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/core",
+      "result": "1.151s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/jsonrpc",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/mqtt",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wsmux",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/session",
+      "result": "0.023s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/testkit",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet",
+      "result": "0.011s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/types",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/gateway/wkprotoenc",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/goroutine",
+      "result": "0.136s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/hashslot",
+      "result": "0.006s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/metrics",
+      "result": "1.842s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost",
+      "result": "0.254s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/codec",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/frame",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/jsonrpc",
+      "result": "0.007s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/publication",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/quorumlog",
+      "result": "0.003s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/raftlog",
+      "result": "1.302s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm",
+      "result": "1.757s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft",
+      "result": "7.888s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy",
+      "result": "1.073s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport",
+      "result": "0.008s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer",
+      "result": "0.013s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn",
+      "result": "0.109s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/core",
+      "result": "1.093s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/peer",
+      "result": "0.007s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc",
+      "result": "0.470s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched",
+      "result": "0.027s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/testkit",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/transport/wire",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/wklog",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/pkg/workqueue",
+      "result": "0.138s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/scripts",
+      "result": "20.052s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+      "result": "0.741s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+      "result": "0.027s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+      "result": "0.005s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+      "result": "0.004s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/docker",
+      "result": "0.029s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/docker/observability/grafana",
+      "result": "0.020s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/docker/observability/prometheus",
+      "result": "0.002s"
+    },
+    {
+      "package": "github.com/WuKongIM/WuKongIM/docker/sim",
+      "result": "0.124s"
+    }
+  ],
+  "no_test_packages": [
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command",
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate",
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi",
+    "github.com/WuKongIM/WuKongIM/cmd/wkclouddiagnosis",
+    "github.com/WuKongIM/WuKongIM/internal/app/migration",
+    "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession",
+    "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp",
+    "github.com/WuKongIM/WuKongIM/internal/infra/mqttwill",
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/internal/clock",
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/internal/lifecycle",
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors",
+    "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat",
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/binding",
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol",
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+  ]
+}
