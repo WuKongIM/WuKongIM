@@ -1,0 +1,8 @@
+{
+  "url": "https://quay.io/v2/rockylinux/rockylinux/blobs/sha256:e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd",
+  "status": 200,
+  "size": 3476,
+  "sha256": "e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd",
+  "read_at": "2026-10-21T12:13:49.919398+00:00",
+  "kind": "public config metadata only; no layer pull or Docker invocation"
+}

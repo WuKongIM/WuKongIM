@@ -1,0 +1,46 @@
+{
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-1/mirror-diagnosis/rocky-init-registry-index.json": {
+    "size": 970,
+    "sha256": "1339a167e57330c1b6b9afb7bdcf5059e9ffdeb3b3d49bbcb4f6eaf39d8ed7c4"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-1/mirror-diagnosis/rocky-init-amd64-registry-manifest.json": {
+    "size": 593,
+    "sha256": "aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-1/mirror-diagnosis/official-Containerfile-init.txt": {
+    "size": 1301,
+    "sha256": "bcc1454e7522eaf68313a0fc8e275837f748a5ba33610091cf37a07afa4316f1"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-1/mirror-diagnosis/official-sources.json": {
+    "size": 504,
+    "sha256": "94a4ca7f0b0eb7c58e845ef2e956b6b510a05b3380c946d050f7c5e37217dd01"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-1/mirror-diagnosis/quay-http-receipts.json": {
+    "size": 929,
+    "sha256": "b901319fb8438508e95337fdfa5f749f3b1846a95baff270f925a341b8975f2a"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-1/mirror-diagnosis/alma-current-registry-receipt.json": {
+    "size": 660,
+    "sha256": "40a9d15f9098f5434ca089a62b06c8e8e6331056147ac954e5515aae3ea16ae5"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/mirror-pin-repair/01-old-source-red.json": {
+    "size": 430,
+    "sha256": "92d6f835a510e5957957b550f8efb080b643768e512e2f9287de55755e8d6eb9"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/mirror-pin-repair/02-new-source-green.json": {
+    "size": 506,
+    "sha256": "db693f19a1e63a9ec9a1f148c3796805cac1db18fdfafa728943062a870422d6"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/mirror-pin-repair/03-client-tests.log": {
+    "size": 133,
+    "sha256": "36eec2fc56c5c7c94ad1081bab118ac2560df9a28f90bf525fa706461e453879"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/mirror-pin-repair/04-driver-tests.log": {
+    "size": 116,
+    "sha256": "8fa6ab79438e951aa0b5e85f7e95209bd51a84eee839379f836f57ce85956fa9"
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/mirror-pin-repair/05-contract.log": {
+    "size": 176,
+    "sha256": "c4d9ed4f9df1f3bc65d794d67307147825ae96219d666bd0e436824680322c71"
+  }
+}

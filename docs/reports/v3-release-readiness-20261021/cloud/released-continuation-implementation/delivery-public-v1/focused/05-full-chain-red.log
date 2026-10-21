@@ -1,0 +1,8 @@
+=== RUN   TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+=== PAUSE TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+=== CONT  TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+    chat_lifecycle_released_preclock_integration_test.go:154: valid public predecessor rejected: exit status 1 map[reason:prior_evidence_missing schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+--- FAIL: TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote (0.37s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	0.928s
+FAIL

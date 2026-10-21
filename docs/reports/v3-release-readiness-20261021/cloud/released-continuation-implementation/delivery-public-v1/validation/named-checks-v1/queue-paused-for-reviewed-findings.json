@@ -1,0 +1,10 @@
+{
+  "observed_at": "2026-10-21T12:06:02.677528+00:00",
+  "orchestrator_pid": 16493,
+  "paused_between_checks_after_active_completion": true,
+  "active_check": "go-unit",
+  "active_wrapper_pid": 16787,
+  "active_command_sid": 16788,
+  "active_check_signalled": false,
+  "reason": "Two independently reproduced P2 findings; finish current frozen-source check before test-first v3 changes."
+}

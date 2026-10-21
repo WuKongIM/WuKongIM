@@ -1,0 +1,1687 @@
+[
+  {
+    "path": "artifacts/bin/wkcli",
+    "bytes": 61524216,
+    "compressed_bytes": 29666383
+  },
+  {
+    "path": "artifacts/chat-lifecycle.yaml",
+    "bytes": 4340,
+    "compressed_bytes": 1511
+  },
+  {
+    "path": "artifacts/bin/wukongim",
+    "bytes": 96611984,
+    "compressed_bytes": 44896907
+  },
+  {
+    "path": "artifacts/config/node1.toml",
+    "bytes": 9123,
+    "compressed_bytes": 3730
+  },
+  {
+    "path": "artifacts/config/node2.toml",
+    "bytes": 9123,
+    "compressed_bytes": 3733
+  },
+  {
+    "path": "artifacts/config/node3.toml",
+    "bytes": 9123,
+    "compressed_bytes": 3733
+  },
+  {
+    "path": "artifacts/data/node1/DATA-FORMAT.json",
+    "bytes": 228,
+    "compressed_bytes": 149
+  },
+  {
+    "path": "artifacts/data/node1/controller/cluster-state.json",
+    "bytes": 2851,
+    "compressed_bytes": 653
+  },
+  {
+    "path": "artifacts/data/node1/controller/raft/meta.json",
+    "bytes": 293,
+    "compressed_bytes": 160
+  },
+  {
+    "path": "artifacts/data/node1/controller/raft/wal/0000000000000000-0000000000000001.wal",
+    "bytes": 81485,
+    "compressed_bytes": 10859
+  },
+  {
+    "path": "artifacts/data/node1/messages/000004.log",
+    "bytes": 294172,
+    "compressed_bytes": 46566
+  },
+  {
+    "path": "artifacts/data/node1/messages/000005.log",
+    "bytes": 921990,
+    "compressed_bytes": 140371
+  },
+  {
+    "path": "artifacts/data/node1/messages/000006.log",
+    "bytes": 1853344,
+    "compressed_bytes": 283152
+  },
+  {
+    "path": "artifacts/data/node1/messages/000007.log",
+    "bytes": 3695273,
+    "compressed_bytes": 588704
+  },
+  {
+    "path": "artifacts/data/node1/messages/000011.log",
+    "bytes": 59284488,
+    "compressed_bytes": 10027596
+  },
+  {
+    "path": "artifacts/data/node1/messages/000012.sst",
+    "bytes": 2107380,
+    "compressed_bytes": 1221214
+  },
+  {
+    "path": "artifacts/data/node1/messages/000013.sst",
+    "bytes": 2050595,
+    "compressed_bytes": 1123239
+  },
+  {
+    "path": "artifacts/data/node1/messages/000014.sst",
+    "bytes": 2049209,
+    "compressed_bytes": 1137060
+  },
+  {
+    "path": "artifacts/data/node1/messages/000015.sst",
+    "bytes": 2047956,
+    "compressed_bytes": 1142685
+  },
+  {
+    "path": "artifacts/data/node1/messages/000016.sst",
+    "bytes": 2050314,
+    "compressed_bytes": 1138813
+  },
+  {
+    "path": "artifacts/data/node1/messages/000017.sst",
+    "bytes": 2052237,
+    "compressed_bytes": 1156002
+  },
+  {
+    "path": "artifacts/data/node1/messages/000018.sst",
+    "bytes": 2049074,
+    "compressed_bytes": 1144914
+  },
+  {
+    "path": "artifacts/data/node1/messages/000019.sst",
+    "bytes": 2025705,
+    "compressed_bytes": 1137506
+  },
+  {
+    "path": "artifacts/data/node1/messages/000020.log",
+    "bytes": 43339022,
+    "compressed_bytes": 7324687
+  },
+  {
+    "path": "artifacts/data/node1/messages/000021.sst",
+    "bytes": 2103070,
+    "compressed_bytes": 1217586
+  },
+  {
+    "path": "artifacts/data/node1/messages/000022.sst",
+    "bytes": 1783584,
+    "compressed_bytes": 1022593
+  },
+  {
+    "path": "artifacts/data/node1/messages/000023.sst",
+    "bytes": 2049090,
+    "compressed_bytes": 1192025
+  },
+  {
+    "path": "artifacts/data/node1/messages/000024.sst",
+    "bytes": 2052512,
+    "compressed_bytes": 1179025
+  },
+  {
+    "path": "artifacts/data/node1/messages/000025.sst",
+    "bytes": 159284,
+    "compressed_bytes": 90588
+  },
+  {
+    "path": "artifacts/data/node1/messages/000026.sst",
+    "bytes": 2039378,
+    "compressed_bytes": 1166866
+  },
+  {
+    "path": "artifacts/data/node1/messages/000027.sst",
+    "bytes": 2050140,
+    "compressed_bytes": 1184397
+  },
+  {
+    "path": "artifacts/data/node1/messages/000028.sst",
+    "bytes": 2048286,
+    "compressed_bytes": 1171897
+  },
+  {
+    "path": "artifacts/data/node1/messages/000029.sst",
+    "bytes": 2048268,
+    "compressed_bytes": 1162002
+  },
+  {
+    "path": "artifacts/data/node1/messages/000030.sst",
+    "bytes": 589323,
+    "compressed_bytes": 331941
+  },
+  {
+    "path": "artifacts/data/node1/messages/MANIFEST-000001",
+    "bytes": 3226,
+    "compressed_bytes": 955
+  },
+  {
+    "path": "artifacts/data/node1/messages/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/messages/OPTIONS-000003",
+    "bytes": 2937,
+    "compressed_bytes": 790
+  },
+  {
+    "path": "artifacts/data/node1/messages/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/messages/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/observability/task-audit/controller-tasks.jsonl",
+    "bytes": 52144,
+    "compressed_bytes": 2587
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000004.log",
+    "bytes": 419966,
+    "compressed_bytes": 54234
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000005.log",
+    "bytes": 742241,
+    "compressed_bytes": 117931
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000006.log",
+    "bytes": 1387189,
+    "compressed_bytes": 203381
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000007.log",
+    "bytes": 2761376,
+    "compressed_bytes": 362290
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000010.log",
+    "bytes": 28063889,
+    "compressed_bytes": 3171586
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000011.sst",
+    "bytes": 2178872,
+    "compressed_bytes": 1472243
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000012.sst",
+    "bytes": 2176844,
+    "compressed_bytes": 1438578
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000013.sst",
+    "bytes": 832720,
+    "compressed_bytes": 556177
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000014.log",
+    "bytes": 2868045,
+    "compressed_bytes": 330345
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000015.sst",
+    "bytes": 1607194,
+    "compressed_bytes": 1089404
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000016.sst",
+    "bytes": 297283,
+    "compressed_bytes": 205378
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/MANIFEST-000001",
+    "bytes": 811,
+    "compressed_bytes": 354
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/OPTIONS-000003",
+    "bytes": 2937,
+    "compressed_bytes": 791
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000009.log",
+    "bytes": 3510835,
+    "compressed_bytes": 323479
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000012.log",
+    "bytes": 3419849,
+    "compressed_bytes": 316507
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000014.log",
+    "bytes": 3398740,
+    "compressed_bytes": 322611
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000016.sst",
+    "bytes": 445711,
+    "compressed_bytes": 246348
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000017.log",
+    "bytes": 3974392,
+    "compressed_bytes": 452744
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000018.sst",
+    "bytes": 486202,
+    "compressed_bytes": 282053
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/MANIFEST-000001",
+    "bytes": 590,
+    "compressed_bytes": 356
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/OPTIONS-000003",
+    "bytes": 2782,
+    "compressed_bytes": 782
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-1/snap-00000000000007d0-0000000000000002-5ea72d0a7e65dfbd/chunk-000000",
+    "bytes": 1693206,
+    "compressed_bytes": 173265
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-10/snap-00000000000007d0-0000000000000002-e8ea79fe9190e452/chunk-000000",
+    "bytes": 949889,
+    "compressed_bytes": 79188
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-329379394347bcf5/chunk-000000",
+    "bytes": 8388608,
+    "compressed_bytes": 1000511
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-329379394347bcf5/chunk-000001",
+    "bytes": 1773218,
+    "compressed_bytes": 187822
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-12/snap-00000000000007d0-0000000000000002-2ef4bc5967fb99bf/chunk-000000",
+    "bytes": 1634891,
+    "compressed_bytes": 165759
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-2/snap-00000000000007d0-0000000000000002-acc6d594683d9448/chunk-000000",
+    "bytes": 2489336,
+    "compressed_bytes": 271481
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-3/snap-00000000000007d0-0000000000000002-a9b26f5d9deeb163/chunk-000000",
+    "bytes": 2143884,
+    "compressed_bytes": 231115
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-4/snap-00000000000007d0-0000000000000002-b20609661891b680/chunk-000000",
+    "bytes": 2067537,
+    "compressed_bytes": 219612
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-5/snap-00000000000007d0-0000000000000002-4f487ee2e1becfb6/chunk-000000",
+    "bytes": 1557530,
+    "compressed_bytes": 154398
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-6/snap-00000000000007d0-0000000000000002-707bb1ae92ee30cc/chunk-000000",
+    "bytes": 1514980,
+    "compressed_bytes": 150243
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-7/snap-00000000000007d0-0000000000000002-22347bb4cb5721e4/chunk-000000",
+    "bytes": 1858848,
+    "compressed_bytes": 192659
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-8/snap-00000000000007d0-0000000000000002-85299fe679549624/chunk-000000",
+    "bytes": 2071676,
+    "compressed_bytes": 216501
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-9/snap-00000000000007d0-0000000000000003-2534eb6c43a7ad38/chunk-000000",
+    "bytes": 2011365,
+    "compressed_bytes": 210937
+  },
+  {
+    "path": "artifacts/data/node2/DATA-FORMAT.json",
+    "bytes": 227,
+    "compressed_bytes": 149
+  },
+  {
+    "path": "artifacts/data/node2/controller/cluster-state.json",
+    "bytes": 2851,
+    "compressed_bytes": 653
+  },
+  {
+    "path": "artifacts/data/node2/controller/raft/meta.json",
+    "bytes": 293,
+    "compressed_bytes": 159
+  },
+  {
+    "path": "artifacts/data/node2/controller/raft/wal/0000000000000000-0000000000000001.wal",
+    "bytes": 81472,
+    "compressed_bytes": 10845
+  },
+  {
+    "path": "artifacts/data/node2/messages/000004.log",
+    "bytes": 438960,
+    "compressed_bytes": 67591
+  },
+  {
+    "path": "artifacts/data/node2/messages/000005.log",
+    "bytes": 918845,
+    "compressed_bytes": 140389
+  },
+  {
+    "path": "artifacts/data/node2/messages/000006.log",
+    "bytes": 1848698,
+    "compressed_bytes": 283695
+  },
+  {
+    "path": "artifacts/data/node2/messages/000007.log",
+    "bytes": 3695981,
+    "compressed_bytes": 587918
+  },
+  {
+    "path": "artifacts/data/node2/messages/000011.log",
+    "bytes": 59293327,
+    "compressed_bytes": 10027402
+  },
+  {
+    "path": "artifacts/data/node2/messages/000012.sst",
+    "bytes": 2107190,
+    "compressed_bytes": 1220348
+  },
+  {
+    "path": "artifacts/data/node2/messages/000013.sst",
+    "bytes": 2050960,
+    "compressed_bytes": 1121597
+  },
+  {
+    "path": "artifacts/data/node2/messages/000015.sst",
+    "bytes": 2047627,
+    "compressed_bytes": 1143384
+  },
+  {
+    "path": "artifacts/data/node2/messages/000014.sst",
+    "bytes": 2049337,
+    "compressed_bytes": 1138969
+  },
+  {
+    "path": "artifacts/data/node2/messages/000016.sst",
+    "bytes": 2048131,
+    "compressed_bytes": 1135790
+  },
+  {
+    "path": "artifacts/data/node2/messages/000017.sst",
+    "bytes": 2047575,
+    "compressed_bytes": 1152338
+  },
+  {
+    "path": "artifacts/data/node2/messages/000018.sst",
+    "bytes": 2037240,
+    "compressed_bytes": 1138048
+  },
+  {
+    "path": "artifacts/data/node2/messages/000019.sst",
+    "bytes": 2040488,
+    "compressed_bytes": 1147548
+  },
+  {
+    "path": "artifacts/data/node2/messages/000020.sst",
+    "bytes": 81771,
+    "compressed_bytes": 46960
+  },
+  {
+    "path": "artifacts/data/node2/messages/000021.log",
+    "bytes": 43095175,
+    "compressed_bytes": 7286161
+  },
+  {
+    "path": "artifacts/data/node2/messages/000022.sst",
+    "bytes": 2102236,
+    "compressed_bytes": 1218650
+  },
+  {
+    "path": "artifacts/data/node2/messages/000023.sst",
+    "bytes": 1756929,
+    "compressed_bytes": 1008896
+  },
+  {
+    "path": "artifacts/data/node2/messages/000024.sst",
+    "bytes": 2053541,
+    "compressed_bytes": 1194905
+  },
+  {
+    "path": "artifacts/data/node2/messages/000025.sst",
+    "bytes": 2052389,
+    "compressed_bytes": 1179769
+  },
+  {
+    "path": "artifacts/data/node2/messages/000026.sst",
+    "bytes": 98363,
+    "compressed_bytes": 56838
+  },
+  {
+    "path": "artifacts/data/node2/messages/000027.sst",
+    "bytes": 2046842,
+    "compressed_bytes": 1171182
+  },
+  {
+    "path": "artifacts/data/node2/messages/000028.sst",
+    "bytes": 2049003,
+    "compressed_bytes": 1180735
+  },
+  {
+    "path": "artifacts/data/node2/messages/000029.sst",
+    "bytes": 2049253,
+    "compressed_bytes": 1172927
+  },
+  {
+    "path": "artifacts/data/node2/messages/000030.sst",
+    "bytes": 2048252,
+    "compressed_bytes": 1163137
+  },
+  {
+    "path": "artifacts/data/node2/messages/000031.sst",
+    "bytes": 647350,
+    "compressed_bytes": 365040
+  },
+  {
+    "path": "artifacts/data/node2/messages/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/messages/MANIFEST-000001",
+    "bytes": 3325,
+    "compressed_bytes": 904
+  },
+  {
+    "path": "artifacts/data/node2/messages/OPTIONS-000003",
+    "bytes": 2937,
+    "compressed_bytes": 790
+  },
+  {
+    "path": "artifacts/data/node2/messages/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/messages/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/observability/task-audit/controller-tasks.jsonl",
+    "bytes": 52108,
+    "compressed_bytes": 2604
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000004.log",
+    "bytes": 420404,
+    "compressed_bytes": 54887
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000005.log",
+    "bytes": 736885,
+    "compressed_bytes": 117130
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000006.log",
+    "bytes": 1387189,
+    "compressed_bytes": 203373
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000007.log",
+    "bytes": 2761376,
+    "compressed_bytes": 362267
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000010.log",
+    "bytes": 28062591,
+    "compressed_bytes": 3170489
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000011.sst",
+    "bytes": 2178879,
+    "compressed_bytes": 1472331
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000012.sst",
+    "bytes": 2176875,
+    "compressed_bytes": 1438614
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000013.sst",
+    "bytes": 832764,
+    "compressed_bytes": 556269
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000014.log",
+    "bytes": 2866087,
+    "compressed_bytes": 329215
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000016.sst",
+    "bytes": 297151,
+    "compressed_bytes": 205251
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000015.sst",
+    "bytes": 1607560,
+    "compressed_bytes": 1089519
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/MANIFEST-000001",
+    "bytes": 811,
+    "compressed_bytes": 354
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/OPTIONS-000003",
+    "bytes": 2937,
+    "compressed_bytes": 791
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000009.log",
+    "bytes": 3510740,
+    "compressed_bytes": 323782
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000012.log",
+    "bytes": 3419252,
+    "compressed_bytes": 316055
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000014.log",
+    "bytes": 3394195,
+    "compressed_bytes": 322113
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000016.sst",
+    "bytes": 446403,
+    "compressed_bytes": 247243
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000017.log",
+    "bytes": 3978219,
+    "compressed_bytes": 452886
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000018.sst",
+    "bytes": 485533,
+    "compressed_bytes": 281371
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/MANIFEST-000001",
+    "bytes": 590,
+    "compressed_bytes": 357
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/OPTIONS-000003",
+    "bytes": 2782,
+    "compressed_bytes": 782
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-1/snap-00000000000007d0-0000000000000002-45215fa9f5c4c4b8/chunk-000000",
+    "bytes": 1693206,
+    "compressed_bytes": 173265
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-10/snap-00000000000007d0-0000000000000002-e246f8e8cadb1ed2/chunk-000000",
+    "bytes": 949889,
+    "compressed_bytes": 79188
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-454ba26169403ba3/chunk-000000",
+    "bytes": 8388608,
+    "compressed_bytes": 1000511
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-454ba26169403ba3/chunk-000001",
+    "bytes": 1773218,
+    "compressed_bytes": 187822
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-12/snap-00000000000007d0-0000000000000002-fedaca1850cad7fc/chunk-000000",
+    "bytes": 1634891,
+    "compressed_bytes": 165759
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-2/snap-00000000000007d0-0000000000000002-79f04953a94bf5ac/chunk-000000",
+    "bytes": 2489336,
+    "compressed_bytes": 271481
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-3/snap-00000000000007d0-0000000000000002-30f463ed112fd3ef/chunk-000000",
+    "bytes": 2143884,
+    "compressed_bytes": 231115
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-4/snap-00000000000007d0-0000000000000002-c8066de049b295c7/chunk-000000",
+    "bytes": 2067537,
+    "compressed_bytes": 219612
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-5/snap-00000000000007d0-0000000000000002-c2c685b33a5ac2ab/chunk-000000",
+    "bytes": 1557530,
+    "compressed_bytes": 154398
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-6/snap-00000000000007d0-0000000000000002-2b02f299dff748e7/chunk-000000",
+    "bytes": 1514980,
+    "compressed_bytes": 150243
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-7/snap-00000000000007d0-0000000000000002-4a87bbc4bfca2b69/chunk-000000",
+    "bytes": 1858848,
+    "compressed_bytes": 192659
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-8/snap-00000000000007d0-0000000000000002-dc44c0da5edec200/chunk-000000",
+    "bytes": 2071676,
+    "compressed_bytes": 216501
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-9/snap-00000000000007d0-0000000000000003-afd19fb048e422b3/chunk-000000",
+    "bytes": 2011365,
+    "compressed_bytes": 210937
+  },
+  {
+    "path": "artifacts/data/node3/DATA-FORMAT.json",
+    "bytes": 229,
+    "compressed_bytes": 150
+  },
+  {
+    "path": "artifacts/data/node3/controller/raft/meta.json",
+    "bytes": 293,
+    "compressed_bytes": 162
+  },
+  {
+    "path": "artifacts/data/node3/controller/cluster-state.json",
+    "bytes": 2851,
+    "compressed_bytes": 653
+  },
+  {
+    "path": "artifacts/data/node3/controller/raft/wal/0000000000000000-0000000000000001.wal",
+    "bytes": 81472,
+    "compressed_bytes": 10837
+  },
+  {
+    "path": "artifacts/data/node3/messages/000004.log",
+    "bytes": 302156,
+    "compressed_bytes": 45902
+  },
+  {
+    "path": "artifacts/data/node3/messages/000005.log",
+    "bytes": 912203,
+    "compressed_bytes": 139825
+  },
+  {
+    "path": "artifacts/data/node3/messages/000006.log",
+    "bytes": 1852046,
+    "compressed_bytes": 280694
+  },
+  {
+    "path": "artifacts/data/node3/messages/000007.log",
+    "bytes": 3689652,
+    "compressed_bytes": 590000
+  },
+  {
+    "path": "artifacts/data/node3/messages/000011.log",
+    "bytes": 59294453,
+    "compressed_bytes": 10033838
+  },
+  {
+    "path": "artifacts/data/node3/messages/000012.sst",
+    "bytes": 2106821,
+    "compressed_bytes": 1218185
+  },
+  {
+    "path": "artifacts/data/node3/messages/000013.sst",
+    "bytes": 2041908,
+    "compressed_bytes": 1117530
+  },
+  {
+    "path": "artifacts/data/node3/messages/000014.sst",
+    "bytes": 2050442,
+    "compressed_bytes": 1139183
+  },
+  {
+    "path": "artifacts/data/node3/messages/000015.sst",
+    "bytes": 2050502,
+    "compressed_bytes": 1144554
+  },
+  {
+    "path": "artifacts/data/node3/messages/000016.sst",
+    "bytes": 2049598,
+    "compressed_bytes": 1137616
+  },
+  {
+    "path": "artifacts/data/node3/messages/000017.sst",
+    "bytes": 2049869,
+    "compressed_bytes": 1153901
+  },
+  {
+    "path": "artifacts/data/node3/messages/000018.sst",
+    "bytes": 2049899,
+    "compressed_bytes": 1145682
+  },
+  {
+    "path": "artifacts/data/node3/messages/000019.sst",
+    "bytes": 2046903,
+    "compressed_bytes": 1150414
+  },
+  {
+    "path": "artifacts/data/node3/messages/000020.sst",
+    "bytes": 14825,
+    "compressed_bytes": 9262
+  },
+  {
+    "path": "artifacts/data/node3/messages/000021.log",
+    "bytes": 43272217,
+    "compressed_bytes": 7316971
+  },
+  {
+    "path": "artifacts/data/node3/messages/000022.sst",
+    "bytes": 2104138,
+    "compressed_bytes": 1216487
+  },
+  {
+    "path": "artifacts/data/node3/messages/000023.sst",
+    "bytes": 1771998,
+    "compressed_bytes": 1016181
+  },
+  {
+    "path": "artifacts/data/node3/messages/000024.sst",
+    "bytes": 2054137,
+    "compressed_bytes": 1195371
+  },
+  {
+    "path": "artifacts/data/node3/messages/000025.sst",
+    "bytes": 2051920,
+    "compressed_bytes": 1178882
+  },
+  {
+    "path": "artifacts/data/node3/messages/000026.sst",
+    "bytes": 128749,
+    "compressed_bytes": 73214
+  },
+  {
+    "path": "artifacts/data/node3/messages/000027.sst",
+    "bytes": 2049607,
+    "compressed_bytes": 1174527
+  },
+  {
+    "path": "artifacts/data/node3/messages/000028.sst",
+    "bytes": 2050304,
+    "compressed_bytes": 1183085
+  },
+  {
+    "path": "artifacts/data/node3/messages/000029.sst",
+    "bytes": 2048933,
+    "compressed_bytes": 1172318
+  },
+  {
+    "path": "artifacts/data/node3/messages/000030.sst",
+    "bytes": 2042736,
+    "compressed_bytes": 1157967
+  },
+  {
+    "path": "artifacts/data/node3/messages/000031.sst",
+    "bytes": 613275,
+    "compressed_bytes": 346217
+  },
+  {
+    "path": "artifacts/data/node3/messages/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/messages/MANIFEST-000001",
+    "bytes": 3656,
+    "compressed_bytes": 1175
+  },
+  {
+    "path": "artifacts/data/node3/messages/OPTIONS-000003",
+    "bytes": 2937,
+    "compressed_bytes": 790
+  },
+  {
+    "path": "artifacts/data/node3/messages/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/messages/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/observability/task-audit/controller-tasks.jsonl",
+    "bytes": 52181,
+    "compressed_bytes": 2580
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000004.log",
+    "bytes": 418977,
+    "compressed_bytes": 54166
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000005.log",
+    "bytes": 744491,
+    "compressed_bytes": 118265
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000006.log",
+    "bytes": 1387189,
+    "compressed_bytes": 203389
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000007.log",
+    "bytes": 2761376,
+    "compressed_bytes": 362301
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000010.log",
+    "bytes": 28064152,
+    "compressed_bytes": 3167758
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000011.sst",
+    "bytes": 2178869,
+    "compressed_bytes": 1472248
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000012.sst",
+    "bytes": 2176844,
+    "compressed_bytes": 1438578
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000013.sst",
+    "bytes": 832720,
+    "compressed_bytes": 556177
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000015.sst",
+    "bytes": 1610817,
+    "compressed_bytes": 1091411
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000014.log",
+    "bytes": 2844334,
+    "compressed_bytes": 327243
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000016.sst",
+    "bytes": 297250,
+    "compressed_bytes": 205274
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/MANIFEST-000001",
+    "bytes": 811,
+    "compressed_bytes": 355
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/OPTIONS-000003",
+    "bytes": 2937,
+    "compressed_bytes": 791
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000009.log",
+    "bytes": 3510947,
+    "compressed_bytes": 324004
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000012.log",
+    "bytes": 3424341,
+    "compressed_bytes": 316822
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000014.log",
+    "bytes": 3395535,
+    "compressed_bytes": 322650
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000016.sst",
+    "bytes": 447901,
+    "compressed_bytes": 247798
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000017.log",
+    "bytes": 3980181,
+    "compressed_bytes": 453690
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/MANIFEST-000001",
+    "bytes": 590,
+    "compressed_bytes": 356
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000018.sst",
+    "bytes": 486083,
+    "compressed_bytes": 281588
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/LOCK",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/OPTIONS-000003",
+    "bytes": 2782,
+    "compressed_bytes": 782
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/marker.format-version.000001.013",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/marker.manifest.000001.MANIFEST-000001",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-1/snap-00000000000007d0-0000000000000002-410a281786dd3e92/chunk-000000",
+    "bytes": 1693206,
+    "compressed_bytes": 173265
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-10/snap-00000000000007d0-0000000000000002-e8d23d607d8ac267/chunk-000000",
+    "bytes": 949889,
+    "compressed_bytes": 79188
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-c2acdad4df08540e/chunk-000000",
+    "bytes": 8388608,
+    "compressed_bytes": 1000511
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-c2acdad4df08540e/chunk-000001",
+    "bytes": 1773218,
+    "compressed_bytes": 187822
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-12/snap-00000000000007d0-0000000000000002-ad65168bf45c3b9b/chunk-000000",
+    "bytes": 1634891,
+    "compressed_bytes": 165759
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-2/snap-00000000000007d0-0000000000000002-8508657456d7b38f/chunk-000000",
+    "bytes": 2489336,
+    "compressed_bytes": 271481
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-3/snap-00000000000007d0-0000000000000002-d352d8e09bb7ee3f/chunk-000000",
+    "bytes": 2143884,
+    "compressed_bytes": 231115
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-4/snap-00000000000007d0-0000000000000002-7af8c8d6eeeb7fa6/chunk-000000",
+    "bytes": 2067537,
+    "compressed_bytes": 219612
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-5/snap-00000000000007d0-0000000000000002-535b7c18fad11f62/chunk-000000",
+    "bytes": 1557530,
+    "compressed_bytes": 154398
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-6/snap-00000000000007d0-0000000000000002-922ea2417d2889a2/chunk-000000",
+    "bytes": 1514980,
+    "compressed_bytes": 150243
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-7/snap-00000000000007d0-0000000000000002-80862992f087be39/chunk-000000",
+    "bytes": 1858848,
+    "compressed_bytes": 192659
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-8/snap-00000000000007d0-0000000000000002-13af263f35731477/chunk-000000",
+    "bytes": 2071676,
+    "compressed_bytes": 216501
+  },
+  {
+    "path": "artifacts/evidence/checksums.sha256",
+    "bytes": 8919,
+    "compressed_bytes": 3474
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-9/snap-00000000000007d0-0000000000000003-a49fe85bff57e824/chunk-000000",
+    "bytes": 2011365,
+    "compressed_bytes": 210937
+  },
+  {
+    "path": "artifacts/evidence/coordinator-worker-cuts.log",
+    "bytes": 41676,
+    "compressed_bytes": 2168
+  },
+  {
+    "path": "artifacts/evidence/filesystem-preflight.txt",
+    "bytes": 123,
+    "compressed_bytes": 107
+  },
+  {
+    "path": "artifacts/evidence/graceful-stop-status.json",
+    "bytes": 237,
+    "compressed_bytes": 160
+  },
+  {
+    "path": "artifacts/evidence/identity.tsv",
+    "bytes": 1066,
+    "compressed_bytes": 528
+  },
+  {
+    "path": "artifacts/evidence/measured-host-overlap.tsv",
+    "bytes": 190,
+    "compressed_bytes": 135
+  },
+  {
+    "path": "artifacts/evidence/phase-state",
+    "bytes": 9,
+    "compressed_bytes": 11
+  },
+  {
+    "path": "artifacts/evidence/process-continuity.tsv",
+    "bytes": 212,
+    "compressed_bytes": 88
+  },
+  {
+    "path": "artifacts/evidence/processes-load.prom",
+    "bytes": 1387,
+    "compressed_bytes": 286
+  },
+  {
+    "path": "artifacts/evidence/processes-node-1.prom",
+    "bytes": 1062,
+    "compressed_bytes": 257
+  },
+  {
+    "path": "artifacts/evidence/processes-node-2.prom",
+    "bytes": 1062,
+    "compressed_bytes": 255
+  },
+  {
+    "path": "artifacts/evidence/processes-node-3.prom",
+    "bytes": 1062,
+    "compressed_bytes": 256
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/after-node-1.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 277
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/after-node-2.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 276
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/after-node-3.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 277
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/before-node-1.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 277
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/before-node-2.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 276
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/before-node-3.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 277
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/sample-1-node-1.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 277
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/sample-1-node-2.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 276
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/sample-1-node-3.tsv",
+    "bytes": 1095,
+    "compressed_bytes": 277
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/warmup-before-node-1.tsv",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/warmup-before-node-2.tsv",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/warmup-before-node-3.tsv",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/evidence/storage-overlap.tsv",
+    "bytes": 2478,
+    "compressed_bytes": 468
+  },
+  {
+    "path": "artifacts/evidence/threshold-pprof-status.json",
+    "bytes": 287,
+    "compressed_bytes": 165
+  },
+  {
+    "path": "artifacts/evidence/timeline.tsv",
+    "bytes": 1941,
+    "compressed_bytes": 289
+  },
+  {
+    "path": "artifacts/evidence/unified-timeline.json",
+    "bytes": 59523,
+    "compressed_bytes": 3259
+  },
+  {
+    "path": "artifacts/evidence/unified-timeline.tsv",
+    "bytes": 6283,
+    "compressed_bytes": 951
+  },
+  {
+    "path": "artifacts/evidence/worker-cut-query.json",
+    "bytes": 5710,
+    "compressed_bytes": 1192
+  },
+  {
+    "path": "artifacts/host_io_summary.tsv",
+    "bytes": 630,
+    "compressed_bytes": 211
+  },
+  {
+    "path": "artifacts/local-step.json",
+    "bytes": 834,
+    "compressed_bytes": 359
+  },
+  {
+    "path": "artifacts/logs/coordinator.log",
+    "bytes": 41676,
+    "compressed_bytes": 2168
+  },
+  {
+    "path": "artifacts/logs/host-metrics-1.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/host-metrics-2.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/host-metrics-3.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/host-metrics-load.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/measured-host-overlap.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/node1/app.log",
+    "bytes": 15916,
+    "compressed_bytes": 902
+  },
+  {
+    "path": "artifacts/logs/node2/app.log",
+    "bytes": 15526,
+    "compressed_bytes": 875
+  },
+  {
+    "path": "artifacts/logs/node3/app.log",
+    "bytes": 15526,
+    "compressed_bytes": 889
+  },
+  {
+    "path": "artifacts/logs/process-metrics.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/service-1.log",
+    "bytes": 15249,
+    "compressed_bytes": 847
+  },
+  {
+    "path": "artifacts/logs/service-2.log",
+    "bytes": 14859,
+    "compressed_bytes": 818
+  },
+  {
+    "path": "artifacts/logs/service-3.log",
+    "bytes": 14859,
+    "compressed_bytes": 835
+  },
+  {
+    "path": "artifacts/logs/worker-1.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/worker-2.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/logs/worker-3.log",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "artifacts/metrics/host-load-after.prom",
+    "bytes": 2390,
+    "compressed_bytes": 564
+  },
+  {
+    "path": "artifacts/metrics/host-load-before.prom",
+    "bytes": 2543,
+    "compressed_bytes": 574
+  },
+  {
+    "path": "artifacts/metrics/host-load-sample-1.prom",
+    "bytes": 2390,
+    "compressed_bytes": 562
+  },
+  {
+    "path": "artifacts/metrics/host-load-warmup-before.prom",
+    "bytes": 2373,
+    "compressed_bytes": 550
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-after.prom",
+    "bytes": 2626,
+    "compressed_bytes": 611
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-before.prom",
+    "bytes": 2632,
+    "compressed_bytes": 607
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-sample-1.prom",
+    "bytes": 2628,
+    "compressed_bytes": 611
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-warmup-before.prom",
+    "bytes": 2623,
+    "compressed_bytes": 606
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-after.prom",
+    "bytes": 2010,
+    "compressed_bytes": 510
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-before.prom",
+    "bytes": 2009,
+    "compressed_bytes": 512
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-sample-1.prom",
+    "bytes": 2010,
+    "compressed_bytes": 509
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-warmup-before.prom",
+    "bytes": 2005,
+    "compressed_bytes": 504
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-after.prom",
+    "bytes": 2010,
+    "compressed_bytes": 518
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-before.prom",
+    "bytes": 2009,
+    "compressed_bytes": 506
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-sample-1.prom",
+    "bytes": 2010,
+    "compressed_bytes": 508
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-warmup-before.prom",
+    "bytes": 2005,
+    "compressed_bytes": 503
+  },
+  {
+    "path": "artifacts/metrics/node-1-after.prom",
+    "bytes": 1037896,
+    "compressed_bytes": 57903
+  },
+  {
+    "path": "artifacts/metrics/node-1-before.prom",
+    "bytes": 1033138,
+    "compressed_bytes": 57495
+  },
+  {
+    "path": "artifacts/metrics/node-1-product-drain-1.prom",
+    "bytes": 1037885,
+    "compressed_bytes": 57893
+  },
+  {
+    "path": "artifacts/metrics/node-1-sample-1.prom",
+    "bytes": 1037891,
+    "compressed_bytes": 57887
+  },
+  {
+    "path": "artifacts/metrics/node-1-warmup-before.prom",
+    "bytes": 415734,
+    "compressed_bytes": 25937
+  },
+  {
+    "path": "artifacts/metrics/node-2-after.prom",
+    "bytes": 1010758,
+    "compressed_bytes": 56946
+  },
+  {
+    "path": "artifacts/metrics/node-2-before.prom",
+    "bytes": 994011,
+    "compressed_bytes": 56054
+  },
+  {
+    "path": "artifacts/metrics/node-2-product-drain-1.prom",
+    "bytes": 1010762,
+    "compressed_bytes": 56950
+  },
+  {
+    "path": "artifacts/metrics/node-2-sample-1.prom",
+    "bytes": 1010759,
+    "compressed_bytes": 56963
+  },
+  {
+    "path": "artifacts/metrics/node-2-warmup-before.prom",
+    "bytes": 398222,
+    "compressed_bytes": 25312
+  },
+  {
+    "path": "artifacts/metrics/node-3-after.prom",
+    "bytes": 997973,
+    "compressed_bytes": 56407
+  },
+  {
+    "path": "artifacts/metrics/node-3-before.prom",
+    "bytes": 993703,
+    "compressed_bytes": 55949
+  },
+  {
+    "path": "artifacts/metrics/node-3-product-drain-1.prom",
+    "bytes": 997969,
+    "compressed_bytes": 56412
+  },
+  {
+    "path": "artifacts/metrics/node-3-sample-1.prom",
+    "bytes": 997972,
+    "compressed_bytes": 56432
+  },
+  {
+    "path": "artifacts/metrics/node-3-warmup-before.prom",
+    "bytes": 396283,
+    "compressed_bytes": 25201
+  },
+  {
+    "path": "artifacts/pids/coordinator.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-1.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-2.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-load.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-3.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/measured-host-overlap-monitor.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/service-1.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/process-metrics-collector.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/service-2.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/service-3.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/worker-1.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/worker-2.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/pids/worker-3.pid",
+    "bytes": 5,
+    "compressed_bytes": 7
+  },
+  {
+    "path": "artifacts/product_queue_summary.tsv",
+    "bytes": 206,
+    "compressed_bytes": 107
+  },
+  {
+    "path": "artifacts/report/diagnostic-status.json",
+    "bytes": 8799,
+    "compressed_bytes": 836
+  },
+  {
+    "path": "artifacts/report/final.json",
+    "bytes": 23506,
+    "compressed_bytes": 3992
+  },
+  {
+    "path": "artifacts/report/final.md",
+    "bytes": 23838,
+    "compressed_bytes": 4121
+  },
+  {
+    "path": "artifacts/report/qualification.json",
+    "bytes": 23436,
+    "compressed_bytes": 3965
+  },
+  {
+    "path": "artifacts/report/qualification.md",
+    "bytes": 23763,
+    "compressed_bytes": 4090
+  },
+  {
+    "path": "artifacts/report/run-start.json",
+    "bytes": 387,
+    "compressed_bytes": 243
+  },
+  {
+    "path": "artifacts/report/worker-evidence.json",
+    "bytes": 584,
+    "compressed_bytes": 207
+  },
+  {
+    "path": "artifacts/storage_metrics_summary.tsv",
+    "bytes": 2304,
+    "compressed_bytes": 891
+  },
+  {
+    "path": "data-filesystem.json",
+    "bytes": 244,
+    "compressed_bytes": 159
+  },
+  {
+    "path": "driver.log",
+    "bytes": 1925,
+    "compressed_bytes": 683
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "bytes": 123,
+    "compressed_bytes": 109
+  },
+  {
+    "path": "host.json",
+    "bytes": 4483,
+    "compressed_bytes": 1177
+  },
+  {
+    "path": "kernel.txt",
+    "bytes": 113,
+    "compressed_bytes": 100
+  },
+  {
+    "path": "source.sha",
+    "bytes": 41,
+    "compressed_bytes": 41
+  }
+]

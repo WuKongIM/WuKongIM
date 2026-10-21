@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "native_commands_executed": false,
+  "plan_bytes_unchanged_after_external_root_relocation": true,
+  "plan_sha256": "6f457b8ec4ca313b03830930cff0d26a7983579613bc92fa7a3773f661b4582e",
+  "absolute_string_values": 0,
+  "control_anchor_count": 10,
+  "producer_anchor_count": 12,
+  "producer_anchor_kind": "relative script name to content size/sha256; local verifier producer bytes must match",
+  "trusted_builder_path_persisted": false,
+  "limitation": "Pure candidate-plan relocation only. Signed archive/family receipt portability is source-inspected; native A/B host revalidation remains pending."
+}

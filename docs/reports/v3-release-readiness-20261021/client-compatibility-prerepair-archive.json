@@ -1,0 +1,386 @@
+{
+  "observed_at": "2026-10-21T12:40:02.335379+00:00",
+  "files": [
+    {
+      "path": "packages/https-compat-repair/01-strict-tls-red.log",
+      "size": 1231,
+      "sha256": "9786b808c6120e9ebb3bd49487168845c97227f557d006cf5ecfc878392ed2ee"
+    },
+    {
+      "path": "packages/https-compat-repair/02-strict-tls-red-repeat.log",
+      "size": 1231,
+      "sha256": "6bfbc0d40ca4dfced9e83104de0f353960c14a728e93c332c5cceb6574ee1610"
+    },
+    {
+      "path": "packages/https-compat-repair/03-strict-tls-green.log",
+      "size": 98,
+      "sha256": "4632815690a6aa3e285c43e96e2e924a7b2d4f371fec6b0c0d7a7f176b9661ee"
+    },
+    {
+      "path": "packages/https-compat-repair/04-tls-certificate-truncation-green.log",
+      "size": 98,
+      "sha256": "e4daf93ac1294a518c30940c894a122da302621f1f2ebdf1dc5f7073b00f39b0"
+    },
+    {
+      "path": "packages/https-compat-repair/05-related-tests.log",
+      "size": 151,
+      "sha256": "822e14ad8811e725f165599fd651b6da783e6b80c28dac8af5685ba7ad692eec"
+    },
+    {
+      "path": "packages/https-compat-repair/06-final-test-original-server-red.log",
+      "size": 1480,
+      "sha256": "a894f2dfcd6045c8de2c3fd43a338e5699e7cb33bd1b740563643a0bcb09d869"
+    },
+    {
+      "path": "packages/https-compat-repair/delta.patch",
+      "size": 8073,
+      "sha256": "4b6738289477df3561ade4cb7fcd2446de3899caabbff68b3bc773f749566c34"
+    },
+    {
+      "path": "packages/https-compat-repair/hypotheses.json",
+      "size": 804,
+      "sha256": "a15ad75cdd763cac2622157e7491d6f82d21e04a4a90a2a6a3cfbb9fdaf1bdf6"
+    },
+    {
+      "path": "packages/https-compat-repair/native_stable_clients_drill.py.before",
+      "size": 58431,
+      "sha256": "041cfa1e29f1a13d2a9fb2ab8b1d1977b53c8571377674f2ce601cf086b7fc29"
+    },
+    {
+      "path": "packages/https-compat-repair/receipt.md",
+      "size": 2474,
+      "sha256": "8383ca5dc4517287c440300e1b5915dcea8e303b56693705b04eac4dd05bfaf0"
+    },
+    {
+      "path": "packages/https-compat-repair/source/tests/native_stable_clients_drill.py",
+      "size": 58966,
+      "sha256": "fccd966f16eb3b635591ed2c58eb297098c6c496a3b800d64abcc4c9531beb31"
+    },
+    {
+      "path": "packages/https-compat-repair/source/tests/test_native_stable_clients_drill.py",
+      "size": 32429,
+      "sha256": "4f5a4c7044517d9fc47334bb1120cf00961ade8f82f33b86ce9afd48ee1a7190"
+    },
+    {
+      "path": "packages/https-compat-repair/test_native_stable_clients_drill.py.before",
+      "size": 26718,
+      "sha256": "5b49a578f0a4342a9aa0a24dc0e429cd55e189788ef60f042f73ae43960b7637"
+    },
+    {
+      "path": "packages/https-compat-repair/manifest.json",
+      "size": 2420,
+      "sha256": "49dd174e68c0ac61d63cbd8a00003a4e1cc092e287ea4176b0967832f8f8edbb"
+    },
+    {
+      "path": "packages/https-compat-repair/SHA256SUMS",
+      "size": 1325,
+      "sha256": "cabe1ab879923030c7dc85954a4c34f8c8afd5d73464bd91c57276c8b8416d90"
+    },
+    {
+      "path": "packages/https-compat-repair/root-review/review.md",
+      "size": 777,
+      "sha256": "0ca714b22831496779f4d4a947877cede5af30d11380c2498805b5c08dfaf60f"
+    },
+    {
+      "path": "packages/https-compat-repair/root-review/receipt.json",
+      "size": 203,
+      "sha256": "bc50316b2d7ad6519741afa7b56db8b820e5dc78e9db8cc7c228bb5f2cb16acf"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/01-both-algorithms-red.log",
+      "size": 2840,
+      "sha256": "3ce33d77f1a01619908474deeeaf22f6bd345db17ef68606d19e01bb3a283bc1"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/02-both-algorithms-green.log",
+      "size": 100,
+      "sha256": "53b77ed73b881186e0f76e3a51bce55b2d9b1423f4fc18759eb12e7a5b519b65"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/03-related-tests.log",
+      "size": 153,
+      "sha256": "9a7dbdaf4384ebcfdcf47825613d3fe315fd6f9ee2e98d9a7626fe88b258c56d"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/04-unrelated-failure-red.log",
+      "size": 1259,
+      "sha256": "2ba4585926048d7c320b57a8a95fa081730cfe5d488588233e9dbf615d708f8e"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/05-fault-receipt-tests-red.log",
+      "size": 20723,
+      "sha256": "3854a3a1e1f0ce83c254d5e0dd78f1be6cc104552a3a331250c18ae7d5e43fc3"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/06-final-related-tests-green.log",
+      "size": 154,
+      "sha256": "67b6c12f2e0f6567dcb7f573c2d01c5cf8a295087a63514ceec81276804f48db"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/07-unrelated-failure-green.log",
+      "size": 572,
+      "sha256": "0ffeaedc034c446b7550bdcbf5a8d9f0533fc3ee8897a94f88f060745e285023"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/08-original-rejection-controls-green.json",
+      "size": 3477,
+      "sha256": "e04bcdfc3ce1fd644e40f9869907e3683bbb1deaf06f66e01f62f8ae2f6872fd"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/delta-from-tls-generation-1.patch",
+      "size": 10145,
+      "sha256": "c2b4b3b5d7a86587c3d0b341633716aa1af26115a61133b64ea5f99451b58384"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/full-owned-delta.patch",
+      "size": 18119,
+      "sha256": "30669f4548ee88d1f7af2d6678f46ba30a4f8a6e34b998d58b1179ceb0bcbcab"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/native_stable_clients_drill.py.before",
+      "size": 58966,
+      "sha256": "fccd966f16eb3b635591ed2c58eb297098c6c496a3b800d64abcc4c9531beb31"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/negative-branch-controls-probe.py",
+      "size": 1878,
+      "sha256": "36da95961784a6bde26d96e3242fad39cf8c9a20246ff778f8929dad36dee2b7"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/negative-branch-probe.py",
+      "size": 1566,
+      "sha256": "b7c1dbf3dc4b230e29dc82bb49bbfb38d5fb03ab1c9225b8fae04e6d59a3372a"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/receipt.md",
+      "size": 2677,
+      "sha256": "ce9cfe369511452674d5673045e085037c0479885a8f8553a7a12cc0c42aeb24"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/source/tests/native_stable_clients_drill.py",
+      "size": 60170,
+      "sha256": "2cc72170c842c98d37c793bd4ffdd432bf40ccb47598da1a29f8f45d72d31874"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/source/tests/test_native_stable_clients_drill.py",
+      "size": 37213,
+      "sha256": "51d07451fd7631586af5154e9ebd0304cfde6a92a506c44617a4171096992814"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/test_native_stable_clients_drill.py.before",
+      "size": 32429,
+      "sha256": "4f5a4c7044517d9fc47334bb1120cf00961ade8f82f33b86ce9afd48ee1a7190"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/manifest.json",
+      "size": 3225,
+      "sha256": "6ab0a6800fdb5ecabfef52de72182b50c6bb13cb02232d09f9f1e91b068481f6"
+    },
+    {
+      "path": "packages/https-compat-repair-generation-2/SHA256SUMS",
+      "size": 1746,
+      "sha256": "88a95e6784f207db6cd0bfd7ca987c8ac8bb684c7d3c1491dea00894f037df1b"
+    },
+    {
+      "path": "packages/client-compatibility-review/checks.json",
+      "size": 11344,
+      "sha256": "a32d710bdab957cf4883445720498e8dad696851df177849b5fa04bf7bdf6964"
+    },
+    {
+      "path": "packages/client-compatibility-review/fault-delivery-probe.json",
+      "size": 3668,
+      "sha256": "c17e02eb0b8e673fabd3825cff321c0a0654a48eba98f5ea1f593aaa7aa6518a"
+    },
+    {
+      "path": "packages/client-compatibility-review/fault-delivery-probe.py",
+      "size": 2745,
+      "sha256": "2c00298f29d24c8e6c4b95edb38db4ee942b3ee2c6794ba3c5e8fe1fc3effbe3"
+    },
+    {
+      "path": "packages/client-compatibility-review/files/CHANGELOG.md",
+      "size": 2198,
+      "sha256": "e0bdc24287f11d41f216edf18b4366c6a2b18dfa4f0ba11b35681b4854db2943"
+    },
+    {
+      "path": "packages/client-compatibility-review/files/docs/stable-audit-transport.md",
+      "size": 9710,
+      "sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4"
+    },
+    {
+      "path": "packages/client-compatibility-review/files/scripts/plan-object-storage-publication.py",
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    {
+      "path": "packages/client-compatibility-review/files/tests/native_stable_clients_drill.py",
+      "size": 60170,
+      "sha256": "2cc72170c842c98d37c793bd4ffdd432bf40ccb47598da1a29f8f45d72d31874"
+    },
+    {
+      "path": "packages/client-compatibility-review/files/tests/test_composite_storage_plan.py",
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    },
+    {
+      "path": "packages/client-compatibility-review/files/tests/test_native_stable_clients_drill.py",
+      "size": 37213,
+      "sha256": "51d07451fd7631586af5154e9ebd0304cfde6a92a506c44617a4171096992814"
+    },
+    {
+      "path": "packages/client-compatibility-review/review.md",
+      "size": 3838,
+      "sha256": "a4125df343a23ef4c068d0546a55d064d02deb52807330089072a6525e2a6111"
+    },
+    {
+      "path": "packages/client-compatibility-review/review.patch",
+      "size": 36301,
+      "sha256": "c87bf9b7b69bcd97d6d8abac2ddeab85eb0aa382a9f7879be718d9985a1ebc3b"
+    },
+    {
+      "path": "packages/client-compatibility-review/source-freeze.json",
+      "size": 1218,
+      "sha256": "72e7925432d7041d595708876b684a10b6884302fc60815eb7b832151bd597d0"
+    },
+    {
+      "path": "packages/client-compatibility-review/summary.json",
+      "size": 710,
+      "sha256": "799b05d32229e66c64faadf2a22f8235fff06c7285de51187b5ea953786c1926"
+    },
+    {
+      "path": "packages/client-compatibility-review/ARCHIVE_ALLOWLIST.txt",
+      "size": 378,
+      "sha256": "a8d4fa6309032da222c590581d20a6a89bd7e210a8d443cc4c06b29c8c16e21b"
+    },
+    {
+      "path": "packages/client-compatibility-review/SHA256SUMS",
+      "size": 1302,
+      "sha256": "93c8eaca4e651897b437f4a4198cc01994f0349ca995412ac2dbb4876b7b8582"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/01-alias-red.json",
+      "size": 222,
+      "sha256": "d1c69655890c154c2f05da7e3c6a7c154955ce653d3cc520ecfb9d81a948b36d"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/01-alias-red.log",
+      "size": 2335,
+      "sha256": "a8507da84c0b08a8912ae9f1010dc58121f6ef07fb182eae6b9b1b2520337874"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/02-alias-red.json",
+      "size": 222,
+      "sha256": "3e0cb2759c670ca9d6f446fe735dbe644d59926c4b0944e18e8b91f52df779aa"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/02-alias-red.log",
+      "size": 2387,
+      "sha256": "dd6b3eb58d06b8b3b9c9c5a17bdcab00f5973f800c3222b68d6dad0bebb39d6f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/03-alias-red.json",
+      "size": 222,
+      "sha256": "f66bcc6f6a68476ab932a1cb0f7090ad07aa440ce59f402d9c99d23ec58902ed"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/03-alias-red.log",
+      "size": 14648,
+      "sha256": "7f16e245658c945f670126db1c7665d7fa4fed73c4cff17cd312f892da955140"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/04-alias-green.json",
+      "size": 222,
+      "sha256": "e948db14fcc1de10144929462a73eca141989f700ada27d72e409da829183f19"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/04-alias-green.log",
+      "size": 857,
+      "sha256": "ec38ca905194f47c461522e8b16987175f6079156cb261674ca42b0136fe9534"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/05-guards.json",
+      "size": 222,
+      "sha256": "a56e9b97dd47ea43bce57922a5a66216dd246ec303faf1056472a4c8958d1d07"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/05-guards.log",
+      "size": 1822,
+      "sha256": "2406faf6040d4505f20ba805aa5bf131dd775655aabf63ce662ded83140a8384"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/06-preview-regression.json",
+      "size": 231,
+      "sha256": "3827ac3ffb81d52f1d0707b570586e0b25a80b70927fd8043e6996ac57c5309d"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/06-preview-regression.log",
+      "size": 5908,
+      "sha256": "f112c722c906163e66ca8211a26c24506daf1b07902664a02a29130763c5754e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/07-diff-check.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/README.md",
+      "size": 2873,
+      "sha256": "2c61fbc5da9d9db9ec97c2fc6213251ced2081f3004ac0101c32b420ead105cf"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/before/scripts/plan-object-storage-publication.py",
+      "size": 34845,
+      "sha256": "b45845f469c5081b7bbb2e5eb8aaa73cc6faa14aa1985df75756032d0639128f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/before/tests/test_composite_storage_plan.py",
+      "size": 5804,
+      "sha256": "e26dae520a1e1d160d7c6d69c44df16627fe7207bfd09b330df550412e5333ee"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/failure-inventory.md",
+      "size": 1546,
+      "sha256": "5486157ffeb0f60f499299be40d3af46bd238b47ea1d9a895907db5e414c9b27"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/files/scripts/plan-object-storage-publication.py",
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/files/tests/test_composite_storage_plan.py",
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/review.patch",
+      "size": 15715,
+      "sha256": "cf41179fac97f985e679702190d5e5a57eafdced71b8443ed9a1434c1c43e19f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/source-before.json",
+      "size": 1066,
+      "sha256": "9446612ac6fc4e1827580d4537e4d1e51d6736c6356f38e1f3d0896ce8da1b75"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/source-freeze.json",
+      "size": 1850,
+      "sha256": "8dcdd17933373d2d38ae5ef4377d90cffc166ee148ed34b0a2492b78b84eb8da"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/summary.json",
+      "size": 2735,
+      "sha256": "76e896591cb7b6d1f698bdfb3b36c2e7640e7b1f5e080650bb4fdbc1ff6e61dd"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/SHA256SUMS",
+      "size": 2043,
+      "sha256": "934fd24657f8a18ab2f14c2245c318238164e4199bde3431a51e9bdc410c252e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/sha512-transport-repair/ARCHIVE_ALLOWLIST.txt",
+      "size": 525,
+      "sha256": "1950aed8ba8eb0e36b89eb84ac28a9d03ddd14873a14a41453fc133bdb675a0e"
+    }
+  ],
+  "scope": "frozen public test/protocol/transport evidence; generation-3 correction remains separate"
+}

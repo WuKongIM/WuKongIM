@@ -1,0 +1,122 @@
+{
+  "final-freeze-v2/delta-from-v1.patch": {
+    "sha256": "d08db68f6aa4be0a0b9755f59fc1b78464cc77799244bd6f5ad2a2fc0f2e689b",
+    "size": 37960
+  },
+  "final-freeze-v2/files/.github/workflows/native-package-repository-drill.yml": {
+    "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+    "size": 15073
+  },
+  "final-freeze-v2/files/CHANGELOG.md": {
+    "sha256": "d3dddcc8c2757ed0c4ac7856c78a8fc5cff4c91dba51e88c55e9701620e4b442",
+    "size": 2052
+  },
+  "final-freeze-v2/files/docs/release-contract.md": {
+    "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "size": 47357
+  },
+  "final-freeze-v2/files/docs/stable-audit-transport.md": {
+    "sha256": "1858d6c92cb8adec5462b57f98f95ede2ddda0e8f57761a5d4f93e5540de626f",
+    "size": 9119
+  },
+  "final-freeze-v2/files/scripts/validate-production-package-clients.py": {
+    "sha256": "9b9f59878a3c26ce2413490ec68bc831e052ea9b348a2a3f1d74e0c384aa05dd",
+    "size": 87886
+  },
+  "final-freeze-v2/files/tests/native_source_metadata_drill.py": {
+    "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+    "size": 12447
+  },
+  "final-freeze-v2/files/tests/native_stable_candidate_drill.py": {
+    "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+    "size": 42889
+  },
+  "final-freeze-v2/files/tests/native_stable_clients_drill.py": {
+    "sha256": "59598cca944524740e202199141552fe79e1b97de72f5e5dcc9c8d507d112dce",
+    "size": 58072
+  },
+  "final-freeze-v2/files/tests/test_native_stable_clients_drill.py": {
+    "sha256": "7c174b7a659cdb0defce500a44204184a39a1714703efb67366f8ad41e31b3a6",
+    "size": 24333
+  },
+  "final-freeze-v2/files/tests/test_validate_production_package_clients.py": {
+    "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41",
+    "size": 67130
+  },
+  "final-freeze-v2/manifest.json": {
+    "sha256": "e45c45554d63f9c15f889ccd71a4c7f453c1f7eeec3dac4c7374a76dbbb60a20",
+    "size": 10538
+  },
+  "final-freeze-v2/review.patch": {
+    "sha256": "b2538222773bf58fb2b320cf20ffc0b82b63496b073e2e93c02bf3cbf55f5fb5",
+    "size": 132264
+  },
+  "generation-2-repair/01-cleanup-and-49-red.log": {
+    "sha256": "3c384261ac9976f49d07266ef92cf55e8f6eba81b242f74557ade1033eb1d352",
+    "size": 7083
+  },
+  "generation-2-repair/02-cleanup-green.log": {
+    "sha256": "67bad2156758cdf0dc29fe7bc8789218d10fbec3da279764feb86c684badf86a",
+    "size": 111
+  },
+  "generation-2-repair/03-cache-and-installed-red.log": {
+    "sha256": "6eb6ef7b4e8578cf29aef0f2761c67fb6e692f971676574fed1b589d2c3c9a57",
+    "size": 1828
+  },
+  "generation-2-repair/04-cache-and-installed-green.log": {
+    "sha256": "fd817d07451e7881fa5cfb00827386bbd8ae66c04410d50591baa508cda74a40",
+    "size": 113
+  },
+  "generation-2-repair/05-container-ownership-red.log": {
+    "sha256": "c0fdac78d435fe0c174d3671090698ae96446122fd46187200e2af122a5efe2c",
+    "size": 1731
+  },
+  "generation-2-repair/06-container-ownership-green.log": {
+    "sha256": "5ad1d49c8d310cdedb57d414345d31cec77f2a7cf7b3d7e9bc13bc56a474c13e",
+    "size": 115
+  },
+  "generation-2-repair/07-focused-final-green.log": {
+    "sha256": "cdab39b2cd50bfaeeb6e55922662866990365439907059fc66ae0d45681cac8e",
+    "size": 115
+  },
+  "generation-2-repair/08-exercise-ambiguous-result.json": {
+    "sha256": "c3940c8848cf333847f0b9eb7d8a40b82938d593fe6f04768a6de039f8915418",
+    "size": 4032
+  },
+  "generation-2-repair/08-exercise-ambiguous.log": {
+    "sha256": "8d582d5ec6c9820047839c5461b35deb0e203e16bb3ab59296cd40b0b6f712b1",
+    "size": 126
+  },
+  "generation-2-repair/09-related-production-clients.log": {
+    "sha256": "fec83b439dbc66560e3c3629070075edcf88150e2ba2394e29457c1ec071bad8",
+    "size": 133
+  },
+  "generation-2-repair/10-related-installed-cli.log": {
+    "sha256": "c328cf2340c6e31baae76ff9da638fb106de2a70cc5953c6160ddfae6fbbd8a0",
+    "size": 111
+  },
+  "generation-2-repair/README.md": {
+    "sha256": "893c1092eb4697211c1234b1be8f70c5bc950f5bfa6488796a99faf0f9346e48",
+    "size": 1956
+  },
+  "generation-2-repair/before-native_stable_clients_drill.py": {
+    "sha256": "cbded82e01dd49e6bc8f9951f6dc3f09a03773135f6a55f48a3f9bc1e2ebcc24",
+    "size": 47021
+  },
+  "generation-2-repair/before-test_native_stable_clients_drill.py": {
+    "sha256": "803d16e7fd1ecd274e4fb70c3361395963af25c5e9bfa12f61d96c0bf3159fe7",
+    "size": 14692
+  },
+  "generation-2-repair/exercise-ambiguous-probe.py": {
+    "sha256": "4128900917177fbe4ef78420e76317e95ecc69840daadd49e3c3320ae353bfbd",
+    "size": 3059
+  },
+  "generation-2-repair/failure-inventory.md": {
+    "sha256": "a35b9fcbb96418630880309b3a58b4da3ab3ca95ce3a632e02b91ec7d5ba0266",
+    "size": 1632
+  },
+  "generation-2-repair/summary.json": {
+    "sha256": "99edb906eaabcd9be4425e4bd682cc7a14b5c31b5762e807e27b215e0b556119",
+    "size": 1252
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "schema": "public-evidence-archive/v1",
+  "files": [
+    {
+      "path": "check_source_rocky_pin.py",
+      "size": 2018,
+      "sha256": "0a1da70c81e5c78c7b0dcd4260f90dd254ce221aa054ac499eb2d2706f36f399"
+    },
+    {
+      "path": "01-old-source-red.json",
+      "size": 430,
+      "sha256": "92d6f835a510e5957957b550f8efb080b643768e512e2f9287de55755e8d6eb9"
+    },
+    {
+      "path": "02-new-source-green.json",
+      "size": 506,
+      "sha256": "db693f19a1e63a9ec9a1f148c3796805cac1db18fdfafa728943062a870422d6"
+    },
+    {
+      "path": "03-client-tests.log",
+      "size": 133,
+      "sha256": "36eec2fc56c5c7c94ad1081bab118ac2560df9a28f90bf525fa706461e453879"
+    },
+    {
+      "path": "04-driver-tests.log",
+      "size": 116,
+      "sha256": "8fa6ab79438e951aa0b5e85f7e95209bd51a84eee839379f836f57ce85956fa9"
+    },
+    {
+      "path": "05-contract.log",
+      "size": 176,
+      "sha256": "c4d9ed4f9df1f3bc65d794d67307147825ae96219d666bd0e436824680322c71"
+    },
+    {
+      "path": "06-summary.json",
+      "size": 510,
+      "sha256": "e5c29ad7635c7ae5e84d7ef81d7f59ca7f16fe96c15bf5a3672cf6c023d900d6"
+    },
+    {
+      "path": "07-repair-diff.patch",
+      "size": 728,
+      "sha256": "d172bc1c1689f60cf7404d65d210f756e9aeaad97d042a4668b2ad637ab4d153"
+    },
+    {
+      "path": "review/SHA256SUMS",
+      "size": 597,
+      "sha256": "b12c5a313194a185f0b229e903ff2abf4d4fb9e14360128a5c562bb02978da16"
+    },
+    {
+      "path": "review/exact-child-config-receipt.json",
+      "size": 373,
+      "sha256": "3dc5cccb6bad5aadcb9154ea048b8b0a4fc0e5e0e9ab20a15c8bc051b67918e4"
+    },
+    {
+      "path": "review/exact-child-config.json",
+      "size": 3476,
+      "sha256": "e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd"
+    },
+    {
+      "path": "review/independent-check.json",
+      "size": 868,
+      "sha256": "528d10072fba408bb8ed5e607169ccb638e825c5f474d32060c7e47675152989"
+    },
+    {
+      "path": "review/manifest.json",
+      "size": 1005,
+      "sha256": "f525171c66f78d567088c12d8e523a6811437b3a7ac7a854f6a69db6768a0f38"
+    },
+    {
+      "path": "review/review-inputs.json",
+      "size": 2315,
+      "sha256": "d71109c61eef3a596349d054890edcc6940f1d222f3d0e22ed7aef10240bc1be"
+    },
+    {
+      "path": "review/review.md",
+      "size": 2102,
+      "sha256": "540e879ea484420f8dbe846a95261c33f8b5987ebcec95834f04679b9b26406f"
+    },
+    {
+      "path": "review/source.patch",
+      "size": 728,
+      "sha256": "d172bc1c1689f60cf7404d65d210f756e9aeaad97d042a4668b2ad637ab4d153"
+    }
+  ]
+}

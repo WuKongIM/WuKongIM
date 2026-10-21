@@ -1,0 +1,4 @@
+.github/workflows/chat-lifecycle-rehearsal.yml:52:39: context "runner" is not allowed here. available contexts are "github", "inputs", "matrix", "needs", "secrets", "strategy", "vars". see https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability for more details [expression]
+   |
+52 |       WK_CHAT_ARTIFACT_INVENTORY: ${{ runner.temp }}/chat-lifecycle-artifact-inventory.json
+   |                                       ^~~~~~~~~~~

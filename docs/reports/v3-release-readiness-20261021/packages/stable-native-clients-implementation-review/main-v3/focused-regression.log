@@ -1,0 +1,8 @@
+test_two_stage_cleanup_retires_removed_ids_but_keeps_inventory_obligation (test_native_stable_clients_drill.NativeStableClientsTests.test_two_stage_cleanup_retires_removed_ids_but_keeps_inventory_obligation) ... ok
+test_cleanup_stages_cannot_hide_prior_failure_and_fixture_is_host_nonroot (test_native_stable_clients_drill.NativeStableClientsTests.test_cleanup_stages_cannot_hide_prior_failure_and_fixture_is_host_nonroot) ... ok
+test_ambiguous_create_discovers_only_owned_container_and_network (test_native_stable_clients_drill.NativeStableClientsTests.test_ambiguous_create_discovers_only_owned_container_and_network) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.018s
+
+OK

@@ -1,0 +1,39 @@
+FFE
+======================================================================
+ERROR: test_native_apt_proof_recognizes_only_supported_immutable_paths (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_native_apt_proof_recognizes_only_supported_immutable_paths)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 413, in test_native_apt_proof_recognizes_only_supported_immutable_paths
+    self.assertTrue(drill.apt_by_hash_path(prefix + 'by-hash/' + algorithm + '/' + digest))
+                    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'apt_by_hash_path'
+
+======================================================================
+FAIL: test_both_apt_hash_algorithms_retain_a_and_inject_real_faults (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_both_apt_hash_algorithms_retain_a_and_inject_real_faults) (algorithm='SHA512', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 398, in test_both_apt_hash_algorithms_retain_a_and_inject_real_faults
+    self.assertEqual((status, raw), (404, b''))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (200, b'A index') != (404, b'')
+
+First differing element 0:
+200
+404
+
+- (200, b'A index')
++ (404, b'')
+
+======================================================================
+FAIL: test_both_apt_hash_algorithms_retain_a_and_inject_real_faults (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_both_apt_hash_algorithms_retain_a_and_inject_real_faults) (algorithm='SHA512', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 401, in test_both_apt_hash_algorithms_retain_a_and_inject_real_faults
+    self.assertNotEqual(digest(raw), digest(b'A index'))
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721' == '39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721'
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.016s
+
+FAILED (failures=2, errors=1)

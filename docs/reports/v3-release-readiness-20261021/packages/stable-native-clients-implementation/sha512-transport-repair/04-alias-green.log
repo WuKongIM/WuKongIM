@@ -1,0 +1,9 @@
+test_composite_requires_both_current_channels_before_reading_paths (test_composite_storage_plan.CompositePlannerModeTest.test_composite_requires_both_current_channels_before_reading_paths) ... ok
+test_v2_requires_explicit_composite_mode (test_composite_storage_plan.CompositePlannerModeTest.test_v2_requires_explicit_composite_mode) ... ok
+test_local_immutable_claim_does_not_skip_candidate_archive_verification (test_composite_storage_plan.CompositeSealRejectionTest.test_local_immutable_claim_does_not_skip_candidate_archive_verification) ... ok
+test_sha512_aliases_reuse_original_index_members_without_changing_archive (test_composite_storage_plan.StableByHashTransportTest.test_sha512_aliases_reuse_original_index_members_without_changing_archive) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.295s
+
+OK

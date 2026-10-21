@@ -1,0 +1,24 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/nonzero_prior
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/runtime_marker
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/sidecar
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/incomplete_zero
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/zero_before_release
+    chat_lifecycle_released_preclock_integration_test.go:174: want zero_time_invalid got <nil> map[attempt:2 committed_micros:7.44776e+07 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:ready]
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/old_quote_expired
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/missing_cost_line
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/known_correctness
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/account_mismatch
+--- FAIL: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain (3.20s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/nonzero_prior (0.38s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/runtime_marker (0.25s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/sidecar (0.21s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/incomplete_zero (0.37s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/zero_before_release (0.40s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/old_quote_expired (0.40s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/missing_cost_line (0.39s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/known_correctness (0.40s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/account_mismatch (0.40s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	3.591s
+FAIL

@@ -1,0 +1,21 @@
+{
+  "head": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "hypotheses": [
+    {
+      "rank": 1,
+      "cause": "TCP shutdown without TLS close_notify",
+      "prediction": "strict TLS read-to-EOF fails with SSLEOFError after full valid HTTP bytes; close_notify fixes it"
+    },
+    {
+      "rank": 2,
+      "cause": "normal response Content-Length/body mismatch",
+      "prediction": "complete response has different actual body length; close_notify alone cannot repair"
+    },
+    {
+      "rank": 3,
+      "cause": "certificate chain/hostname validation failure",
+      "prediction": "verified TLS connection fails before receiving HTTP response; changing shutdown cannot repair"
+    }
+  ],
+  "scope": "TEST ONLY loopback; no production credentials, Docker, native package build, commit, push or CI"
+}

@@ -1,0 +1,580 @@
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -304,7 +304,7 @@
+               --output-dir "$output" --product-root "$GITHUB_WORKSPACE/.product/wukongim" \
+               --product-sha fc18221282f289088ec9b4282fda8e0bfc67a3b8 \
+               --trusted-root "$GITHUB_WORKSPACE/.trusted/wukongim"
+-          jq -e '.test_only == true and .passed == true and .cleanup.verified == true and (.cases | length) == 47 and all(.cases[]; .passed == true)' \
++          jq -e '.test_only == true and .passed == true and .cleanup.verified == true and (.cases | length) == 49 and all(.cases[]; .passed == true)' \
+             "$output/native-stable-clients.json" >/dev/null
+ 
+       - name: Preserve public stable client evidence
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -209,52 +209,180 @@
+ 
+ 
+ class OwnedDocker:
+-    """Track only resources created with this run's unpredictable ownership label."""
++    """Recover ambiguous creations only through this run's UUID label and names."""
+     def __init__(self, label, run=subprocess.run):
+         self.label = label
+         self.run = run
+         self.containers = set()
+         self.network = None
++        self.attempts = {'containers': set(), 'networks': set()}
+         self.cleanup_receipt = None
+-
+-    def cleanup(self):
++        self.cleanup_errors = []
++
++    def create(self, kind, command, checked):
++        require(kind in ('container', 'network'), 'invalid owned resource kind')
++        require('wk-stable-client-run=' + self.label in command, 'owned creation lacks its exact label')
++        name = command[command.index('--name') + 1] if kind == 'container' else command[-1]
++        require(name.startswith('wk-scl-' + self.label), 'owned creation name differs')
++        # Register before the CLI can reach the daemon. A timeout, TERM or bad
++        # return body must not erase the possibility that creation succeeded.
++        self.attempts[kind + 's'].add(name)
++        identifier = checked('create-' + kind, command).decode().strip()
++        require(re.fullmatch('[0-9a-f]{64}', identifier), 'Docker returned invalid resource identity')
++        if kind == 'container': self.containers.add(identifier)
++        else: self.network = identifier
++        return identifier
++
++    def cleanup(self, *, final=True):
+         if self.cleanup_receipt is not None:
+             return self.cleanup_receipt
+-        errors = []
+-        for identifier in sorted(self.containers):
++        errors = list(self.cleanup_errors)
++        attempted = bool(self.containers or self.network or any(self.attempts.values()))
++        def invoke(command):
+             try:
+-                result = self.run(['docker', 'rm', '--force', identifier], capture_output=True, timeout=20)
+-                # A --rm client may already have gone away. Enumerate the exact
+-                # ownership label below to distinguish that from real residue.
+-                if result.returncode and b'No such container' not in result.stderr:
+-                    errors.append('container removal failed')
++                value = self.run(command, capture_output=True, timeout=20)
++                if len(value.stdout) > 131072 or len(value.stderr) > 131072:
++                    errors.append('cleanup output limit exceeded'); return None
++                return value
+             except (OSError, subprocess.SubprocessError):
+-                errors.append('container cleanup unavailable')
+-        if self.network:
+-            try:
+-                result = self.run(['docker', 'network', 'rm', self.network], capture_output=True, timeout=20)
+-                if result.returncode:
+-                    errors.append('network removal failed')
+-            except (OSError, subprocess.SubprocessError):
+-                errors.append('network cleanup unavailable')
+-        remaining = {'containers': [], 'networks': []}
+-        # Never list or remove other tasks' resources. If no resources were
+-        # attempted, even a missing Docker executable needs no inspection.
+-        if self.containers or self.network:
+-            for kind, command in [('containers', ['docker', 'ps', '-aq']),
+-                                  ('networks', ['docker', 'network', 'ls', '-q'])]:
+-                try:
+-                    result = self.run([*command, '--filter', 'label=wk-stable-client-run=' + self.label],
+-                                      capture_output=True, timeout=20)
+-                    if result.returncode:
+-                        errors.append(kind + ' inspection failed')
+-                    else:
+-                        remaining[kind] = result.stdout.decode().split()
+-                except (OSError, subprocess.SubprocessError):
+-                    errors.append(kind + ' inspection unavailable')
+-        self.cleanup_receipt = {'verified': not errors and not any(remaining.values()),
+-                                'remaining': remaining, 'errors': errors}
+-        return self.cleanup_receipt
++                errors.append('cleanup command unavailable'); return None
++        def inventory():
++            result = {'containers': [], 'networks': []}
++            for kind, command in [('containers', ['docker', 'ps', '-aq', '--no-trunc']),
++                                  ('networks', ['docker', 'network', 'ls', '-q', '--no-trunc'])]:
++                value = invoke([*command, '--filter', 'label=wk-stable-client-run=' + self.label])
++                if value is None or value.returncode:
++                    errors.append(kind + ' inventory failed'); continue
++                identifiers = value.stdout.decode(errors='replace').split()
++                if len(identifiers) > 256 or any(not re.fullmatch('[0-9a-f]{64}', item) for item in identifiers):
++                    errors.append(kind + ' inventory is invalid'); continue
++                result[kind] = identifiers
++            return result
++        initial = inventory() if attempted else {'containers': [], 'networks': []}
++        containers = set(initial['containers']) | self.containers
++        networks = set(initial['networks']) | ({self.network} if self.network else set())
++        for kind, identifiers in (('container', containers), ('network', networks)):
++            for identifier in sorted(identifiers):
++                label_path = '.Config.Labels' if kind == 'container' else '.Labels'
++                format_value = '{{.Id}} {{.Name}} {{index ' + label_path + ' "wk-stable-client-run"}}'
++                command = (['docker', 'inspect', '--type', 'container'] if kind == 'container'
++                           else ['docker', 'network', 'inspect'])
++                metadata = invoke([*command, '--format', format_value, identifier])
++                if metadata is None: continue
++                if metadata.returncode:
++                    if b'No such' not in metadata.stderr: errors.append(kind + ' identity query failed')
++                    continue
++                fields = metadata.stdout.decode(errors='replace').split()
++                if (len(fields) != 3 or fields[0] != identifier or fields[2] != self.label
++                        or fields[1].lstrip('/') not in self.attempts[kind + 's']):
++                    errors.append(kind + ' identity does not match this run'); continue
++                command = ['docker', 'rm', '--force', identifier] if kind == 'container' else ['docker', 'network', 'rm', identifier]
++                removed = invoke(command)
++                if removed is not None and removed.returncode and b'No such' not in removed.stderr:
++                    errors.append(kind + ' removal failed')
++        # This is mandatory after every attempted create, even when no create
++        # call returned an ID. NoSuch is accepted only if this final check is empty.
++        remaining = inventory() if attempted else {'containers': [], 'networks': []}
++        receipt = {'verified': not errors and not any(remaining.values()),
++            'creation_attempts': {kind: sorted(names) for kind, names in self.attempts.items()},
++            'discovered': initial, 'remaining': remaining, 'errors': errors}
++        self.cleanup_errors = errors
++        if final: self.cleanup_receipt = receipt
++        return receipt
++
++
++def fixture_user():
++    require(os.getuid() != 0, 'fixture export requires a non-root host user')
++    return str(os.getuid()) + ':' + str(os.getgid())
++
++
++def cache_mounts(family):
++    """DNF's cachedir and persistdir are both relative to its explicit installroot."""
++    require(family in ('apt', 'rpm'), 'invalid cache family')
++    return ([('apt', '/var/lib/apt'), ('apt-cache', '/var/cache/apt')] if family == 'apt' else
++            [('dnf-cache', '/tmp/client-root/tmp/dnf-cache'),
++             ('dnf-state', '/tmp/client-root/tmp/dnf-state')])
++
++
++def cache_inventory(root, *, arm=False):
++    """Hash bounded cache files; capture atime before our own read, then optionally arm it."""
++    result = {}; total = 0
++    if not root.exists(): return result
++    for path in sorted(root.rglob('*')):
++        info = path.lstat()
++        require(not path.is_symlink(), 'cache must not contain links')
++        if path.is_dir(): continue
++        require(path.is_file() and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024,
++                'cache contains an unsupported file')
++        total += info.st_size
++        require(len(result) < 10000 and total <= 512 * 1024 * 1024, 'cache inventory exceeds bounds')
++        if not info.st_size: continue
++        relative = path.relative_to(root).as_posix()
++        result[relative] = {**facts(path), 'device': info.st_dev, 'inode': info.st_ino,
++                            'mtime_ns': info.st_mtime_ns, 'atime_ns': info.st_atime_ns}
++        if arm:
++            # Preserve content/mtime. Under Linux relatime this old atime must
++            # advance on a real subsequent read. A noatime filesystem fails the
++            # evidence gate rather than silently treating mere presence as reuse.
++            os.utime(path, ns=(1, info.st_mtime_ns), follow_symlinks=False)
++    return result
++
++
++def cache_evidence(before, after, *, require_reuse):
++    def metadata(name):
++        return (name.startswith('apt/lists/') and '/partial/' not in name
++                or name.startswith('dnf-cache/') and ('/repodata/' in name or name.endswith(('.solv', '.solvx'))))
++    present = [name for name in after if metadata(name)]
++    require(present, 'persistent cache did not contain nonempty metadata')
++    reads = [name for name in present if name in before and after[name]['atime_ns'] > 1
++             and all(before[name][key] == after[name][key] for key in ('device', 'inode', 'sha256', 'size'))]
++    require(not require_reuse or reads, 'persistent cache did not prove a read of existing metadata')
++    return {'before': before, 'after': after, 'metadata_reads': reads, 'reuse_required': require_reuse,
++            'reuse_signal': 'same inode and content; atime advanced after epoch arming before native execution'}
++
++
++def cache_operation(root, operation):
++    """Run only inside the owned cache helper; do not change cached content or mtime."""
++    require(operation in ('inventory', 'arm', 'remove'), 'invalid cache operation')
++    require(root.is_dir() and not root.is_symlink(), 'cache root must be a real directory')
++    if operation != 'remove': return cache_inventory(root, arm=operation == 'arm')
++    for path in root.iterdir():
++        if path.is_dir() and not path.is_symlink(): shutil.rmtree(path)
++        else: path.unlink()
++    return {'remaining': sorted(path.name for path in root.iterdir())}
++
++
++def cache_helper_command(image, root, operation):
++    require(operation in ('inventory', 'arm', 'remove'), 'invalid cache operation')
++    # Root is confined to one task cache mount. No client credentials, public
++    # fixture signing tree, network, Docker socket or host-wide path is exposed.
++    code = ('import importlib.util,sys\n'
++            'from pathlib import Path\n'
++            's=importlib.util.spec_from_file_location("cache_helper","/control/tests/native_stable_clients_drill.py")\n'
++            'm=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n'
++            'sys.stdout.buffer.write(m.canonical(m.cache_operation(Path("/cache"),sys.argv[1])))')
++    return ['docker', 'run', '--platform', 'linux/amd64', '--network', 'none', '--read-only',
++            '--cap-drop', 'ALL', '--cap-add', 'DAC_OVERRIDE', '--cap-add', 'FOWNER',
++            '--security-opt', 'no-new-privileges', '--user', '0:0', '--pids-limit', '32',
++            '--memory', '256m', '--cpus', '1', '--tmpfs', '/tmp:rw,nosuid,nodev,size=16m',
++            '--volume', str(ROOT) + ':/control:ro', '--volume', str(root) + ':/cache:rw',
++            image, 'python3', '-B', '-c', code, operation]
++
++
++def installed_negative_command(validator, image, package, output, certificate, fault):
++    """Fault only a real throwaway installation, retaining the original acceptance program."""
++    require(fault in ('wrong-commit', 'old-version', 'missing-wkcli'), 'unsupported installed fault')
++    identity = {'version': '3.0.1' if fault == 'old-version' else '3.0.0',
++                'commit': '0' * 40 if fault == 'wrong-commit' else PRODUCT_SHA, 'build_source': 'release'}
++    command = validator._installed_cli_command(image, package, output, certificate, 'apt', identity, facts(package)['sha256'])
++    if fault == 'missing-wkcli':
++        marker = 'python3 /acceptance.py --fixtures /fixtures'
++        require(command[-1].count(marker) == 1, 'installed acceptance command changed')
++        injection = ('test -x /usr/bin/wukongim\ntest -x /usr/bin/wkcli\n'
++                     'rm -- /usr/bin/wkcli\ntest ! -e /usr/bin/wkcli\n'
++                     'printf "%s\\n" "TEST ONLY removed wkcli after verified installation"\n')
++        command[-1] = command[-1].replace(marker, injection + marker)
++    return command
+ 
+ 
+ def build_product(args, scratch, evidence):
+@@ -387,6 +515,7 @@
+     require(args.trusted_root is not None and args.trusted_root.is_dir(), 'trusted repository tools are required')
+     for tool in ('docker', 'git', 'go', 'openssl', 'gpg', 'gpgv', 'rpm', 'rpmkeys', 'dpkg-deb', 'zstd'):
+         require(shutil.which(tool), 'required native tool unavailable: ' + tool)
++    export_user = fixture_user()
+     validator = module('scripts/validate-production-package-clients.py')
+     toolchain = json.loads((ROOT / 'manifests/signing-toolchain.json').read_bytes())
+     image = toolchain['image'] + '@' + toolchain['digest']
+@@ -403,6 +532,7 @@
+     for tool in ('gpg', 'gpgv', 'rpm', 'rpmkeys', 'dpkg-deb', 'zstd'):
+         evidence['host_tools'][tool] = checked('version-' + tool, [tool, '--version']).decode()[:4096]
+     with tempfile.TemporaryDirectory(prefix='wk-scl-', dir='/tmp') as temporary:
++        cache_roots = []
+         try:
+             scratch = Path(temporary)
+             binaries = build_product(args, scratch, evidence)
+@@ -415,12 +545,15 @@
+                 tokens = [token for token in command[2:] if token != '--rm']
+                 create_command = ['docker', 'create', '--name', 'wk-scl-' + owned.label + '-' + str(serial),
+                                   '--label', 'wk-stable-client-run=' + owned.label, *tokens]
+-                identifier = checked('create-container', create_command).decode().strip()
+-                require(re.fullmatch('[0-9a-f]{64}', identifier), 'Docker returned invalid container identity')
+-                owned.containers.add(identifier)
+-                return identifier
++                return owned.create('container', create_command, checked)
++            def cache_tool(root, operation):
++                identifier = create(cache_helper_command(image, root, operation))
++                raw = checked('cache-' + operation, ['docker', 'start', '--attach', identifier], timeout=60)
++                value = json.loads(raw)
++                require(isinstance(value, dict), 'cache helper returned invalid evidence')
++                return value
+             fixture_id = create(['docker', 'run', '--platform', 'linux/amd64', '--network', 'none', '--read-only',
+-                '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--user', '65532:65532',
++                '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--user', export_user,
+                 '--cpus', '2', '--memory', '4g', '--pids-limit', '256',
+                 '--tmpfs', '/tmp:rw,nosuid,nodev,size=2147483648',
+                 '--volume', str(ROOT) + ':/control:ro', '--volume', str(binaries) + ':/binaries:ro',
+@@ -456,10 +589,8 @@
+                 '-CA', str(public / 'tls.crt'), '-CAkey', str(public / 'tls.key'), '-set_serial', '2',
+                 '-out', str(public / 'wrong-name.crt'), '-days', '1', '-extfile', str(public / 'wrong-name.ext')])
+             (public / 'wrong-name.key').chmod(0o644)
+-            network = checked('create-private-network', ['docker', 'network', 'create', '--internal',
+-                '--label', 'wk-stable-client-run=' + owned.label, 'wk-scl-' + owned.label]).decode().strip()
+-            require(re.fullmatch('[0-9a-f]{64}', network), 'invalid created network identity')
+-            owned.network = network
++            network = owned.create('network', ['docker', 'network', 'create', '--internal',
++                '--label', 'wk-stable-client-run=' + owned.label, 'wk-scl-' + owned.label], checked)
+             state_serial = 0
+             def configure(generation, mode='normal'):
+                 nonlocal state_serial
+@@ -514,7 +645,7 @@
+                     if cache is not None:
+                         cache.mkdir(exist_ok=True); cache.chmod(0o777)
+                         apt = 'WK_REPOSITORY_URL=https://packages.githubim.com/apt' in command
+-                        mounts = [('apt', '/var/lib/apt'), ('apt-cache', '/var/cache/apt')] if apt else [('dnf-cache', '/tmp/dnf-cache'), ('dnf-state', '/tmp/dnf-state')]
++                        mounts = cache_mounts('apt' if apt else 'rpm')
+                         for name, destination in mounts:
+                             directory = cache / name; directory.mkdir(exist_ok=True); directory.chmod(0o777)
+                             # Replace an existing tmpfs at this exact destination.
+@@ -556,7 +687,11 @@
+             for family, clients in (('apt', validator.APT_CLIENTS), ('rpm', validator.RPM_CLIENTS)):
+                 for distribution, client_image in clients:
+                     cache = scratch / ('cache-' + distribution)
++                    cache.mkdir(); cache_roots.append(cache)
++                    previous_cache_generation = None
+                     def download(generation, mode, *, expected_failure=False, wrong_ca=False, persisted=False):
++                        nonlocal previous_cache_generation
++                        cache_before = cache_tool(cache, 'arm') if persisted else None
+                         number = configure(generation, mode)
+                         entry = exports['generations'][generation]
+                         site = fixtures / entry['site']
+@@ -596,7 +731,12 @@
+                         if mode.endswith('-switch'):
+                             expected_barrier = INRELEASE if family == 'apt' else MIRROR
+                             require(any(item['path'] == expected_barrier for item in observed), 'missing exact switch request barrier')
+-                        return {'download': value, 'requests': observed}
++                        cache_result = None
++                        if persisted:
++                            cache_result = cache_evidence(cache_before, cache_tool(cache, 'inventory'),
++                                require_reuse=previous_cache_generation == generation)
++                            previous_cache_generation = generation
++                        return {'download': value, 'requests': observed, 'cache': cache_result}
+                     record(distribution + '-A-to-B-request-barrier', lambda: download('A', family + '-switch'))
+                     record(distribution + '-cache-A-first', lambda: download('A', 'normal', persisted=True))
+                     record(distribution + '-cache-A-repeat', lambda: download('A', 'normal', persisted=True))
+@@ -648,14 +788,24 @@
+             # Actual installed acceptance must also reject a wrong expected commit.
+             entry = exports['generations']['A']; site = fixtures / entry['site']
+             package = next(p for p in site.rglob('*.deb') if p.name.startswith('wukongim_'))
+-            cli_output = scratch / 'wrong-commit'; cli_output.mkdir(mode=0o777); cli_output.chmod(0o777)
+-            def wrong_commit():
+-                result = client(validator._installed_cli_command(validator.APT_CLIENTS[0][1], package, cli_output,
+-                    fixtures / entry['control'] / 'keys/apt-stable.asc', 'apt',
+-                    {'version': '3.0.0', 'commit': '0' * 40, 'build_source': 'release'}, facts(package)['sha256']), allow_failure=True)
+-                require(result.returncode == 1 and b'identity' in result.stdout.lower(), 'wrong commit failed outside installed identity check')
+-                return {'exit_code': result.returncode, 'output_sha256': hashlib.sha256(result.stdout).hexdigest()}
+-            record('reject-actual-installed-source-SHA', wrong_commit, negative=True)
++            for fault, case in (('wrong-commit', 'reject-actual-installed-source-SHA'),
++                                ('old-version', 'reject-actual-installed-old-version'),
++                                ('missing-wkcli', 'reject-actual-installed-missing-wkcli')):
++                cli_output = scratch / fault; cli_output.mkdir(mode=0o777); cli_output.chmod(0o777)
++                def installed_rejection():
++                    result = client(installed_negative_command(validator, validator.APT_CLIENTS[0][1],
++                        package, cli_output, fixtures / entry['control'] / 'keys/apt-stable.asc', fault),
++                        allow_failure=True)
++                    reason = (b'missing executable: /usr/bin/wkcli' if fault == 'missing-wkcli' else
++                              b'installed binary identity differs from reviewed release')
++                    require(result.returncode == 1 and reason in result.stdout,
++                            'installed fault failed outside its intended acceptance gate')
++                    if fault == 'missing-wkcli':
++                        require(b'TEST ONLY removed wkcli after verified installation' in result.stdout,
++                                'missing-wkcli fault did not follow a successful real installation')
++                    return {'exit_code': result.returncode, 'fault': fault,
++                            'output_sha256': hashlib.sha256(result.stdout).hexdigest()}
++                record(case, installed_rejection, negative=True)
+             require(not (public / 'server-error').exists(), 'HTTPS fixture had an internal error')
+             shutil.copyfile(public / 'requests.jsonl', args.output_dir / 'https-requests.jsonl')
+             evidence['a_b'] = {'different_archives': True, 'shared_test_public_keys': True,
+@@ -663,15 +813,37 @@
+                                'installed_dependencies_use_normal_network': True, 'no_global_atomicity_claim': True}
+             evidence['transport'] = {label: {'inputs': facts(inputs[label]), 'plan_sha256': hashlib.sha256(canonical(plans[label])).hexdigest(),
+                                             'candidate': descriptors[label]['candidate']} for label in ('A', 'B')}
++        except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
++            evidence['exercise_failure'] = str(error)[:1024]
++            raise
+         finally:
+-            # Stop owned readers before copying their final log or dropping scratch.
+-            evidence['cleanup'] = owned.cleanup()
+-            request_log = Path(temporary) / 'https/requests.jsonl'
+-            if request_log.is_file():
+-                if request_log.stat().st_size <= MAX_LOG:
+-                    shutil.copyfile(request_log, args.output_dir / 'https-requests.jsonl')
+-                else:
+-                    evidence['request_log_error'] = 'request log limit exceeded'
++            # A second controlled TERM must not interrupt the bounded cleanup.
++            # SIGKILL or host loss cannot execute this finally block.
++            handlers = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGTERM, signal.SIGINT)}
++            try:
++                evidence['reader_cleanup'] = owned.cleanup(final=False)
++                evidence['cache_cleanup'] = []
++                for cache in cache_roots:
++                    item = {'cache': cache.name, 'verified': False}
++                    evidence['cache_cleanup'].append(item)
++                    try:
++                        require(evidence['reader_cleanup']['verified'], 'readers were not verifiably stopped before cache removal')
++                        item['result'] = cache_tool(cache, 'remove')
++                        item['verified'] = item['result'] == {'remaining': []} and not any(cache.iterdir())
++                    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
++                        item['failure'] = str(error)[:512]
++                evidence['cleanup'] = owned.cleanup()
++                if not all(item['verified'] for item in evidence['cache_cleanup']):
++                    evidence['cleanup']['verified'] = False
++                    evidence['cleanup']['errors'].append('task cache removal was not verified')
++                request_log = Path(temporary) / 'https/requests.jsonl'
++                if request_log.is_file():
++                    if request_log.stat().st_size <= MAX_LOG:
++                        shutil.copyfile(request_log, args.output_dir / 'https-requests.jsonl')
++                    else:
++                        evidence['request_log_error'] = 'request log limit exceeded'
++            finally:
++                for sig, handler in handlers.items(): signal.signal(sig, handler)
+ 
+ 
+ def main(argv=None):
+@@ -704,7 +876,7 @@
+         for sig in (signal.SIGTERM, signal.SIGINT):
+             previous[sig] = signal.signal(sig, lambda signum, _: (_ for _ in ()).throw(RuntimeError('interrupted')))
+         exercise(args, evidence, owned)
+-        require(len(evidence['cases']) == 47 and all(item['passed'] for item in evidence['cases']),
++        require(len(evidence['cases']) == 49 and all(item['passed'] for item in evidence['cases']),
+                 'native case inventory is incomplete')
+         evidence['passed'] = True
+     except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -31,10 +31,155 @@
+         self.assertIn('gnupg gpgv rpm dpkg zstd', job)
+         self.assertIn('python3 -B tests/native_stable_clients_drill.py', job)
+         self.assertIn('if: always()', job)
++        self.assertIn('(.cases | length) == 49', job)
+         self.assertNotIn('secrets.', job)
+         self.assertNotIn('environment:', job)
+         self.assertNotIn('contents: write', job)
+         self.assertNotIn('/var/run/docker.sock', job)
++
++    def test_ambiguous_create_discovers_only_owned_container_and_network(self):
++        drill = load()
++        for kind in ('container', 'network'):
++            with self.subTest(kind=kind):
++                label = '0123456789abcdef0123456789abcdef'
++                name = 'wk-scl-' + label + ('-1' if kind == 'container' else '')
++                identifier, sentinel = 'a' * 64, 'f' * 64
++                resources = {identifier: {'kind': kind, 'name': name, 'label': label},
++                             sentinel: {'kind': kind, 'name': 'outside-sentinel', 'label': 'other'}}
++                calls = []
++                def docker(command, **kwargs):
++                    calls.append(command)
++                    if command[1:3] == ['rm', '--force'] or command[1:3] == ['network', 'rm']:
++                        self.assertNotEqual(command[-1], sentinel)
++                        resources.pop(command[-1])
++                        return subprocess.CompletedProcess(command, 0, b'', b'')
++                    if 'inspect' in command:
++                        item = resources[command[-1]]
++                        raw = f"{command[-1]} /{item['name']} {item['label']}\n".encode()
++                    else:
++                        self.assertIn('label=wk-stable-client-run=' + label, command)
++                        listed = 'container' if command[1] == 'ps' else 'network'
++                        raw = ''.join(key + '\n' for key, value in resources.items()
++                                      if value['kind'] == listed and value['label'] == label).encode()
++                    return subprocess.CompletedProcess(command, 0, raw, b'')
++                owned = drill.OwnedDocker(label, run=docker)
++                command = (['docker', 'create', '--name', name, '--label', 'wk-stable-client-run=' + label, 'image']
++                           if kind == 'container' else ['docker', 'network', 'create', '--internal', '--label',
++                                                        'wk-stable-client-run=' + label, name])
++                def interrupted(stage, command):
++                    self.assertIn(name, owned.attempts[kind + 's'])
++                    raise RuntimeError('TERM after daemon create before ID capture')
++                with self.assertRaisesRegex(RuntimeError, 'TERM after daemon'):
++                    owned.create(kind, command, interrupted)
++                receipt = owned.cleanup()
++                self.assertTrue(receipt['verified'], receipt)
++                self.assertEqual(set(resources), {sentinel})
++                self.assertEqual(receipt['remaining'], {'containers': [], 'networks': []})
++                self.assertGreaterEqual(sum('label=wk-stable-client-run=' + label in cmd for cmd in calls), 4)
++
++    def test_uncertain_create_with_failed_inventory_cannot_claim_verified(self):
++        drill = load()
++        owned = drill.OwnedDocker('task', run=lambda command, **kw:
++                                  subprocess.CompletedProcess(command, 1, b'', b'query failed'))
++        with self.assertRaisesRegex(RuntimeError, 'interrupted'):
++            owned.create('network', ['docker', 'network', 'create', '--label',
++                         'wk-stable-client-run=task', 'wk-scl-task'],
++                         lambda *args: (_ for _ in ()).throw(RuntimeError('interrupted')))
++        self.assertFalse(owned.cleanup()['verified'])
++
++    def test_cache_uses_installroot_mounts_and_proves_reads_of_existing_metadata(self):
++        drill = load()
++        self.assertEqual(drill.cache_mounts('rpm'), [('dnf-cache', '/tmp/client-root/tmp/dnf-cache'),
++                                                   ('dnf-state', '/tmp/client-root/tmp/dnf-state')])
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            with self.assertRaisesRegex(RuntimeError, 'nonempty metadata'):
++                drill.cache_evidence({}, {}, require_reuse=False)
++            path = root / 'dnf-cache/repo/repodata/primary.xml.gz'
++            path.parent.mkdir(parents=True); path.write_bytes(b'existing authenticated metadata')
++            before = drill.cache_inventory(root, arm=True)
++            # Merely observing the same file a second time is not reuse.
++            after = drill.cache_inventory(root)
++            with self.assertRaisesRegex(RuntimeError, 'read of existing metadata'):
++                drill.cache_evidence(before, after, require_reuse=True)
++            before = drill.cache_inventory(root, arm=True)
++            path.read_bytes()  # Actual OS read, not a mocked timestamp.
++            after = drill.cache_inventory(root)
++            value = drill.cache_evidence(before, after, require_reuse=True)
++            self.assertEqual(value['metadata_reads'], ['dnf-cache/repo/repodata/primary.xml.gz'])
++            self.assertEqual(value['before'], before)
++            self.assertEqual(value['after'], after)
++
++    def test_installed_negative_commands_preserve_install_and_original_acceptance(self):
++        drill = load()
++        validator = drill.module('scripts/validate-production-package-clients.py')
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); package = root / 'candidate.deb'; package.write_bytes(b'public package')
++            cert = root / 'public.asc'; cert.write_bytes(b'public key')
++            for fault in ('wrong-commit', 'old-version', 'missing-wkcli'):
++                command = drill.installed_negative_command(validator, 'image', package, root, cert, fault)
++                script = command[-1]
++                self.assertIn('sha256sum --check --strict', script)
++                self.assertIn('install -y python3 /candidate.deb', script)
++                self.assertEqual(script.count('python3 /acceptance.py --fixtures /fixtures'), 1)
++                self.assertIn('600s', command)
++                if fault == 'old-version':
++                    self.assertIn('WK_EXPECTED_VERSION=3.0.1', command)
++                    self.assertIn('WK_EXPECTED_COMMIT=' + drill.PRODUCT_SHA, command)
++                elif fault == 'missing-wkcli':
++                    self.assertLess(script.index('install -y python3 /candidate.deb'), script.index('rm -- /usr/bin/wkcli'))
++                    self.assertLess(script.index('rm -- /usr/bin/wkcli'), script.index('python3 /acceptance.py'))
++                    self.assertNotIn('rm -- /usr/bin/wukongim', script)
++                    self.assertIn('WK_EXPECTED_VERSION=3.0.0', command)
++
++    def test_cache_observation_and_removal_use_owned_offline_root_helper(self):
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            for operation in ('inventory', 'arm', 'remove'):
++                command = drill.cache_helper_command('pinned-image', root, operation)
++                self.assertEqual(command[:2], ['docker', 'run'])
++                self.assertIn('none', command)
++                self.assertIn('0:0', command)
++                self.assertIn(str(root) + ':/cache:rw', command)
++                self.assertIn(str(ROOT) + ':/control:ro', command)
++                self.assertNotIn('/var/run/docker.sock', str(command))
++                self.assertEqual(command[-1], operation)
++                self.assertIn('DAC_OVERRIDE', command)
++                self.assertNotIn('CHOWN', command)
++            with self.assertRaisesRegex(RuntimeError, 'cache operation'):
++                drill.cache_helper_command('pinned-image', root, 'outside')
++            # Real filesystem operation proves cleanup removes only this cache,
++            # including a symlink itself without following its outside target.
++            outside = root / 'outside'; outside.mkdir(); (outside / 'sentinel').write_bytes(b'keep')
++            cache = root / 'cache'; cache.mkdir(); (cache / 'nested').mkdir()
++            (cache / 'nested/item').write_bytes(b'metadata')
++            (cache / 'outside-link').symlink_to(outside)
++            self.assertEqual(drill.cache_operation(cache, 'remove'), {'remaining': []})
++            self.assertEqual(list(cache.iterdir()), [])
++            self.assertEqual((outside / 'sentinel').read_bytes(), b'keep')
++
++    def test_cleanup_stages_cannot_hide_prior_failure_and_fixture_is_host_nonroot(self):
++        drill = load()
++        with mock.patch.object(drill.os, 'getuid', return_value=1001), mock.patch.object(drill.os, 'getgid', return_value=121):
++            self.assertEqual(drill.fixture_user(), '1001:121')
++        with mock.patch.object(drill.os, 'getuid', return_value=0):
++            with self.assertRaisesRegex(RuntimeError, 'non-root host'):
++                drill.fixture_user()
++        calls = []
++        fail = True
++        def docker(command, **kwargs):
++            calls.append(command)
++            return subprocess.CompletedProcess(command, int(fail), b'', b'unavailable' if fail else b'No such container')
++        owned = drill.OwnedDocker('stage', run=docker)
++        owned.attempts['containers'].add('wk-scl-stage-1')
++        first = owned.cleanup(final=False)
++        self.assertFalse(first['verified'])
++        fail = False
++        final = owned.cleanup()
++        self.assertFalse(final['verified'])
++        self.assertGreaterEqual(len(calls), 8)
++        self.assertTrue(final['errors'])
+ 
+     def test_command_deadline_output_bound_and_original_exit(self):
+         drill = load()
+@@ -104,6 +249,9 @@
+         commands = []
+         def fake(command, **kwargs):
+             commands.append(command)
++            if 'inspect' in command:
++                name = 'wk-scl-unique-test-1' if command[-1] == 'a' * 64 else 'wk-scl-unique-test'
++                return subprocess.CompletedProcess(command, 0, (command[-1] + ' /' + name + ' unique-test\n').encode(), b'')
+             if command[:3] == ['docker', 'ps', '-aq']:
+                 return subprocess.CompletedProcess(command, 0, b'', b'')
+             if command[:3] == ['docker', 'network', 'ls']:
+@@ -111,6 +259,8 @@
+             return subprocess.CompletedProcess(command, 0, b'', b'')
+         owned = drill.OwnedDocker('unique-test', run=fake)
+         owned.containers.add('a' * 64); owned.network = 'b' * 64
++        owned.attempts['containers'].add('wk-scl-unique-test-1')
++        owned.attempts['networks'].add('wk-scl-unique-test')
+         result = owned.cleanup()
+         self.assertTrue(result['verified'])
+         self.assertIn(['docker', 'rm', '--force', 'a' * 64], commands)

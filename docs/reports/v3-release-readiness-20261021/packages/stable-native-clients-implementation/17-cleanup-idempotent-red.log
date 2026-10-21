@@ -1,0 +1,14 @@
+F.........
+======================================================================
+FAIL: test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors (test_native_stable_clients_drill.NativeStableClientsTests.test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 122, in test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors
+    self.assertEqual(len(commands), count)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 8 != 4
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.199s
+
+FAILED (failures=1)

@@ -1,0 +1,14 @@
+{
+  "recorded_at_utc": "2026-10-21T12:42:46.577308+00:00",
+  "status": "no_remaining_blocking_findings",
+  "R1": "closed_by_actual_control_flow_replay",
+  "S1": "historical_deviation_truthfully_recorded_not_retroactively_compliant",
+  "independent_cases": {
+    "original_reproduction": 2,
+    "post_write_controls": 48
+  },
+  "author_related_tests": 57,
+  "native49": "pending exact-head CI",
+  "source_modified": false,
+  "no_network_keys_cloud": true
+}

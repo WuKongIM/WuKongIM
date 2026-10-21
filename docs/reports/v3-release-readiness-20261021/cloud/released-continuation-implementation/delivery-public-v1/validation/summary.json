@@ -1,0 +1,234 @@
+{
+  "schema": "wukongim.released-continuation.local-validation/v1",
+  "observed_at": "2026-10-21T12:20:48.387037+00:00",
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "final_source_files_sha256": "33b0fbaa8423b1ff6062bde59888af6ccb8de7cabdab932aefb96fe508f6eb90",
+  "source_file_count": 24,
+  "named_checks": [
+    {
+      "check": "go-format",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 16505,
+      "output_bytes": 0,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 16505,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 1.251
+    },
+    {
+      "check": "flow-doc-contracts",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 16519,
+      "output_bytes": 1376,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 16519,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 0.478
+    },
+    {
+      "check": "workflow-contracts",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 16527,
+      "output_bytes": 469,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 16527,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 4.218
+    },
+    {
+      "check": "go-unit",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 16788,
+      "output_bytes": 15248,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 16788,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 453.555
+    },
+    {
+      "check": "go-vet",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26532,
+      "output_bytes": 0,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26532,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 18.375
+    },
+    {
+      "check": "go-mod-tidy",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 27776,
+      "output_bytes": 0,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 27776,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 0.5
+    },
+    {
+      "check": "scripts-integration",
+      "wrapper_exit_code": 1,
+      "status": "failed",
+      "exit_code": 1,
+      "session_id": 27785,
+      "output_bytes": 58188,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 27785,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [
+          185,
+          234,
+          98918,
+          99003,
+          99022,
+          99082,
+          99229,
+          99245,
+          99253,
+          99330,
+          99403,
+          99630,
+          99647,
+          99655,
+          99871,
+          99888,
+          99952
+        ],
+        "remaining_processes": []
+      },
+      "command_status": "failed",
+      "elapsed_seconds": 542.175
+    }
+  ],
+  "quick_v3": [
+    {
+      "check": "go-format",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26202,
+      "output_bytes": 0,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26202,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 0.856
+    },
+    {
+      "check": "flow-doc-contracts",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26214,
+      "output_bytes": 1376,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26214,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 0.136
+    },
+    {
+      "check": "workflow-contracts",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26222,
+      "output_bytes": 469,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26222,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 2.716
+    }
+  ],
+  "all_executed_checks_passed": false,
+  "source_binding": "named-checks-v1/check-source-bindings.json",
+  "single_source_full_suite": false,
+  "authority_review": "../released-continuation-authority-review/v3/review.md",
+  "not_performed": [
+    "live GitHub continuation authentication",
+    "provider calls or quote",
+    "workflow dispatch",
+    "push/PR",
+    "actual invoice verification"
+  ],
+  "remaining": [
+    "final parent review and Linux first-run CI",
+    "explicit separate startup decision after merge; no implicit cloud retry"
+  ]
+}

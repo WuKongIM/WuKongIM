@@ -1,0 +1,50 @@
+..FFFFF..............................
+======================================================================
+FAIL: test_stable_rejects_wrong_scope_before_native_or_network (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_rejects_wrong_scope_before_native_or_network) (reason='stable target must be strict release SemVer')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1416, in test_stable_rejects_wrong_scope_before_native_or_network
+    self.assertIn(reason, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable target must be strict release SemVer' not found in 'production package client validation failed: stable client verification is not yet implemented\n'
+
+======================================================================
+FAIL: test_stable_rejects_wrong_scope_before_native_or_network (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_rejects_wrong_scope_before_native_or_network) (reason='stable clients require the canonical HTTPS origin')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1416, in test_stable_rejects_wrong_scope_before_native_or_network
+    self.assertIn(reason, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable clients require the canonical HTTPS origin' not found in 'production package client validation failed: stable client verification is not yet implemented\n'
+
+======================================================================
+FAIL: test_stable_rejects_wrong_scope_before_native_or_network (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_rejects_wrong_scope_before_native_or_network) (reason='stable derives its snapshot from transport inputs')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1416, in test_stable_rejects_wrong_scope_before_native_or_network
+    self.assertIn(reason, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable derives its snapshot from transport inputs' not found in 'production package client validation failed: stable client verification is not yet implemented\n'
+
+======================================================================
+FAIL: test_stable_rejects_wrong_scope_before_native_or_network (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_rejects_wrong_scope_before_native_or_network) (reason='TEST ONLY product identity requires explicit test mode')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1416, in test_stable_rejects_wrong_scope_before_native_or_network
+    self.assertIn(reason, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'TEST ONLY product identity requires explicit test mode' not found in 'production package client validation failed: stable client verification is not yet implemented\n'
+
+======================================================================
+FAIL: test_stable_rejects_wrong_scope_before_native_or_network (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_rejects_wrong_scope_before_native_or_network) (reason='TEST ONLY clients require the fixed fixture product SHA')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1416, in test_stable_rejects_wrong_scope_before_native_or_network
+    self.assertIn(reason, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'TEST ONLY clients require the fixed fixture product SHA' not found in 'production package client validation failed: stable client verification is not yet implemented\n'
+
+----------------------------------------------------------------------
+Ran 33 tests in 0.542s
+
+FAILED (failures=5)

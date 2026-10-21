@@ -1,0 +1,38 @@
+{
+  "freeze": "final-freeze-v1",
+  "file_count": 10,
+  "full_python": {
+    "tests": 482,
+    "skipped": 1,
+    "exit_code": 0,
+    "elapsed_seconds": 112.586,
+    "log": "19-all-python.log",
+    "note": "Full suite preceded final tests-only native TLS/conditional-cache and cleanup/build-receipt refinements; final focused ten tests and actionlint passed afterwards."
+  },
+  "contract": {
+    "tests": 4,
+    "exit_code": 0,
+    "log": "20-contract.log"
+  },
+  "final_focused": {
+    "tests": 10,
+    "exit_code": 0,
+    "log": "24-final-focused.log"
+  },
+  "actionlint": {
+    "exit_code": 0,
+    "log": "25-final-actionlint.log"
+  },
+  "native_cases_planned": 47,
+  "native_executed": false,
+  "unverified": [
+    "Actual fixed-source Go builds and signed two-generation export",
+    "Same-host real GPG/RPM candidate revalidation",
+    "Four pinned clients, eight actual installed CLI positive checks plus one wrong-commit negative, request-barrier/cache/TLS outcomes",
+    "Owned Docker resources and cleanup under real Linux execution"
+  ],
+  "manifest": {
+    "size": 10222,
+    "sha256": "88e3cfb7e27b340eab43281491e01b88adfa12f4d8b142cda1746943ca7c7c6b"
+  }
+}

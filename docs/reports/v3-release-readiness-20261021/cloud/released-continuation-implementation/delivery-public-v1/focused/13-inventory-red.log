@@ -1,0 +1,8 @@
+=== RUN   TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory
+=== PAUSE TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory
+=== CONT  TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory
+    chat_lifecycle_released_preclock_integration_test.go:220: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryI3018987867/001/inventory.json: no such file or directory
+--- FAIL: TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory (0.33s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	0.675s
+FAIL

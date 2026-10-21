@@ -1,0 +1,139 @@
+[
+	{
+		"Ref": "quay.io/rockylinux/rockylinux:9@sha256:ed654c694190a670bb5c33f68995b862214fc96ffbdca95e07a8935ba0a3717d",
+		"Descriptor": {
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"digest": "sha256:ed654c694190a670bb5c33f68995b862214fc96ffbdca95e07a8935ba0a3717d",
+			"size": 572,
+			"platform": {
+				"architecture": "amd64",
+				"os": "linux"
+			}
+		},
+		"Raw": "eyJzY2hlbWFWZXJzaW9uIjoyLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJjb25maWciOnsibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5jb25maWcudjEranNvbiIsImRpZ2VzdCI6InNoYTI1Njo2ODZlNDU1OGQwYTUzMzJhMzJjZjhhNDcyMmZjNGUzMTQzYmFiMGI2MTU2ZTE0NzkyMTkxMTYxYWUwYmI3OGY0Iiwic2l6ZSI6MTAwNn0sImxheWVycyI6W3sibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5sYXllci52MS50YXIrZ3ppcCIsImRpZ2VzdCI6InNoYTI1Njo5OWM3NTNhODgwY2MwM2JiZTlkYThiZjZlMzU0YzhiYTJkOTlmMTkwNThlODdiOGE1NWI2NDg3ZmZjZjUyZjhhIiwic2l6ZSI6ODc1NzI2OTN9XSwiYW5ub3RhdGlvbnMiOnsib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UuZGlnZXN0IjoiIiwib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UubmFtZSI6IiIsIm9yZy5vcGVuY29udGFpbmVycy5pbWFnZS5jcmVhdGVkIjoiMjAyNi0wNS0yNVQyMDoxOTowMy44MTIzMDkwN1oifX0=",
+		"OCIManifest": {
+			"schemaVersion": 2,
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"config": {
+				"mediaType": "application/vnd.oci.image.config.v1+json",
+				"digest": "sha256:686e4558d0a5332a32cf8a4722fc4e3143bab0b6156e14792191161ae0bb78f4",
+				"size": 1006
+			},
+			"layers": [
+				{
+					"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+					"digest": "sha256:99c753a880cc03bbe9da8bf6e354c8ba2d99f19058e87b8a55b6487ffcf52f8a",
+					"size": 87572693
+				}
+			],
+			"annotations": {
+				"org.opencontainers.image.base.digest": "",
+				"org.opencontainers.image.base.name": "",
+				"org.opencontainers.image.created": "2026-05-25T20:19:03.81230907Z"
+			}
+		}
+	},
+	{
+		"Ref": "quay.io/rockylinux/rockylinux:9@sha256:67492e5a371d9db7c2ffb2708abae92147fb900900832a7ed3fb2ac4df9ec052",
+		"Descriptor": {
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"digest": "sha256:67492e5a371d9db7c2ffb2708abae92147fb900900832a7ed3fb2ac4df9ec052",
+			"size": 573,
+			"platform": {
+				"architecture": "arm64",
+				"os": "linux",
+				"variant": "v8"
+			}
+		},
+		"Raw": "eyJzY2hlbWFWZXJzaW9uIjoyLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJjb25maWciOnsibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5jb25maWcudjEranNvbiIsImRpZ2VzdCI6InNoYTI1NjpiYzNkNzUyMWQ3NzgyNWY3MGQ4N2VhN2IyNDFmNDE2ODZhZjM2YWFmZGM0MTNlMDZjZTVhNjJhNGUxNDFlZjRiIiwic2l6ZSI6MTAyMn0sImxheWVycyI6W3sibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5sYXllci52MS50YXIrZ3ppcCIsImRpZ2VzdCI6InNoYTI1Njo2MjZkZjcwYzUxNTBmYjFiNDI1ODc3MzMzMmRkYzEwYTM1MzYxZTQxMDU2NzQ1ODVjZGY0NmJhMTIzNzU3ZWFmIiwic2l6ZSI6ODYwMTg0NDd9XSwiYW5ub3RhdGlvbnMiOnsib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UuZGlnZXN0IjoiIiwib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UubmFtZSI6IiIsIm9yZy5vcGVuY29udGFpbmVycy5pbWFnZS5jcmVhdGVkIjoiMjAyNi0wNS0yNVQyMDoxNDowMC45OTk5OTYyNTZaIn19",
+		"OCIManifest": {
+			"schemaVersion": 2,
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"config": {
+				"mediaType": "application/vnd.oci.image.config.v1+json",
+				"digest": "sha256:bc3d7521d77825f70d87ea7b241f41686af36aafdc413e06ce5a62a4e141ef4b",
+				"size": 1022
+			},
+			"layers": [
+				{
+					"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+					"digest": "sha256:626df70c5150fb1b4258773332ddc10a35361e4105674585cdf46ba123757eaf",
+					"size": 86018447
+				}
+			],
+			"annotations": {
+				"org.opencontainers.image.base.digest": "",
+				"org.opencontainers.image.base.name": "",
+				"org.opencontainers.image.created": "2026-05-25T20:14:00.999996256Z"
+			}
+		}
+	},
+	{
+		"Ref": "quay.io/rockylinux/rockylinux:9@sha256:31818ab26a025916f83bd0819fe59911c76139e2d701e08706d2f8655dc4c877",
+		"Descriptor": {
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"digest": "sha256:31818ab26a025916f83bd0819fe59911c76139e2d701e08706d2f8655dc4c877",
+			"size": 573,
+			"platform": {
+				"architecture": "ppc64le",
+				"os": "linux"
+			}
+		},
+		"Raw": "eyJzY2hlbWFWZXJzaW9uIjoyLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJjb25maWciOnsibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5jb25maWcudjEranNvbiIsImRpZ2VzdCI6InNoYTI1Njo5NWNmYjg1ZDQ1MDQ1OTY3YTcyYTRlOWViODk2OTY3ZTc3YjUzZWEzMTJhZjVjMGQ2ZmQ4MjYwNTg4M2I2YTcyIiwic2l6ZSI6MTAwOX0sImxheWVycyI6W3sibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5sYXllci52MS50YXIrZ3ppcCIsImRpZ2VzdCI6InNoYTI1Njo5NjQ1YzIyNzEyYTA4YTIyZGQzODY5MDIzY2E5NTY5NDI1NzRmYjM4MDk3ZjJhNGI5NjE4ZTAyOTZmMDRlZmRhIiwic2l6ZSI6OTM5MDg4ODV9XSwiYW5ub3RhdGlvbnMiOnsib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UuZGlnZXN0IjoiIiwib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UubmFtZSI6IiIsIm9yZy5vcGVuY29udGFpbmVycy5pbWFnZS5jcmVhdGVkIjoiMjAyNi0wNS0yNVQxOTo0MzozNS40Nzk3ODE1OTRaIn19",
+		"OCIManifest": {
+			"schemaVersion": 2,
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"config": {
+				"mediaType": "application/vnd.oci.image.config.v1+json",
+				"digest": "sha256:95cfb85d45045967a72a4e9eb896967e77b53ea312af5c0d6fd82605883b6a72",
+				"size": 1009
+			},
+			"layers": [
+				{
+					"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+					"digest": "sha256:9645c22712a08a22dd3869023ca956942574fb38097f2a4b9618e0296f04efda",
+					"size": 93908885
+				}
+			],
+			"annotations": {
+				"org.opencontainers.image.base.digest": "",
+				"org.opencontainers.image.base.name": "",
+				"org.opencontainers.image.created": "2026-05-25T19:43:35.479781594Z"
+			}
+		}
+	},
+	{
+		"Ref": "quay.io/rockylinux/rockylinux:9@sha256:e5881b15dae82a3bd975b53ae9aad34cc37fe9dcd57cd3f17dd92a271232e454",
+		"Descriptor": {
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"digest": "sha256:e5881b15dae82a3bd975b53ae9aad34cc37fe9dcd57cd3f17dd92a271232e454",
+			"size": 573,
+			"platform": {
+				"architecture": "s390x",
+				"os": "linux"
+			}
+		},
+		"Raw": "eyJzY2hlbWFWZXJzaW9uIjoyLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJjb25maWciOnsibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5jb25maWcudjEranNvbiIsImRpZ2VzdCI6InNoYTI1Njo1ZmM0MzkwOTA0MTM1ZjU0NWEyODEzN2FmYmM3NTIzOTQxNzA3M2E5MWNmYmY0YzgyN2RjNWNkMzVmM2QwN2I4Iiwic2l6ZSI6MTAwN30sImxheWVycyI6W3sibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vdm5kLm9jaS5pbWFnZS5sYXllci52MS50YXIrZ3ppcCIsImRpZ2VzdCI6InNoYTI1Njo1MDVhNzBjMmI4NDg0MTViMWQ2M2ZjZWMxMzYyZGFhY2ZlNTZkZDNiNDk0M2QzYzY5YmQ2Mzk5MGVmOTNjYjFlIiwic2l6ZSI6ODUyOTEyNjN9XSwiYW5ub3RhdGlvbnMiOnsib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UuZGlnZXN0IjoiIiwib3JnLm9wZW5jb250YWluZXJzLmltYWdlLmJhc2UubmFtZSI6IiIsIm9yZy5vcGVuY29udGFpbmVycy5pbWFnZS5jcmVhdGVkIjoiMjAyNi0wNS0yNVQxOTo0MzozNS4yMDc2NzQ1MTZaIn19",
+		"OCIManifest": {
+			"schemaVersion": 2,
+			"mediaType": "application/vnd.oci.image.manifest.v1+json",
+			"config": {
+				"mediaType": "application/vnd.oci.image.config.v1+json",
+				"digest": "sha256:5fc4390904135f545a28137afbc75239417073a91cfbf4c827dc5cd35f3d07b8",
+				"size": 1007
+			},
+			"layers": [
+				{
+					"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+					"digest": "sha256:505a70c2b848415b1d63fcec1362daacfe56dd3b4943d3c69bd63990ef93cb1e",
+					"size": 85291263
+				}
+			],
+			"annotations": {
+				"org.opencontainers.image.base.digest": "",
+				"org.opencontainers.image.base.name": "",
+				"org.opencontainers.image.created": "2026-05-25T19:43:35.207674516Z"
+			}
+		}
+	}
+]

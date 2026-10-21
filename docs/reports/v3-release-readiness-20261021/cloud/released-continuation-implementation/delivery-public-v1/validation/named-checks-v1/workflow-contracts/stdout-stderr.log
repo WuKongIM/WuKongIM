@@ -1,0 +1,6 @@
+ok  	github.com/WuKongIM/WuKongIM/scripts	2.329s
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	0.566s [no tests to run]
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	0.359s [no tests to run]
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	0.350s [no tests to run]
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	0.387s [no tests to run]
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	0.338s [no tests to run]

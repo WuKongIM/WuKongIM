@@ -1,0 +1,17 @@
+{
+  "schema": "wukongim.rc_read_observation_errors/v1",
+  "events": [
+    {
+      "action": "poll-07",
+      "reason": "GitHub jobs API GET returned nonzero for completed chat run",
+      "effect": "partial public API snapshot retained; next poll-08 completed",
+      "workflow_mutation": false
+    },
+    {
+      "action": "download-job-log-119221283189",
+      "reason": "read-only API helper authority_unavailable",
+      "effect": "first three requested logs preserved; retry missing GET only",
+      "workflow_mutation": false
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 119218334933,
+      "run_id": 39598983392,
+      "workflow_name": "Safety Automation - Issue Agent PR Signal",
+      "head_branch": "codex/v3-rc-released-continuation",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39598983392",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbwfds1Q",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119218334933",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983392/job/119218334933",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T12:21:47Z",
+      "started_at": "2026-10-21T12:21:49Z",
+      "completed_at": "2026-10-21T12:21:53Z",
+      "name": "Emit credential-free wake-up",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T12:21:50Z",
+          "completed_at": "2026-10-21T12:21:50Z"
+        },
+        {
+          "name": "Record trusted event kind",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T12:21:50Z",
+          "completed_at": "2026-10-21T12:21:51Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T12:21:51Z",
+          "completed_at": "2026-10-21T12:21:51Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119218334933",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000024296,
+      "runner_name": "GitHub Actions 1000024296",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

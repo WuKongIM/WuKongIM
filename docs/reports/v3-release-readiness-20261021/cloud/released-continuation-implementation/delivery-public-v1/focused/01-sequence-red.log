@@ -1,0 +1,23 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap
+    chat_lifecycle_released_preclock_integration_test.go:100: helper must emit one controlled JSON receipt; err=exit status 2 output=/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/authenticate-released-preclock.py': [Errno 2] No such file or directory
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun
+    chat_lifecycle_released_preclock_integration_test.go:100: helper must emit one controlled JSON receipt; err=exit status 2 output=/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/authenticate-released-preclock.py': [Errno 2] No such file or directory
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun
+    chat_lifecycle_released_preclock_integration_test.go:100: helper must emit one controlled JSON receipt; err=exit status 2 output=/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/authenticate-released-preclock.py': [Errno 2] No such file or directory
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow
+    chat_lifecycle_released_preclock_integration_test.go:100: helper must emit one controlled JSON receipt; err=exit status 2 output=/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/authenticate-released-preclock.py': [Errno 2] No such file or directory
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity
+    chat_lifecycle_released_preclock_integration_test.go:100: helper must emit one controlled JSON receipt; err=exit status 2 output=/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/authenticate-released-preclock.py': [Errno 2] No such file or directory
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable
+    chat_lifecycle_released_preclock_integration_test.go:100: helper must emit one controlled JSON receipt; err=exit status 2 output=/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/authenticate-released-preclock.py': [Errno 2] No such file or directory
+--- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead (0.12s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap (0.02s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun (0.02s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun (0.02s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow (0.02s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity (0.02s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable (0.02s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.097s
+FAIL

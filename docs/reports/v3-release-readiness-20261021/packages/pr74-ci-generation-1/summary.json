@@ -1,0 +1,86 @@
+{
+  "schema": "wukongim.pr_ci_audit/v1",
+  "repository": "WuKongIM/packages",
+  "pr": 74,
+  "pr_url": "https://github.com/WuKongIM/packages/pull/74",
+  "head": "6760cbedb0d87ad51be958f0f78c91db49f27328",
+  "actual_checkout": "492ff426eab5345d738cb6679d12dcf0a320660d",
+  "tree": "ca524ac75520f8614f7d06e0e46e44902203145e",
+  "tree_equal": true,
+  "recorded_at": "2026-10-21T12:10:38.545777+00:00",
+  "runs": {
+    "pages": {
+      "id": 39596459745,
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39596459745",
+      "conclusion": "success",
+      "tests": 489,
+      "test_skips": 0,
+      "contract_tests": 4,
+      "jobs": [
+        {
+          "id": 119209867023,
+          "name": "Validate complete Pages snapshot",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:02:29Z",
+          "completed_at": "2026-10-21T12:04:21Z"
+        },
+        {
+          "id": 119210687833,
+          "name": "Deploy complete Pages snapshot",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T12:04:22Z",
+          "completed_at": "2026-10-21T12:04:21Z"
+        }
+      ]
+    },
+    "native": {
+      "id": 39596459800,
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39596459800",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "id": 119209866922,
+          "name": "TEST ONLY stable four clients and A/B",
+          "conclusion": "failure",
+          "started_at": "2026-10-21T12:02:29Z",
+          "completed_at": "2026-10-21T12:03:11Z"
+        },
+        {
+          "id": 119209867267,
+          "name": "TEST ONLY signed APT/RPM repository",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:02:29Z",
+          "completed_at": "2026-10-21T12:08:58Z"
+        }
+      ],
+      "existing_native_cases": {
+        "metadata": 7,
+        "local_signing": 10,
+        "bootstrap": 6,
+        "candidate": 31,
+        "transport": 8
+      },
+      "all_existing_cases_passed": true,
+      "full_legacy_repository_drill_passed": true,
+      "new_stable_client_cases_target": 49,
+      "new_stable_client_cases_executed": 0,
+      "new_stable_client_cleanup": "not generated: driver skipped after image preparation failed",
+      "first_failure": "first-failure.json"
+    }
+  },
+  "artifacts": {
+    "count": 4,
+    "zip_digest_recomputed": true,
+    "all_crc_checked": true,
+    "inventory": "artifact-downloads-generation-1.json",
+    "receipts": "public-receipts-summary.json",
+    "zip_bytes_retained": false
+  },
+  "publication": false,
+  "rerun_or_cancellation": false,
+  "source_change_by_monitor": false,
+  "mirror_diagnosis": "mirror-diagnosis/summary.md",
+  "release_readiness": "New four-client stable A/B and installed CLI acceptance remains unverified; TEST ONLY success does not replace a public exact-version release gate."
+}

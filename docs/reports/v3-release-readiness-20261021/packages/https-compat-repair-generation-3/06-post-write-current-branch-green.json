@@ -1,0 +1,215 @@
+{
+  "results": [
+    {
+      "accepted": true,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 100,
+      "expected": true,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "File has unexpected size (28 != 605)",
+      "exit": 100,
+      "expected": true,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "Size mismatch",
+      "exit": 100,
+      "expected": true,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "404 Not Found",
+      "exit": 100,
+      "expected": true,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 0,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 124,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 125,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 126,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 127,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 137,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 143,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "command not found",
+      "exit": 100,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "cryptic non-transport error",
+      "exit": 100,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "OpenSSL error: unexpected eof while reading",
+      "exit": 100,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 100,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 100,
+      "expected": true,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "File has unexpected size (28 != 605)",
+      "exit": 100,
+      "expected": true,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "Size mismatch",
+      "exit": 100,
+      "expected": true,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "404 Not Found",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 0,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 124,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 125,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 126,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 127,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 137,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Hash Sum mismatch",
+      "exit": 143,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "command not found",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "cryptic non-transport error",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "OpenSSL error: unexpected eof while reading",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    }
+  ],
+  "scope": "actual negative branch control flow with completed-write receipts; no native execution"
+}

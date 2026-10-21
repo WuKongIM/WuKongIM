@@ -1,0 +1,59 @@
+{
+  "schema": "wukongim.postmerge_publication_receipt/v1",
+  "run_id": 39601918104,
+  "run_attempt": 1,
+  "head_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "checkouts": [
+    {
+      "job_id": 119228275297,
+      "exact_checkout_stdout": {
+        "line": 138,
+        "stdout": "2026-10-21T12:43:51.8440020Z e30299fa59ea6669ea71024eabe209840f241f19",
+        "command_line": "2026-10-21T12:43:51.8414195Z [command]/usr/bin/git log -1 --format=%H"
+      }
+    },
+    {
+      "job_id": 119229681917,
+      "exact_checkout_stdout": {
+        "line": 119,
+        "stdout": "2026-10-21T12:46:49.9651928Z e30299fa59ea6669ea71024eabe209840f241f19",
+        "command_line": "2026-10-21T12:46:49.9623893Z [command]/usr/bin/git log -1 --format=%H"
+      }
+    },
+    {
+      "job_id": 119229773156,
+      "exact_checkout_stdout": {
+        "line": 119,
+        "stdout": "2026-10-21T12:47:04.2878823Z e30299fa59ea6669ea71024eabe209840f241f19",
+        "command_line": "2026-10-21T12:47:04.2849793Z [command]/usr/bin/git log -1 --format=%H"
+      }
+    }
+  ],
+  "pages_artifact": {
+    "id": 12346885726,
+    "size_in_bytes": 42723833,
+    "sha256": "a7a48dac5142cf2ae39690140fe28c9615e090d597af572dc3024ebf4e140488",
+    "validation": "upload log and GitHub artifact API match; archive bytes not downloaded"
+  },
+  "deployment": {
+    "artifact_id": 12346885726,
+    "commit": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "created_line": "2026-10-21T12:45:54.3421859Z Created deployment for e30299fa59ea6669ea71024eabe209840f241f19, ID: e30299fa59ea6669ea71024eabe209840f241f19",
+    "success_line": "2026-10-21T12:46:41.1337287Z Reported success!",
+    "environment_url": "https://origin-docs.githubim.com/"
+  },
+  "origin": {
+    "receipt_line": "2026-10-21T12:46:52.0461956Z origin_ready domain=origin-docs.githubim.com attempt=1 paths=5 bypass=wukongim.github.io",
+    "paths": 5,
+    "bypass": "wukongim.github.io",
+    "cache_bust": "e30299fa59ea6669ea71024eabe209840f241f19-39601918104-1"
+  },
+  "cdn_refresh": {
+    "receipt_line": "2026-10-21T12:47:08.8006431Z Alibaba CDN refresh accepted: task_id=33641885707 request_id=01A15E80-49E3-5A19-BF57-241915012149 urls=4",
+    "task_id": "33641885707",
+    "request_id": "01A15E80-49E3-5A19-BF57-241915012149",
+    "urls": 4,
+    "status": "provider accepted, not independently proven completed at every edge"
+  },
+  "no_new_manual_cloud_action": true
+}

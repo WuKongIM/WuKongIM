@@ -1,0 +1,63 @@
+{
+  "files": {
+    "closure-probe-results.json": {
+      "sha256": "011a4265f4b9ac40efd85955185b0c8adcb30d7f9a12275d7989bf1cfb247fe2",
+      "size": 4233
+    },
+    "independent-freeze-check.json": {
+      "sha256": "3125a473951715fe7dc199b0e0e225a1fae72d513a5936b392085498033e0a83",
+      "size": 275
+    },
+    "independent-light-tests.json": {
+      "sha256": "605416b66e70f0b8320f603b1c0ba0361b1b20aa50c59e60a30faf09fd9c7e78",
+      "size": 226
+    },
+    "independent-light-tests.log": {
+      "sha256": "1aeff01e503f96b4e5dd4445fb24d01bdb9a4085de7ef06f171da2cfa2510155",
+      "size": 3181
+    },
+    "input-delta-from-v1.patch": {
+      "sha256": "d08db68f6aa4be0a0b9755f59fc1b78464cc77799244bd6f5ad2a2fc0f2e689b",
+      "size": 37960
+    },
+    "input-manifest.json": {
+      "sha256": "e45c45554d63f9c15f889ccd71a4c7f453c1f7eeec3dac4c7374a76dbbb60a20",
+      "size": 10538
+    },
+    "network-repeat-probe.py": {
+      "sha256": "e8cb6a5d4d5c901abc207dd7feb7a299fc77ec01c6d30d486df01cb73ee5a88d",
+      "size": 1621
+    },
+    "network-repeat-result.json": {
+      "sha256": "2b9fa6f28726b43048fe8241206400104e0b2c95edbfcd8acbeec4dcd1f4c39f",
+      "size": 2696
+    },
+    "probe.py": {
+      "sha256": "48a58aec1866c7794dcc30328fcffe0081fc21ea54aea47e6be815a67c7abcf7",
+      "size": 5547
+    },
+    "review.md": {
+      "sha256": "daea13138f10691dbaf4dcf5436ab51e710e37e73e9e120bee53d3fad370ad0d",
+      "size": 4036
+    },
+    "source/.github/workflows/native-package-repository-drill.yml": {
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+      "size": 15073
+    },
+    "source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc": {
+      "sha256": "0f7dadf0f69ded17b4aa72897eac3c890e798d8d4201d83c3b3fefedca675302",
+      "size": 82012
+    },
+    "source/tests/native_stable_clients_drill.py": {
+      "sha256": "59598cca944524740e202199141552fe79e1b97de72f5e5dcc9c8d507d112dce",
+      "size": 58072
+    },
+    "source/tests/test_native_stable_clients_drill.py": {
+      "sha256": "7c174b7a659cdb0defce500a44204184a39a1714703efb67366f8ad41e31b3a6",
+      "size": 24333
+    }
+  },
+  "original_P2_implementation_fixed": 2,
+  "remaining_P2": 1,
+  "native_executed": false
+}

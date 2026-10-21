@@ -1,0 +1,17 @@
+{
+  "schema": "test-only-fixture-source-freeze/v1",
+  "source_sha": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "frozen_at": "2026-10-21T11:24:23.583101+00:00",
+  "files": {
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+      "size": 42889
+    },
+    "tests/native_source_metadata_drill.py": {
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+      "size": 12447
+    }
+  },
+  "patch_sha256": "ffe40c899076ac909c8719634365350e8530ae4c2d3738a66746cd2b7d09b3d3",
+  "native_commands_executed": false
+}

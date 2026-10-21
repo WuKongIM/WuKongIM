@@ -1,0 +1,50 @@
+{
+  "job_id": 119218335587,
+  "run_id": 39598983277,
+  "conclusion": "success",
+  "raw_bytes": 80312,
+  "raw_sha256": "d2bbcbda08be3f44931b99e3684b4bb813fc688277698cf74d2c25cfe6439bfb",
+  "public_sha256": "9744f3b62b194dd39eb20d9e04db9c081a67de039e99e2c7ee760b12c2ba53b2",
+  "synthetic_sha_present": true,
+  "synthetic_sha_exact_output_line": true,
+  "checkout_identity_lines": [
+    "2026-10-21T12:21:51.7079854Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +922bc66a9cebcbe09bef5fc43afc0593c4f07fb8:refs/remotes/pull/1020/merge",
+    "2026-10-21T12:22:00.5201308Z  * [new ref]             922bc66a9cebcbe09bef5fc43afc0593c4f07fb8 -> pull/1020/merge",
+    "2026-10-21T12:22:01.1954585Z HEAD is now at 922bc66a9 Merge 0cdfaa37b00c58819895dee54029c27c83c9caa9 into ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "2026-10-21T12:22:01.2049558Z 922bc66a9cebcbe09bef5fc43afc0593c4f07fb8"
+  ],
+  "redacted_lines": [
+    {
+      "line": 22,
+      "sha256": "1859dc195402dcf23aba3b497358cf65feff11e540b2564a593866c3cb156145",
+      "bytes": 63
+    },
+    {
+      "line": 26,
+      "sha256": "e8cdee7dc82b9e4419833839ab8a8e92cf21f584f8f7d24e1e52ad8960b97756",
+      "bytes": 52
+    },
+    {
+      "line": 39,
+      "sha256": "4482807ad383d08da25ef39b589d581b8c9ce3ef68b2bdfe1e0a1a6cf2ba94a4",
+      "bytes": 42
+    },
+    {
+      "line": 96,
+      "sha256": "a7d6d0e82346264de616ee239cb08fc83677db122170ddf9c054743212a3e877",
+      "bytes": 211
+    },
+    {
+      "line": 304,
+      "sha256": "1e1a3a822cdedf2c59955a3fb480db8ff10601722e089d82ee31beb62f83bbcd",
+      "bytes": 140
+    },
+    {
+      "line": 633,
+      "sha256": "9e6e10f14acd16af96ab300c9e10a5dfc0602bc632e140b91ec4460f458a1120",
+      "bytes": 42
+    }
+  ],
+  "no_private_key_marker_in_public": true,
+  "no_github_token_shape_in_public": true
+}

@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "native_commands_executed": false,
+  "checks": [
+    {
+      "deb_version": "3.1.0",
+      "rpm_version": "3.1.0",
+      "epoch": 0,
+      "native_command_and_default_staging_equal": true,
+      "file_count": 5
+    },
+    {
+      "deb_version": "3.1.0~rc.1-hotfix",
+      "rpm_version": "3.1.0~rc.1_hotfix",
+      "epoch": 9,
+      "native_command_and_default_staging_equal": true,
+      "file_count": 5
+    },
+    {
+      "file": "native_source_metadata_drill.py",
+      "function": "main",
+      "ast_unchanged": true
+    },
+    {
+      "file": "native_source_metadata_drill.py",
+      "function": "fixture_receipt",
+      "ast_unchanged": true
+    },
+    {
+      "file": "native_stable_candidate_drill.py",
+      "function": "pipeline",
+      "ast_unchanged": true
+    },
+    {
+      "file": "native_stable_candidate_drill.py",
+      "function": "main",
+      "ast_unchanged": true
+    },
+    {
+      "file": "native_stable_candidate_drill.py",
+      "function": "generate_control",
+      "ast_unchanged": true
+    },
+    {
+      "file": "native_stable_candidate_drill.py",
+      "function": "sign_family",
+      "ast_unchanged": true
+    }
+  ]
+}

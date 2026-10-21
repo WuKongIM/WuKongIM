@@ -1,0 +1,56 @@
+{
+  "observed_at": "2026-10-21T12:22:50.691021+00:00",
+  "number": 1020,
+  "head": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "draft": true,
+  "merge_commit_sha": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+  "runs_total_count": 5,
+  "runs": [
+    {
+      "id": 39598983347,
+      "name": "Safety Automation - EasySDK Released Package Acceptance",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "status": "in_progress",
+      "conclusion": null,
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983347"
+    },
+    {
+      "id": 39598983278,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "status": "in_progress",
+      "conclusion": null,
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983278"
+    },
+    {
+      "id": 39598983439,
+      "name": "V3 Candidate Regression pull_request 1020 attempt 1",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "status": "in_progress",
+      "conclusion": null,
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983439"
+    },
+    {
+      "id": 39598983392,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983392"
+    },
+    {
+      "id": 39598983277,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1020 attempt 1",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "status": "in_progress",
+      "conclusion": null,
+      "attempt": 1,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983277"
+    }
+  ]
+}

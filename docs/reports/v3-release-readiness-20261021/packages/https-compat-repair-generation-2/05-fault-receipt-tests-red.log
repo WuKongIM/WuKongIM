@@ -1,0 +1,203 @@
+EEEEEEEEEEEEEEEEEEEEEE
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 429, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, [valid])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 200, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 429, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, [valid])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 404, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 200, 'sha256': '2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 429, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, [valid])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 200, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 429, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, [valid])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 404, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 200, 'sha256': '2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 438, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_apt_by_hash_fault'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.009s
+
+FAILED (errors=22)

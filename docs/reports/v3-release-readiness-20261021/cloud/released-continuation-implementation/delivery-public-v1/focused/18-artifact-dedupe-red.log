@@ -1,0 +1,29 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_hash
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_size
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/zip_parent_path
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/oversized_document
+--- FAIL: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering (0.68s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_hash (0.23s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_size (0.22s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/zip_parent_path (0.23s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/oversized_document (0.01s)
+panic: interface conversion: interface {} is string, not map[string]interface {} [recovered, repanicked]
+
+goroutine 38 [running]:
+testing.tRunner.func1.2({0x10592f8a0, 0x1400057c690})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1872 +0x190
+testing.tRunner.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1875 +0x31c
+panic({0x10592f8a0?, 0x1400057c690?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/panic.go:783 +0x120
+github.com/WuKongIM/WuKongIM/scripts_test.(*releasedPreclockFixture).fullEvidence(0x1400074c1e0, 0x14000315dc0, 0x14000149ee8)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat_lifecycle_released_preclock_integration_test.go:152 +0x13a4
+github.com/WuKongIM/WuKongIM/scripts_test.TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering.func1(0x14000315dc0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat_lifecycle_released_preclock_integration_test.go:239 +0x5c
+testing.tRunner(0x14000315dc0, 0x14000116030)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 16
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.295s
+FAIL

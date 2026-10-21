@@ -1,0 +1,35 @@
+{
+  "observed_at": "2026-10-21T12:09:59.380840+00:00",
+  "checks": {
+    "go-format": {
+      "freeze": "freeze-v2",
+      "files_sha256": "9db1bf86e628602a5b733bd0bf113d68ca266e0679ca020ee96f7f29cbc7a73e"
+    },
+    "flow-doc-contracts": {
+      "freeze": "freeze-v2",
+      "files_sha256": "9db1bf86e628602a5b733bd0bf113d68ca266e0679ca020ee96f7f29cbc7a73e"
+    },
+    "workflow-contracts": {
+      "freeze": "freeze-v2",
+      "files_sha256": "9db1bf86e628602a5b733bd0bf113d68ca266e0679ca020ee96f7f29cbc7a73e"
+    },
+    "go-unit": {
+      "freeze": "freeze-v2",
+      "files_sha256": "9db1bf86e628602a5b733bd0bf113d68ca266e0679ca020ee96f7f29cbc7a73e"
+    },
+    "go-vet": {
+      "freeze": "freeze-v3",
+      "files_sha256": "33b0fbaa8423b1ff6062bde59888af6ccb8de7cabdab932aefb96fe508f6eb90"
+    },
+    "go-mod-tidy": {
+      "freeze": "freeze-v3",
+      "files_sha256": "33b0fbaa8423b1ff6062bde59888af6ccb8de7cabdab932aefb96fe508f6eb90"
+    },
+    "scripts-integration": {
+      "freeze": "freeze-v3",
+      "files_sha256": "33b0fbaa8423b1ff6062bde59888af6ccb8de7cabdab932aefb96fe508f6eb90"
+    }
+  },
+  "v3_repeated_quick_checks": "../named-quick-v3",
+  "not_a_single_source_full_suite": true
+}

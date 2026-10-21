@@ -1,0 +1,399 @@
+{
+  "final_focused_package_elapsed_seconds": 18.411,
+  "final_focused_pass_events": 85,
+  "v3_new_tests": [
+    {
+      "Time": "2026-10-21T20:08:24.873709+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus",
+      "Elapsed": 1.49
+    },
+    {
+      "Time": "2026-10-21T20:08:25.467644+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering",
+      "Elapsed": 0.59
+    }
+  ],
+  "current_timeout": {
+    "observed_at": "2026-10-21T12:19:57.436956+00:00",
+    "log_sha256": "2842b97b58d00774f67770b981d754f55a01a7a12f9bb242acb696288b066700",
+    "log_bytes": 58188,
+    "wrapper_elapsed_seconds": 542.175,
+    "inner_timeout": "9m0s",
+    "outer_timeout_seconds": 600,
+    "assertion_fail_lines": [],
+    "running_at_timeout": [
+      [
+        "TestSingleNodeBaselineGitObservationFailureFailsSourceIdentityClosed",
+        "4s"
+      ],
+      [
+        "TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering",
+        "5s"
+      ]
+    ],
+    "visible_test_frames": [
+      {
+        "goroutine": 1,
+        "state": "chan receive",
+        "test_functions": [
+          "TestMain"
+        ],
+        "wait_parallel": false
+      },
+      {
+        "goroutine": 1143,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestEasySDKReadinessDeadlineStartsAfterAdmission"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1220,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestLocalStorageOverlapCaptureSignalTrapLeavesNoChild"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1346,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestReviewAgentSchemas"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1140,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1142,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestEasySDKReadinessDetectsExitedServer"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1135,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestIssueAgentSchemas"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1214,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestMigrationRehearsalPinsUnifiedBinaryAcrossPhases"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1469,
+        "state": "syscall",
+        "test_functions": [
+          "TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering"
+        ],
+        "wait_parallel": false
+      },
+      {
+        "goroutine": 1468,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1365,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestCloudSimulationAnalyzeExitTrapCompletesCleanupAndPreservesStatus"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1467,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineRestartsOneProductGenerationPerRateAndPreservesData"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1466,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineNoStartShortRunCannotAuthorize"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1433,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestLocalThresholdPprofDiscardsOversizedMetrics"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1398,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWKDBExportRoundTripSmokeScript"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1368,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1397,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWKDBImportSmokeScriptValidatesAndImportsBundle"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1369,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1370,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptKillsConfiguredNodeDuringSimulation"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1371,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1372,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptWaitsForSimOutputBeforeVerification"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1373,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptFailsOnConversationDirectoryMetricGate"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1374,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptCapturesFailureMetricsWhenSimReportsSendErrors"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1375,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1376,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1377,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliSimThreeNodeSmokeScriptReportsSimFailureBeforeDelayedAutoJoin"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1395,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliTopThreeNodesScriptCollectsTopAndBenchEvidence"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1396,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestWkcliTopThreeNodesScriptFailsOnGatewaySessionErrorAlert"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1431,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestLocalThresholdPprofRejectsExistingContextSymlink"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1470,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1471,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineExternalBinariesStayBinaryIdentityOnlyForCleanSource"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1472,
+        "state": "syscall",
+        "test_functions": [
+          "TestSingleNodeBaselineGitObservationFailureFailsSourceIdentityClosed"
+        ],
+        "wait_parallel": false
+      },
+      {
+        "goroutine": 1478,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineStoragePreflightResultIsSealedWithoutStartingProcesses"
+        ],
+        "wait_parallel": true
+      },
+      {
+        "goroutine": 1479,
+        "state": "chan receive, 3 minutes",
+        "test_functions": [
+          "TestSingleNodeBaselineOwnedWorkerBuildDoesNotReuseOrOverwriteExistingBinary"
+        ],
+        "wait_parallel": true
+      }
+    ],
+    "new_released_preclock_frames": [],
+    "cleanup": {
+      "session_id": 27785,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        185,
+        234,
+        98918,
+        99003,
+        99022,
+        99082,
+        99229,
+        99245,
+        99253,
+        99330,
+        99403,
+        99630,
+        99647,
+        99655,
+        99871,
+        99888,
+        99952
+      ],
+      "remaining_processes": []
+    },
+    "post_exit_live_owned_session_pids": [],
+    "interpretation": "The fixed whole-package duration expired with existing baseline fixtures recently running and other fixtures queued. This is not evidence of an assertion failure or one fixture consuming nine minutes. Default output does not establish complete per-test progress or root cause. No rerun or timeout change.",
+    "binding": "freeze-v3; see check-source-bindings.json"
+  },
+  "same_host_prior_receipts": [
+    {
+      "receipt_path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/named-checks-remaining/scripts-integration.json",
+      "log_sha256": "76340af08f88256d96dab2d0ba643e77ac5e18bb9fb39b134e8881ff5f6e8906",
+      "started_at": "2026-10-21T07:03:41.060022+00:00",
+      "finished_at": "2026-10-21T07:12:43.007278+00:00",
+      "exit_code": 1,
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "inner_timeout": "9m0s",
+      "running_at_timeout": [
+        [
+          "TestChatLifecycleDiagnosisCollectorUsesCurrentWorkerPorts",
+          "1s"
+        ],
+        [
+          "TestCloudSimulationAnalyzeRefusesLiveRunWithoutClientMaterialTools",
+          "1s"
+        ]
+      ]
+    },
+    {
+      "receipt_path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/named-checks-scripts-isolated/scripts-integration.json",
+      "log_sha256": "80b7e45ded11814eac8c9aa26c3848073b290244997aa07afd4e2af0917120bc",
+      "started_at": "2026-10-21T07:20:33.077465+00:00",
+      "finished_at": "2026-10-21T07:29:35.463373+00:00",
+      "exit_code": 1,
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "inner_timeout": "9m0s",
+      "running_at_timeout": [
+        [
+          "TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange",
+          "9s"
+        ],
+        [
+          "TestWukongIMSingleNodeScriptAllowsPrometheusDisableOverride",
+          "8s"
+        ]
+      ]
+    }
+  ],
+  "conclusion": "All three observed Mac runs exhausted the same fixed whole-package 9-minute budget at different recently started fixtures, with parallel fixtures still queued. Source sets and cache state differ across runs. This supports a recurring local suite-budget limitation but does not identify CPU, compiler, fixture, or product causality. No confirmed new assertion failure appears in current log. New helper target focused tests passed separately; complete Linux gate remains required."
+}

@@ -1,0 +1,217 @@
+{
+  "artifact_id": 12344894821,
+  "identity": {
+    "source_sha": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "policy_sha": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "run_id": "39598983439",
+    "run_attempt": "1"
+  },
+  "suites": {
+    "ordinary_history": {
+      "pass_events": 6,
+      "root_pass": 1,
+      "events": [
+        {
+          "Time": "2026-10-21T12:31:20.903660325Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "Elapsed": 21.05
+        },
+        {
+          "Time": "2026-10-21T12:31:38.588489148Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "Elapsed": 17.68
+        },
+        {
+          "Time": "2026-10-21T12:31:51.048718726Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "Elapsed": 12.46
+        },
+        {
+          "Time": "2026-10-21T12:32:05.980112613Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "Elapsed": 14.93
+        },
+        {
+          "Time": "2026-10-21T12:32:23.121396623Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "Elapsed": 17.14
+        },
+        {
+          "Time": "2026-10-21T12:32:23.121411736Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology",
+          "Elapsed": 83.27
+        }
+      ],
+      "skip_reasons": [],
+      "unfinished": [],
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 7794,
+        "output_bytes": 27566,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 7794,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 102.366
+      }
+    },
+    "cross_node_delivery": {
+      "pass_events": 4,
+      "root_pass": 4,
+      "events": [
+        {
+          "Time": "2026-10-21T12:32:37.411847445Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+          "Elapsed": 12.21
+        },
+        {
+          "Time": "2026-10-21T12:32:51.1004242Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+          "Elapsed": 13.69
+        },
+        {
+          "Time": "2026-10-21T12:33:00.999241682Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+          "Elapsed": 9.9
+        },
+        {
+          "Time": "2026-10-21T12:33:17.93313569Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+          "Elapsed": 16.93
+        },
+        {
+          "Time": "2026-10-21T12:33:17.933171323Z",
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Elapsed": 0
+        }
+      ],
+      "skip_reasons": [
+        {
+          "Time": "2026-10-21T12:33:17.933150742Z",
+          "Action": "output",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Output": "    cross_node_delivery_test.go:148: set WK_E2E_REPLICA_LOAD_COMPARISON=1 to compare the bounded 2/2 and 3/3 2,000 QPS profiles\n"
+        }
+      ],
+      "unfinished": [],
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 13621,
+        "output_bytes": 8443,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 13621,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 54.567
+      }
+    },
+    "self_chat": {
+      "pass_events": 3,
+      "root_pass": 1,
+      "events": [
+        {
+          "Time": "2026-10-21T12:33:33.413251962Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+          "Elapsed": 13.79
+        },
+        {
+          "Time": "2026-10-21T12:33:55.400916901Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+          "Elapsed": 21.99
+        },
+        {
+          "Time": "2026-10-21T12:33:55.401366506Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart",
+          "Elapsed": 35.77
+        }
+      ],
+      "skip_reasons": [],
+      "unfinished": [],
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 13935,
+        "output_bytes": 3702,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 13935,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 37.369
+      }
+    }
+  },
+  "analysis_note": "Initial offline generic assertion assumed no E2E skips; raw report showed existing opt-in 2000QPS comparison skipped. Only that exact documented opt-in is accepted below; no workflow rerun or test change.",
+  "binary_sha256": "ce437939472da04da88a73790e67b2e012019133f6bd57e84d019cbc83f04c53",
+  "build_vcs_revision": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+  "build_vcs_modified": false,
+  "self_chat_cases": [
+    {
+      "nodes": 1,
+      "phase": "complete",
+      "passed": true,
+      "binary_sha256": "ce437939472da04da88a73790e67b2e012019133f6bd57e84d019cbc83f04c53",
+      "invalid_auth_refused": true,
+      "whole_cluster_restarts": 1
+    },
+    {
+      "nodes": 3,
+      "phase": "complete",
+      "passed": true,
+      "binary_sha256": "ce437939472da04da88a73790e67b2e012019133f6bd57e84d019cbc83f04c53",
+      "invalid_auth_refused": true,
+      "whole_cluster_restarts": 1
+    }
+  ]
+}

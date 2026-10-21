@@ -1,0 +1,94 @@
+{
+  "alma-current-digest.stderr": {
+    "size": 112,
+    "sha256": "635421125669a44867fc0ac6c164b256a920fab18ef9da5d958e442211d7f1f6"
+  },
+  "alma-current-digest.stdout": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "alma-current-registry-body.json": {
+    "size": 1029,
+    "sha256": "28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e"
+  },
+  "alma-current-registry-receipt.json": {
+    "size": 660,
+    "sha256": "40a9d15f9098f5434ca089a62b06c8e8e6331056147ac954e5515aae3ea16ae5"
+  },
+  "alma-tag9.stderr": {
+    "size": 143,
+    "sha256": "697c62180a3ad42e1f7605184569c90da09a4e3ffac48dabdec9834fecdbeb1a"
+  },
+  "alma-tag9.stdout": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "inspect-public-quay.py": {
+    "size": 1906,
+    "sha256": "06be8eca2857eefab905f5ed2c73e45bdf82a8befdf3aff1f633ddc55ee6a20d"
+  },
+  "manifest-first-read.json": {
+    "size": 481,
+    "sha256": "a189925c90bdbf63ce9d3f4fde6ae4027d426d82fd466f8efa6565f4f13266c5"
+  },
+  "manifest-second-read.json": {
+    "size": 689,
+    "sha256": "223687a03646bb90dfb978dbcda68a49cacdc74a11bf381dfba75dda5cfb506d"
+  },
+  "official-Containerfile-init.txt": {
+    "size": 1301,
+    "sha256": "bcc1454e7522eaf68313a0fc8e275837f748a5ba33610091cf37a07afa4316f1"
+  },
+  "official-sources.json": {
+    "size": 504,
+    "sha256": "94a4ca7f0b0eb7c58e845ef2e956b6b510a05b3380c946d050f7c5e37217dd01"
+  },
+  "quay-http-receipts.json": {
+    "size": 929,
+    "sha256": "b901319fb8438508e95337fdfa5f749f3b1846a95baff270f925a341b8975f2a"
+  },
+  "quay-http-result.log": {
+    "size": 1208,
+    "sha256": "89cd70ad389a2b0c1c75058aeecd82dd6584c584d5b2e9d6ffdd71fea2c97038"
+  },
+  "rocky-docker-old-digest.stderr": {
+    "size": 122,
+    "sha256": "737d5e56c6d50bb5ab6df6f131042de81b4388ef98c544c42ec226d280818963"
+  },
+  "rocky-docker-old-digest.stdout": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "rocky-init-amd64-registry-manifest.json": {
+    "size": 593,
+    "sha256": "aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+  },
+  "rocky-init-candidate.json": {
+    "size": 1208,
+    "sha256": "89cd70ad389a2b0c1c75058aeecd82dd6584c584d5b2e9d6ffdd71fea2c97038"
+  },
+  "rocky-init-registry-index.json": {
+    "size": 970,
+    "sha256": "1339a167e57330c1b6b9afb7bdcf5059e9ffdeb3b3d49bbcb4f6eaf39d8ed7c4"
+  },
+  "rocky-quay-init.stderr": {
+    "size": 134,
+    "sha256": "c87c61932f1d6dec76d45f947450079a979ba9d8d894cc7255a995cbe5c5459c"
+  },
+  "rocky-quay-init.stdout": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "rocky-quay-tag9.json": {
+    "size": 7449,
+    "sha256": "bbdb7821c71d7c6fcd283ec1651c7746e49e572c8c1928fa40d9d898fe59002e"
+  },
+  "rocky-quay-tag9.stderr": {
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "summary.md": {
+    "size": 2505,
+    "sha256": "4eff27034de015697d253974c74f3d57e872ebedd2ba85f4c00860f0ea195487"
+  }
+}

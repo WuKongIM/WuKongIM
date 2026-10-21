@@ -1,0 +1,17 @@
+{
+  "arguments": [
+    "gh",
+    "pr",
+    "merge",
+    "1020",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--merge",
+    "--match-head-commit",
+    "0cdfaa37b00c58819895dee54029c27c83c9caa9"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "completed_at": "2026-10-21T12:43:40.671300+00:00"
+}

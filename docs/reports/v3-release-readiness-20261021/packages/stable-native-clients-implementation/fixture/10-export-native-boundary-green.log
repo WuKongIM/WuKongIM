@@ -1,0 +1,11 @@
+test_export_rejects_missing_generation_before_native_commands (__main__.FixtureBoundaryTests.test_export_rejects_missing_generation_before_native_commands) ... ok
+test_export_rejects_unusable_output_without_native_commands (__main__.FixtureBoundaryTests.test_export_rejects_unusable_output_without_native_commands) ... ok
+test_export_rejects_wrong_source_before_commands_or_output (__main__.FixtureBoundaryTests.test_export_rejects_wrong_source_before_commands_or_output) ... ok
+test_first_native_failure_removes_private_tree_and_exports_nothing (__main__.FixtureBoundaryTests.test_first_native_failure_removes_private_tree_and_exports_nothing) ... ok
+test_invalid_payloads_fail_before_native_commands (__main__.FixtureBoundaryTests.test_invalid_payloads_fail_before_native_commands) ... ok
+test_real_payloads_are_inputs_to_both_native_package_commands (__main__.FixtureBoundaryTests.test_real_payloads_are_inputs_to_both_native_package_commands) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.046s
+
+OK

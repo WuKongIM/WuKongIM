@@ -1,0 +1,69 @@
+{
+  "observed_at": "2026-10-21T12:44:50.483669+00:00",
+  "pr": 1020,
+  "head": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "merge": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "tree": "36f96357c967418517a00444e52ae03f77c3ff90",
+  "same_tree_as_validated_head": true,
+  "merged_at": "2026-10-21T12:43:39Z",
+  "method": "normal merge with --match-head-commit; no --admin",
+  "protection_unchanged": true,
+  "worktree_and_local_branch_removed": true,
+  "primary_main_unchanged": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "not_authorized_or_performed": [
+    "new cloud acquisition",
+    "formal release",
+    "manual Actions dispatch",
+    "Review Agent request"
+  ],
+  "local_mac_scripts_timeout": "retained unchanged in prior implementation delivery",
+  "postmerge": {
+    "observed_at": "2026-10-21T12:47:44.062681+00:00",
+    "sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "runs": [
+      {
+        "id": 39601918104,
+        "name": "Documentation Pages main attempt 1",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 119228275297,
+            "name": "Verify and package the static documentation site",
+            "status": "completed",
+            "conclusion": "success",
+            "active_steps": [],
+            "failed_steps": []
+          },
+          {
+            "id": 119229261018,
+            "name": "Deploy the verified artifact",
+            "status": "completed",
+            "conclusion": "success",
+            "active_steps": [],
+            "failed_steps": []
+          },
+          {
+            "id": 119229681917,
+            "name": "Verify the direct GitHub Pages origin",
+            "status": "completed",
+            "conclusion": "success",
+            "active_steps": [],
+            "failed_steps": []
+          },
+          {
+            "id": 119229773156,
+            "name": "Refresh bounded Alibaba CDN URLs",
+            "status": "completed",
+            "conclusion": "success",
+            "active_steps": [],
+            "failed_steps": []
+          }
+        ]
+      }
+    ]
+  },
+  "completed_at": "2026-10-21T12:48:52.386637+00:00"
+}

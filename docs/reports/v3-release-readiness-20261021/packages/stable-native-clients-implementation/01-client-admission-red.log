@@ -1,0 +1,41 @@
+FFFF..............................
+======================================================================
+FAIL: test_preview_cannot_accept_test_identity_or_transport (test_validate_production_package_clients.StableClientAdmissionTest.test_preview_cannot_accept_test_identity_or_transport) (extra=['--test-only'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1408, in test_preview_cannot_accept_test_identity_or_transport
+    self.assertEqual(1, result.returncode)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_preview_cannot_accept_test_identity_or_transport (test_validate_production_package_clients.StableClientAdmissionTest.test_preview_cannot_accept_test_identity_or_transport) (extra=['--transport-inputs', 'ignored.json'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1408, in test_preview_cannot_accept_test_identity_or_transport
+    self.assertEqual(1, result.returncode)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_preview_cannot_accept_test_identity_or_transport (test_validate_production_package_clients.StableClientAdmissionTest.test_preview_cannot_accept_test_identity_or_transport) (extra=['--test-product-sha', '1111111111111111111111111111111111111111'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1408, in test_preview_cannot_accept_test_identity_or_transport
+    self.assertEqual(1, result.returncode)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_stable_missing_transport_is_an_admission_failure (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_missing_transport_is_an_admission_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1393, in test_stable_missing_transport_is_an_admission_failure
+    self.assertEqual(1, result.returncode)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+----------------------------------------------------------------------
+Ran 32 tests in 0.324s
+
+FAILED (failures=4)

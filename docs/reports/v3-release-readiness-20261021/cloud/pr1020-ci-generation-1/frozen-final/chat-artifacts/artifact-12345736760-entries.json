@@ -1,0 +1,87 @@
+[
+  {
+    "path": "arrival.json",
+    "bytes": 57377,
+    "compressed_bytes": 3272
+  },
+  {
+    "path": "arrival.warmup.json",
+    "bytes": 19208,
+    "compressed_bytes": 1284
+  },
+  {
+    "path": "benchmark.txt",
+    "bytes": 2354,
+    "compressed_bytes": 829
+  },
+  {
+    "path": "binary.sha256",
+    "bytes": 127,
+    "compressed_bytes": 107
+  },
+  {
+    "path": "counters/after.json",
+    "bytes": 50637,
+    "compressed_bytes": 4172
+  },
+  {
+    "path": "counters/before.json",
+    "bytes": 50390,
+    "compressed_bytes": 4065
+  },
+  {
+    "path": "counters/window.json",
+    "bytes": 576,
+    "compressed_bytes": 353
+  },
+  {
+    "path": "counters.warmup/after.json",
+    "bytes": 50390,
+    "compressed_bytes": 4061
+  },
+  {
+    "path": "counters.warmup/before.json",
+    "bytes": 21538,
+    "compressed_bytes": 2941
+  },
+  {
+    "path": "counters.warmup/window.json",
+    "bytes": 504,
+    "compressed_bytes": 312
+  },
+  {
+    "path": "data-filesystem.json",
+    "bytes": 244,
+    "compressed_bytes": 159
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "bytes": 123,
+    "compressed_bytes": 109
+  },
+  {
+    "path": "go-version.txt",
+    "bytes": 33,
+    "compressed_bytes": 35
+  },
+  {
+    "path": "host.json",
+    "bytes": 4483,
+    "compressed_bytes": 1177
+  },
+  {
+    "path": "kernel.txt",
+    "bytes": 113,
+    "compressed_bytes": 100
+  },
+  {
+    "path": "result.json",
+    "bytes": 18,
+    "compressed_bytes": 20
+  },
+  {
+    "path": "source.sha",
+    "bytes": 41,
+    "compressed_bytes": 41
+  }
+]

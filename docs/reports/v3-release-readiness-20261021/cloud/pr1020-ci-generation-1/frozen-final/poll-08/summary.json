@@ -1,0 +1,255 @@
+{
+  "observed_at": "2026-10-21T12:36:00.468615+00:00",
+  "runs": [
+    {
+      "id": 39598983392,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119218334933,
+          "name": "Emit credential-free wake-up",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:21:53Z",
+          "active_steps": [],
+          "failed_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39598983277,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1020 attempt 1",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119218335587,
+          "name": "PR messaging unit and race",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:24:40Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218336040,
+          "name": "PR three-node correctness",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:26:46Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218336096,
+          "name": "PR performance baseline evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:22:03Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218337559,
+          "name": "Nightly direct 500 QPS qualification",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T12:21:47Z",
+          "completed_at": "2026-10-21T12:21:47Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218337763,
+          "name": "Fixed Linux SEND diagnosis",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T12:21:47Z",
+          "completed_at": "2026-10-21T12:21:47Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218456496,
+          "name": "PR 500 QPS / mixed-send",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:22:05Z",
+          "completed_at": "2026-10-21T12:27:40Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218456523,
+          "name": "PR 500 QPS / tcp-sendack",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:22:05Z",
+          "completed_at": "2026-10-21T12:26:40Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218456707,
+          "name": "PR 500 QPS / channel-append",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:22:05Z",
+          "completed_at": "2026-10-21T12:27:00Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119220988725,
+          "name": "PR three-node regression",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:27:42Z",
+          "completed_at": "2026-10-21T12:27:46Z",
+          "active_steps": [],
+          "failed_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39598983347,
+      "name": "Safety Automation - EasySDK Released Package Acceptance",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119218334483,
+          "name": "iOS CocoaPods 1.1.1",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:29:50Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218334560,
+          "name": "Android Maven Central 1.0.5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:50Z",
+          "completed_at": "2026-10-21T12:26:04Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218334862,
+          "name": "Flutter pub.dev 1.1.0 on iOS",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:50Z",
+          "completed_at": "2026-10-21T12:28:32Z",
+          "active_steps": [],
+          "failed_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39598983278,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119218334948,
+          "name": "Build and install deb/rpm preview",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:28:19Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119221283189,
+          "name": "Exercise Rocky Linux 9 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:28:21Z",
+          "completed_at": "2026-10-21T12:30:52Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119221283315,
+          "name": "Exercise AlmaLinux 9 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:28:21Z",
+          "completed_at": "2026-10-21T12:30:27Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119221283373,
+          "name": "Exercise Debian 12 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:28:21Z",
+          "completed_at": "2026-10-21T12:29:59Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119221283382,
+          "name": "Exercise Ubuntu 24.04 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:28:21Z",
+          "completed_at": "2026-10-21T12:30:02Z",
+          "active_steps": [],
+          "failed_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39598983439,
+      "name": "V3 Candidate Regression pull_request 1020 attempt 1",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119218336120,
+          "name": "Candidate default suite (go-unit)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:28:48Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119218336763,
+          "name": "Candidate scripts integration",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:21:49Z",
+          "completed_at": "2026-10-21T12:32:09Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 119221508263,
+          "name": "Candidate migration and messaging E2E",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-21T12:28:51Z",
+          "completed_at": "2026-10-21T12:34:00Z",
+          "active_steps": [],
+          "failed_steps": []
+        }
+      ]
+    }
+  ]
+}

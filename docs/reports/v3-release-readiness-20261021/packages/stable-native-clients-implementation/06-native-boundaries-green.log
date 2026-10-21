@@ -1,0 +1,14 @@
+..F
+======================================================================
+FAIL: test_http_routes_preserve_a_bytes_at_request_barriers (test_native_stable_clients_drill.NativeStableClientsTests.test_http_routes_preserve_a_bytes_at_request_barriers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 66, in test_http_routes_preserve_a_bytes_at_request_barriers
+    self.assertEqual(route.response('/apt/by-hash/SHA256/a', {'If-None-Match': headers['ETag']})[0], 304)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 200 != 304
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.062s
+
+FAILED (failures=1)

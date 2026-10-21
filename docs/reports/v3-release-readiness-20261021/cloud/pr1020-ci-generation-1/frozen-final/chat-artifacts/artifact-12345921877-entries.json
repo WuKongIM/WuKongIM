@@ -1,0 +1,162 @@
+[
+  {
+    "path": "arrival.json",
+    "bytes": 57798,
+    "compressed_bytes": 3606
+  },
+  {
+    "path": "benchmark.txt",
+    "bytes": 4026,
+    "compressed_bytes": 1033
+  },
+  {
+    "path": "arrival.warmup.json",
+    "bytes": 19351,
+    "compressed_bytes": 1365
+  },
+  {
+    "path": "binary.sha256",
+    "bytes": 123,
+    "compressed_bytes": 107
+  },
+  {
+    "path": "counters/after.json",
+    "bytes": 314138,
+    "compressed_bytes": 14112
+  },
+  {
+    "path": "counters/before.json",
+    "bytes": 313461,
+    "compressed_bytes": 13587
+  },
+  {
+    "path": "counters/window.json",
+    "bytes": 533,
+    "compressed_bytes": 317
+  },
+  {
+    "path": "counters.warmup/after.json",
+    "bytes": 313460,
+    "compressed_bytes": 13585
+  },
+  {
+    "path": "counters.warmup/before.json",
+    "bytes": 310987,
+    "compressed_bytes": 11979
+  },
+  {
+    "path": "counters.warmup/window.json",
+    "bytes": 478,
+    "compressed_bytes": 295
+  },
+  {
+    "path": "data-filesystem.json",
+    "bytes": 249,
+    "compressed_bytes": 163
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "bytes": 123,
+    "compressed_bytes": 109
+  },
+  {
+    "path": "flight/analysis-status.txt",
+    "bytes": 59,
+    "compressed_bytes": 34
+  },
+  {
+    "path": "flight/execution.trace",
+    "bytes": 32589509,
+    "compressed_bytes": 21290268
+  },
+  {
+    "path": "flight/net-error.txt",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "flight/net-top.txt",
+    "bytes": 886,
+    "compressed_bytes": 276
+  },
+  {
+    "path": "flight/net.pprof",
+    "bytes": 643,
+    "compressed_bytes": 648
+  },
+  {
+    "path": "flight/sched-error.txt",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "flight/sched-top.txt",
+    "bytes": 4863,
+    "compressed_bytes": 1300
+  },
+  {
+    "path": "flight/sched.pprof",
+    "bytes": 34475,
+    "compressed_bytes": 34490
+  },
+  {
+    "path": "flight/sync-error.txt",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "flight/sync-top.txt",
+    "bytes": 5265,
+    "compressed_bytes": 1183
+  },
+  {
+    "path": "flight/sync.pprof",
+    "bytes": 22743,
+    "compressed_bytes": 22753
+  },
+  {
+    "path": "flight/syscall-error.txt",
+    "bytes": 0,
+    "compressed_bytes": 2
+  },
+  {
+    "path": "flight/syscall-top.txt",
+    "bytes": 4635,
+    "compressed_bytes": 918
+  },
+  {
+    "path": "flight/syscall.pprof",
+    "bytes": 10967,
+    "compressed_bytes": 10972
+  },
+  {
+    "path": "flight/window.json",
+    "bytes": 2085652,
+    "compressed_bytes": 174207
+  },
+  {
+    "path": "go-version.txt",
+    "bytes": 33,
+    "compressed_bytes": 35
+  },
+  {
+    "path": "host.json",
+    "bytes": 4633,
+    "compressed_bytes": 1245
+  },
+  {
+    "path": "kernel.txt",
+    "bytes": 128,
+    "compressed_bytes": 115
+  },
+  {
+    "path": "result.json",
+    "bytes": 18,
+    "compressed_bytes": 20
+  },
+  {
+    "path": "source.sha",
+    "bytes": 41,
+    "compressed_bytes": 41
+  }
+]

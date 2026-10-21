@@ -1,0 +1,153 @@
+[
+  {
+    "check": "go-format",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 16505,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 16505,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 1.251
+  },
+  {
+    "check": "flow-doc-contracts",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 16519,
+    "output_bytes": 1376,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 16519,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 0.478
+  },
+  {
+    "check": "workflow-contracts",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 16527,
+    "output_bytes": 469,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 16527,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 4.218
+  },
+  {
+    "check": "go-unit",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 16788,
+    "output_bytes": 15248,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 16788,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 453.555
+  },
+  {
+    "check": "go-vet",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 26532,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 26532,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 18.375
+  },
+  {
+    "check": "go-mod-tidy",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 27776,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 27776,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "elapsed_seconds": 0.5
+  },
+  {
+    "check": "scripts-integration",
+    "wrapper_exit_code": 1,
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 27785,
+    "output_bytes": 58188,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 27785,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        185,
+        234,
+        98918,
+        99003,
+        99022,
+        99082,
+        99229,
+        99245,
+        99253,
+        99330,
+        99403,
+        99630,
+        99647,
+        99655,
+        99871,
+        99888,
+        99952
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "elapsed_seconds": 542.175
+  }
+]

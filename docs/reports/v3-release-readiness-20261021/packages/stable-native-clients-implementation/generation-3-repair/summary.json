@@ -1,0 +1,16 @@
+{
+  "finding": "v2 retained confirmed-deleted active network ID, causing a spurious error on the final network inspection.",
+  "fix": "On successful remove, retire active container/network IDs while keeping attempted names and mandatory UUID inventory. No inspector error matching broadened.",
+  "v2_original_unchanged": true,
+  "red_logs": [
+    "01-staged-network-red.log",
+    "03-exact-network-diagnostic-v2-red.log"
+  ],
+  "red_boundary_note": "First fake used the network diagnostic for both resources; the preserved corrected probe against frozen v2 uses No such object for containers and actual network not found for networks, isolating the reported network failure.",
+  "green_log": "04-exact-network-diagnostic-green.log",
+  "focused_tests_passed": 17,
+  "native_executed": false,
+  "v3_manifest_sha256": "90c77a141e13f3a177f2ed51ad2afd186a80e098c6262c526bc1810c10cc1c55",
+  "v3_delta_sha256": "8ee54c78c7da4366373642b0021f3a2f4e62be491804cd5248376391fd154b18",
+  "protected_unchanged": 34
+}

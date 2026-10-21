@@ -1,0 +1,320 @@
+{
+  "artifact_integrity": {
+    "all_five_full_zip_sha256_match_github_api": true,
+    "members_crc_checked": true,
+    "members_only": "public JSON receipts and HTTPS JSONL",
+    "zip_binaries_retained": false
+  },
+  "base": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "fixture": {
+    "generations": {
+      "A": {
+        "apt_receipt": "A/apt-receipt.json",
+        "archive": "A/wukongim-stable-3.0.0-4cea590759a1c593aaa460e620ae111728f2defa13510644ffea924b9e4e56af-candidate-site.tar",
+        "bootstrap_version": "1.1.1",
+        "control": "A/control",
+        "plan": "A/plan.json",
+        "receipt": "A/wukongim-stable-3.0.0-4cea590759a1c593aaa460e620ae111728f2defa13510644ffea924b9e4e56af-candidate-receipt.json",
+        "rpm_receipt": "A/rpm-receipt.json",
+        "site": "A/site",
+        "source": "A/source",
+        "version": "3.0.0"
+      },
+      "B": {
+        "apt_receipt": "B/apt-receipt.json",
+        "archive": "B/wukongim-stable-3.0.1-c1c6e7e692c11e71fc6eb12e169dfe77de420158d04699feb1f40326485573f2-candidate-site.tar",
+        "bootstrap_version": "1.1.2",
+        "control": "B/control",
+        "plan": "B/plan.json",
+        "receipt": "B/wukongim-stable-3.0.1-c1c6e7e692c11e71fc6eb12e169dfe77de420158d04699feb1f40326485573f2-candidate-receipt.json",
+        "rpm_receipt": "B/rpm-receipt.json",
+        "site": "B/site",
+        "source": "B/source",
+        "version": "3.0.1"
+      }
+    },
+    "secret_tree_removed": true,
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "test_only": true
+  },
+  "frozen_at": "2026-10-21T12:25:44.260951+00:00",
+  "generation": 2,
+  "identity": {
+    "head": "4ba39668c892ca17eb33b165afe993ccc683161f",
+    "merge": "0186483a5a8574c1e521252c26773dd4d7d18690",
+    "parent_shas": [
+      "335cd2569d2b62de577916ed86c097fd3a22547e",
+      "4ba39668c892ca17eb33b165afe993ccc683161f"
+    ],
+    "tree": "95e50d2549e51436d8a9ef76ab5bb004bca36ef6",
+    "trees_equal": true
+  },
+  "legacy_full_signed_repository_drill": {
+    "evidence": "native-original-job-119215337918.log.gz",
+    "job_id": 119215337918,
+    "passed": true
+  },
+  "legacy_native_receipts": [
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 10,
+      "cleanup": {
+        "secret_tree_removed_before_verification": true
+      },
+      "passed": true,
+      "path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+      "schema": "wukongim/test-only-native-local-signing/v1",
+      "source_sha": null,
+      "transport_cases": 0
+    },
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 7,
+      "cleanup": {},
+      "passed": true,
+      "path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+      "schema": "wukongim/test-only-native-source-metadata/v1",
+      "source_sha": null,
+      "transport_cases": 0
+    },
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 6,
+      "cleanup": {
+        "scratch_removed": true
+      },
+      "passed": true,
+      "path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "schema": "wukongim.native_bootstrap_preparation_drill/v1",
+      "source_sha": "0186483a5a8574c1e521252c26773dd4d7d18690",
+      "transport_cases": 0
+    },
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 31,
+      "cleanup": {
+        "checked_in_control_unchanged": true,
+        "scratch_removed": true,
+        "secret_tree_removed_before_verification": true
+      },
+      "passed": true,
+      "path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+      "schema": "wukongim/test-only-native-stable-candidate/v1",
+      "source_sha": "0186483a5a8574c1e521252c26773dd4d7d18690",
+      "transport_cases": 8
+    }
+  ],
+  "overall": "failed; stable four-client and A/B acceptance remains incomplete",
+  "pages_validation": {
+    "additional_contract_tests": 4,
+    "deploy": "skipped",
+    "duration_seconds": 108.238,
+    "passed": true,
+    "tests_run": 489,
+    "tests_skipped": 0
+  },
+  "pr": 74,
+  "product_binaries": {
+    "3.0.0/wkcli": {
+      "sha256": "7292c8b284825159c7f7534daca3528e2c1377d84be11a640379055fdbab13de",
+      "size": 42950840
+    },
+    "3.0.0/wukongim": {
+      "sha256": "c7702baff5ac6c9c5f791ad4d4f5b733dff2463cbad386e637885248c5742425",
+      "size": 68182200
+    },
+    "3.0.1/wkcli": {
+      "sha256": "6fe74a480e1d1482e3e44f3d4524a8f2e4dd3cd4f63bb416c7383af1ed9cc225",
+      "size": 42950840
+    },
+    "3.0.1/wukongim": {
+      "sha256": "7e03adaef078ad19379dcc6b4c8540344898f07cf2665e8567623e1cc2bb15b1",
+      "size": 68182200
+    }
+  },
+  "product_build": {
+    "go_version": "go version go1.25.11 linux/amd64",
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "test_only_versions": true,
+    "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a"
+  },
+  "read_errors": [
+    {
+      "classification": "GitHub GET EOF; not a CI failure",
+      "empty_stdout": "merge-commit.json",
+      "path": "merge-commit.json.stderr",
+      "recovery": "merge-commit-read2.json; no workflow retry"
+    }
+  ],
+  "runs": [
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-21T12:14:59Z",
+      "head_sha": "4ba39668c892ca17eb33b165afe993ccc683161f",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39598091032",
+      "id": 39598091032,
+      "jobs": [
+        {
+          "completed_at": "2026-10-21T12:16:55Z",
+          "conclusion": "success",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39598091032/job/119215338135",
+          "id": 119215338135,
+          "name": "Validate complete Pages snapshot",
+          "started_at": "2026-10-21T12:15:01Z",
+          "status": "completed"
+        },
+        {
+          "completed_at": "2026-10-21T12:16:55Z",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39598091032/job/119216206270",
+          "id": 119216206270,
+          "name": "Deploy complete Pages snapshot",
+          "started_at": "2026-10-21T12:16:55Z",
+          "status": "completed"
+        }
+      ],
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-21T12:16:56Z"
+    },
+    {
+      "conclusion": "failure",
+      "created_at": "2026-10-21T12:14:59Z",
+      "head_sha": "4ba39668c892ca17eb33b165afe993ccc683161f",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39598091049",
+      "id": 39598091049,
+      "jobs": [
+        {
+          "completed_at": "2026-10-21T12:18:39Z",
+          "conclusion": "success",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39598091049/job/119215337918",
+          "id": 119215337918,
+          "name": "TEST ONLY signed APT/RPM repository",
+          "started_at": "2026-10-21T12:15:01Z",
+          "status": "completed"
+        },
+        {
+          "completed_at": "2026-10-21T12:19:32Z",
+          "conclusion": "failure",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39598091049/job/119215338064",
+          "id": 119215338064,
+          "name": "TEST ONLY stable four clients and A/B",
+          "started_at": "2026-10-21T12:15:01Z",
+          "status": "completed"
+        }
+      ],
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-21T12:19:32Z"
+    }
+  ],
+  "schema": "wukongim.review.pr74_ci_generation/v1",
+  "scope": {
+    "external_actions": "GitHub GET only",
+    "public_origin_verified": false,
+    "published": false,
+    "source_modifications": 0,
+    "source_provenance_verified": false,
+    "test_only": true,
+    "workflow_cancellations": 0,
+    "workflow_reruns": 0
+  },
+  "stable_clients": {
+    "actual_cases_passed": 0,
+    "actual_cases_started": 1,
+    "baseline_substeps": [
+      {
+        "client_image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+        "command_index_zero_based": 50,
+        "elapsed_seconds": 0.759,
+        "exit_code": 0,
+        "output_sha256": "96f787afdf81193dde35928062bfd9befca74451638381ffefe9f9d13a290b21",
+        "output_size": 1849,
+        "stage": "download-client"
+      },
+      {
+        "client_image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+        "command_index_zero_based": 52,
+        "elapsed_seconds": 13.995,
+        "exit_code": 0,
+        "output_sha256": "e5129bd27f1befb92780dc47d4e2134169c73e256ef558bd2e9ecb96f0d9357f",
+        "output_size": 35992,
+        "stage": "installed-client"
+      },
+      {
+        "client_image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+        "command_index_zero_based": 54,
+        "elapsed_seconds": 0.289,
+        "exit_code": 100,
+        "output_sha256": "bd3f7bdf59fa7711ce64645498aa17453dab7cee78030c87269acab8df11add6",
+        "output_size": 1849,
+        "stage": "download-client"
+      }
+    ],
+    "cache_cleanup": [],
+    "classification": "TEST ONLY client/HTTPS harness integration failure; exact TLS cause not yet reproduced in this read-only audit",
+    "cleanup": {
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-1",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-2",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-3",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-4",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-5"
+        ],
+        "networks": [
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31"
+        ]
+      },
+      "discovered": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "verified": true
+    },
+    "phase": "baseline-A-four-download-and-installed-cli",
+    "reader_cleanup": {
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-1",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-2",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-3",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-4",
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-5"
+        ],
+        "networks": [
+          "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31"
+        ]
+      },
+      "discovered": {
+        "containers": [
+          "aa9497b5927d3c7963b5b5f1c89ab6f819c709cb16d71dba5277f5efdcd0af9e",
+          "a3f746e26ec3c9a5ca3f11ffe2153f118423cc05352ba33af37a031aa1f2a8e3",
+          "34a83eaf87e0e033b5fd3a0084f3f6a7ba4efd1100cbae0dc3b8e572b938650c",
+          "5bf92f4a6cf7d4e42095b13b0e28b68372d1679fc65a4d5ded7e968e06e692bd",
+          "9e8c102e9d5c2296276c808af5eacee8930b9c201f4014ccf934e3b1181c2d2a"
+        ],
+        "networks": [
+          "8269caa79be83fabde92f1604da2ee58b170f1da649304e2ea9e285df812a4cd"
+        ]
+      },
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "verified": true
+    },
+    "root_cause_proven": false,
+    "target_cases": 49
+  }
+}

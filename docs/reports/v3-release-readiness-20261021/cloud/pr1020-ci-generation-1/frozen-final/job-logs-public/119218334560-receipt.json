@@ -1,0 +1,101 @@
+{
+  "job_id": 119218334560,
+  "run_id": 39598983347,
+  "conclusion": "success",
+  "raw_bytes": 76409,
+  "raw_sha256": "cb7884ab07bb5118b3eb27daa7fadc0a4b1513a41cb3732c1a6eda1978737ce9",
+  "public_sha256": "eb973aeb3eaf19528b138dc7c62361694588a0e2b53ff3b359af5da45aabdd18",
+  "synthetic_sha_present": true,
+  "synthetic_sha_exact_output_line": true,
+  "checkout_identity_lines": [
+    "2026-10-21T12:21:53.0815893Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +922bc66a9cebcbe09bef5fc43afc0593c4f07fb8:refs/remotes/pull/1020/merge",
+    "2026-10-21T12:21:56.3363614Z  * [new ref]         922bc66a9cebcbe09bef5fc43afc0593c4f07fb8 -> pull/1020/merge",
+    "2026-10-21T12:21:57.1204429Z HEAD is now at 922bc66 Merge 0cdfaa37b00c58819895dee54029c27c83c9caa9 into ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "2026-10-21T12:21:57.1306101Z 922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "2026-10-21T12:23:28.5515767Z RUNTIME_READY platform=android server_source=922bc66a9cebcbe09bef5fc43afc0593c4f07fb8"
+  ],
+  "redacted_lines": [
+    {
+      "line": 22,
+      "sha256": "34f71115be96fcb6e9dbc93afc50f41c1279645a8a2ed6492bc69c987db3c4c1",
+      "bytes": 63
+    },
+    {
+      "line": 26,
+      "sha256": "8cc3d1bf2558debe66d487bb56a4a0f0f6d1800937a4514f6d3439cb498630d4",
+      "bytes": 52
+    },
+    {
+      "line": 40,
+      "sha256": "141b08563a1445618d0a635f9e3b98cd0390e6b2e05771264b00bce024364d3d",
+      "bytes": 42
+    },
+    {
+      "line": 97,
+      "sha256": "70f56c2d85c68d8cbed1577e5a1f9a0a884b359ecce5fb17ba1146b992338bdd",
+      "bytes": 211
+    },
+    {
+      "line": 140,
+      "sha256": "e76c034393f226dfb08954211dffe52ebab0599d6e894de09cca10975dcac2e2",
+      "bytes": 42
+    },
+    {
+      "line": 224,
+      "sha256": "31de4e69ab87e8d14581c92b49eafc6e84bc8f3694e6ad2c84d88fa9384f15b4",
+      "bytes": 42
+    },
+    {
+      "line": 255,
+      "sha256": "8c60e629140a501404d56f220e214bca43e1085e2fe3099d55e4e16a75b00777",
+      "bytes": 61
+    },
+    {
+      "line": 258,
+      "sha256": "a4382b00ccec5f4057ef59a6c9f1f47ec576250693528d310555a4dd900a1277",
+      "bytes": 42
+    },
+    {
+      "line": 284,
+      "sha256": "26ac18313345cc6d4495aaa69bb673d8562486bf9af6068c3ec74d0305292bf4",
+      "bytes": 42
+    },
+    {
+      "line": 344,
+      "sha256": "a0e44a2f8fdd470848c6773c9c786c15c44ce8e8b5effd37c5b20a972d18501e",
+      "bytes": 211
+    },
+    {
+      "line": 429,
+      "sha256": "06f3c58d806215e6eedd813936624b18f76496f777608f1172abaac7185e903c",
+      "bytes": 86
+    },
+    {
+      "line": 465,
+      "sha256": "848336f9edbfa1b217b7868fb0557e1738553920717ac2edfc3b3398b4549e47",
+      "bytes": 86
+    },
+    {
+      "line": 665,
+      "sha256": "f151ca4cdf221f49a1411d8005c3112bd8de5f5d2c760fa098b3ba002424a337",
+      "bytes": 259
+    },
+    {
+      "line": 672,
+      "sha256": "672f6b57c71a8627b2763ea5f079545ef6cbb39c5994ae902d4defe00c943311",
+      "bytes": 60
+    },
+    {
+      "line": 673,
+      "sha256": "5ef213d1792e9e400a068c102c7c95498fb74355706734d19ca23ad32f4db114",
+      "bytes": 72
+    },
+    {
+      "line": 793,
+      "sha256": "535075135d2a545af56493b54df08e08534f058f07e5fd372d6f1fd77dcf199c",
+      "bytes": 86
+    }
+  ],
+  "no_private_key_marker_in_public": true,
+  "no_github_token_shape_in_public": true
+}

@@ -1,0 +1,13 @@
+{
+  "approved_head": "6760cbedb0d87ad51be958f0f78c91db49f27328",
+  "actual_pr_checkout": "492ff426eab5345d738cb6679d12dcf0a320660d",
+  "tree": "ca524ac75520f8614f7d06e0e46e44902203145e",
+  "trees_equal": true,
+  "merge_parents": [
+    "335cd2569d2b62de577916ed86c097fd3a22547e",
+    "6760cbedb0d87ad51be958f0f78c91db49f27328"
+  ],
+  "native_stable_product_checkout": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "native_stable_trusted_tools": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+  "job_log": "stable-job-119209866922.log"
+}

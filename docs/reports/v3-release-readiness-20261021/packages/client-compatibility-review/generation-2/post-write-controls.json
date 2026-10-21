@@ -1,0 +1,391 @@
+{
+  "actual_branch": true,
+  "network_native_execution": false,
+  "cases": 48,
+  "results": [
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "404 Not Found",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "algorithm": "sha256",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": null,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": false,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "missing-byhash",
+      "completed": true,
+      "diagnostic": "404 Not Found",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": null,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": false,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "SSL connection failed before response",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "Failed to fetch authenticated index",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "Hash Sum mismatch",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "algorithm": "sha512",
+      "mode": "corrupt-byhash",
+      "completed": true,
+      "diagnostic": "404 Not Found",
+      "accepted": false,
+      "expected": false
+    }
+  ]
+}

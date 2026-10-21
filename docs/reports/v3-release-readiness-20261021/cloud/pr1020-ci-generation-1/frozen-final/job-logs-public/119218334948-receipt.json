@@ -1,0 +1,79 @@
+{
+  "job_id": 119218334948,
+  "run_id": 39598983278,
+  "conclusion": "success",
+  "raw_bytes": 228673,
+  "raw_sha256": "a2357edcdd4ae6461ed9883c4cb8b49e3fb310d1811f11d2b2e438ff8df99bbe",
+  "public_sha256": "cba26e0b47520adb3d50629a366feab91f4859898b25e8c01cac774fb6a49493",
+  "synthetic_sha_present": true,
+  "synthetic_sha_exact_output_line": true,
+  "checkout_identity_lines": [
+    "2026-10-21T12:21:51.5822377Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +922bc66a9cebcbe09bef5fc43afc0593c4f07fb8:refs/remotes/pull/1020/merge",
+    "2026-10-21T12:22:00.2696335Z  * [new ref]             922bc66a9cebcbe09bef5fc43afc0593c4f07fb8 -> pull/1020/merge",
+    "2026-10-21T12:22:01.1967093Z HEAD is now at 922bc66a9 Merge 0cdfaa37b00c58819895dee54029c27c83c9caa9 into ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "2026-10-21T12:22:01.2110911Z 922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "2026-10-21T12:26:18.7205911Z {\"project_name\":\"wukongim\",\"tag\":\"v3.0.0-beta.24\",\"previous_tag\":\"v3.0.0-beta.23\",\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"date\":\"2026-10-21T12:23:38.371514883Z\",\"runtime\":{\"goos\":\"linux\",\"goarch\":\"amd64\"}}",
+    "2026-10-21T12:27:24.4890250Z + test {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"} = {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}",
+    "2026-10-21T12:27:24.5901046Z {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}",
+    "2026-10-21T12:27:36.5313404Z + test {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"} = {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}",
+    "2026-10-21T12:27:36.6273435Z {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}",
+    "2026-10-21T12:27:53.2359333Z + test '{\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}' = '{\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}'",
+    "2026-10-21T12:27:53.3159357Z {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}",
+    "2026-10-21T12:28:11.4735940Z + test '{\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}' = '{\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}'",
+    "2026-10-21T12:28:11.5537530Z {\"version\":\"3.0.0-beta.24-SNAPSHOT-922bc66a9\",\"commit\":\"922bc66a9cebcbe09bef5fc43afc0593c4f07fb8\",\"build_source\":\"release\"}"
+  ],
+  "redacted_lines": [
+    {
+      "line": 22,
+      "sha256": "eca62646c0588456efd9dfd0c6de5d4237f6f34202862b7bef97757a893cc5df",
+      "bytes": 63
+    },
+    {
+      "line": 26,
+      "sha256": "2115c2bdbdd1c93eb9c2084384863ca8ad7a738206334e8a2ee3ae69c0601f39",
+      "bytes": 52
+    },
+    {
+      "line": 41,
+      "sha256": "20b78ae999dab18ee6d20531d062026e0e8c6bc6c7a8d1744a915e5f38850d0e",
+      "bytes": 42
+    },
+    {
+      "line": 98,
+      "sha256": "68b0f92c84c7a03897511cb8ee86428d0507da3105638381c200a6484a34c7f8",
+      "bytes": 211
+    },
+    {
+      "line": 306,
+      "sha256": "cc7704ec016192e411cd5ec3713e4b3616184450087887b77aee5c2b361f7c0b",
+      "bytes": 140
+    },
+    {
+      "line": 635,
+      "sha256": "9d205cf94c48c5f2ca1fe2315e08d71a27de4e06bb0dc7a82390895064887397",
+      "bytes": 42
+    },
+    {
+      "line": 1475,
+      "sha256": "a108d1080ea620fddcaea4f971e2c0ec285122ee30669ea848d751a8ad9e68c8",
+      "bytes": 77
+    },
+    {
+      "line": 1883,
+      "sha256": "b86711fc8671a4968f1e601bdd57f761c21a5a54d32385617f802546e3160da6",
+      "bytes": 77
+    },
+    {
+      "line": 2205,
+      "sha256": "6ec17c1e08fbd0378ff48d32aa875c7605fa8c21739981b7bd95c9c6f4e0bf1a",
+      "bytes": 77
+    },
+    {
+      "line": 2423,
+      "sha256": "5d79a20acb92845b4a73fe1a283aa03478aba8127652af57632da18722e6adc2",
+      "bytes": 77
+    }
+  ],
+  "no_private_key_marker_in_public": true,
+  "no_github_token_shape_in_public": true
+}

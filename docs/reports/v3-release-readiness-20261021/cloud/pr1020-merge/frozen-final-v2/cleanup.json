@@ -1,0 +1,141 @@
+{
+  "observed_at": "2026-10-21T12:44:22.343145+00:00",
+  "primary_head_before_after": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "primary_status_unchanged": true,
+  "worktree_removed": true,
+  "local_branch_removed": true,
+  "force_used": false,
+  "target_contains_tip": true,
+  "steps": [
+    {
+      "arguments": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation",
+      "exit_code": 0,
+      "stdout": "0cdfaa37b00c58819895dee54029c27c83c9caa9\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--ignored"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "fetch",
+        "origin",
+        "main"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "From https://github.com/WuKongIM/WuKongIM\n * branch                main       -> FETCH_HEAD\n   ce3c4d911..e30299fa5  main       -> origin/main\n"
+    },
+    {
+      "arguments": [
+        "git",
+        "rev-parse",
+        "origin/main"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "e30299fa59ea6669ea71024eabe209840f241f19\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+        "origin/main"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "worktree",
+        "remove",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "branch",
+        "-d",
+        "codex/v3-rc-released-continuation"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "Deleted branch codex/v3-rc-released-continuation (was 0cdfaa37b).\n",
+      "stderr": "warning: deleting branch 'codex/v3-rc-released-continuation' that has been merged to\n         'refs/remotes/origin/codex/v3-rc-released-continuation', but not yet merged to HEAD.\n"
+    },
+    {
+      "arguments": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

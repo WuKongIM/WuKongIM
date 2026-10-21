@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim.test_only_stable_clients.repair/v1",
+  "native_executed": false,
+  "native_cases_pending": 49,
+  "light_tests": {
+    "driver_and_fixture_boundaries": 16,
+    "production_clients": 34,
+    "installed_cli": 12,
+    "all_passed": true
+  },
+  "probe": "08-exercise-ambiguous-result.json",
+  "v2_manifest_sha256": "e45c45554d63f9c15f889ccd71a4c7f453c1f7eeec3dac4c7374a76dbbb60a20",
+  "v2_delta_sha256": "d08db68f6aa4be0a0b9755f59fc1b78464cc77799244bd6f5ad2a2fc0f2e689b",
+  "protected_unchanged": 34,
+  "rule": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "size": 13284,
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "scope": "Only driver/tests and parent-owned workflow 47->49; production validation, producer/control files and fixture functions unchanged from v1.",
+  "limitations": [
+    "No Docker/GPG/native package-manager execution in this repair.",
+    "Root-owned cache semantics are handled in the isolated root helper; host cannot directly arm/read/remove privileged cached files. Cross-UID native proof remains first Linux CI.",
+    "SIGKILL or host loss cannot execute finally; repeated controlled TERM is ignored during bounded cleanup."
+  ]
+}

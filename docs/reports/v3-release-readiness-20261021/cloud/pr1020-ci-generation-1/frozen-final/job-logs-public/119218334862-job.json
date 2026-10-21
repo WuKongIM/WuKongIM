@@ -1,0 +1,164 @@
+{
+  "id": 119218334862,
+  "run_id": 39598983347,
+  "workflow_name": "Safety Automation - EasySDK Released Package Acceptance",
+  "head_branch": "codex/v3-rc-released-continuation",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39598983347",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbwfdsjg",
+  "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119218334862",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39598983347/job/119218334862",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T12:21:47Z",
+  "started_at": "2026-10-21T12:21:50Z",
+  "completed_at": "2026-10-21T12:28:32Z",
+  "name": "Flutter pub.dev 1.1.0 on iOS",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T12:21:50Z",
+      "completed_at": "2026-10-21T12:21:52Z"
+    },
+    {
+      "name": "Check out WuKongIM",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T12:21:52Z",
+      "completed_at": "2026-10-21T12:21:59Z"
+    },
+    {
+      "name": "Set up Go",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T12:21:59Z",
+      "completed_at": "2026-10-21T12:22:25Z"
+    },
+    {
+      "name": "Set up Node.js",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 4,
+      "started_at": "2026-10-21T12:22:25Z",
+      "completed_at": "2026-10-21T12:22:31Z"
+    },
+    {
+      "name": "Set up Flutter",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 5,
+      "started_at": "2026-10-21T12:22:31Z",
+      "completed_at": "2026-10-21T12:23:36Z"
+    },
+    {
+      "name": "Check out Flutter release source",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-10-21T12:23:36Z",
+      "completed_at": "2026-10-21T12:23:38Z"
+    },
+    {
+      "name": "Point the official example at pub.dev",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-10-21T12:23:38Z",
+      "completed_at": "2026-10-21T12:23:39Z"
+    },
+    {
+      "name": "Start WuKongIM and released Web peer",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 8,
+      "started_at": "2026-10-21T12:23:39Z",
+      "completed_at": "2026-10-21T12:24:05Z"
+    },
+    {
+      "name": "Boot iOS Simulator",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 9,
+      "started_at": "2026-10-21T12:24:05Z",
+      "completed_at": "2026-10-21T12:25:27Z"
+    },
+    {
+      "name": "Run released Flutter package on iOS",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 10,
+      "started_at": "2026-10-21T12:25:27Z",
+      "completed_at": "2026-10-21T12:28:04Z"
+    },
+    {
+      "name": "Clean up runtime",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 11,
+      "started_at": "2026-10-21T12:28:04Z",
+      "completed_at": "2026-10-21T12:28:05Z"
+    },
+    {
+      "name": "Post Check out Flutter release source",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 18,
+      "started_at": "2026-10-21T12:28:05Z",
+      "completed_at": "2026-10-21T12:28:07Z"
+    },
+    {
+      "name": "Post Set up Flutter",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 19,
+      "started_at": "2026-10-21T12:28:07Z",
+      "completed_at": "2026-10-21T12:28:09Z"
+    },
+    {
+      "name": "Post Set up Node.js",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 20,
+      "started_at": "2026-10-21T12:28:09Z",
+      "completed_at": "2026-10-21T12:28:10Z"
+    },
+    {
+      "name": "Post Set up Go",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 21,
+      "started_at": "2026-10-21T12:28:10Z",
+      "completed_at": "2026-10-21T12:28:10Z"
+    },
+    {
+      "name": "Post Check out WuKongIM",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 22,
+      "started_at": "2026-10-21T12:28:10Z",
+      "completed_at": "2026-10-21T12:28:11Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 23,
+      "started_at": "2026-10-21T12:28:11Z",
+      "completed_at": "2026-10-21T12:28:27Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119218334862",
+  "labels": [
+    "macos-15"
+  ],
+  "runner_id": 1000024298,
+  "runner_name": "GitHub Actions 1000024298",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

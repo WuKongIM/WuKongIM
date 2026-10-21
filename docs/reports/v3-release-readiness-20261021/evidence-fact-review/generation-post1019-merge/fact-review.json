@@ -1,0 +1,103 @@
+{
+  "head": "4d8f8e21facd5251074ac3a9040fdb8c8d676351",
+  "reviewed_report_cutoff_utc": "2026-10-21T11:46:00Z",
+  "verdict": "consistent_with_archived_receipts",
+  "findings": [],
+  "scope_note": "540bef079 updates readiness report and evidence README; 4d8f8e21f adds two previously omitted review test logs. Stable-key-preparation report has no change in either commit and retains its own 09:06Z cutoff.",
+  "claims_verified": {
+    "native_first_review_p2_count": 2,
+    "native_real_installed_negative_coverage_gaps": [
+      "old_installed_version",
+      "missing_wkcli"
+    ],
+    "lightweight_checks": [
+      34,
+      10,
+      12
+    ],
+    "native_cases_not_claimed_executed": true,
+    "go_and_consumer_no_blockers_only_in_reviewed_parts": true,
+    "independent_consumer_shell_probes": 8,
+    "authority_is_stubbed_in_probes": true,
+    "authority_helper_and_full_combined_verification_not_claimed_complete": true,
+    "old_unknown_failure_preserved": true,
+    "full_quote_reserve_is_not_invoice": true,
+    "actual_bill_unknown": true,
+    "no_new_quote_purchase_or_dispatch_claimed": true
+  },
+  "git_manifest": {
+    "checked_at_utc": "2026-10-21T11:50:18.127318+00:00",
+    "git_head": "4d8f8e21facd5251074ac3a9040fdb8c8d676351",
+    "git_tree": "a10f072fd9071dde7263b667b3e6e435e3ef1442",
+    "manifest_path": "docs/reports/v3-release-readiness-20261021/SHA256SUMS",
+    "manifest_sha256": "c32af9a380f9add39d414542b98fe5950a23cdd7d29ccaaa89d2040eeb9468eb",
+    "manifest_entries": 3583,
+    "expected_entries": 3583,
+    "verified_git_blobs": 3583,
+    "total_bytes": 63268822,
+    "missing_from_git": [],
+    "digest_mismatches": [],
+    "invalid_modes": [],
+    "manifest_errors": [],
+    "all_passed": true,
+    "elapsed_seconds": 0.6,
+    "verification_method": "Read fixed HEAD tree and git cat-file blob bytes; did not substitute working-tree or ignored/untracked files."
+  },
+  "audited_entry_list_sha256": "0aee878cfe825f1595c3a35fcea12ad82529a2c422205ac8c410402dccb90ae2",
+  "source_hashes": [
+    {
+      "path": "docs/reports/2026-10-21-v3-release-readiness.md",
+      "sha256": "0eaf69a6b60806b562dbd1ce9a22f59c9c4f7603e0d771f5d78c6ac1fdefb900"
+    },
+    {
+      "path": "docs/reports/2026-10-21-v3-stable-key-preparation.md",
+      "sha256": "8bcee68fea71ba50aa14b6a1fc8ea38a84a84769d9ca8fd650fae93f9b4f7073"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/README.md",
+      "sha256": "eedfe70747e78aca7588c71bedf4653705c4b73892d0e3883b0a7073a10dcdd9"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/review.md",
+      "sha256": "b08f07a70cbd57348da3a6be6bbf478eb20cde2822884facf05ecfb1a0f0a320"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/light-tests.json",
+      "sha256": "6919bb9480feab8a2b372eef5cb04338e15914e940bb9e68c2375976d4d70815"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_installed_cli_acceptance.py.log",
+      "sha256": "7a60cb1c9536b268c292b2181945be4553ff56fa6664984fd3b0f6dfb499148a"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_native_stable_clients_drill.py.log",
+      "sha256": "865686290986eb1ea2f6f52b5882143dba4f486745ba50d07ba32b9ff55bfde4"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/fixture-freeze-v1/review.md",
+      "sha256": "1d435f59e81025c8e0e1b16f2cdefee96436415c7ee5a51e0a83cab9d4c57ff8"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/released-continuation-go-review/review.md",
+      "sha256": "dc5b80913c5ab8ab69511ba659abe8590c2faad61d5c9acc99d182d9127eae01"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/released-continuation-consumer-review/review.md",
+      "sha256": "33bbb58f7762865a9d32b6a4b3b386c83f2e74f44b7f13a2dffd374e5fe340ea"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/released-continuation-consumer-review/independent-probe-results.json",
+      "sha256": "43c7eba3f147bad8d02c33b0222e096eb85ad2a6e1da418e92bd5f9acef40d3e"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-next-execution-plan-post1019/generation-2/README.md",
+      "sha256": "963b8dafda4ac5deb453f6915c6e798d7ba4ed3a8a61c463b6fbfff1ff934b54"
+    }
+  ],
+  "actions": {
+    "source_edits": false,
+    "new_tests_or_native_execution": false,
+    "cloud_or_api_calls": false,
+    "private_files_accessed": false
+  }
+}

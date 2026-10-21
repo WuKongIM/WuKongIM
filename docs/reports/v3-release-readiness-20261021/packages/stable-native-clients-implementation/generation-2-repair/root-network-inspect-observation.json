@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-21T11:59:44.636282+00:00",
+  "operation": "read_only_inspect_absent_network",
+  "command": [
+    "docker",
+    "network",
+    "inspect",
+    "--format",
+    "{{.Id}}",
+    "0000000000000000000000000000000000000000000000000000000000000000"
+  ],
+  "exit_code": 1,
+  "stdout": "\n",
+  "stderr": "Error response from daemon: network 0000000000000000000000000000000000000000000000000000000000000000 not found\n",
+  "created_or_removed_resources": false,
+  "finding": "second cleanup re-inspects successfully removed network ID because self.network remains set; No such check misses actual network not found response"
+}

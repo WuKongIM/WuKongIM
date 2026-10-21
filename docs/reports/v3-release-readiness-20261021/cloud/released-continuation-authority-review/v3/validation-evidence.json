@@ -1,0 +1,101 @@
+{
+  "author_focused": {
+    "27-review-v3-red.jsonl": {
+      "test_events": {
+        "pass": 7,
+        "fail": 6,
+        "skip": 0
+      },
+      "failed_tests": [
+        "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/in_progress",
+        "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/queued",
+        "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus",
+        "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering/runtime",
+        "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering/grant",
+        "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering"
+      ],
+      "packages": [
+        "fail"
+      ],
+      "sha256": "d75005d72118f93781182c2b5fb5cedff26242ee61c88711232a848e9ed784c3"
+    },
+    "28-review-v3-green.jsonl": {
+      "test_events": {
+        "pass": 85,
+        "fail": 0,
+        "skip": 0
+      },
+      "failed_tests": [],
+      "packages": [
+        "pass"
+      ],
+      "sha256": "68098b16cb8d67e36fa58fee035c1429977eb6d74c8a9fcdfeb77e2cae1e9df3"
+    }
+  },
+  "author_named_checks": [
+    {
+      "check": "go-format",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26202,
+      "output_bytes": 0,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26202,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 0.856
+    },
+    {
+      "check": "flow-doc-contracts",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26214,
+      "output_bytes": 1376,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26214,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 0.136
+    },
+    {
+      "check": "workflow-contracts",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 26222,
+      "output_bytes": 469,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 26222,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "elapsed_seconds": 2.716
+    }
+  ],
+  "independent_cli": {
+    "cases": 15,
+    "additional_consumer_validate": 1,
+    "all_expected_outcomes": true
+  },
+  "heavy_tests_rerun": false,
+  "remaining_named_checks": "not treated as passed in this review"
+}

@@ -1,0 +1,20 @@
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run
+    chat_lifecycle_released_preclock_integration_test.go:196: valid carried proof: exit status 1 map[reason:sidecar_integrity schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt
+    chat_lifecycle_released_preclock_integration_test.go:196: want rerun_not_supported got exit status 1 map[reason:sidecar_integrity schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest
+    chat_lifecycle_released_preclock_integration_test.go:196: want artifact_integrity got exit status 1 map[reason:sidecar_integrity schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+--- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar (2.86s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run (0.47s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof (0.48s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve (0.47s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence (0.48s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt (0.49s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest (0.47s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	3.206s
+FAIL

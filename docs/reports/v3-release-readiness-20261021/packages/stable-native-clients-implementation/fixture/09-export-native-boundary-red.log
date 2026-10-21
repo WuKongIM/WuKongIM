@@ -1,0 +1,24 @@
+test_export_rejects_missing_generation_before_native_commands (__main__.FixtureBoundaryTests.test_export_rejects_missing_generation_before_native_commands) ... ok
+test_export_rejects_unusable_output_without_native_commands (__main__.FixtureBoundaryTests.test_export_rejects_unusable_output_without_native_commands) ... ok
+test_export_rejects_wrong_source_before_commands_or_output (__main__.FixtureBoundaryTests.test_export_rejects_wrong_source_before_commands_or_output) ... ok
+test_first_native_failure_removes_private_tree_and_exports_nothing (__main__.FixtureBoundaryTests.test_first_native_failure_removes_private_tree_and_exports_nothing) ... FAIL
+test_invalid_payloads_fail_before_native_commands (__main__.FixtureBoundaryTests.test_invalid_payloads_fail_before_native_commands) ... ok
+test_real_payloads_are_inputs_to_both_native_package_commands (__main__.FixtureBoundaryTests.test_real_payloads_are_inputs_to_both_native_package_commands) ... ok
+
+======================================================================
+FAIL: test_first_native_failure_removes_private_tree_and_exports_nothing (__main__.FixtureBoundaryTests.test_first_native_failure_removes_private_tree_and_exports_nothing)
+----------------------------------------------------------------------
+NotImplementedError: client fixture generation is not implemented
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/test_fixture_boundaries.py", line 43, in test_first_native_failure_removes_private_tree_and_exports_nothing
+    with self.assertRaisesRegex(RuntimeError, 'intercepted first native signing command'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "intercepted first native signing command" does not match "client fixture generation is not implemented"
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.038s
+
+FAILED (failures=1)

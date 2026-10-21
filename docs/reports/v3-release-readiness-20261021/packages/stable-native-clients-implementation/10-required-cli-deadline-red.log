@@ -1,0 +1,35 @@
+.F.F..............................
+======================================================================
+FAIL: test_stable_download_command_preserves_checks_and_has_fixed_deadline (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_download_command_preserves_checks_and_has_fixed_deadline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1429, in test_stable_download_command_preserves_checks_and_has_fixed_deadline
+    self.assertEqual(command[-7:-1], ['timeout', '--signal=TERM', '--kill-after=10s', '300s', 'bash', '-c'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['WK_REPOSITORY_URL=https://packages.github[162 chars]'-c'] != ['timeout', '--signal=TERM', '--kill-after=[22 chars]'-c']
+
+First differing element 0:
+'WK_REPOSITORY_URL=https://packages.githubim.com/apt'
+'timeout'
+
++ ['timeout', '--signal=TERM', '--kill-after=10s', '300s', 'bash', '-c']
+- ['WK_REPOSITORY_URL=https://packages.githubim.com/apt',
+-  '--env',
+-  'WK_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt',
+-  'image@sha256:1111111111111111111111111111111111111111111111111111111111111111',
+-  'bash',
+-  '-c']
+
+======================================================================
+FAIL: test_stable_rejects_wrong_scope_before_native_or_network (test_validate_production_package_clients.StableClientAdmissionTest.test_stable_rejects_wrong_scope_before_native_or_network) (reason='stable requires installed CLI acceptance')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_validate_production_package_clients.py", line 1417, in test_stable_rejects_wrong_scope_before_native_or_network
+    self.assertIn(reason, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable requires installed CLI acceptance' not found in 'production package client validation failed: stable native verifier tools are unavailable: rpm,rpmkeys,dpkg-deb\n'
+
+----------------------------------------------------------------------
+Ran 34 tests in 0.615s
+
+FAILED (failures=2)

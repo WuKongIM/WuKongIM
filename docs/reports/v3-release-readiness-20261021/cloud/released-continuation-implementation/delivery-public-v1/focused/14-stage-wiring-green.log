@@ -1,0 +1,116 @@
+=== RUN   TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction
+=== PAUSE TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction
+=== RUN   TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell
+=== RUN   TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/first_rehearsal
+=== RUN   TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/released_preclock_continuation
+--- PASS: TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell (0.01s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/first_rehearsal (0.00s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/released_preclock_continuation (0.01s)
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_0
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_19
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_0
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_19
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_0
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_19
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_0
+=== RUN   TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_19
+--- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell (0.84s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_0 (0.09s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_19 (0.12s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_0 (0.10s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_19 (0.09s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_0 (0.12s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_19 (0.09s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_0 (0.12s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_19 (0.09s)
+=== RUN   TestChatLifecycleReleasedPreclockConsumersFormalProcurementGate
+--- PASS: TestChatLifecycleReleasedPreclockConsumersFormalProcurementGate (0.00s)
+=== RUN   TestChatLifecycleReleasedPreclockConsumersCleanupIndependence
+=== RUN   TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/rehearsal
+=== RUN   TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/formal
+--- PASS: TestChatLifecycleReleasedPreclockConsumersCleanupIndependence (0.00s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/rehearsal (0.00s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/formal (0.00s)
+=== RUN   TestChatLifecycleReleasedPreclockConsumersTerminalPreservation
+--- PASS: TestChatLifecycleReleasedPreclockConsumersTerminalPreservation (0.00s)
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable
+--- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead (1.23s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap (0.37s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun (0.21s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun (0.17s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow (0.16s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity (0.17s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable (0.15s)
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete
+--- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest (0.37s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh (0.04s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial (0.03s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup (0.15s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete (0.14s)
+=== RUN   TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+=== PAUSE TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/nonzero_prior
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/runtime_marker
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/sidecar
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/incomplete_zero
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/zero_before_release
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/old_quote_expired
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/missing_cost_line
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/known_correctness
+=== RUN   TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/account_mismatch
+--- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain (3.68s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/nonzero_prior (0.43s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/runtime_marker (0.24s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/sidecar (0.24s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/incomplete_zero (0.41s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/zero_before_release (0.44s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/old_quote_expired (0.45s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/missing_cost_line (0.44s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/known_correctness (0.44s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/account_mismatch (0.59s)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest
+--- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar (3.43s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run (0.80s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof (0.48s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve (0.48s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence (0.48s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt (0.51s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest (0.69s)
+=== RUN   TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire
+=== PAUSE TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire
+=== RUN   TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory
+=== PAUSE TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory
+=== RUN   TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt
+--- PASS: TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt (0.00s)
+=== RUN   TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedContinuation
+--- PASS: TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedContinuation (0.00s)
+=== RUN   TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrder
+--- PASS: TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrder (0.00s)
+=== CONT  TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction
+=== CONT  TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire
+=== CONT  TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory
+=== CONT  TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+--- PASS: TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire (0.51s)
+--- PASS: TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction (0.77s)
+--- PASS: TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory (0.87s)
+--- PASS: TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote (1.20s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	11.112s

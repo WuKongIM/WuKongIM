@@ -1,0 +1,60 @@
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -278,7 +278,12 @@
+                     errors.append(kind + ' identity does not match this run'); continue
+                 command = ['docker', 'rm', '--force', identifier] if kind == 'container' else ['docker', 'network', 'rm', identifier]
+                 removed = invoke(command)
+-                if removed is not None and removed.returncode and b'No such' not in removed.stderr:
++                if removed is not None and removed.returncode == 0:
++                    # Retire active IDs after confirmed removal. Keep creation
++                    # attempts so later stages must still query the UUID label.
++                    if kind == 'container': self.containers.discard(identifier)
++                    elif self.network == identifier: self.network = None
++                elif removed is not None and b'No such' not in removed.stderr:
+                     errors.append(kind + ' removal failed')
+         # This is mandatory after every attempted create, even when no create
+         # call returned an ID. NoSuch is accepted only if this final check is empty.
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -181,6 +181,41 @@
+         self.assertGreaterEqual(len(calls), 8)
+         self.assertTrue(final['errors'])
+ 
++    def test_two_stage_cleanup_retires_removed_ids_but_keeps_inventory_obligation(self):
++        drill = load(); label = 'two-stages'; calls = []
++        ids = {'container': 'a' * 64, 'network': 'b' * 64}
++        names = {'container': 'wk-scl-two-stages-1', 'network': 'wk-scl-two-stages'}
++        resources = {ids[kind]: kind for kind in ids}
++        def docker(command, **kwargs):
++            calls.append(command)
++            if 'inspect' in command:
++                kind = resources.get(command[-1])
++                if kind is None:
++                    diagnostic = (('Error response from daemon: network ' + command[-1] + ' not found')
++                                  if command[1] == 'network' else ('Error: No such object: ' + command[-1]))
++                    return subprocess.CompletedProcess(command, 1, b'', diagnostic.encode())
++                raw = f"{command[-1]} /{names[kind]} {label}\n".encode()
++            elif command[1:3] in (['rm', '--force'], ['network', 'rm']):
++                resources.pop(command[-1]); raw = b''
++            else:
++                self.assertIn('label=wk-stable-client-run=' + label, command)
++                kind = 'container' if command[1] == 'ps' else 'network'
++                raw = ''.join(identifier + '\n' for identifier, found in resources.items() if found == kind).encode()
++            return subprocess.CompletedProcess(command, 0, raw, b'')
++        owned = drill.OwnedDocker(label, run=docker)
++        for kind in ('container', 'network'):
++            command = (['docker', 'create', '--name', names[kind], '--label', 'wk-stable-client-run=' + label, 'image']
++                       if kind == 'container' else ['docker', 'network', 'create', '--label',
++                                                    'wk-stable-client-run=' + label, names[kind]])
++            owned.create(kind, command, lambda *args, kind=kind: ids[kind].encode())
++        self.assertTrue(owned.cleanup(final=False)['verified'])
++        final = owned.cleanup()
++        self.assertTrue(final['verified'], final)
++        self.assertEqual(final['creation_attempts'], {'containers': [names['container']], 'networks': [names['network']]})
++        self.assertEqual(sum('inspect' in command for command in calls), 2)
++        self.assertEqual(sum('label=wk-stable-client-run=' + label in command for command in calls), 8)
++        self.assertEqual(resources, {})
++
+     def test_command_deadline_output_bound_and_original_exit(self):
+         drill = load()
+         evidence = {'commands': []}

@@ -1,0 +1,11 @@
+{
+  "archive_bytes": 839428,
+  "archive_path": "native-original-job-119215337918.log.gz",
+  "archive_sha256": "e3bc9ba6bd74bd71bd77e77a11163ab27717def308e0f5b5c13cdb008a9ea56a",
+  "encoding": "gzip",
+  "raw_retained_locally": true,
+  "roundtrip_sha256_verified": true,
+  "source": "native-original-job-119215337918.log",
+  "source_bytes": 13475555,
+  "source_sha256": "b54b2e68923c31b7fdd9f566423f453384c671bf698b181faebcca19769a1d9e"
+}

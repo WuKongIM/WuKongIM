@@ -1,0 +1,34 @@
+{
+  "selected_descriptor": {
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "size": 593,
+    "digest": "sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  },
+  "manifest": {
+    "schemaVersion": 2,
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "config": {
+      "mediaType": "application/vnd.docker.container.image.v1+json",
+      "size": 3476,
+      "digest": "sha256:e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd"
+    },
+    "layers": [
+      {
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+        "size": 92598701,
+        "digest": "sha256:879404da0799d288868a96fdeb01fd5e753f4c55457546926ca7e6ede3a55f4c"
+      },
+      {
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+        "size": 8051958,
+        "digest": "sha256:e3bd828ab2a7f48dfd3974b8e99c39d7a15eb8ec565b590c0c1e550288538d7b"
+      }
+    ]
+  },
+  "candidate_reference": "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+  "pulled_or_executed": false
+}

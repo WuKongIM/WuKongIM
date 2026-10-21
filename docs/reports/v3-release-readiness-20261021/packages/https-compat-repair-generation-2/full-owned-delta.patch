@@ -1,0 +1,293 @@
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index ed6ddbe..3ca2817 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -34,6 +34,7 @@ MIRROR = '/rpm/stable/el/9/x86_64/mirrorlist'
+ INRELEASE = '/apt/dists/stable/InRelease'
+ MAX_LOG = 8 * 1024 * 1024
+ MAX_REQUESTS = 20000
++CORRUPT_APT_INDEX = b'changed authenticated index\n'
+ 
+ 
+ def canonical(value):
+@@ -101,6 +102,24 @@ def run_command(evidence, stage, command, *, timeout=300, maximum=MAX_LOG, env=N
+                       output_tail=bytes(output[-4096:]).decode(errors='replace'))
+ 
+ 
++def apt_by_hash_path(path):
++    """Recognize immutable APT index paths for both native strong-hash choices."""
++    return re.fullmatch(r'/apt/.*/by-hash/(?:SHA256/[0-9a-f]{64}|SHA512/[0-9a-f]{128})', path) is not None
++
++
++def verify_apt_by_hash_fault(mode, observed):
++    """Require the intended fault response in addition to native client rejection."""
++    require(mode in ('missing-byhash', 'corrupt-byhash'), 'unsupported by-hash fault mode')
++    for item in observed:
++        if not apt_by_hash_path(item['path']):
++            continue
++        if ((mode == 'missing-byhash' and item['status'] == 404)
++                or (mode == 'corrupt-byhash' and item['status'] == 200
++                    and item['sha256'] == hashlib.sha256(CORRUPT_APT_INDEX).hexdigest())):
++            return item
++    raise RuntimeError('native rejection lacks the actual by-hash fault response')
++
++
+ class RouteTable:
+     """Serve only frozen planner objects; switch after the exact response barrier."""
+     def __init__(self, root, maps):
+@@ -133,10 +152,10 @@ class RouteTable:
+                 return 302, b'', {'Location': 'https://forbidden.invalid/object'}
+             if self.mode == 'wrong-mirror' and path == MIRROR:
+                 raw = b'https://forbidden.invalid/repodata/\n'
+-            if self.mode == 'missing-byhash' and '/by-hash/SHA256/' in path:
++            if self.mode == 'missing-byhash' and apt_by_hash_path(path):
+                 return 404, b'', result
+-            if self.mode == 'corrupt-byhash' and '/by-hash/SHA256/' in path:
+-                raw = b'changed authenticated index\n'
++            if self.mode == 'corrupt-byhash' and apt_by_hash_path(path):
++                raw = CORRUPT_APT_INDEX
+             if self.mode == 'missing-metadata' and '/repodata/' in path and not path.endswith(('repomd.xml', 'repomd.xml.asc')):
+                 return 404, b'', result
+             if self.mode == 'wrong-asc' and path.endswith('/repomd.xml.asc'):
+@@ -159,6 +178,18 @@ class RouteTable:
+ def serve(root):
+     maps = json.loads((root / 'routes.json').read_bytes())
+     routes = RouteTable(root, maps)
++    class TLSServer(ThreadingHTTPServer):
++        def shutdown_request(self, request):
++            # A TCP half-close alone violates TLS: strict OpenSSL clients reject
++            # even complete HTTP bodies without close_notify. Bound the peer's
++            # reciprocal shutdown; truncation faults still fail Content-Length.
++            try:
++                request.settimeout(2)
++                request = request.unwrap()
++            except OSError:
++                pass
++            finally:
++                super().shutdown_request(request)
+     class Handler(BaseHTTPRequestHandler):
+         def log_message(self, *_):
+             pass
+@@ -191,7 +222,7 @@ def serve(root):
+             except Exception:
+                 (root / 'server-error').write_text('bounded HTTPS handler failed\n')
+                 self.close_connection = True
+-    server = ThreadingHTTPServer(('0.0.0.0', 443), Handler)
++    server = TLSServer(('0.0.0.0', 443), Handler)
+     server.count = 0
+     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+     context.load_cert_chain(root / 'tls.crt', root / 'tls.key')
+@@ -712,10 +743,14 @@ def exercise(args, evidence, owned):
+                             require(not re.search(r'Traceback|command not found|Usage:', text), 'fault failed at the harness layer')
+                             require(re.search(r'(?i)certificate|SSL|checksum|hash sum|unexpected size|signature|GPG|404|failed to (fetch|download)|cannot (download|prepare)|curl error|transfer|connection|could not resolve', text),
+                                     'fault lacks an authentication or transport diagnostic')
++                            observed = requests(number)
+                             if not wrong_ca and mode != 'wrong-san':
+-                                require(requests(number), 'fault did not reach the HTTPS fixture')
++                                require(observed, 'fault did not reach the HTTPS fixture')
++                            fault_response = (verify_apt_by_hash_fault(mode, observed)
++                                if mode in ('missing-byhash', 'corrupt-byhash') else None)
+                             return {'exit_code': result.returncode, 'request_serial': number, 'fault': mode,
+-                                    'output_sha256': hashlib.sha256(result.stdout).hexdigest()}
++                                    'output_sha256': hashlib.sha256(result.stdout).hexdigest(),
++                                    'by_hash_fault_response': fault_response}
+                         require(result.returncode == 0, 'download client failed')
+                         # Indexed payload expected bytes come directly from the exact
+                         # candidate source/signing site, not from what was downloaded.
+@@ -726,7 +761,7 @@ def exercise(args, evidence, owned):
+                         value = validator._download_receipt(directory, family, {next(iter(hashes)): [entry['version']]})
+                         observed = requests(number)
+                         if family == 'apt':
+-                            require(any('/by-hash/SHA256/' in item['path'] and item['status'] == 200 for item in observed)
++                            require(any(apt_by_hash_path(item['path']) and item['status'] == 200 for item in observed)
+                                     or persisted, 'native APT did not use authenticated by-hash')
+                         else:
+                             prefix = '/snapshots/stable/r' + str(descriptors[generation]['audit_release_id']) + '-'
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 6d1bf00..766b504 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -1,11 +1,16 @@
+ """Lightweight boundaries for the opt-in native stable client laboratory."""
+ import importlib.util
++import http.client
++import hashlib
+ import json
+ import os
+ from pathlib import Path
++import socket
++import ssl
+ import subprocess
+ import sys
+ import tempfile
++import threading
+ import unittest
+ from unittest import mock
+ 
+@@ -21,6 +26,90 @@ def load():
+ 
+ 
+ class NativeStableClientsTests(unittest.TestCase):
++    def test_https_normal_response_has_authenticated_tls_eof(self):
++        """Exercise the actual fixture server with strict OpenSSL EOF handling."""
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
++                '-keyout', str(root / 'tls.key'), '-out', str(root / 'tls.crt'),
++                '-days', '1', '-subj', '/CN=packages.githubim.com',
++                '-addext', 'subjectAltName=DNS:packages.githubim.com'],
++                check=True, capture_output=True, timeout=10)
++            # This case only needs the normal SNI context; both files remain TEST ONLY.
++            (root / 'wrong-name.crt').write_bytes((root / 'tls.crt').read_bytes())
++            (root / 'wrong-name.key').write_bytes((root / 'tls.key').read_bytes())
++            body = b'TEST ONLY complete signed-metadata transport bytes\n'
++            (root / 'body').write_bytes(body)
++            (root / 'routes.json').write_text(json.dumps({'A': {drill.INRELEASE: {'file': 'body'}}, 'B': {}}))
++            (root / 'state.json').write_text(json.dumps({'serial': 1, 'generation': 'A', 'mode': 'normal'}))
++            ready, servers, failures = threading.Event(), [], []
++            class LoopbackServer(drill.ThreadingHTTPServer):
++                def __init__(self, address, handler):
++                    super().__init__(('127.0.0.1', 0), handler)
++                    servers.append(self)
++                def serve_forever(self):
++                    ready.set()
++                    super().serve_forever(poll_interval=0.01)
++            def serve():
++                try:
++                    drill.serve(root)
++                except BaseException as error:
++                    failures.append(error)
++                    ready.set()
++            with mock.patch.object(drill, 'ThreadingHTTPServer', LoopbackServer):
++                thread = threading.Thread(target=serve, daemon=True)
++                thread.start()
++                try:
++                    self.assertTrue(ready.wait(5), 'TEST ONLY server did not become ready')
++                    self.assertEqual(failures, [])
++                    context = ssl.create_default_context(cafile=str(root / 'tls.crt'))
++                    with socket.create_connection(servers[0].server_address, timeout=5) as raw:
++                        with context.wrap_socket(raw, server_hostname='packages.githubim.com',
++                                                 suppress_ragged_eofs=False) as connection:
++                            connection.sendall(b'GET /apt/dists/stable/InRelease HTTP/1.0\r\nHost: packages.githubim.com\r\n\r\n')
++                            response = bytearray()
++                            eof_error = None
++                            try:
++                                while chunk := connection.recv(4096):
++                                    response.extend(chunk)
++                                    self.assertLess(len(response), 65536)
++                            except ssl.SSLEOFError as error:
++                                eof_error = error
++                            headers, actual = bytes(response).split(b'\r\n\r\n', 1)
++                            self.assertIn(b'200 OK', headers)
++                            self.assertIn(('Content-Length: ' + str(len(body))).encode(), headers)
++                            self.assertEqual(actual, body)
++                            self.assertIsNone(eof_error, 'strict TLS EOF after complete valid HTTP response: ' + str(eof_error))
++                            connection.unwrap()
++                    # A protocol-correct close must not weaken certificate
++                    # verification or turn the deliberate short body into success.
++                    for client_context, hostname in ((context, 'wrong-name.invalid'),
++                                                     (ssl.create_default_context(), 'packages.githubim.com')):
++                        with socket.create_connection(servers[0].server_address, timeout=5) as raw:
++                            with self.assertRaises(ssl.SSLCertVerificationError):
++                                client_context.wrap_socket(raw, server_hostname=hostname)
++                    (root / 'state.json').write_text(json.dumps({'serial': 2, 'generation': 'A', 'mode': 'disconnect'}))
++                    with socket.create_connection(servers[0].server_address, timeout=5) as raw:
++                        with context.wrap_socket(raw, server_hostname='packages.githubim.com',
++                                                 suppress_ragged_eofs=False) as connection:
++                            connection.sendall(b'GET /apt/dists/stable/InRelease HTTP/1.0\r\nHost: packages.githubim.com\r\n\r\n')
++                            response = http.client.HTTPResponse(connection)
++                            response.begin()
++                            with self.assertRaises(http.client.IncompleteRead) as rejected:
++                                response.read()
++                            self.assertEqual(rejected.exception.partial, body)
++                            self.assertEqual(rejected.exception.expected, 7)
++                            response.close()
++                            connection.unwrap()
++                    self.assertFalse((root / 'server-error').exists())
++                finally:
++                    if servers and thread.is_alive():
++                        servers[0].shutdown()
++                    thread.join(5)
++                    self.assertFalse(thread.is_alive(), 'TEST ONLY server leaked')
++                self.assertEqual(failures, [])
++
+     def test_native_ci_keeps_independent_fixed_source_read_only_job(self):
+         workflow = (ROOT / '.github/workflows/native-package-repository-drill.yml').read_text()
+         self.assertIn('\n  stable-clients:\n', workflow)
+@@ -279,6 +368,75 @@ class NativeStableClientsTests(unittest.TestCase):
+             self.assertEqual(status, 200)
+             self.assertEqual(route.response('/apt/by-hash/SHA256/a', {'If-None-Match': headers['ETag']})[0], 304)
+ 
++    def test_both_apt_hash_algorithms_retain_a_and_inject_real_faults(self):
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            for name, raw in (('ai', b'A release'), ('bi', b'B release'),
++                              ('ah', b'A index'), ('bh', b'B index')):
++                (root / name).write_bytes(raw)
++            for algorithm in ('SHA256', 'SHA512'):
++                digest = lambda raw: hashlib.new(algorithm.lower(), raw).hexdigest()
++                prefix = '/apt/dists/stable/main/binary-amd64/'
++                a_path = prefix + 'by-hash/' + algorithm + '/' + digest(b'A index')
++                b_path = prefix + 'by-hash/' + algorithm + '/' + digest(b'B index')
++                mutable = prefix + 'Packages.gz'
++                maps = {'A': {drill.INRELEASE: {'file': 'ai'}, a_path: {'file': 'ah'}, mutable: {'file': 'ah'}},
++                        'B': {drill.INRELEASE: {'file': 'bi'}, a_path: {'file': 'ah'},
++                              b_path: {'file': 'bh'}, mutable: {'file': 'bh'}}}
++                for serial, mode in enumerate(('apt-switch', 'missing-byhash', 'corrupt-byhash'), 1):
++                    with self.subTest(algorithm=algorithm, mode=mode):
++                        route = drill.RouteTable(root, maps)
++                        route.configure({'serial': serial, 'generation': 'A', 'mode': mode})
++                        self.assertEqual(route.response(drill.INRELEASE, {})[1], b'A release')
++                        self.assertEqual(route.generation, 'B')
++                        status, raw, _ = route.response(a_path, {})
++                        if mode == 'apt-switch':
++                            self.assertEqual((status, raw), (200, b'A index'))
++                            self.assertEqual(route.response(b_path, {})[1], b'B index')
++                        elif mode == 'missing-byhash':
++                            self.assertEqual((status, raw), (404, b''))
++                        else:
++                            self.assertEqual(status, 200)
++                            self.assertNotEqual(digest(raw), digest(b'A index'))
++                        # The mutable fallback has B bytes and cannot satisfy the
++                        # A release. An unplanned alias must remain a real 404.
++                        self.assertEqual(route.response(mutable, {})[1], b'B index')
++                        unplanned = prefix + 'by-hash/' + algorithm + '/' + digest(b'not planned')
++                        self.assertEqual(route.response(unplanned, {})[0], 404)
++
++    def test_native_apt_proof_recognizes_only_supported_immutable_paths(self):
++        drill = load()
++        prefix = '/apt/dists/stable/main/binary-amd64/'
++        for algorithm in ('SHA256', 'SHA512'):
++            digest = hashlib.new(algorithm.lower(), b'index').hexdigest()
++            self.assertTrue(drill.apt_by_hash_path(prefix + 'by-hash/' + algorithm + '/' + digest))
++        for path in (prefix + 'Packages.gz', prefix + 'Packages',
++                     prefix + 'by-hash/SHA1/' + 'a' * 40,
++                     prefix + 'by-hash/SHA512/' + 'a' * 64,
++                     prefix + 'by-hash/SHA256/' + 'a' * 64 + '?mutable=1'):
++            self.assertFalse(drill.apt_by_hash_path(path), path)
++
++    def test_by_hash_rejection_requires_the_actual_fault_response(self):
++        drill = load()
++        corrupt_sha = hashlib.sha256(b'changed authenticated index\n').hexdigest()
++        for algorithm in ('SHA256', 'SHA512'):
++            path = '/apt/dists/stable/main/binary-amd64/by-hash/' + algorithm + '/' + hashlib.new(algorithm.lower(), b'A index').hexdigest()
++            for mode, status, digest in (('missing-byhash', 404, hashlib.sha256(b'').hexdigest()),
++                                         ('corrupt-byhash', 200, corrupt_sha)):
++                valid = {'path': path, 'status': status, 'sha256': digest}
++                with self.subTest(algorithm=algorithm, mode=mode):
++                    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [valid]), valid)
++                false_receipts = [[], [{'path': drill.INRELEASE, 'status': status, 'sha256': digest}],
++                    [dict(valid, path='/apt/dists/stable/main/binary-amd64/Packages.gz')],
++                    [dict(valid, status=200 if status == 404 else 404)]]
++                if mode == 'corrupt-byhash':
++                    false_receipts.append([dict(valid, sha256=hashlib.sha256(b'A index').hexdigest())])
++                for observed in false_receipts:
++                    with self.subTest(algorithm=algorithm, mode=mode, observed=observed):
++                        with self.assertRaisesRegex(RuntimeError, 'by-hash fault response'):
++                            drill.verify_apt_by_hash_fault(mode, observed)
++
+     def test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors(self):
+         drill = load()
+         commands = []

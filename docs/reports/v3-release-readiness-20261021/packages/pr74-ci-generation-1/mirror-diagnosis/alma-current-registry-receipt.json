@@ -1,0 +1,11 @@
+{
+  "url": "https://registry-1.docker.io/v2/library/almalinux/manifests/sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+  "observed_at": "2026-10-21T12:07:35.928611+00:00",
+  "status": 200,
+  "expected_digest": "sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+  "response_digest": "sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+  "actual_body_digest": "sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+  "content_type": "application/vnd.oci.image.manifest.v1+json",
+  "size": 1029,
+  "auth": "Anonymous public pull token used in memory; no token saved"
+}

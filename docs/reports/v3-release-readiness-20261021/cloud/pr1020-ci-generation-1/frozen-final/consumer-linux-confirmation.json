@@ -1,0 +1,466 @@
+{
+  "schema": "wukongim.pr_ci.consumer_linux_confirmation/v1",
+  "verification": "offline parsing of original retained Go JSON events; no execution or network",
+  "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1020-ci-generation-1/candidate-artifacts/artifact-12346062287/stdout-stderr.log",
+  "source_bytes": 1343814,
+  "source_sha256": "7cb968d2cef554ab5382a281ca9d0035f747835bfa8929fc91dd1d806f0a4b69",
+  "non_json_preamble_lines": 96,
+  "consumer_actual_workflow_shell": {
+    "test_names": 12,
+    "root_tests": 2,
+    "subtests": 10,
+    "run_events": 12,
+    "pass_events": 12,
+    "skip_events": 0,
+    "fail_events": 0,
+    "duplicate_runs_or_terminals": false,
+    "tests": [
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1114,
+            "time": "2026-10-21T12:24:34.920499607Z",
+            "action": "run"
+          },
+          {
+            "line": 1125,
+            "time": "2026-10-21T12:24:34.928217237Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1126,
+            "time": "2026-10-21T12:24:34.928226054Z",
+            "action": "run"
+          },
+          {
+            "line": 1161,
+            "time": "2026-10-21T12:24:34.985400788Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/first_rehearsal",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1116,
+            "time": "2026-10-21T12:24:34.921820695Z",
+            "action": "run"
+          },
+          {
+            "line": 1119,
+            "time": "2026-10-21T12:24:34.923993507Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/released_preclock_continuation",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1120,
+            "time": "2026-10-21T12:24:34.924001301Z",
+            "action": "run"
+          },
+          {
+            "line": 1123,
+            "time": "2026-10-21T12:24:34.928201197Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_0",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1128,
+            "time": "2026-10-21T12:24:34.930391507Z",
+            "action": "run"
+          },
+          {
+            "line": 1131,
+            "time": "2026-10-21T12:24:34.935968686Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_19",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1132,
+            "time": "2026-10-21T12:24:34.935976701Z",
+            "action": "run"
+          },
+          {
+            "line": 1135,
+            "time": "2026-10-21T12:24:34.940034903Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_0",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1136,
+            "time": "2026-10-21T12:24:34.940043088Z",
+            "action": "run"
+          },
+          {
+            "line": 1139,
+            "time": "2026-10-21T12:24:34.945661767Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_19",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1140,
+            "time": "2026-10-21T12:24:34.945670252Z",
+            "action": "run"
+          },
+          {
+            "line": 1143,
+            "time": "2026-10-21T12:24:34.949888503Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_0",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1144,
+            "time": "2026-10-21T12:24:34.950953943Z",
+            "action": "run"
+          },
+          {
+            "line": 1147,
+            "time": "2026-10-21T12:24:34.963771681Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_19",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1148,
+            "time": "2026-10-21T12:24:34.963784295Z",
+            "action": "run"
+          },
+          {
+            "line": 1151,
+            "time": "2026-10-21T12:24:34.968020778Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_0",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1152,
+            "time": "2026-10-21T12:24:34.96802753Z",
+            "action": "run"
+          },
+          {
+            "line": 1155,
+            "time": "2026-10-21T12:24:34.980987343Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_19",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1156,
+            "time": "2026-10-21T12:24:34.980993965Z",
+            "action": "run"
+          },
+          {
+            "line": 1159,
+            "time": "2026-10-21T12:24:34.985382394Z",
+            "action": "pass"
+          }
+        ]
+      }
+    ]
+  },
+  "consumer_static_contracts": {
+    "test_names": 5,
+    "root_tests": 3,
+    "subtests": 2,
+    "run_events": 5,
+    "pass_events": 5,
+    "skip_events": 0,
+    "fail_events": 0,
+    "duplicate_runs_or_terminals": false,
+    "tests": [
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersFormalProcurementGate",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1162,
+            "time": "2026-10-21T12:24:34.985405376Z",
+            "action": "run"
+          },
+          {
+            "line": 1165,
+            "time": "2026-10-21T12:24:34.986289498Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1166,
+            "time": "2026-10-21T12:24:34.98629585Z",
+            "action": "run"
+          },
+          {
+            "line": 1177,
+            "time": "2026-10-21T12:24:34.98856527Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/rehearsal",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1168,
+            "time": "2026-10-21T12:24:34.986308694Z",
+            "action": "run"
+          },
+          {
+            "line": 1171,
+            "time": "2026-10-21T12:24:34.987517903Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/formal",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1172,
+            "time": "2026-10-21T12:24:34.987523644Z",
+            "action": "run"
+          },
+          {
+            "line": 1175,
+            "time": "2026-10-21T12:24:34.988551124Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecycleReleasedPreclockConsumersTerminalPreservation",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 1178,
+            "time": "2026-10-21T12:24:34.988572864Z",
+            "action": "run"
+          },
+          {
+            "line": 1181,
+            "time": "2026-10-21T12:24:34.990548353Z",
+            "action": "pass"
+          }
+        ]
+      }
+    ]
+  },
+  "previous_darwin_summary_ssh_skips": {
+    "test_names": 3,
+    "root_tests": 0,
+    "subtests": 3,
+    "run_events": 3,
+    "pass_events": 3,
+    "skip_events": 0,
+    "fail_events": 0,
+    "duplicate_runs_or_terminals": false,
+    "tests": [
+      {
+        "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 5584,
+            "time": "2026-10-21T12:31:51.809198733Z",
+            "action": "run"
+          },
+          {
+            "line": 5587,
+            "time": "2026-10-21T12:31:51.809253355Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 5602,
+            "time": "2026-10-21T12:31:52.162822102Z",
+            "action": "run"
+          },
+          {
+            "line": 5605,
+            "time": "2026-10-21T12:31:52.162871825Z",
+            "action": "pass"
+          }
+        ]
+      },
+      {
+        "test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+        "counts": {
+          "run": 1,
+          "pass": 1,
+          "skip": 0,
+          "fail": 0
+        },
+        "events": [
+          {
+            "line": 5630,
+            "time": "2026-10-21T12:31:52.479056914Z",
+            "action": "run"
+          },
+          {
+            "line": 5633,
+            "time": "2026-10-21T12:31:52.479100555Z",
+            "action": "pass"
+          }
+        ]
+      }
+    ]
+  },
+  "result": "all expected tests each ran once and passed once; no skip, fail, unfinished or duplicate target event",
+  "boundary": "Confirms these events in the supplied Linux scripts log; does not independently reauthenticate CI producer/artifact identity, GitHub APIs or cloud behavior."
+}

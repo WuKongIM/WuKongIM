@@ -1,0 +1,140 @@
+[
+  {
+    "artifact_id": 12345921877,
+    "source": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "status": "pass",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 164.127735,
+        "scheduled_to_start_p99_ms": 1.118257,
+        "service_p99_ms": 163.574139
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 211.20824,
+        "scheduled_to_start_p99_ms": 1.192225,
+        "service_p99_ms": 211.203392
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 16.51782,
+        "scheduled_to_start_p99_ms": 1.210564,
+        "service_p99_ms": 15.413947
+      }
+    ],
+    "seconds_count": 180,
+    "binary_sha256_file": "05f0b37cfcbd661774d844ddac61bfc960481349b2d08e49f544f4fdcdb328b1  /home/runner/work/_temp/500qps-mixed-send/benchmark.test"
+  },
+  {
+    "artifact_id": 12345736760,
+    "source": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "status": "pass",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 6.016275,
+        "scheduled_to_start_p99_ms": 1.092304,
+        "service_p99_ms": 5.050697
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 7.505937,
+        "scheduled_to_start_p99_ms": 1.095581,
+        "service_p99_ms": 6.210216
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 7.571489,
+        "scheduled_to_start_p99_ms": 1.172167,
+        "service_p99_ms": 6.145665
+      }
+    ],
+    "seconds_count": 180,
+    "binary_sha256_file": "0054e34fa2acb081d186a59d89a68df70f14213e931bbe5fae7ad4e510e74c67  /home/runner/work/_temp/500qps-channel-append/benchmark.test"
+  },
+  {
+    "artifact_id": 12345053387,
+    "source": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "status": "pass",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.032749,
+        "scheduled_to_start_p99_ms": 1.066833,
+        "service_p99_ms": 177.351159
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.085802,
+        "scheduled_to_start_p99_ms": 1.066095,
+        "service_p99_ms": 177.37079
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.09372,
+        "scheduled_to_start_p99_ms": 1.063986,
+        "service_p99_ms": 177.409896
+      }
+    ],
+    "seconds_count": 180,
+    "binary_sha256_file": "c7fba65f798e5bf1f0e889ae759bef3173fa221118334d9f94526fc1b69169f0  /home/runner/work/_temp/500qps-tcp-sendack/benchmark.test"
+  }
+]

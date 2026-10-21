@@ -1,0 +1,154 @@
+{
+  "actual_cases_passed": 0,
+  "actual_cases_started": 1,
+  "attempt": 1,
+  "baseline_substeps": [
+    {
+      "client_image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "command_index_zero_based": 50,
+      "elapsed_seconds": 0.759,
+      "exit_code": 0,
+      "output_sha256": "96f787afdf81193dde35928062bfd9befca74451638381ffefe9f9d13a290b21",
+      "output_size": 1849,
+      "stage": "download-client"
+    },
+    {
+      "client_image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "command_index_zero_based": 52,
+      "elapsed_seconds": 13.995,
+      "exit_code": 0,
+      "output_sha256": "e5129bd27f1befb92780dc47d4e2134169c73e256ef558bd2e9ecb96f0d9357f",
+      "output_size": 35992,
+      "stage": "installed-client"
+    },
+    {
+      "client_image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "command_index_zero_based": 54,
+      "elapsed_seconds": 0.289,
+      "exit_code": 100,
+      "output_sha256": "bd3f7bdf59fa7711ce64645498aa17453dab7cee78030c87269acab8df11add6",
+      "output_size": 1849,
+      "stage": "download-client"
+    }
+  ],
+  "by_hash_requests": [
+    {
+      "cache_control": null,
+      "etag": null,
+      "if_modified_since": null,
+      "if_none_match": null,
+      "mode": "normal",
+      "path": "/apt/dists/stable/main/binary-amd64/by-hash/SHA512/f040c09e131cb060d0cdd36e93ac576a7b2845c3b3c4c8e2c03dc165bb4fa9fc9e082f8ccd850317be9cbf568f99452008e8c963e912e1952f6ba3e35ff544a0",
+      "serial": 2,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "status": 404
+    }
+  ],
+  "cache_cleanup": [],
+  "classification": "TEST ONLY client/HTTPS harness integration failure; exact TLS cause not yet reproduced in this read-only audit",
+  "cleanup": {
+    "creation_attempts": {
+      "containers": [
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-1",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-2",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-3",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-4",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-5"
+      ],
+      "networks": [
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31"
+      ]
+    },
+    "discovered": {
+      "containers": [],
+      "networks": []
+    },
+    "errors": [],
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "facts": [
+    "Ubuntu download and the existing installed CLI command each exited 0 before the Debian failure. The composite baseline case is failed, not passed.",
+    "Debian bootstrap installation succeeded, then apt-get update exited 100 with OpenSSL unexpected EOF while reading the Release response.",
+    "Server logs recorded InRelease and Release status 200 before response-body completion; this is not proof of complete TLS delivery.",
+    "Ubuntu requested SHA512 by-hash and received 404, then downloaded mutable Packages.gz successfully. This is a separate coverage gap; no successful by-hash evidence from this run.",
+    "The root:adm apt log chown warning appears in the successful Ubuntu command too; it does not establish the fatal cause."
+  ],
+  "failed_case": {
+    "case": "baseline-A-four-download-and-installed-cli",
+    "expected_rejection": false,
+    "passed": false
+  },
+  "failed_client_image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+  "failed_command": {
+    "command": [
+      "docker",
+      "start",
+      "--attach",
+      "aa9497b5927d3c7963b5b5f1c89ab6f819c709cb16d71dba5277f5efdcd0af9e"
+    ],
+    "elapsed_seconds": 0.289,
+    "exit_code": 100,
+    "output_limit": false,
+    "output_sha256": "bd3f7bdf59fa7711ce64645498aa17453dab7cee78030c87269acab8df11add6",
+    "output_size": 1849,
+    "output_tail": "Reading package lists...\nBuilding dependency tree...\nThe following NEW packages will be installed:\n  wukongim-archive-keyring-stable\n0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.\nNeed to get 0 B/4452 B of archives.\nAfter this operation, 5120 B of additional disk space will be used.\nGet:1 /bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb wukongim-archive-keyring-stable all 1.1.1 [4452 B]\nSelecting previously unselected package wukongim-archive-keyring-stable.\r\n(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 4943 files and directories currently installed.)\r\nPreparing to unpack .../wukongim-archive-keyring-stable_1.1.1_all.deb ...\r\nUnpacking wukongim-archive-keyring-stable (1.1.1) ...\r\nSetting up wukongim-archive-keyring-stable (1.1.1) ...\r\nW: chown to root:adm of file /var/log/apt/term.log failed - OpenLog (1: Operation not permitted)\nGet:1 https://packages.githubim.com/apt stable InRelease [1807 B]\nIgn:1 https://packages.githubim.com/apt stable InRelease\nGet:2 https://packages.githubim.com/apt stable Release [1099 B]\nErr:2 https://packages.githubim.com/apt stable Release\n  OpenSSL error: error:0A000126:SSL routines::unexpected eof while reading  [IP: 172.18.0.2 443]\nReading package lists...\nE: The repository 'https://packages.githubim.com/apt stable Release' does not have a Release file.\n",
+    "stage": "download-client",
+    "timed_out": false
+  },
+  "failed_command_index_zero_based": 54,
+  "failure": "stable client verification failed: real download client failed",
+  "head": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "job_id": 119215338064,
+  "job_url": "https://github.com/WuKongIM/packages/actions/runs/39598091049/job/119215338064",
+  "phase": "baseline-A-four-download-and-installed-cli",
+  "reader_cleanup": {
+    "creation_attempts": {
+      "containers": [
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-1",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-2",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-3",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-4",
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31-5"
+      ],
+      "networks": [
+        "wk-scl-3fc7ab438e3d4c75b7afa7381a031b31"
+      ]
+    },
+    "discovered": {
+      "containers": [
+        "aa9497b5927d3c7963b5b5f1c89ab6f819c709cb16d71dba5277f5efdcd0af9e",
+        "a3f746e26ec3c9a5ca3f11ffe2153f118423cc05352ba33af37a031aa1f2a8e3",
+        "34a83eaf87e0e033b5fd3a0084f3f6a7ba4efd1100cbae0dc3b8e572b938650c",
+        "5bf92f4a6cf7d4e42095b13b0e28b68372d1679fc65a4d5ded7e968e06e692bd",
+        "9e8c102e9d5c2296276c808af5eacee8930b9c201f4014ccf934e3b1181c2d2a"
+      ],
+      "networks": [
+        "8269caa79be83fabde92f1604da2ee58b170f1da649304e2ea9e285df812a4cd"
+      ]
+    },
+    "errors": [],
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "receipt_path": "artifacts/native-stable-four-clients-test-only/native-stable-clients.json",
+  "request_log_path": "artifacts/native-stable-four-clients-test-only/https-requests.jsonl",
+  "root_cause_proven": false,
+  "run_id": 39598091049,
+  "schema": "wukongim.review.pr74_first_failure/v1",
+  "standalone_ubuntu_installed_receipt_retained": false,
+  "target_cases": 49,
+  "unexecuted": [
+    "remaining three complete baseline installed-client gates",
+    "A/B switching",
+    "cache reuse",
+    "negative client cases"
+  ]
+}

@@ -1,0 +1,16 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable
+--- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead (1.24s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap (0.41s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun (0.20s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun (0.17s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow (0.16s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity (0.16s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable (0.14s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	1.598s

@@ -1,0 +1,22 @@
+[
+  {
+    "file": "pages-jobs-initial.json",
+    "exit": 0,
+    "observed_at": "2026-10-21T12:15:42.501218+00:00"
+  },
+  {
+    "file": "native-jobs-initial.json",
+    "exit": 0,
+    "observed_at": "2026-10-21T12:15:42.711705+00:00"
+  },
+  {
+    "file": "head-commit.json",
+    "exit": 0,
+    "observed_at": "2026-10-21T12:15:42.600346+00:00"
+  },
+  {
+    "file": "merge-commit.json",
+    "exit": 1,
+    "observed_at": "2026-10-21T12:15:46.662865+00:00"
+  }
+]

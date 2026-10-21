@@ -1,0 +1,20 @@
+[
+  {
+    "url": "https://quay.io/v2/rockylinux/rockylinux/manifests/9-ubi-init",
+    "observed_at": "2026-10-21T12:08:25.078778+00:00",
+    "status": 200,
+    "digest": "sha256:1339a167e57330c1b6b9afb7bdcf5059e9ffdeb3b3d49bbcb4f6eaf39d8ed7c4",
+    "actual_sha256": "1339a167e57330c1b6b9afb7bdcf5059e9ffdeb3b3d49bbcb4f6eaf39d8ed7c4",
+    "content_type": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "bytes": 970
+  },
+  {
+    "url": "https://quay.io/v2/rockylinux/rockylinux/manifests/sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+    "observed_at": "2026-10-21T12:08:26.063265+00:00",
+    "status": 200,
+    "digest": "sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+    "actual_sha256": "aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+    "content_type": "application/vnd.docker.distribution.manifest.v2+json",
+    "bytes": 593
+  }
+]

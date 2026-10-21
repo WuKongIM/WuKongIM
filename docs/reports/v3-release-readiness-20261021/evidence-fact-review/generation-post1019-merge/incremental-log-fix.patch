@@ -1,0 +1,44 @@
+diff --git a/docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_installed_cli_acceptance.py.log b/docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_installed_cli_acceptance.py.log
+new file mode 100644
+index 000000000..35a4812dd
+--- /dev/null
++++ b/docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_installed_cli_acceptance.py.log
+@@ -0,0 +1,17 @@
++test_a_failed_distribution_prevents_success_receipt (test_installed_cli_acceptance.InstalledCLIContractTest.test_a_failed_distribution_prevents_success_receipt) ... ok
++test_false_success_and_timeout_are_not_accepted (test_installed_cli_acceptance.InstalledCLIContractTest.test_false_success_and_timeout_are_not_accepted) ... ok
++test_fixture_extraction_rejects_escape_and_links (test_installed_cli_acceptance.InstalledCLIContractTest.test_fixture_extraction_rejects_escape_and_links) ... ok
++test_four_installed_clients_follow_verified_public_downloads (test_installed_cli_acceptance.InstalledCLIContractTest.test_four_installed_clients_follow_verified_public_downloads) ... ok
++test_installed_gate_rejects_local_or_unbound_inputs_before_running (test_installed_cli_acceptance.InstalledCLIContractTest.test_installed_gate_rejects_local_or_unbound_inputs_before_running) ... ok
++test_installed_identity_is_checked_before_functional_commands (test_installed_cli_acceptance.InstalledCLIContractTest.test_installed_identity_is_checked_before_functional_commands) ... ok
++test_native_fixture_is_a_registered_format_2_generation (test_installed_cli_acceptance.InstalledCLIContractTest.test_native_fixture_is_a_registered_format_2_generation) ... ok
++test_publication_and_repeat_workflows_keep_the_gate_and_read_only_boundary (test_installed_cli_acceptance.InstalledCLIContractTest.test_publication_and_repeat_workflows_keep_the_gate_and_read_only_boundary) ... ok
++test_root_mounted_script_accepts_explicit_fixture_path (test_installed_cli_acceptance.InstalledCLIContractTest.test_root_mounted_script_accepts_explicit_fixture_path) ... ok
++test_unregistered_native_fixture_preserves_original_database_bytes (test_installed_cli_acceptance.InstalledCLIContractTest.test_unregistered_native_fixture_preserves_original_database_bytes) ... ok
++test_unverified_download_never_reaches_installation (test_installed_cli_acceptance.InstalledCLIContractTest.test_unverified_download_never_reaches_installation) ... ok
++test_wrong_commit_missing_check_or_wrong_fixture_fails_closed (test_installed_cli_acceptance.InstalledCLIContractTest.test_wrong_commit_missing_check_or_wrong_fixture_fails_closed) ... ok
++
++----------------------------------------------------------------------
++Ran 12 tests in 0.044s
++
++OK
+diff --git a/docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_native_stable_clients_drill.py.log b/docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_native_stable_clients_drill.py.log
+new file mode 100644
+index 000000000..4a04aab53
+--- /dev/null
++++ b/docs/reports/v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_native_stable_clients_drill.py.log
+@@ -0,0 +1,15 @@
++test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors (test_native_stable_clients_drill.NativeStableClientsTests.test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors) ... ok
++test_command_deadline_output_bound_and_original_exit (test_native_stable_clients_drill.NativeStableClientsTests.test_command_deadline_output_bound_and_original_exit) ... ok
++test_help_and_wrong_product_identity_do_not_launch_tools (test_native_stable_clients_drill.NativeStableClientsTests.test_help_and_wrong_product_identity_do_not_launch_tools) ... ok
++test_http_routes_preserve_a_bytes_at_request_barriers (test_native_stable_clients_drill.NativeStableClientsTests.test_http_routes_preserve_a_bytes_at_request_barriers) ... ok
++test_native_ci_keeps_independent_fixed_source_read_only_job (test_native_stable_clients_drill.NativeStableClientsTests.test_native_ci_keeps_independent_fixed_source_read_only_job) ... ok
++test_export_rejects_missing_generation_before_native_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_export_rejects_missing_generation_before_native_commands) ... ok
++test_export_rejects_unusable_output_without_native_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_export_rejects_unusable_output_without_native_commands) ... ok
++test_export_rejects_wrong_source_before_commands_or_output (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_export_rejects_wrong_source_before_commands_or_output) ... ok
++test_invalid_payloads_fail_before_native_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_invalid_payloads_fail_before_native_commands) ... ok
++test_real_payloads_are_inputs_to_both_native_package_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_real_payloads_are_inputs_to_both_native_package_commands) ... ok
++
++----------------------------------------------------------------------
++Ran 10 tests in 0.164s
++
++OK

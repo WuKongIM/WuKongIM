@@ -1,0 +1,213 @@
+{
+  "helper_sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226",
+  "real_cli": true,
+  "synthetic_api_zip_only": true,
+  "cloud_calls": false,
+  "all_expected_outcomes": true,
+  "case_count": 15,
+  "additional_consumer_validate": 1,
+  "results": {
+    "baseline": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "ready",
+        "attempt": 2,
+        "committed_micros": 74477600
+      },
+      "stderr": "",
+      "sidecar_exists": true,
+      "api_calls": 14,
+      "only_exact_gets": true
+    },
+    "typed_runtime_terminal": {
+      "exit": 1,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "rejected",
+        "reason": "measured_or_runtime_predecessor"
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 5,
+      "only_exact_gets": true
+    },
+    "typed_grant_terminal": {
+      "exit": 1,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "rejected",
+        "reason": "measured_or_runtime_predecessor"
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 5,
+      "only_exact_gets": true
+    },
+    "duplicate_zero_scope": {
+      "exit": 1,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "rejected",
+        "reason": "zero_incomplete"
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 14,
+      "only_exact_gets": true
+    },
+    "later_consumer_completed": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "ready",
+        "attempt": 2,
+        "committed_micros": 74477600
+      },
+      "stderr": "",
+      "sidecar_exists": true,
+      "api_calls": 14,
+      "only_exact_gets": true,
+      "validate": {
+        "exit": 0,
+        "receipt": {
+          "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+          "status": "ready",
+          "attempt": 2,
+          "committed_micros": 74477600
+        },
+        "stderr": "",
+        "sidecar_exists": true,
+        "api_calls": 29,
+        "only_exact_gets": true
+      }
+    },
+    "default_spent_completed": {
+      "exit": 1,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "rejected",
+        "reason": "request_already_spent"
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "default_spent_in_progress": {
+      "exit": 1,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "rejected",
+        "reason": "request_already_spent"
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "default_spent_queued": {
+      "exit": 1,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "rejected",
+        "reason": "request_already_spent"
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "default_no_history": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 0,
+      "only_exact_gets": true
+    },
+    "untrusted_path": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "untrusted_head_repository": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "untrusted_repository": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "untrusted_head_branch": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "untrusted_event": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    },
+    "untrusted_head_sha": {
+      "exit": 0,
+      "receipt": {
+        "schema": "wukongim.chat_lifecycle.released_preclock_authentication/v1",
+        "status": "first_start",
+        "attempt": 1,
+        "committed_micros": 0
+      },
+      "stderr": "",
+      "sidecar_exists": false,
+      "api_calls": 1,
+      "only_exact_gets": true
+    }
+  }
+}

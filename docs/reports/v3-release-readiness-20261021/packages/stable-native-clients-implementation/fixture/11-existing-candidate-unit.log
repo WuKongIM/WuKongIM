@@ -1,0 +1,22 @@
+test_actual_child_exit_is_retained_without_secret_stderr (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_actual_child_exit_is_retained_without_secret_stderr) ... ok
+test_controlled_rejection_records_only_declared_category (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_controlled_rejection_records_only_declared_category) ... ok
+test_declared_negative_cases_have_bounded_reason_and_layer (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_declared_negative_cases_have_bounded_reason_and_layer) ... ok
+test_expected_rejection_cannot_accept_a_crashed_child (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_expected_rejection_cannot_accept_a_crashed_child) ... ok
+test_expected_rejection_cannot_accept_success (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_expected_rejection_cannot_accept_success) ... ok
+test_first_failure_cannot_be_overwritten (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_first_failure_cannot_be_overwritten) ... ok
+test_help_never_builds_signs_or_installs (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_help_never_builds_signs_or_installs) ... ok
+test_json_anchor_mutation_preserves_json_and_changes_only_requested_leaf (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_json_anchor_mutation_preserves_json_and_changes_only_requested_leaf) ... ok
+test_key_setup_failure_retains_a_nonsecret_phase (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_key_setup_failure_retains_a_nonsecret_phase) ... ok
+test_missing_tool_preserves_public_failure_receipt (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_missing_tool_preserves_public_failure_receipt) ... ok
+test_real_scratch_layout_leaves_room_for_agent_socket_names (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_real_scratch_layout_leaves_room_for_agent_socket_names) ... ok
+test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure) ... ok
+test_signature_receipt_rebinding_changes_only_signature_facts (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_signature_receipt_rebinding_changes_only_signature_facts) ... ok
+test_source_setup_failure_retains_a_nonsecret_phase (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_source_setup_failure_retains_a_nonsecret_phase) ... ok
+test_workflow_preserves_isolation_pins_and_public_only_upload (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_workflow_preserves_isolation_pins_and_public_only_upload) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.089s
+
+OK
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

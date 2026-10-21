@@ -1,0 +1,23 @@
+.E....E.......
+======================================================================
+ERROR: test_cache_uses_installroot_mounts_and_proves_reads_of_existing_metadata (test_native_stable_clients_drill.NativeStableClientsTests.test_cache_uses_installroot_mounts_and_proves_reads_of_existing_metadata)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 92, in test_cache_uses_installroot_mounts_and_proves_reads_of_existing_metadata
+    self.assertEqual(drill.cache_mounts('rpm'), [('dnf-cache', '/tmp/client-root/tmp/dnf-cache'),
+                     ^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'cache_mounts'
+
+======================================================================
+ERROR: test_installed_negative_commands_preserve_install_and_original_acceptance (test_native_stable_clients_drill.NativeStableClientsTests.test_installed_negative_commands_preserve_install_and_original_acceptance)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 120, in test_installed_negative_commands_preserve_install_and_original_acceptance
+    command = drill.installed_negative_command(validator, 'image', package, root, cert, fault)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'installed_negative_command'
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.193s
+
+FAILED (errors=2)

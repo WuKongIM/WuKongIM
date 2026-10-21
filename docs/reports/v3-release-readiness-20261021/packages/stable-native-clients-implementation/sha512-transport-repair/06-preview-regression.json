@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_plan_object_storage_publication.py",
+    "-v"
+  ],
+  "exit_code": 0,
+  "at": "2026-10-21T12:31:17.887303+00:00"
+}

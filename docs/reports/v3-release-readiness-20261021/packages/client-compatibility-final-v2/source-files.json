@@ -1,0 +1,35 @@
+{
+  "base": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "size": 2198,
+      "sha256": "e0bdc24287f11d41f216edf18b4366c6a2b18dfa4f0ba11b35681b4854db2943"
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "size": 9710,
+      "sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "size": 60959,
+      "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d"
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "size": 42011,
+      "sha256": "064a58ffa57eb694c9802056a6d182e3577a7f6ef2ba0f764ac27a00ecb38ef7"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "source_manifest_sha256": "fa935d3d910fc9094c985bee7e4f78728d56f023514fcf9366ca878216d26f2a",
+  "full_python": {
+    "total": 499,
+    "skip": 1,
+    "exit_code": 0,
+    "seconds": 106.787,
+    "log": "full-python.log"
+  },
+  "contracts": {
+    "tests": 4,
+    "exit_code": 0,
+    "log": "contracts.log"
+  },
+  "independent_review": "../client-compatibility-review/review.md",
+  "disposition": "one reproducible test false-positive remains; repair required before candidate push",
+  "tests_first_deviation": "Five planner guard tests were added after the first successful alias implementation check. Original timestamps/logs are preserved; no retrospective tests-first claim is made."
+}

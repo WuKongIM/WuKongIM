@@ -1,0 +1,14 @@
+.E..
+======================================================================
+ERROR: test_command_deadline_output_bound_and_original_exit (test_native_stable_clients_drill.NativeStableClientsTests.test_command_deadline_output_bound_and_original_exit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 26, in test_command_deadline_output_bound_and_original_exit
+    result = drill.run_command(evidence, 'ordinary-failure',
+             ^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'run_command'
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.065s
+
+FAILED (errors=1)

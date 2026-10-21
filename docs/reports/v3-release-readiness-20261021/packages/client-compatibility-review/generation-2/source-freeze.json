@@ -1,0 +1,19 @@
+{
+  "base": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "author_manifest_sha256": "47a10f17635dc5a25cefb08299f7a6c239e8a192be630c20c059ddd8aa3b706b",
+  "delta_sha256": "59bef77fed3ad3591d9472b5d755d406527a6b12b11f361d597272479eeb4b3e",
+  "files": [
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "size": 60959,
+      "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "size": 42011,
+      "sha256": "064a58ffa57eb694c9802056a6d182e3577a7f6ef2ba0f764ac27a00ecb38ef7"
+    }
+  ],
+  "unchanged_other_original_four_files": true,
+  "all_author_manifest_records_verified": 15
+}

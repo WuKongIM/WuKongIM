@@ -1,0 +1,18 @@
+{
+  "checked_at_utc": "2026-10-21T11:50:18.127318+00:00",
+  "git_head": "4d8f8e21facd5251074ac3a9040fdb8c8d676351",
+  "git_tree": "a10f072fd9071dde7263b667b3e6e435e3ef1442",
+  "manifest_path": "docs/reports/v3-release-readiness-20261021/SHA256SUMS",
+  "manifest_sha256": "c32af9a380f9add39d414542b98fe5950a23cdd7d29ccaaa89d2040eeb9468eb",
+  "manifest_entries": 3583,
+  "expected_entries": 3583,
+  "verified_git_blobs": 3583,
+  "total_bytes": 63268822,
+  "missing_from_git": [],
+  "digest_mismatches": [],
+  "invalid_modes": [],
+  "manifest_errors": [],
+  "all_passed": true,
+  "elapsed_seconds": 0.6,
+  "verification_method": "Read fixed HEAD tree and git cat-file blob bytes; did not substitute working-tree or ignored/untracked files."
+}

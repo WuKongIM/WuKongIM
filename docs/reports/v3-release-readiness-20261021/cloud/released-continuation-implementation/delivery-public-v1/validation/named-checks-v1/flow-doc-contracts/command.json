@@ -1,0 +1,12 @@
+{
+  "arguments": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation",
+  "timeout_seconds": 60,
+  "max_output_bytes": 1048576
+}

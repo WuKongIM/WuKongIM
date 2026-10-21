@@ -1,0 +1,17 @@
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh
+    chat_lifecycle_released_preclock_integration_test.go:119: fresh start rejected: exit status 1 map[reason:prior_evidence_missing schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial
+    chat_lifecycle_released_preclock_integration_test.go:119: want inventory_incomplete, got exit status 1 map[reason:prior_evidence_missing schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup
+    chat_lifecycle_released_preclock_integration_test.go:119: want request_already_spent, got exit status 1 map[reason:prior_evidence_missing schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete
+    chat_lifecycle_released_preclock_integration_test.go:119: want request_already_spent, got exit status 1 map[reason:prior_evidence_missing schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+--- FAIL: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest (0.14s)
+    --- FAIL: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh (0.04s)
+    --- FAIL: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial (0.03s)
+    --- FAIL: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup (0.03s)
+    --- FAIL: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete (0.03s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.001s
+FAIL

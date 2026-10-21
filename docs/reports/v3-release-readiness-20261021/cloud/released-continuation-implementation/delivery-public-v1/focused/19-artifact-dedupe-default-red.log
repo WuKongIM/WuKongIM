@@ -1,0 +1,31 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_hash
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_size
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/zip_parent_path
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/oversized_document
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/child_head
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/child_attempt
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/ancestry
+=== RUN   TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/partial_child_inventory
+--- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering (2.00s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_hash (0.20s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_size (0.21s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/zip_parent_path (0.28s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/oversized_document (0.25s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/child_head (0.27s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/child_attempt (0.28s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/ancestry (0.22s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/partial_child_inventory (0.29s)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath
+=== RUN   TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath/rehearsal
+=== RUN   TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath/formal
+    chat_lifecycle_released_preclock_integration_test.go:255: wrong-stage default accepted: <nil> map[attempt:1 committed_micros:0 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:first_start]
+--- FAIL: TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath (0.07s)
+    --- PASS: TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath/rehearsal (0.04s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath/formal (0.03s)
+=== RUN   TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt
+    chat_lifecycle_released_preclock_test.go:9: missing bound materialization "WK_CHAT_ISSUE_DEDUPE_KEY=\"${chat_stage}_deployment_repair_${GITHUB_RUN_ID}_${stage_attempt}_${deployment_generation}\""
+--- FAIL: TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt (0.00s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	2.458s
+FAIL

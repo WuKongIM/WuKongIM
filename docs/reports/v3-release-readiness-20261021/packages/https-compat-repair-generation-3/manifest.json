@@ -1,0 +1,87 @@
+{
+  "base": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "native_validation": "pending",
+  "owned_files": [
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "prior_generation_manifest": "6ab0a6800fdb5ecabfef52de72182b50c6bb13cb02232d09f9f1e91b068481f6",
+  "records": [
+    {
+      "path": "01-delivery-and-diagnostic-red.log",
+      "sha256": "d2798ea840e22c83bfca7929ff8dd5c94554e55de3e9ed43f5c847338c39c38c",
+      "size": 59627
+    },
+    {
+      "path": "02-delivery-and-diagnostic-green.log",
+      "sha256": "f9509899b0785aa5fe98a7f1fd4861ef5254a839521cb915b3596c7a969a95bb",
+      "size": 101
+    },
+    {
+      "path": "03-original-review-probe-green.json",
+      "sha256": "07004ab92b83033e0c26d5e7f99d1003a1ed0f6b55e4e71ac3be534112720211",
+      "size": 2215
+    },
+    {
+      "path": "04-related-tests-green.log",
+      "sha256": "dd4d4edf30a9c5af46c6c1837b967c5866d5b264ca0294511b5bd6bb9aa65c68",
+      "size": 156
+    },
+    {
+      "path": "05-post-write-original-branch-red.json",
+      "sha256": "a8d8697dedefeae08339a22b8d49e9f3885fdc0a90475ee6e2c3aa4788212f8a",
+      "size": 5169
+    },
+    {
+      "path": "06-post-write-current-branch-green.json",
+      "sha256": "37d071a05cf6549a5b350b265eebc89d8c990de8cc7286fccf9fa20d398acb6d",
+      "size": 4855
+    },
+    {
+      "path": "delta-from-generation-2.patch",
+      "sha256": "59bef77fed3ad3591d9472b5d755d406527a6b12b11f361d597272479eeb4b3e",
+      "size": 11943
+    },
+    {
+      "path": "full-owned-delta.patch",
+      "sha256": "f57a182a924906af52f41b7a6985e239cac3f42c429e76f71e6f93a5c4d87518",
+      "size": 26293
+    },
+    {
+      "path": "native_stable_clients_drill.py.before",
+      "sha256": "2cc72170c842c98d37c793bd4ffdd432bf40ccb47598da1a29f8f45d72d31874",
+      "size": 60170
+    },
+    {
+      "path": "negative-branch-controls-probe.py",
+      "sha256": "edc8a0fae311502b25add9d8ed3ee0c4e6a373631adbe50834fa4a7d35bfd161",
+      "size": 2147
+    },
+    {
+      "path": "receipt.md",
+      "sha256": "223596dbecbf8af55a8b76d5c8dafb0fd575719e54aa81ee089b9a764ae6a122",
+      "size": 3500
+    },
+    {
+      "path": "review-fault-delivery-probe.py",
+      "sha256": "09683b720fb57162df44f89eae09b69b1e613ec7601be3e2fdf7071281671bcd",
+      "size": 2768
+    },
+    {
+      "path": "source/tests/native_stable_clients_drill.py",
+      "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d",
+      "size": 60959
+    },
+    {
+      "path": "source/tests/test_native_stable_clients_drill.py",
+      "sha256": "064a58ffa57eb694c9802056a6d182e3577a7f6ef2ba0f764ac27a00ecb38ef7",
+      "size": 42011
+    },
+    {
+      "path": "test_native_stable_clients_drill.py.before",
+      "sha256": "51d07451fd7631586af5154e9ebd0304cfde6a92a506c44617a4171096992814",
+      "size": 37213
+    }
+  ],
+  "workflow_unchanged_sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+}

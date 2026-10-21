@@ -1,0 +1,11 @@
+=== RUN   TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration
+=== RUN   TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/comment_words
+    chat_lifecycle_released_preclock_integration_test.go:571: normalized public key comment rejected: exit status 1 map[reason:prior_identity_mismatch schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+=== RUN   TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/changed_duration
+    chat_lifecycle_released_preclock_integration_test.go:571: changed duration accepted: <nil> map[attempt:2 committed_micros:7.44776e+07 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:ready]
+--- FAIL: TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration (0.86s)
+    --- FAIL: TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/comment_words (0.42s)
+    --- FAIL: TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/changed_duration (0.44s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.207s
+FAIL

@@ -1,0 +1,169 @@
+{
+  "actual_exercise_uncertain_create": {
+    "preserved_failure": "TERM after daemon creation before ID capture",
+    "reader_cleanup": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-actual-exercise-probe-1"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [
+          "0000000000000000000000000000000000000000000000000000000000000001"
+        ],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "cleanup": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-actual-exercise-probe-1"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "external_sentinel_unchanged": true,
+    "queries_and_removals": 10
+  },
+  "two_phase_helper_False": {
+    "first": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-two-phase-reader"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [
+          "0000000000000000000000000000000000000000000000000000000000000001"
+        ],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "final": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-two-phase-helper",
+          "wk-scl-two-phase-reader"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [
+          "0000000000000000000000000000000000000000000000000000000000000002"
+        ],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "external_sentinel_unchanged": true
+  },
+  "two_phase_helper_True": {
+    "first": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-two-phase-reader"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [
+          "0000000000000000000000000000000000000000000000000000000000000001"
+        ],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "final": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-two-phase-helper",
+          "wk-scl-two-phase-reader"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [
+          "0000000000000000000000000000000000000000000000000000000000000002"
+        ],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "external_sentinel_unchanged": true
+  },
+  "cache_read_evidence": {
+    "mere_presence_rejected": true,
+    "separate_process_read_proved": true,
+    "proof": {
+      "before": {
+        "dnf-cache/repo/repodata/primary.xml": {
+          "size": 22,
+          "sha256": "f9650574d87d4c6573baeb951dda3544020fe648822655b0cabb86cac421070c",
+          "device": 16777233,
+          "inode": 407076405,
+          "mtime_ns": 1792583915221515779,
+          "atime_ns": 1792583915222018121
+        }
+      },
+      "after": {
+        "dnf-cache/repo/repodata/primary.xml": {
+          "size": 22,
+          "sha256": "f9650574d87d4c6573baeb951dda3544020fe648822655b0cabb86cac421070c",
+          "device": 16777233,
+          "inode": 407076405,
+          "mtime_ns": 1792583915221515779,
+          "atime_ns": 1792583915243374890
+        }
+      },
+      "metadata_reads": [
+        "dnf-cache/repo/repodata/primary.xml"
+      ],
+      "reuse_required": true,
+      "reuse_signal": "same inode and content; atime advanced after epoch arming before native execution"
+    },
+    "cache_removed": {
+      "remaining": []
+    },
+    "outside_symlink_target_unchanged": true,
+    "limitation": "Host filesystem probe, not Linux container ownership or native DNF execution."
+  }
+}

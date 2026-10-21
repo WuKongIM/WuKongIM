@@ -1,0 +1,11 @@
+# Released pre-clock continuation — local delivery
+
+Commit 0cdfaa37b00c58819895dee54029c27c83c9caa9, tree 36f96357c967418517a00444e52ae03f77c3ff90, parent ce3c4d9110f17bb71dc99a89dc3c09758fabf980. Exactly 24 files match freeze-v3; worktree was clean after the local commit. Nothing was pushed or dispatched by this implementation task.
+
+Six distinct named checks passed. The unchanged Mac scripts-integration gate failed on its internal 9-minute whole-package timeout: scripts 540.658s, wrapper 542.175s. No assertion-failure line was present; two existing baseline fixtures were active for 4/5 seconds with other fixtures queued. Exact owned-session cleanup verified zero remaining processes. This outcome is a failure, not a complete-suite pass, and was not rerun. Source/cache differences prevent attributing repeated local timeouts to CPU or one fixture. Linux first-run full gate remains required.
+
+Full go-unit passed against freeze-v2 in 453.555s. v3 only changed the Python helper and integration-tagged tests, after two independently reproduced P2 findings; its focused 85 test events passed in 18.411s, and the final format/FLOW/workflow/vet/tidy checks passed. Check-source-bindings.json makes those generations explicit. Original red receipts remain in focused/. Some early failures were test-fixture construction/queue-deadline failures, documented by their successive logs; they have not been rewritten as product failures.
+
+The public evidence includes only code, synthetic test data, bounded local logs, policy/identity receipts and review text. It excludes caches, binaries, SSH/private keys, decrypted handoffs and any cloud credentials. Source-freezes/*/SHA256SUMS are identity records for the original full local freezes, not claims that this smaller bundle contains all their source copies; final commit.patch and final-source-files.json describe the delivered source.
+
+No actual continuation, live authority authentication, Quote, Acquire, provider operation or workflow dispatch occurred. The old pre-clock cause remains unknown, the full quote reserve is not an invoice, and the original child-artifact retention boundary remains in force. Root will decide PR creation and the first Linux CI run separately; paid startup remains a separate post-merge decision.

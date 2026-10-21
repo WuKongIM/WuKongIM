@@ -1,0 +1,15 @@
+{
+  "arguments": [
+    "gh",
+    "pr",
+    "ready",
+    "1020",
+    "--repo",
+    "WuKongIM/WuKongIM"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "\u2713 Pull request WuKongIM/WuKongIM#1020 is marked as \"ready for review\"\n",
+  "observed_at": "2026-10-21T12:39:50.499465+00:00",
+  "authorization": "parent explicitly authorized ready after artifact verification; no merge/comment"
+}

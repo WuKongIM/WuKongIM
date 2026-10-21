@@ -1,0 +1,143 @@
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index ed6ddbe..d12eac9 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -159,6 +159,18 @@ class RouteTable:
+ def serve(root):
+     maps = json.loads((root / 'routes.json').read_bytes())
+     routes = RouteTable(root, maps)
++    class TLSServer(ThreadingHTTPServer):
++        def shutdown_request(self, request):
++            # A TCP half-close alone violates TLS: strict OpenSSL clients reject
++            # even complete HTTP bodies without close_notify. Bound the peer's
++            # reciprocal shutdown; truncation faults still fail Content-Length.
++            try:
++                request.settimeout(2)
++                request = request.unwrap()
++            except OSError:
++                pass
++            finally:
++                super().shutdown_request(request)
+     class Handler(BaseHTTPRequestHandler):
+         def log_message(self, *_):
+             pass
+@@ -191,7 +203,7 @@ def serve(root):
+             except Exception:
+                 (root / 'server-error').write_text('bounded HTTPS handler failed\n')
+                 self.close_connection = True
+-    server = ThreadingHTTPServer(('0.0.0.0', 443), Handler)
++    server = TLSServer(('0.0.0.0', 443), Handler)
+     server.count = 0
+     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+     context.load_cert_chain(root / 'tls.crt', root / 'tls.key')
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 6d1bf00..1b2fb20 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -1,11 +1,15 @@
+ """Lightweight boundaries for the opt-in native stable client laboratory."""
+ import importlib.util
++import http.client
+ import json
+ import os
+ from pathlib import Path
++import socket
++import ssl
+ import subprocess
+ import sys
+ import tempfile
++import threading
+ import unittest
+ from unittest import mock
+ 
+@@ -21,6 +25,90 @@ def load():
+ 
+ 
+ class NativeStableClientsTests(unittest.TestCase):
++    def test_https_normal_response_has_authenticated_tls_eof(self):
++        """Exercise the actual fixture server with strict OpenSSL EOF handling."""
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
++                '-keyout', str(root / 'tls.key'), '-out', str(root / 'tls.crt'),
++                '-days', '1', '-subj', '/CN=packages.githubim.com',
++                '-addext', 'subjectAltName=DNS:packages.githubim.com'],
++                check=True, capture_output=True, timeout=10)
++            # This case only needs the normal SNI context; both files remain TEST ONLY.
++            (root / 'wrong-name.crt').write_bytes((root / 'tls.crt').read_bytes())
++            (root / 'wrong-name.key').write_bytes((root / 'tls.key').read_bytes())
++            body = b'TEST ONLY complete signed-metadata transport bytes\n'
++            (root / 'body').write_bytes(body)
++            (root / 'routes.json').write_text(json.dumps({'A': {drill.INRELEASE: {'file': 'body'}}, 'B': {}}))
++            (root / 'state.json').write_text(json.dumps({'serial': 1, 'generation': 'A', 'mode': 'normal'}))
++            ready, servers, failures = threading.Event(), [], []
++            class LoopbackServer(drill.ThreadingHTTPServer):
++                def __init__(self, address, handler):
++                    super().__init__(('127.0.0.1', 0), handler)
++                    servers.append(self)
++                def serve_forever(self):
++                    ready.set()
++                    super().serve_forever(poll_interval=0.01)
++            def serve():
++                try:
++                    drill.serve(root)
++                except BaseException as error:
++                    failures.append(error)
++                    ready.set()
++            with mock.patch.object(drill, 'ThreadingHTTPServer', LoopbackServer):
++                thread = threading.Thread(target=serve, daemon=True)
++                thread.start()
++                try:
++                    self.assertTrue(ready.wait(5), 'TEST ONLY server did not become ready')
++                    self.assertEqual(failures, [])
++                    context = ssl.create_default_context(cafile=str(root / 'tls.crt'))
++                    with socket.create_connection(servers[0].server_address, timeout=5) as raw:
++                        with context.wrap_socket(raw, server_hostname='packages.githubim.com',
++                                                 suppress_ragged_eofs=False) as connection:
++                            connection.sendall(b'GET /apt/dists/stable/InRelease HTTP/1.0\r\nHost: packages.githubim.com\r\n\r\n')
++                            response = bytearray()
++                            eof_error = None
++                            try:
++                                while chunk := connection.recv(4096):
++                                    response.extend(chunk)
++                                    self.assertLess(len(response), 65536)
++                            except ssl.SSLEOFError as error:
++                                eof_error = error
++                            headers, actual = bytes(response).split(b'\r\n\r\n', 1)
++                            self.assertIn(b'200 OK', headers)
++                            self.assertIn(('Content-Length: ' + str(len(body))).encode(), headers)
++                            self.assertEqual(actual, body)
++                            self.assertIsNone(eof_error, 'strict TLS EOF after complete valid HTTP response: ' + str(eof_error))
++                            connection.unwrap()
++                    # A protocol-correct close must not weaken certificate
++                    # verification or turn the deliberate short body into success.
++                    for client_context, hostname in ((context, 'wrong-name.invalid'),
++                                                     (ssl.create_default_context(), 'packages.githubim.com')):
++                        with socket.create_connection(servers[0].server_address, timeout=5) as raw:
++                            with self.assertRaises(ssl.SSLCertVerificationError):
++                                client_context.wrap_socket(raw, server_hostname=hostname)
++                    (root / 'state.json').write_text(json.dumps({'serial': 2, 'generation': 'A', 'mode': 'disconnect'}))
++                    with socket.create_connection(servers[0].server_address, timeout=5) as raw:
++                        with context.wrap_socket(raw, server_hostname='packages.githubim.com',
++                                                 suppress_ragged_eofs=False) as connection:
++                            connection.sendall(b'GET /apt/dists/stable/InRelease HTTP/1.0\r\nHost: packages.githubim.com\r\n\r\n')
++                            response = http.client.HTTPResponse(connection)
++                            response.begin()
++                            with self.assertRaises(http.client.IncompleteRead) as rejected:
++                                response.read()
++                            self.assertEqual(rejected.exception.partial, body)
++                            self.assertEqual(rejected.exception.expected, 7)
++                            response.close()
++                            connection.unwrap()
++                    self.assertFalse((root / 'server-error').exists())
++                finally:
++                    if servers and thread.is_alive():
++                        servers[0].shutdown()
++                    thread.join(5)
++                    self.assertFalse(thread.is_alive(), 'TEST ONLY server leaked')
++                self.assertEqual(failures, [])
++
+     def test_native_ci_keeps_independent_fixed_source_read_only_job(self):
+         workflow = (ROOT / '.github/workflows/native-package-repository-drill.yml').read_text()
+         self.assertIn('\n  stable-clients:\n', workflow)

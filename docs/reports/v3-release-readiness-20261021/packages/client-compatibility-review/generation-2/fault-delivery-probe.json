@@ -1,0 +1,53 @@
+{
+  "scope": "bounded actual handler + branch control flow; no network/native execution",
+  "results": [
+    {
+      "mode": "missing-byhash",
+      "actual_handler_failure": "BrokenPipeError before response headers/body",
+      "server_error_file": false,
+      "logged": [
+        {
+          "cache_control": "no-store",
+          "etag": "\"0682c5f2076f099c34cfdd15a9e063849ed437a49677e6fcc5b4198c76575be5\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "missing-byhash",
+          "path": "/apt/dists/stable/main/binary-amd64/by-hash/SHA512/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "response_write_completed": false,
+          "serial": 1,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0,
+          "status": 404
+        }
+      ],
+      "client_diagnostic": "SSL connection failed before response",
+      "negative_case_accepted": false,
+      "returned": null,
+      "rejection": "native rejection lacks the matching APT fault diagnostic"
+    },
+    {
+      "mode": "corrupt-byhash",
+      "actual_handler_failure": "BrokenPipeError before response headers/body",
+      "server_error_file": false,
+      "logged": [
+        {
+          "cache_control": "no-store",
+          "etag": "\"0682c5f2076f099c34cfdd15a9e063849ed437a49677e6fcc5b4198c76575be5\"",
+          "if_modified_since": null,
+          "if_none_match": null,
+          "mode": "corrupt-byhash",
+          "path": "/apt/dists/stable/main/binary-amd64/by-hash/SHA512/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "response_write_completed": false,
+          "serial": 1,
+          "sha256": "54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04",
+          "size": 28,
+          "status": 200
+        }
+      ],
+      "client_diagnostic": "SSL connection failed before response",
+      "negative_case_accepted": false,
+      "returned": null,
+      "rejection": "native rejection lacks the matching APT fault diagnostic"
+    }
+  ]
+}

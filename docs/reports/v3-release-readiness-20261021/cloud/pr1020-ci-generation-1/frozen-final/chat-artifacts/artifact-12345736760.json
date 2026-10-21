@@ -1,0 +1,28 @@
+{
+  "artifact": {
+    "id": 12345736760,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0NTczNjc2MA==",
+    "name": "500qps-channel-append-922bc66a9cebcbe09bef5fc43afc0593c4f07fb8-1",
+    "size_in_bytes": 25211,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12345736760",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12345736760/zip",
+    "expired": false,
+    "digest": "sha256:500d7953d4268d152b0ade43b1091882c00efe8022440325ed98387a614b940a",
+    "created_at": "2026-10-21T12:26:57Z",
+    "updated_at": "2026-10-21T12:26:57Z",
+    "expires_at": "2026-11-04T12:26:56Z",
+    "workflow_run": {
+      "id": 39598983277,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-released-continuation",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9"
+    }
+  },
+  "observed_sha256": "500d7953d4268d152b0ade43b1091882c00efe8022440325ed98387a614b940a",
+  "observed_bytes": 25211,
+  "zip_crc_pass": true,
+  "entry_count": 17,
+  "uncompressed_bytes": 258156,
+  "at": "2026-10-21T12:30:57.572423+00:00"
+}

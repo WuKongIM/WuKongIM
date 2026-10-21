@@ -1,0 +1,97 @@
+{
+  "base": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "native_validation": "pending",
+  "owned_files": [
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "prior_tls_manifest": "49dd174e68c0ac61d63cbd8a00003a4e1cc092e287ea4176b0967832f8f8edbb",
+  "records": [
+    {
+      "path": "01-both-algorithms-red.log",
+      "sha256": "3ce33d77f1a01619908474deeeaf22f6bd345db17ef68606d19e01bb3a283bc1",
+      "size": 2840
+    },
+    {
+      "path": "02-both-algorithms-green.log",
+      "sha256": "53b77ed73b881186e0f76e3a51bce55b2d9b1423f4fc18759eb12e7a5b519b65",
+      "size": 100
+    },
+    {
+      "path": "03-related-tests.log",
+      "sha256": "9a7dbdaf4384ebcfdcf47825613d3fe315fd6f9ee2e98d9a7626fe88b258c56d",
+      "size": 153
+    },
+    {
+      "path": "04-unrelated-failure-red.log",
+      "sha256": "2ba4585926048d7c320b57a8a95fa081730cfe5d488588233e9dbf615d708f8e",
+      "size": 1259
+    },
+    {
+      "path": "05-fault-receipt-tests-red.log",
+      "sha256": "3854a3a1e1f0ce83c254d5e0dd78f1be6cc104552a3a331250c18ae7d5e43fc3",
+      "size": 20723
+    },
+    {
+      "path": "06-final-related-tests-green.log",
+      "sha256": "67b6c12f2e0f6567dcb7f573c2d01c5cf8a295087a63514ceec81276804f48db",
+      "size": 154
+    },
+    {
+      "path": "07-unrelated-failure-green.log",
+      "sha256": "0ffeaedc034c446b7550bdcbf5a8d9f0533fc3ee8897a94f88f060745e285023",
+      "size": 572
+    },
+    {
+      "path": "08-original-rejection-controls-green.json",
+      "sha256": "e04bcdfc3ce1fd644e40f9869907e3683bbb1deaf06f66e01f62f8ae2f6872fd",
+      "size": 3477
+    },
+    {
+      "path": "delta-from-tls-generation-1.patch",
+      "sha256": "c2b4b3b5d7a86587c3d0b341633716aa1af26115a61133b64ea5f99451b58384",
+      "size": 10145
+    },
+    {
+      "path": "full-owned-delta.patch",
+      "sha256": "30669f4548ee88d1f7af2d6678f46ba30a4f8a6e34b998d58b1179ceb0bcbcab",
+      "size": 18119
+    },
+    {
+      "path": "native_stable_clients_drill.py.before",
+      "sha256": "fccd966f16eb3b635591ed2c58eb297098c6c496a3b800d64abcc4c9531beb31",
+      "size": 58966
+    },
+    {
+      "path": "negative-branch-controls-probe.py",
+      "sha256": "36da95961784a6bde26d96e3242fad39cf8c9a20246ff778f8929dad36dee2b7",
+      "size": 1878
+    },
+    {
+      "path": "negative-branch-probe.py",
+      "sha256": "b7c1dbf3dc4b230e29dc82bb49bbfb38d5fb03ab1c9225b8fae04e6d59a3372a",
+      "size": 1566
+    },
+    {
+      "path": "receipt.md",
+      "sha256": "ce9cfe369511452674d5673045e085037c0479885a8f8553a7a12cc0c42aeb24",
+      "size": 2677
+    },
+    {
+      "path": "source/tests/native_stable_clients_drill.py",
+      "sha256": "2cc72170c842c98d37c793bd4ffdd432bf40ccb47598da1a29f8f45d72d31874",
+      "size": 60170
+    },
+    {
+      "path": "source/tests/test_native_stable_clients_drill.py",
+      "sha256": "51d07451fd7631586af5154e9ebd0304cfde6a92a506c44617a4171096992814",
+      "size": 37213
+    },
+    {
+      "path": "test_native_stable_clients_drill.py.before",
+      "sha256": "4f5a4c7044517d9fc47334bb1120cf00961ade8f82f33b86ce9afd48ee1a7190",
+      "size": 32429
+    }
+  ],
+  "workflow_unchanged_sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+}

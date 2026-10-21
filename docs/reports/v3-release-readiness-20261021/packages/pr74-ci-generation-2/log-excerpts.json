@@ -1,0 +1,98 @@
+{
+  "native-original-job-119215337918.log": [
+    {
+      "line": 102,
+      "text": "2026-10-21T12:15:05.7970330Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0186483a5a8574c1e521252c26773dd4d7d18690:refs/remotes/pull/74/merge",
+      "truncated": false
+    },
+    {
+      "line": 104,
+      "text": "2026-10-21T12:15:06.5971395Z  * [new ref]         0186483a5a8574c1e521252c26773dd4d7d18690 -> pull/74/merge",
+      "truncated": false
+    },
+    {
+      "line": 132,
+      "text": "2026-10-21T12:15:06.6332720Z 0186483a5a8574c1e521252c26773dd4d7d18690",
+      "truncated": false
+    },
+    {
+      "line": 172,
+      "text": "2026-10-21T12:15:07.2381094Z Ran 4 tests in 0.001s",
+      "truncated": false
+    },
+    {
+      "line": 74714,
+      "text": "2026-10-21T12:17:59.1787656Z gpgv: Good signature from \"WuKongIM Native Package APT TEST ONLY <test-only@invalid>\"",
+      "truncated": false
+    },
+    {
+      "line": 74717,
+      "text": "2026-10-21T12:17:59.1831764Z gpgv: Good signature from \"WuKongIM Native Package APT TEST ONLY <test-only@invalid>\"",
+      "truncated": false
+    },
+    {
+      "line": 74720,
+      "text": "2026-10-21T12:17:59.3202190Z gpgv: Good signature from \"WuKongIM Native Package RPM TEST ONLY <test-only@invalid>\"",
+      "truncated": false
+    },
+    {
+      "line": 74887,
+      "text": "2026-10-21T12:18:25.1293002Z native-package signed repository container validation passed",
+      "truncated": false
+    }
+  ],
+  "pages-job-119215338135.log": [
+    {
+      "line": 104,
+      "text": "2026-10-21T12:15:03.5901178Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0186483a5a8574c1e521252c26773dd4d7d18690:refs/remotes/pull/74/merge",
+      "truncated": false
+    },
+    {
+      "line": 106,
+      "text": "2026-10-21T12:15:03.9804584Z  * [new ref]         0186483a5a8574c1e521252c26773dd4d7d18690 -> pull/74/merge",
+      "truncated": false
+    },
+    {
+      "line": 134,
+      "text": "2026-10-21T12:15:04.0212904Z 0186483a5a8574c1e521252c26773dd4d7d18690",
+      "truncated": false
+    },
+    {
+      "line": 176,
+      "text": "2026-10-21T12:15:05.0857798Z Ran 4 tests in 0.001s",
+      "truncated": false
+    },
+    {
+      "line": 182,
+      "text": "2026-10-21T12:16:53.7612764Z Ran 489 tests in 108.238s",
+      "truncated": false
+    }
+  ],
+  "stable-job-119215338064.log": [
+    {
+      "line": 102,
+      "text": "2026-10-21T12:15:03.7210509Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0186483a5a8574c1e521252c26773dd4d7d18690:refs/remotes/pull/74/merge",
+      "truncated": false
+    },
+    {
+      "line": 104,
+      "text": "2026-10-21T12:15:04.2969504Z  * [new ref]         0186483a5a8574c1e521252c26773dd4d7d18690 -> pull/74/merge",
+      "truncated": false
+    },
+    {
+      "line": 132,
+      "text": "2026-10-21T12:15:04.3254332Z 0186483a5a8574c1e521252c26773dd4d7d18690",
+      "truncated": false
+    },
+    {
+      "line": 547,
+      "text": "2026-10-21T12:15:30.7923962Z Ran 4 tests in 0.001s",
+      "truncated": false
+    },
+    {
+      "line": 619,
+      "text": "2026-10-21T12:19:27.3698542Z ##[error]Process completed with exit code 1.",
+      "truncated": false
+    }
+  ]
+}

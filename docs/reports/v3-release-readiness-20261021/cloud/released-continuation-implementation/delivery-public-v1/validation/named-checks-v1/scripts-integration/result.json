@@ -1,0 +1,36 @@
+{
+  "status": "failed",
+  "exit_code": 1,
+  "session_id": 27785,
+  "output_bytes": 58188,
+  "output_truncated": false,
+  "passed": false,
+  "cleanup": {
+    "session_id": 27785,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [
+      185,
+      234,
+      98918,
+      99003,
+      99022,
+      99082,
+      99229,
+      99245,
+      99253,
+      99330,
+      99403,
+      99630,
+      99647,
+      99655,
+      99871,
+      99888,
+      99952
+    ],
+    "remaining_processes": []
+  },
+  "command_status": "failed",
+  "wrapper_exit_code": 1,
+  "elapsed_seconds": 542.175
+}

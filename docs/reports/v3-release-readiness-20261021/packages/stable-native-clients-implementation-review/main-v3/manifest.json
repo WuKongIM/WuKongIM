@@ -1,0 +1,51 @@
+{
+  "files": {
+    "focused-regression.log": {
+      "sha256": "a4ce9a957d7453e2d06c41847a26dd5025b3e3cda0611f03a45a78ea0a674958",
+      "size": 725
+    },
+    "input-delta-from-v2.patch": {
+      "sha256": "8ee54c78c7da4366373642b0021f3a2f4e62be491804cd5248376391fd154b18",
+      "size": 3925
+    },
+    "input-manifest.json": {
+      "sha256": "90c77a141e13f3a177f2ed51ad2afd186a80e098c6262c526bc1810c10cc1c55",
+      "size": 10477
+    },
+    "network-repeat-probe.log": {
+      "sha256": "093df234362ef8d2cbf46e4df639d56127d96dc73d5a72ddc49684c7e90f165e",
+      "size": 2428
+    },
+    "network-repeat-probe.py": {
+      "sha256": "78ed4edada661e62beeb127025ddd1f6af6501978dba8bb60c4283b1f7f1a02e",
+      "size": 1781
+    },
+    "network-repeat-result.json": {
+      "sha256": "093df234362ef8d2cbf46e4df639d56127d96dc73d5a72ddc49684c7e90f165e",
+      "size": 2428
+    },
+    "review.md": {
+      "sha256": "a7cb09844f4808ee68914ccfe90fd357ddf533f111ad9ed1bc574e8c49082c55",
+      "size": 2132
+    },
+    "source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc": {
+      "sha256": "eea0495a1fe6c426797fa9a7de7b36aaf4f92056969258bd56ea3c815cd6218a",
+      "size": 82202
+    },
+    "source/tests/native_stable_clients_drill.py": {
+      "sha256": "041cfa1e29f1a13d2a9fb2ab8b1d1977b53c8571377674f2ce601cf086b7fc29",
+      "size": 58431
+    },
+    "source/tests/test_native_stable_clients_drill.py": {
+      "sha256": "5b49a578f0a4342a9aa0a24dc0e429cd55e189788ef60f042f73ae43960b7637",
+      "size": 26718
+    },
+    "verification.json": {
+      "sha256": "b288d807a11198efd970c49460959dfb4614f173c815c4a2df1d6f75194bd2c3",
+      "size": 838
+    }
+  },
+  "remaining_findings": 0,
+  "native_executed": false,
+  "decision": "ready for first Linux native CI, not release approval"
+}

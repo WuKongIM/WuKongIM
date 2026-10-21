@@ -1,0 +1,23 @@
+{
+  "head": "6760cbedb0d87ad51be958f0f78c91db49f27328",
+  "only_changed_path": "scripts/validate-production-package-clients.py",
+  "exact_single_replacement": true,
+  "source_sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+  "selected_descriptor": {
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "size": 593,
+    "digest": "sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  },
+  "new_manifest_sha256": "aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+  "recipe_sha256": "bcc1454e7522eaf68313a0fc8e275837f748a5ba33610091cf37a07afa4316f1",
+  "config_identity": {
+    "os": "linux",
+    "architecture": "amd64"
+  },
+  "alma_and_all_other_bytes_unchanged": true,
+  "native_executed": false
+}

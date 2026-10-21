@@ -1,0 +1,62 @@
+{
+  "run_id": 39601918104,
+  "job_id": 119229773156,
+  "job_name": "Refresh bounded Alibaba CDN URLs",
+  "conclusion": "success",
+  "raw_bytes": 19503,
+  "raw_sha256": "641dd0c3ad49eba292aab1dd8d57cd51602e4f89cf58128a1c92b66ef006605b",
+  "public_sha256": "ebbe85fb8e422b52f13ba1801184f44cde447c37732865b6ec6759facbc2ea83",
+  "exact_merge_sha_present": true,
+  "redacted_lines": [
+    {
+      "line": 22,
+      "bytes": 63,
+      "sha256": "b246faf1177d7e8602a8fc35f85d37a0f0bada47f25df04ec63f0d645c1053cf"
+    },
+    {
+      "line": 26,
+      "bytes": 52,
+      "sha256": "b92ffc15b7ff9340e13b15f90d2a4761b09400938b2903d8a293339dd8898921"
+    },
+    {
+      "line": 39,
+      "bytes": 42,
+      "sha256": "ae6d6f5b8423cbb70f387246dfb44e6ed8a502d20f050a7f831cc12e5d6da3ee"
+    },
+    {
+      "line": 94,
+      "bytes": 211,
+      "sha256": "be170383696f36c1a6185838ddc1965aa646a151eb71cfacaa10b5a65f91d648"
+    },
+    {
+      "line": 191,
+      "bytes": 68,
+      "sha256": "71d6235b198f3e95f3e34cd66c6ad9ca63544e922432e67ad2c7192894e6a2e8"
+    },
+    {
+      "line": 192,
+      "bytes": 65,
+      "sha256": "fc58499a2118b27530165c4a88a6863610757cc9b1af74b290e7f3191e5f3d39"
+    },
+    {
+      "line": 194,
+      "bytes": 56,
+      "sha256": "6c605566e7a4eef54a566c803c412ad9f4f7c340a65a1eeae5df321d7c8568f7"
+    },
+    {
+      "line": 195,
+      "bytes": 60,
+      "sha256": "6bc273253f4a47de978c56395b4ede50323bb6a61e2e894c4974b0e4113327dc"
+    },
+    {
+      "line": 197,
+      "bytes": 67,
+      "sha256": "0e7479b4141f3e7db578be61f9a5506e7bd4eeffe796dc53bbd02c88d84f8e0c"
+    },
+    {
+      "line": 198,
+      "bytes": 64,
+      "sha256": "c0e272b4d6fc2757ba0e15213c8252773898117377ac2346ef16eff35e641598"
+    }
+  ]
+}

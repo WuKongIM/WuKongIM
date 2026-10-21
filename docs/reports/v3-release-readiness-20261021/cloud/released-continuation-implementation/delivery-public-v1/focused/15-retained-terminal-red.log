@@ -1,0 +1,14 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence
+=== RUN   TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/runtime_summary
+    chat_lifecycle_released_preclock_integration_test.go:227: want measured_or_runtime_predecessor got <nil> map[attempt:2 committed_micros:7.44776e+07 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:ready]
+=== RUN   TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/stop_marker
+    chat_lifecycle_released_preclock_integration_test.go:227: want stopped_or_stop_unverified got <nil> map[attempt:2 committed_micros:7.44776e+07 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:ready]
+=== RUN   TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/malformed_schema
+    chat_lifecycle_released_preclock_integration_test.go:227: want prior_identity_mismatch got <nil> map[attempt:2 committed_micros:7.44776e+07 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:ready]
+--- FAIL: TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence (1.31s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/runtime_summary (0.43s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/stop_marker (0.44s)
+    --- FAIL: TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/malformed_schema (0.44s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.668s
+FAIL

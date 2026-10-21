@@ -1,0 +1,7 @@
+{
+  "private_key_marker_found": false,
+  "github_token_shape_found": false,
+  "scan_is_not_an_exhaustive_secret_detector": true,
+  "source_material": "credential-free synthetic fixtures and explicit local receipts only",
+  "files_checked": 107
+}

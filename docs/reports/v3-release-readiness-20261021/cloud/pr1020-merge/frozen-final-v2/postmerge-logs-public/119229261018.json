@@ -1,0 +1,32 @@
+{
+  "run_id": 39601918104,
+  "job_id": 119229261018,
+  "job_name": "Deploy the verified artifact",
+  "conclusion": "success",
+  "raw_bytes": 4645,
+  "raw_sha256": "b2e76100e42d3aacb6c61fc39bcf5c2ebf0698c5567a1d414e12cf1b411f3d70",
+  "public_sha256": "15bf1e885f8769f130e84d9b332810aec71223bdfc14997d0edc06a8b9546882",
+  "exact_merge_sha_present": true,
+  "redacted_lines": [
+    {
+      "line": 22,
+      "bytes": 63,
+      "sha256": "003b11e5f0a75f71dbefc572297d9cf8140cf3590109ae02618bb855dc2bf24c"
+    },
+    {
+      "line": 26,
+      "bytes": 52,
+      "sha256": "36412a68a1208016b3a1b0cfeedd0f81174990580e88f785296e3ff0b784ce84"
+    },
+    {
+      "line": 35,
+      "bytes": 42,
+      "sha256": "b4f289c7a8970e0b07abc271550f5298be51e7c5dd73b2d6deded2e4fd8114b5"
+    },
+    {
+      "line": 50,
+      "bytes": 50,
+      "sha256": "2c91c95bbccb9a881a77590a492ab8325b52f0d23c24e644e88aa5ea6f7f2295"
+    }
+  ]
+}

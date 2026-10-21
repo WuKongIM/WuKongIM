@@ -1,0 +1,16 @@
+[
+  {
+    "name": "rocky-quay-tag9",
+    "image": "quay.io/rockylinux/rockylinux:9",
+    "exit": 0,
+    "started_at": "2026-10-21T12:06:23.057599+00:00",
+    "finished_at": "2026-10-21T12:06:42.024743+00:00"
+  },
+  {
+    "name": "alma-current-digest",
+    "image": "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+    "exit": 1,
+    "started_at": "2026-10-21T12:06:23.057796+00:00",
+    "finished_at": "2026-10-21T12:06:33.336868+00:00"
+  }
+]

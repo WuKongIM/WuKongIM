@@ -1,0 +1,75 @@
+diff --git a/docs/reports/2026-10-21-v3-release-readiness.md b/docs/reports/2026-10-21-v3-release-readiness.md
+index d8c7a650b..362a9dcea 100644
+--- a/docs/reports/2026-10-21-v3-release-readiness.md
++++ b/docs/reports/2026-10-21-v3-release-readiness.md
+@@ -1,16 +1,16 @@
+ # v3 正式版发布复核（2026-10-21）
+ 
+-证据截至 **2026-10-21 12:16Z（北京时间20:16）**；后续状态须绑定新的提交和收据。
++证据截至 **2026-10-21 12:46Z（北京时间20:46）**；后续状态须绑定新的提交和收据。
+ 
+-结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016/#1017/#1019、packages #67/#68/#69/#70/#71/#72/#73 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 和 stable 安装引导准备 #71 经批准已合并；#71 合并后精确源码的410+4项检查通过，未触发部署。Linux scripts 的255已定位到测试辅助进程wait，修复候选 `ab75c226` 的四项CI均首次通过，完整scripts门禁602项通过、6项既有跳过、零失败；#1017于09:39:17Z经批准正常合并，完整tree与验收候选相同。packages #72的更新候选c8aae37已通过449项测试、31项真实候选用例和完整签名仓库演练，已获批准并于10:13:10Z正常rebase合并为3fe04138，完整tree与验收候选相同；合并后449+4检查再次通过，Pages部署跳过。用户已授权精确fc182云RC：当天三角色及wrapping密钥对验证通过，付费顶层请求已启动并完成部署包校验，Quote、Acquire、部署均首次成功，但计时前准备检查退出，随后Issue状态发布失败导致提前释放；10:19:19Z已取得精确零库存，未完成两小时预演。既定云RC验收和stable公网签名包交付仍未完成，没有创建正式tag或启动正式发布。
++结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016/#1017/#1019/#1020、packages #67/#68/#69/#70/#71/#72/#73 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 和 stable 安装引导准备 #71 经批准已合并；#71 合并后精确源码的410+4项检查通过，未触发部署。Linux scripts 的255已定位到测试辅助进程wait，修复候选 `ab75c226` 的四项CI均首次通过，完整scripts门禁602项通过、6项既有跳过、零失败；#1017于09:39:17Z经批准正常合并，完整tree与验收候选相同。packages #72的更新候选c8aae37已通过449项测试、31项真实候选用例和完整签名仓库演练，已获批准并于10:13:10Z正常rebase合并为3fe04138，完整tree与验收候选相同；合并后449+4检查再次通过，Pages部署跳过。用户已授权精确fc182云RC：当天三角色及wrapping密钥对验证通过，付费顶层请求已启动并完成部署包校验，Quote、Acquire、部署均首次成功，但计时前准备检查退出，随后Issue状态发布失败导致提前释放；10:19:19Z已取得精确零库存，未完成两小时预演。既定云RC验收和stable公网签名包交付仍未完成，没有创建正式tag或启动正式发布。
+ 
+ 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
+ 
+ 本轮更新仍维持 **NO-GO**：
+ 
+ - packages #73 与产品 #1019 已批准合并，合并 tree 与各自验收候选一致。
+-- packages #74 首轮 Pages 489+4及原有native job通过；新增49项stable客户端用例因Rocky镜像固定manifest不可用而0项执行。单一pin修复已独审并推送 `4ba39668c892ca17eb33b165afe993ccc683161f`，新head的首次CI仍待结果。
+-- 云一次性续跑v3的两项authority发现已修复并独审关闭，85项聚焦检查及go-vet/go-mod-tidy通过，完整scripts integration仍在执行。既定72h长稳与stable公网交付均未完成，没有新付费续跑或正式发布。
++- packages #74 的前两代 CI 失败均保留。TLS 关闭、stable SHA512 索引别名及负例误判修复已独审通过，最终 head `f2c37e92` 已推送；新的 49 项 Linux 原生验收正在执行，尚不能计为通过。前一代在 Debian HTTPS 读取失败，1/49 组合案例启动、0通过，资源零遗留。
++- 云一次性续跑工具 #1020 已获批准，于12:43:39Z合并为 `e30299fa`。最终候选首次 Linux CI 全部通过，包括633项完整 scripts、迁移 E2E、性能、SDK与原生包生命周期；合并树相同，原干净分支/worktree已正常清理。Mac原9分钟超时仍保留。既定72h长稳与stable公网交付均未完成，本次没有重新采购或发布。
+ 
+ ## 固定身份和已关闭事项
+ 
+@@ -21,6 +21,7 @@
+ | #1016合并时 main `ed705c0fbffdea485bbb65608d6e340bb049d97e` | 包含已验收 head `7e9da7df1`；完整树相同，含迁移、MQTT 及回归修复 |
+ | 已授权云RC产品source `fc18221282f289088ec9b4282fda8e0bfc67a3b8` | #1017于09:39:17Z普通merge，parents为ed705+ab75；完整tree与ab75验收候选一致 |
+ | #1019合并后远端main `ce3c4d9110f17bb71dc99a89dc3c09758fabf980` | 11:14:37Z普通merge，parents为fc182+5403；完整tree与5403验收候选一致，仅工具/测试/文档变更，未重新启动云RC |
++| #1020合并后远端main `e30299fa59ea6669ea71024eabe209840f241f19` | 12:43:39Z普通merge，parents为ce3c4d9+0cdfaa37，完整tree与最终Linux验收候选相同；仅合并和清理，没有续跑云资源 |
+ | 产品修复 `98c25091bb9587a303af982bb14bf4cedd9aa110` | 已完成修复及相关回归，见下方修复报告 |
+ | 已验收候选 `ef798352c40a94e57f768f76b2f4713712f827fe` | 与审计分支 `32d402f7625c36f5667a290ec95c045f5f35937c` 的 cmd/internal/pkg 和依赖文件相同 |
+ | 迁移回归 | 1→1、1→3、3→1、3→3、3→5 全通过，55 次完整历史检查；相关冷热读与故障切换通过。该轮为 macOS 功能证据 |
+@@ -182,9 +183,11 @@ stable第一代离线候选计划已冻结，复用plan→prepare→现有家族
+ 
+ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-public-clients-plan/generation-2/scope-proposal.md)经[方案独审](v3-release-readiness-20261021/packages/stable-public-clients-plan-review/review.md)后从335cd256进入tests-first，实现固定fc182真实server/wkcli的两代TEST ONLY包及原有四客户端/完整CLI验收。[主实现首次独审](v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/review.md)的Docker不确定创建、DNF缓存挂载两项P2及真实installed负例缺口，连同[第二代发现](v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v2/review.md)的重复网络清理问题，均经先红后绿修复，[v3独审](v3-release-readiness-20261021/packages/stable-native-clients-implementation-review/main-v3/review.md)已关闭；这些轻量结果没有被当成原生验收。
+ 
+-实现已提交[packages #74](https://github.com/WuKongIM/packages/pull/74)，[首轮CI收据](v3-release-readiness-20261021/packages/pr74-ci-generation-1/README.md)绑定head `6760cbedb0d87ad51be958f0f78c91db49f27328`，实际checkout `492ff426eab5345d738cb6679d12dcf0a320660d`完整tree相同。Pages39596459745首次通过489项Python（零skip）及4项合同检查，部署跳过；原有native job119209867267通过7/10/6/31/8项及完整legacy签名安装演练。新增stable四客户端/A-B job119209866922在准备Rocky固定镜像时因MANIFEST_UNKNOWN失败，driver未启动，49项为0执行，也没有该driver的cleanup收据；整个native工作流因此失败。原失败及三个job完整日志保留，没有重跑旧head。[单一镜像pin修复独审](v3-release-readiness-20261021/packages/mirror-pin-repair/review/review.md)核实新linux/amd64 child摘要，34客户端、17driver及4合同检查通过；已推送新head `4ba39668c892ca17eb33b165afe993ccc683161f`，首次新CI结果尚待补入。镜像manifest可获取不等于49项通过；未创建生产候选、未开启stable。
++实现已提交[packages #74](https://github.com/WuKongIM/packages/pull/74)，[首轮CI收据](v3-release-readiness-20261021/packages/pr74-ci-generation-1/README.md)绑定head `6760cbedb0d87ad51be958f0f78c91db49f27328`，实际checkout `492ff426eab5345d738cb6679d12dcf0a320660d`完整tree相同。Pages39596459745首次通过489项Python（零skip）及4项合同检查，部署跳过；原有native job119209867267通过7/10/6/31/8项及完整legacy签名安装演练。新增stable四客户端/A-B job119209866922在准备Rocky固定镜像时因MANIFEST_UNKNOWN失败，driver未启动，49项为0执行，也没有该driver的cleanup收据；整个native工作流因此失败。原失败及三个job完整日志保留，没有重跑旧head。[单一镜像pin修复独审](v3-release-readiness-20261021/packages/mirror-pin-repair/review/review.md)核实新linux/amd64 child摘要，34客户端、17driver及4合同检查通过；已推送新head `4ba39668c892ca17eb33b165afe993ccc683161f`，[第二代首轮CI收据](v3-release-readiness-20261021/packages/pr74-ci-generation-2/README.md)确认Pages再次489+4通过、原native全部通过，stable driver开始第一个A代baseline：Ubuntu下载和原installed CLI命令成功，随后Debian下载exit100/OpenSSL unexpected EOF，1/49组合案例启动而0通过。请求日志另记录SHA512 by-hash404和mutable Packages.gz回退，不能把Ubuntu下载成功称为by-hash成功。实际清理5个本次容器及1个网络，最终零遗留。完整首失败、actual checkout同tree与public artifacts均保留，没有重跑旧head或开启stable。
+ 
+-云[费用继承初稿](v3-release-readiness-20261021/cloud/rc-next-execution-plan-post1019/README.md)经[独立方案复核](v3-release-readiness-20261021/cloud/rc-next-execution-plan-review/review.md)形成[第二代范围](v3-release-readiness-20261021/cloud/rc-next-execution-plan-post1019/generation-2/README.md)，在ce3c4d911基线上实现一次显式released-preclock continuation。[Go证明输入独审](v3-release-readiness-20261021/cloud/released-continuation-go-review/review.md)及[consumer独审](v3-release-readiness-20261021/cloud/released-continuation-consumer-review/review.md)原分段结论保留。[authority首次独审](v3-release-readiness-20261021/cloud/released-continuation-authority-review/review.md)用离线真实CLI发现明确终态被忽略、可信finalizer未完成时prior可能归零两项P2；先红后绿窄修后，[v3差量独审](v3-release-readiness-20261021/cloud/released-continuation-authority-review/v3/review.md)已关闭，两文件外的22文件字节不变。85项聚焦检查和v3的go-format/flow-doc-contracts/workflow-contracts通过，独立CLI的15场景加后续consumer验证符合预期；go-vet与go-mod-tidy也通过，完整scripts integration尚在跑。先前453.555秒full go-unit通过绑定v2，不能改写为v3完整suite。API/ZIP替身证明的是认证代码边界，不是实际远端授权、云续跑或账单；完整implementation和最终门禁收据待终态归档。原未知失败保留，完整Quote reserve仍是保守费用预留，实际费用未知；没有新Quote、采购、派发或正式发布。
++后续TLS夹具关闭通知及stable两种APT索引的SHA512别名已完成窄修；保持客户端默认哈希选择、原签名/archive/preview与34个保护文件不变。[首次兼容性独审](v3-release-readiness-20261021/packages/client-compatibility-review/review.md)发现故障响应发送前记录可能误判，已按先红后绿修复：要求服务器完成写入且客户端报告对应APT错误，不把generic SSL错误当成故障生效。[第二代独审](v3-release-readiness-20261021/packages/client-compatibility-review/generation-2/review.md)关闭R1，独立48种控制流组合及作者57项相关回归通过。修复前一冻结的全量499项Python（Mac既有1项RPM跳过）及4项合同通过；另外9项composite和31项旧preview planner回归通过，不冒称这些是最终完整Linux结果。5项planner guard测试在实现后补充，违反测试先行顺序的历史偏差已[如实记录](v3-release-readiness-20261021/packages/client-compatibility-scope-v1/standards-deviation.md)，不以补测追认。最终head `f2c37e92b09bcd11599d31449bbca5de0ac52c25`、tree `11ead51354aecc30087202959eeb09028617387f` 已推送，第三代首次Linux CI正在执行；49项真实案例尚待通过。
++
++云[费用继承初稿](v3-release-readiness-20261021/cloud/rc-next-execution-plan-post1019/README.md)经[独立方案复核](v3-release-readiness-20261021/cloud/rc-next-execution-plan-review/review.md)形成[第二代范围](v3-release-readiness-20261021/cloud/rc-next-execution-plan-post1019/generation-2/README.md)，在ce3c4d911基线上实现一次显式released-preclock continuation。[Go证明输入独审](v3-release-readiness-20261021/cloud/released-continuation-go-review/review.md)及[consumer独审](v3-release-readiness-20261021/cloud/released-continuation-consumer-review/review.md)原分段结论保留。[authority首次独审](v3-release-readiness-20261021/cloud/released-continuation-authority-review/review.md)用离线真实CLI发现明确终态被忽略、可信finalizer未完成时prior可能归零两项P2；先红后绿窄修后，[v3差量独审](v3-release-readiness-20261021/cloud/released-continuation-authority-review/v3/review.md)已关闭，两文件外的22文件字节不变。85项聚焦检查和v3的go-format/flow-doc-contracts/workflow-contracts通过，独立CLI的15场景加后续consumer验证符合预期；go-vet与go-mod-tidy也通过；Mac完整scripts integration触及固定9分钟包超时（540.658秒，wrapper542.175秒），没有断言FAIL行，两个既有baseline用例当时仅运行4/5秒，其他用例仍在排队；17个本次SID后代清理后剩余0。无本地重跑或限额改动，不能归因CPU或称全绿。先前453.555秒full go-unit通过绑定v2，不能改写为v3完整suite。最终候选 `0cdfaa37b00c58819895dee54029c27c83c9caa9` 的[首次Linux完整CI](v3-release-readiness-20261021/cloud/pr1020-ci-generation-1/frozen-final/README.md)已全通过：默认219个测试包和15个无测试包；完整scripts633根用例、1162 pass事件、6既有skip、0fail/unfinished，其中85项新聚焦检查和三个SSH子例均实际通过。脚本包470.805秒、wrapper595.434秒，未修改限额且清理完整。五迁移拓扑、四跨节点功能、自聊单/三节点全部通过；既有opt-in 2000QPS用例跳过。三个性能场景共9个窗口通过、零错误/丢弃；短期correctness仍按既有operator_stop终态记录，不是正式长稳。三SDK和四发行版原生包生命周期通过，实际checkout `922bc66a9cebcbe09bef5fc43afc0593c4f07fb8` 与head完整tree相同；[完整本地交付](v3-release-readiness-20261021/cloud/released-continuation-implementation/delivery-public-v1/README.md)保留各代源绑定、首红及超时证据。用户明确批准后，[#1020](https://github.com/WuKongIM/WuKongIM/pull/1020)于12:43:39Z正常merge为 `e30299fa59ea6669ea71024eabe209840f241f19`，parents为ce3c4d9与0cdfaa37，tree `36f96357c967418517a00444e52ae03f77c3ff90` 与验收候选相同。未用admin或修改保护，验证main包含原tip后正常移除干净worktree和本地任务分支，用户primary main仍a804未动；自然触发的文档后置CI正在观察。API/ZIP替身证明的是认证代码边界，不是实际远端授权、云续跑或账单。原未知失败保留，完整Quote reserve仍是保守费用预留，实际费用未知；没有新Quote、采购、派发或正式发布。
+ 
+ MQTT 继续默认关闭、开发预览。专项 self-chat、100 GiB/4h 迁移、生产 RPO/RTO、4,500 SEND/s 等未承诺范围不会被随意加入新的强制清单，也不凭本轮小规模通过扩大宣传范围。
+ 
+diff --git a/docs/reports/v3-release-readiness-20261021/README.md b/docs/reports/v3-release-readiness-20261021/README.md
+index 3f8abc3d0..bd06e6006 100644
+--- a/docs/reports/v3-release-readiness-20261021/README.md
++++ b/docs/reports/v3-release-readiness-20261021/README.md
+@@ -293,12 +293,19 @@ immutable publication and signed native-package public-client acceptance.
+ - [#1019 首次完整 Linux CI](cloud/pr1019-ci-generation-1/README.md)与[ready回读](cloud/pr1019-ready/after.stdout)：三个平台差异子例已实际通过；此ready快照早于合并，未重新采购。
+ 
+ - [#73 已授权合并及后置CI](packages/pr73-merge/README.md)；[#1019 已授权合并、清理及文档自动发布](cloud/pr1019-merge/README.md)。
+-- [四客户端/A-B方案v2](packages/stable-public-clients-plan/generation-2/scope-proposal.md)及[独审](packages/stable-public-clients-plan-review/review.md)：开始实现，尚未完成新native验收。
+-- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)、[方案独审](cloud/rc-next-execution-plan-review/review.md)及[第二代范围](cloud/rc-next-execution-plan-post1019/generation-2/README.md)：初稿已迭代进入实现，尚无可提交的paid JSON。
+-- [Go证明输入独审](cloud/released-continuation-go-review/review.md)和[consumer独审](cloud/released-continuation-consumer-review/review.md)保留；[authority首次独审](cloud/released-continuation-authority-review/review.md)两项P2已由[v3差量独审](cloud/released-continuation-authority-review/v3/review.md)关闭，85聚焦和go-vet/tidy通过，完整scripts integration仍在执行；未执行云操作。
++- [四客户端/A-B方案v2](packages/stable-public-clients-plan/generation-2/scope-proposal.md)及[独审](packages/stable-public-clients-plan-review/review.md)：历史方案，后续实现和CI状态见下方；尚未完成新native验收。
++- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)、[方案独审](cloud/rc-next-execution-plan-review/review.md)及[第二代范围](cloud/rc-next-execution-plan-post1019/generation-2/README.md)：历史方案，后续实现和CI状态见下方；尚无实际paid续跑。
++- [Go证明输入独审](cloud/released-continuation-go-review/review.md)和[consumer独审](cloud/released-continuation-consumer-review/review.md)保留；[authority首次独审](cloud/released-continuation-authority-review/review.md)两项P2已由[v3差量独审](cloud/released-continuation-authority-review/v3/review.md)关闭，85聚焦和go-vet/tidy通过；Mac完整scripts超时记录保留，最终Linux结果见下方；未执行云操作。
+ - [native夹具独审](packages/stable-native-clients-implementation-review/fixture-freeze-v1/review.md)和[主实现首次独审](packages/stable-native-clients-implementation-review/main-v1/review.md)保留；[v2](packages/stable-native-clients-implementation-review/main-v2/review.md)/[v3独审](packages/stable-native-clients-implementation-review/main-v3/review.md)已关闭清理/cache/覆盖缺口，未将轻量结果报告成真实49项通过。
+ - `continuation-and-native-first-review-archive.json`：consumer/main首次审查原字节的公共allowlist复制收据。
+ 
+ - [#74 首轮CI](packages/pr74-ci-generation-1/README.md)：Pages489+4及原有native job通过；Rocky manifest不可用导致stable49项0执行，首失败保留。
+-- [Rocky pin窄修独审](packages/mirror-pin-repair/review/review.md)及[修复身份](packages/mirror-pin-repair/06-summary.json)：已推送新head4ba3966，新CI结果待补。
++- [Rocky pin窄修独审](packages/mirror-pin-repair/review/review.md)及[修复身份](packages/mirror-pin-repair/06-summary.json)：该代head4ba3966的结果见下方，历史失败保留。
+ - [本轮公开证据复制与状态检查点](pr74-and-authority-v3-checkpoint-archive.json)：87项首次CI、10项authority v3、16项pin修复payload及各自清单，原170项与事实复核7项已逐字节核对；未发布或采购。
++
++- [#74 第二代CI](packages/pr74-ci-generation-2/README.md)：原有native及489+4通过，stable第一个组合案例在Debian HTTPS处失败，0/49通过；清理5容器+1网络，最终零遗留。
++- `packages/https-compat-repair/`、`packages/https-compat-repair-generation-2/`、`packages/https-compat-repair-generation-3/`：真实TLS及by-hash负例先红后绿，保持信任检查和客户端默认行为。
++- `packages/stable-native-clients-implementation/sha512-transport-repair/`：已验签原索引的stable SHA512别名，9 composite和31旧preview planner回归；测试顺序偏差如实另记。
++- [兼容性首代独审](packages/client-compatibility-review/review.md)与[差量独审](packages/client-compatibility-review/generation-2/review.md)：R1原反例保留，最终写入/客户端诊断要求通过48个独立控制，发现已关闭。
++- `packages/client-compatibility-scope-v1/`、`packages/client-compatibility-final-v2/`：修复范围、499+4历史冻结、最终6源码字节及[5项补测顺序偏差](packages/client-compatibility-scope-v1/standards-deviation.md)；真实49项仍待最终head CI。
++- [#1020 最终首次Linux CI](cloud/pr1020-ci-generation-1/frozen-final/README.md)：完整默认/scripts/E2E/性能/SDK/native通过、精确tree及清理已验证；Mac原超时保留，未重新采购。

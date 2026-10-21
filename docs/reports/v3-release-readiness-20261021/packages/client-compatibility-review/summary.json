@@ -1,0 +1,27 @@
+{
+  "recorded_at_utc": "2026-10-21T12:36:35.775521+00:00",
+  "base": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "status": "changes_requested",
+  "standards_findings": 1,
+  "spec_findings": 1,
+  "findings": [
+    {
+      "id": "S1",
+      "kind": "historical_test_order_deviation",
+      "needs_truthful_delivery_record": true
+    },
+    {
+      "id": "R1",
+      "priority": 2,
+      "kind": "by_hash_fault_receipt_precedes_transmission",
+      "reproduced": true,
+      "real_linux_occurrence_claimed": false
+    }
+  ],
+  "protected_files_unchanged": 39,
+  "producers_unchanged": 12,
+  "native_cases_required": 49,
+  "native_execution": false,
+  "no_network_keys_cloud": true,
+  "source_modified": false
+}

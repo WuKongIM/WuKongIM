@@ -1,0 +1,817 @@
+{
+  "identity": {
+    "source_sha": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "policy_sha": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "event": "pull_request",
+    "run_id": "39598983439",
+    "run_attempt": "1"
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2528,
+    "output_bytes": 1343814,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2528,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 595.434
+  },
+  "root_pass": 633,
+  "pass_events": 1162,
+  "fail_events": [],
+  "skip_events": [
+    {
+      "Time": "2026-10-21T12:25:22.477936346Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:25:22.522318244Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:25:23.47181639Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:25:52.553280529Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:25:52.553324672Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:25:52.929638654Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Elapsed": 0
+    }
+  ],
+  "unfinished": [],
+  "non_json_line_numbers": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96
+  ],
+  "related_pass_events": 85,
+  "missing_focused_tests": [],
+  "related_terminal_events": [
+    {
+      "Time": "2026-10-21T12:24:34.923993507Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/first_rehearsal",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.928201197Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell/released_preclock_continuation",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.928217237Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersCopyActualWorkflowShell",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:34.935968686Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_0",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:34.940034903Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_false/validator_19",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.945661767Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_0",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:34.949888503Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/rehearsal/previous_true/validator_19",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.963771681Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_0",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:34.968020778Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_false/validator_19",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.980987343Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_0",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:34.985382394Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell/formal/previous_true/validator_19",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.985400788Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersValidationActualWorkflowShell",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T12:24:34.986289498Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersFormalProcurementGate",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.987517903Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/rehearsal",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.988551124Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence/formal",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.98856527Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersCleanupIndependence",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:34.990548353Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumersTerminalPreservation",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:24:35.098845447Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T12:24:35.205687017Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T12:24:35.313362795Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T12:24:35.421993618Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T12:24:35.528560544Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T12:24:35.610501946Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:35.610516934Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead",
+      "Elapsed": 0.62
+    },
+    {
+      "Time": "2026-10-21T12:24:35.666125301Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T12:24:35.72004869Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T12:24:35.801116018Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:35.883638271Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:35.883653319Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest",
+      "Elapsed": 0.27
+    },
+    {
+      "Time": "2026-10-21T12:24:35.964308939Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/completed",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.04561846Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/in_progress",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.126784888Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/queued",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.206587745Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/unrelated_workflow",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.288042471Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/fork",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.368808968Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/different_repository",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.44953019Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/non_main",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.529654988Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/untrusted_event",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.610432285Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus/invalid_head",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T12:24:36.610449177Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus",
+      "Elapsed": 0.73
+    },
+    {
+      "Time": "2026-10-21T12:24:36.798658477Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering/runtime",
+      "Elapsed": 0.19
+    },
+    {
+      "Time": "2026-10-21T12:24:36.985396919Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering/grant",
+      "Elapsed": 0.19
+    },
+    {
+      "Time": "2026-10-21T12:24:36.985420132Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering",
+      "Elapsed": 0.37
+    },
+    {
+      "Time": "2026-10-21T12:24:37.411406928Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/nonzero_prior",
+      "Elapsed": 0.43
+    },
+    {
+      "Time": "2026-10-21T12:24:37.608110657Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/runtime_marker",
+      "Elapsed": 0.2
+    },
+    {
+      "Time": "2026-10-21T12:24:37.796840639Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/sidecar",
+      "Elapsed": 0.19
+    },
+    {
+      "Time": "2026-10-21T12:24:38.217425659Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/incomplete_zero",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:38.641927576Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/zero_before_release",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:39.063235267Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/old_quote_expired",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:39.485558975Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/missing_cost_line",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:39.907435795Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/known_correctness",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:40.325104707Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain/account_mismatch",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:40.325122891Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsBrokenPublicChain",
+      "Elapsed": 3.34
+    },
+    {
+      "Time": "2026-10-21T12:24:41.201969704Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run",
+      "Elapsed": 0.88
+    },
+    {
+      "Time": "2026-10-21T12:24:41.683328931Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof",
+      "Elapsed": 0.48
+    },
+    {
+      "Time": "2026-10-21T12:24:42.159810266Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve",
+      "Elapsed": 0.48
+    },
+    {
+      "Time": "2026-10-21T12:24:42.635014669Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence",
+      "Elapsed": 0.48
+    },
+    {
+      "Time": "2026-10-21T12:24:43.175142777Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt",
+      "Elapsed": 0.54
+    },
+    {
+      "Time": "2026-10-21T12:24:43.937887965Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest",
+      "Elapsed": 0.76
+    },
+    {
+      "Time": "2026-10-21T12:24:43.937907692Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar",
+      "Elapsed": 3.61
+    },
+    {
+      "Time": "2026-10-21T12:24:44.13151193Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/runtime_summary",
+      "Elapsed": 0.19
+    },
+    {
+      "Time": "2026-10-21T12:24:44.267760928Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/stop_marker",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T12:24:44.684646007Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence/malformed_schema",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:44.684691572Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsRetainedRuntimeAndStopEvidence",
+      "Elapsed": 0.75
+    },
+    {
+      "Time": "2026-10-21T12:24:45.102902587Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision/bootstrap_mismatch",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:45.522802675Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision/zero_within_completed_second",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:45.522819466Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision",
+      "Elapsed": 0.84
+    },
+    {
+      "Time": "2026-10-21T12:24:45.682178693Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_hash",
+      "Elapsed": 0.16
+    },
+    {
+      "Time": "2026-10-21T12:24:45.841704486Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/archive_size",
+      "Elapsed": 0.16
+    },
+    {
+      "Time": "2026-10-21T12:24:46.028762601Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/zip_parent_path",
+      "Elapsed": 0.19
+    },
+    {
+      "Time": "2026-10-21T12:24:46.228540989Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/oversized_document",
+      "Elapsed": 0.2
+    },
+    {
+      "Time": "2026-10-21T12:24:46.440914598Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/child_head",
+      "Elapsed": 0.21
+    },
+    {
+      "Time": "2026-10-21T12:24:46.67795099Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/child_attempt",
+      "Elapsed": 0.24
+    },
+    {
+      "Time": "2026-10-21T12:24:46.811808237Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/ancestry",
+      "Elapsed": 0.13
+    },
+    {
+      "Time": "2026-10-21T12:24:47.076666817Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering/partial_child_inventory",
+      "Elapsed": 0.26
+    },
+    {
+      "Time": "2026-10-21T12:24:47.076681284Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRejectsArtifactAndChildTampering",
+      "Elapsed": 1.55
+    },
+    {
+      "Time": "2026-10-21T12:24:47.131883901Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath/rehearsal",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T12:24:47.187643349Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath/formal",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T12:24:47.187668175Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockConsumerKeepsOriginalZeroPriorPath",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T12:24:47.60424325Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/comment_words",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:48.019400242Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/changed_duration",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T12:24:48.019420148Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration",
+      "Elapsed": 0.83
+    },
+    {
+      "Time": "2026-10-21T12:24:48.019678341Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T12:32:04.692934167Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T12:32:05.121268377Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote",
+      "Elapsed": 0.43
+    },
+    {
+      "Time": "2026-10-21T12:32:05.154234479Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory",
+      "Elapsed": 0.03
+    }
+  ],
+  "packages": [
+    {
+      "Time": "2026-10-21T12:24:17.049652247Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+      "Elapsed": 1.4809999999999999
+    },
+    {
+      "Time": "2026-10-21T12:24:17.294707073Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:17.713707705Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+      "Elapsed": 0.07
+    },
+    {
+      "Time": "2026-10-21T12:24:18.202359792Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T12:24:23.356814493Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf",
+      "Elapsed": 4.869
+    },
+    {
+      "Time": "2026-10-21T12:24:24.62463021Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+      "Elapsed": 0.436
+    },
+    {
+      "Time": "2026-10-21T12:32:06.228307159Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 470.805
+    }
+  ]
+}

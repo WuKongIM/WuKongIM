@@ -1,0 +1,22 @@
+{
+  "request_receipt": [
+    {
+      "path": "/apt/dists/stable/InRelease",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "status": 200
+    }
+  ],
+  "results": [
+    {
+      "error": "native rejection lacks the actual by-hash fault response",
+      "mode": "missing-byhash",
+      "rejected": true
+    },
+    {
+      "error": "native rejection lacks the actual by-hash fault response",
+      "mode": "corrupt-byhash",
+      "rejected": true
+    }
+  ],
+  "scope": "actual negative branch control flow; no Docker/native client"
+}

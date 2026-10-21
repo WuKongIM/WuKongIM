@@ -1,0 +1,10 @@
+{
+  "source_verified": true,
+  "delta_files": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "all_other_v1_files_unchanged": true,
+  "native_executed": false
+}

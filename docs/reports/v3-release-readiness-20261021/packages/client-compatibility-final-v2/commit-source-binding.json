@@ -1,0 +1,59 @@
+{
+  "recorded_at_utc": "2026-10-21T12:47:11.273538+00:00",
+  "repository": "WuKongIM/packages",
+  "commit": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "tree": "11ead51354aecc30087202959eeb09028617387f",
+  "source_manifest_sha256": "d6f024d2305f1faab11b3cd8a302d1ea1c66a4cbbd38bd90c0e318346cc33d6f",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "size": 2198,
+      "sha256": "e0bdc24287f11d41f216edf18b4366c6a2b18dfa4f0ba11b35681b4854db2943",
+      "git_blob": "d8a51e00f0565be6366b2a6cd834764879b5a152",
+      "frozen_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/client-compatibility-review/files/CHANGELOG.md",
+      "identical": true
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "size": 9710,
+      "sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4",
+      "git_blob": "8dcaa393ac727468c09fc40e87f7a90815796544",
+      "frozen_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/client-compatibility-review/files/docs/stable-audit-transport.md",
+      "identical": true
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74",
+      "git_blob": "c6851b2354318ea7fae10916fa78147ebc9e9877",
+      "frozen_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/client-compatibility-review/files/scripts/plan-object-storage-publication.py",
+      "identical": true
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "size": 60959,
+      "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d",
+      "git_blob": "5fc99ec36623bb148d03cc02ecfacf5a777c60ea",
+      "frozen_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/client-compatibility-review/generation-2/files/tests/native_stable_clients_drill.py",
+      "identical": true
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf",
+      "git_blob": "582c699c5be251550c6a5d94b410606f938eaf38",
+      "frozen_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/client-compatibility-review/files/tests/test_composite_storage_plan.py",
+      "identical": true
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "size": 42011,
+      "sha256": "064a58ffa57eb694c9802056a6d182e3577a7f6ef2ba0f764ac27a00ecb38ef7",
+      "git_blob": "845064d4d4c8755ad22bdfdad890360bbad5366c",
+      "frozen_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/client-compatibility-review/generation-2/files/tests/test_native_stable_clients_drill.py",
+      "identical": true
+    }
+  ],
+  "verification": "exact local Git objects; no remote API request",
+  "native49_result": "not evaluated by this archive task"
+}

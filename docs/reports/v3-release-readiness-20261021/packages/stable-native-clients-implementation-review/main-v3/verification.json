@@ -1,0 +1,24 @@
+{
+  "files_match_freeze": true,
+  "delta_files": [
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "native_executed": false,
+  "exact_regression": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "-v",
+      "test_native_stable_clients_drill.NativeStableClientsTests.test_two_stage_cleanup_retires_removed_ids_but_keeps_inventory_obligation",
+      "test_native_stable_clients_drill.NativeStableClientsTests.test_cleanup_stages_cannot_hide_prior_failure_and_fixture_is_host_nonroot",
+      "test_native_stable_clients_drill.NativeStableClientsTests.test_ambiguous_create_discovers_only_owned_container_and_network"
+    ],
+    "returncode": 0
+  },
+  "closed_original_P2": 2,
+  "closed_followup_P2": 1,
+  "remaining_findings": 0,
+  "native_49_cases_pending": true
+}

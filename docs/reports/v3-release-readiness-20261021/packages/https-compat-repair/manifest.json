@@ -1,0 +1,76 @@
+{
+  "base": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "changed_files": [
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "native_validation": "pending; local strict TLS regression only",
+  "python_tls": "OpenSSL 3.6.3 9 Jun 2026",
+  "records": [
+    {
+      "path": "01-strict-tls-red.log",
+      "sha256": "9786b808c6120e9ebb3bd49487168845c97227f557d006cf5ecfc878392ed2ee",
+      "size": 1231
+    },
+    {
+      "path": "02-strict-tls-red-repeat.log",
+      "sha256": "6bfbc0d40ca4dfced9e83104de0f353960c14a728e93c332c5cceb6574ee1610",
+      "size": 1231
+    },
+    {
+      "path": "03-strict-tls-green.log",
+      "sha256": "4632815690a6aa3e285c43e96e2e924a7b2d4f371fec6b0c0d7a7f176b9661ee",
+      "size": 98
+    },
+    {
+      "path": "04-tls-certificate-truncation-green.log",
+      "sha256": "e4daf93ac1294a518c30940c894a122da302621f1f2ebdf1dc5f7073b00f39b0",
+      "size": 98
+    },
+    {
+      "path": "05-related-tests.log",
+      "sha256": "822e14ad8811e725f165599fd651b6da783e6b80c28dac8af5685ba7ad692eec",
+      "size": 151
+    },
+    {
+      "path": "06-final-test-original-server-red.log",
+      "sha256": "a894f2dfcd6045c8de2c3fd43a338e5699e7cb33bd1b740563643a0bcb09d869",
+      "size": 1480
+    },
+    {
+      "path": "delta.patch",
+      "sha256": "4b6738289477df3561ade4cb7fcd2446de3899caabbff68b3bc773f749566c34",
+      "size": 8073
+    },
+    {
+      "path": "hypotheses.json",
+      "sha256": "a15ad75cdd763cac2622157e7491d6f82d21e04a4a90a2a6a3cfbb9fdaf1bdf6",
+      "size": 804
+    },
+    {
+      "path": "native_stable_clients_drill.py.before",
+      "sha256": "041cfa1e29f1a13d2a9fb2ab8b1d1977b53c8571377674f2ce601cf086b7fc29",
+      "size": 58431
+    },
+    {
+      "path": "receipt.md",
+      "sha256": "8383ca5dc4517287c440300e1b5915dcea8e303b56693705b04eac4dd05bfaf0",
+      "size": 2474
+    },
+    {
+      "path": "source/tests/native_stable_clients_drill.py",
+      "sha256": "fccd966f16eb3b635591ed2c58eb297098c6c496a3b800d64abcc4c9531beb31",
+      "size": 58966
+    },
+    {
+      "path": "source/tests/test_native_stable_clients_drill.py",
+      "sha256": "4f5a4c7044517d9fc47334bb1120cf00961ade8f82f33b86ce9afd48ee1a7190",
+      "size": 32429
+    },
+    {
+      "path": "test_native_stable_clients_drill.py.before",
+      "sha256": "5b49a578f0a4342a9aa0a24dc0e429cd55e189788ef60f042f73ae43960b7637",
+      "size": 26718
+    }
+  ]
+}

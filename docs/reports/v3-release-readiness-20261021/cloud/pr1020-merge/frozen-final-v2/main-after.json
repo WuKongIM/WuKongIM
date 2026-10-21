@@ -1,0 +1,10 @@
+{
+  "ref": "refs/heads/main",
+  "node_id": "REF_kwDOJgfwya9yZWZzL2hlYWRzL21haW4",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/refs/heads/main",
+  "object": {
+    "sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "type": "commit",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/e30299fa59ea6669ea71024eabe209840f241f19"
+  }
+}

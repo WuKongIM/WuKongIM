@@ -1,0 +1,6 @@
+=== RUN   TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+=== PAUSE TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+=== CONT  TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote
+--- PASS: TestChatLifecycleReleasedPreclockAuthenticatesReleasedOriginalAndReservesFullQuote (0.38s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	0.720s

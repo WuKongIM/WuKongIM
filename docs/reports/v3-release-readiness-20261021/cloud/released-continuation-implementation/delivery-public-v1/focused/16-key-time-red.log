@@ -1,0 +1,11 @@
+=== RUN   TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision
+=== RUN   TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision/bootstrap_mismatch
+    chat_lifecycle_released_preclock_integration_test.go:234: bootstrap mismatch accepted: <nil> map[attempt:2 committed_micros:7.44776e+07 schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:ready]
+=== RUN   TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision/zero_within_completed_second
+    chat_lifecycle_released_preclock_integration_test.go:234: GitHub second precision incorrectly rejects real nanosecond zero: exit status 1 map[reason:zero_time_invalid schema:wukongim.chat_lifecycle.released_preclock_authentication/v1 status:rejected]
+--- FAIL: TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision (0.86s)
+    --- FAIL: TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision/bootstrap_mismatch (0.42s)
+    --- FAIL: TestChatLifecycleReleasedPreclockPreservesBootstrapAndAPITimePrecision/zero_within_completed_second (0.44s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.204s
+FAIL

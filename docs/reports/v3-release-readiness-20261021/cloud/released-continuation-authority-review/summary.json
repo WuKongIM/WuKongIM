@@ -1,0 +1,38 @@
+{
+  "reviewed_at_utc": "2026-10-21T12:06:41.026644+00:00",
+  "freeze": "freeze-v2",
+  "verdict": "request_changes",
+  "blocking_findings": [
+    {
+      "id": "R1",
+      "priority": 2,
+      "file": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "line": 256,
+      "title": "Known typed terminal silently discarded before continuation admission",
+      "reproduced_by": [
+        "typed_runtime_terminal",
+        "typed_grant_terminal"
+      ]
+    },
+    {
+      "id": "R2",
+      "priority": 2,
+      "file": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "line": 191,
+      "title": "Trusted in-progress finalizer cleanup permits first-start budget reset",
+      "reproduced_by": [
+        "default_spent_in_progress",
+        "default_spent_completed"
+      ]
+    }
+  ],
+  "reviewed_files": 24,
+  "reused_identical_previously_reviewed_files": 10,
+  "synthetic_cli_probe_cases": 8,
+  "consumer_validate_probe": 1,
+  "author_focused_pass_events": 75,
+  "author_top_level_pass": 21,
+  "native_cloud_actions": false,
+  "source_modified": false,
+  "source_manifest_sha256": "3b0dd1c74d1e2e4a82d665cd77454488e4356524244490816454ea5e133fb7e1"
+}

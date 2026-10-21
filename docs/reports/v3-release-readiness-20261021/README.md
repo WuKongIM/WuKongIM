@@ -293,8 +293,22 @@ immutable publication and signed native-package public-client acceptance.
 - [#1019 首次完整 Linux CI](cloud/pr1019-ci-generation-1/README.md)与[ready回读](cloud/pr1019-ready/after.stdout)：三个平台差异子例已实际通过；此ready快照早于合并，未重新采购。
 
 - [#73 已授权合并及后置CI](packages/pr73-merge/README.md)；[#1019 已授权合并、清理及文档自动发布](cloud/pr1019-merge/README.md)。
-- [四客户端/A-B方案v2](packages/stable-public-clients-plan/generation-2/scope-proposal.md)及[独审](packages/stable-public-clients-plan-review/review.md)：开始实现，尚未完成新native验收。
-- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)、[方案独审](cloud/rc-next-execution-plan-review/review.md)及[第二代范围](cloud/rc-next-execution-plan-post1019/generation-2/README.md)：初稿已迭代进入实现，尚无可提交的paid JSON。
-- [Go证明输入独审](cloud/released-continuation-go-review/review.md)和[consumer独审](cloud/released-continuation-consumer-review/review.md)：分段无阻塞，最终authority helper及整体验证仍未完成；未执行云操作。
-- [native夹具独审](packages/stable-native-clients-implementation-review/fixture-freeze-v1/review.md)和[主实现首次独审](packages/stable-native-clients-implementation-review/main-v1/review.md)：保留两个P2和两类实际安装负例缺口，修复中，尚未运行新native清单。
+- [四客户端/A-B方案v2](packages/stable-public-clients-plan/generation-2/scope-proposal.md)及[独审](packages/stable-public-clients-plan-review/review.md)：历史方案，后续实现和CI状态见下方；尚未完成新native验收。
+- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)、[方案独审](cloud/rc-next-execution-plan-review/review.md)及[第二代范围](cloud/rc-next-execution-plan-post1019/generation-2/README.md)：历史方案，后续实现和CI状态见下方；尚无实际paid续跑。
+- [Go证明输入独审](cloud/released-continuation-go-review/review.md)和[consumer独审](cloud/released-continuation-consumer-review/review.md)保留；[authority首次独审](cloud/released-continuation-authority-review/review.md)两项P2已由[v3差量独审](cloud/released-continuation-authority-review/v3/review.md)关闭，85聚焦和go-vet/tidy通过；Mac完整scripts超时记录保留，最终Linux结果见下方；未执行云操作。
+- [native夹具独审](packages/stable-native-clients-implementation-review/fixture-freeze-v1/review.md)和[主实现首次独审](packages/stable-native-clients-implementation-review/main-v1/review.md)保留；[v2](packages/stable-native-clients-implementation-review/main-v2/review.md)/[v3独审](packages/stable-native-clients-implementation-review/main-v3/review.md)已关闭清理/cache/覆盖缺口，未将轻量结果报告成真实49项通过。
 - `continuation-and-native-first-review-archive.json`：consumer/main首次审查原字节的公共allowlist复制收据。
+
+- [#74 首轮CI](packages/pr74-ci-generation-1/README.md)：Pages489+4及原有native job通过；Rocky manifest不可用导致stable49项0执行，首失败保留。
+- [Rocky pin窄修独审](packages/mirror-pin-repair/review/review.md)及[修复身份](packages/mirror-pin-repair/06-summary.json)：该代head4ba3966的结果见下方，历史失败保留。
+- [本轮公开证据复制与状态检查点](pr74-and-authority-v3-checkpoint-archive.json)：87项首次CI、10项authority v3、16项pin修复payload及各自清单，原170项与事实复核7项已逐字节核对；未发布或采购。
+
+- [#74 第二代CI](packages/pr74-ci-generation-2/README.md)：原有native及489+4通过，stable第一个组合案例在Debian HTTPS处失败，0/49通过；清理5容器+1网络，最终零遗留。
+- `packages/https-compat-repair/`、`packages/https-compat-repair-generation-2/`、`packages/https-compat-repair-generation-3/`：真实TLS及by-hash负例先红后绿，保持信任检查和客户端默认行为。
+- `packages/stable-native-clients-implementation/sha512-transport-repair/`：已验签原索引的stable SHA512别名，9 composite和31旧preview planner回归；测试顺序偏差如实另记。
+- [兼容性首代独审](packages/client-compatibility-review/review.md)与[差量独审](packages/client-compatibility-review/generation-2/review.md)：R1原反例保留，最终写入/客户端诊断要求通过48个独立控制，发现已关闭。
+- `packages/client-compatibility-scope-v1/`、`packages/client-compatibility-final-v2/`：修复范围、499+4历史冻结、最终6源码字节及[5项补测顺序偏差](packages/client-compatibility-scope-v1/standards-deviation.md)；真实49项仍待最终head CI。
+- [#1020 最终首次Linux CI](cloud/pr1020-ci-generation-1/frozen-final/README.md)：完整默认/scripts/E2E/性能/SDK/native通过、精确tree及清理已验证；Mac原超时保留，未重新采购。
+
+- [#1020 经用户批准合并、正常清理及后置文档发布](cloud/pr1020-merge/frozen-final-v2/README.md)：e30299fa同验收tree、保护未改、primary main未动，4个CDN刷新请求受理不等于全edge完成。
+- [报告事实复核](report-final-fact-review/review.md)：截至12:46Z冻结稿的128相对链接及新事实边界核对，无实质错报；后续合并接线/新CI状态另据精确收据更新。

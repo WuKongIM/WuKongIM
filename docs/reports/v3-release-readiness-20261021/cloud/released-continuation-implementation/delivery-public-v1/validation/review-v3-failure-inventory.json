@@ -1,0 +1,35 @@
+{
+  "source_freeze": "freeze-v2",
+  "review_source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-authority-review/probe-results.json",
+  "failures": [
+    {
+      "id": "typed_terminal_filtered",
+      "seam": "real helper CLI with authenticated synthetic archive",
+      "before": "pre-clock-terminal.json with actual runtime/grant code ignored, ready attempt2 sidecar produced",
+      "expected": "controlled measured_or_runtime_predecessor rejection before any sidecar; known terminal must not become unknown",
+      "repair": "Add existing typed terminal filename to archive marker rejection before content filtering. Do not add coordinator enum or change runtime classification."
+    },
+    {
+      "id": "trusted_spent_nonterminal",
+      "seam": "real helper CLI with retained same-request artifact and exact trusted finalizer API",
+      "before": "in_progress trusted cleanup producer returns first_start with prior0",
+      "expected": "request_already_spent rejection for retained trusted matching producer regardless of status; no sidecar and no archive/dispatch API call",
+      "repair": "Remove completed-only condition from already-spent trust match; retain every existing identity condition and test unrelated/fork/non-main/bad-SHA positive controls."
+    }
+  ],
+  "change_scope": [
+    "scripts/chat-lifecycle/authenticate-released-preclock.py",
+    "scripts/chat_lifecycle_released_preclock_integration_test.go"
+  ],
+  "not_changed": [
+    "product",
+    "Go proof schema",
+    "thresholds",
+    "workload",
+    "provider",
+    "permissions",
+    "cleanup behaviour"
+  ],
+  "red_required": true,
+  "paid_actions": false
+}

@@ -1,0 +1,6 @@
+ARCHIVE_ALLOWLIST
+fact-review.json
+git-manifest-verification.json
+incremental-log-fix.patch
+report-update.patch
+review.md

@@ -1,0 +1,573 @@
+FFFFFFFFFFEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', accepted='Hash Sum mismatch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', accepted='File has unexpected size (28 != 605). Mirror sync in progress?')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', accepted='Size mismatch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', accepted='404 Not Found [IP: 127.0.0.1 443]')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='OpenSSL error: unexpected eof while reading')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='SSL connection failed before response')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='Failed to fetch authenticated index')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='Could not resolve host')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='GPG signature failure')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='checksum could not be read')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='missing-byhash', rejected='downloaded 4040 bytes before TLS failure')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', accepted='Hash Sum mismatch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', accepted='File has unexpected size (28 != 605). Mirror sync in progress?')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', accepted='Size mismatch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 452, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [receipt], text), receipt)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='OpenSSL error: unexpected eof while reading')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='SSL connection failed before response')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='Failed to fetch authenticated index')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='Could not resolve host')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='GPG signature failure')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='checksum could not be read')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='downloaded 4040 bytes before TLS failure')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure) (mode='corrupt-byhash', rejected='404 Not Found')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 461, in test_by_hash_fault_diagnostics_require_apt_status_or_integrity_failure
+    drill.verify_apt_by_hash_fault(mode, [receipt], text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 430, in test_by_hash_rejection_requires_the_actual_fault_response
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [valid], diagnostic), valid)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 200, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'response_write_completed': False}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 430, in test_by_hash_rejection_requires_the_actual_fault_response
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [valid], diagnostic), valid)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 404, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04', 'response_write_completed': False}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA256', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA256/2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'status': 200, 'sha256': '2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 430, in test_by_hash_rejection_requires_the_actual_fault_response
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [valid], diagnostic), valid)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 200, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'response_write_completed': False}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='missing-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 404, 'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 430, in test_by_hash_rejection_requires_the_actual_fault_response
+    self.assertEqual(drill.verify_apt_by_hash_fault(mode, [valid], diagnostic), valid)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/InRelease', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/Packages.gz', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 404, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04', 'response_write_completed': False}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 200, 'sha256': '54958456b8d2c755a77144f155197b215e11eb47703fa0123c3659787ab7ca04'}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+ERROR: test_by_hash_rejection_requires_the_actual_fault_response (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_by_hash_rejection_requires_the_actual_fault_response) (algorithm='SHA512', mode='corrupt-byhash', observed=[{'path': '/apt/dists/stable/main/binary-amd64/by-hash/SHA512/39110a9b1e551b45897d34b1d3a442517bf88d082aa8dd73dd6a45fb23c9197b9fb778255b56385b4a7d749db98fbf138d7e83e001b27ce7c73b59f87be8c721', 'status': 200, 'sha256': '2060693fd3e923e062b9f8ebc92ee66227571f852a8e155f23e572807356b9d3', 'response_write_completed': True}])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 441, in test_by_hash_rejection_requires_the_actual_fault_response
+    drill.verify_apt_by_hash_fault(mode, observed, diagnostic)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_apt_by_hash_fault() takes 2 positional arguments but 3 were given
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='missing-byhash', failure='send_response')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='missing-byhash', failure='end_headers')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='missing-byhash', failure='write')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='missing-byhash', failure='flush')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='missing-byhash', failure=None)
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not True
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='corrupt-byhash', failure='send_response')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='corrupt-byhash', failure='end_headers')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='corrupt-byhash', failure='write')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='corrupt-byhash', failure='flush')
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not False
+
+======================================================================
+FAIL: test_handler_fault_receipts_require_successful_write_and_flush (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_handler_fault_receipts_require_successful_write_and_flush) (mode='corrupt-byhash', failure=None)
+Run the actual handler with failures at each transport write boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 500, in test_handler_fault_receipts_require_successful_write_and_flush
+    self.assertIs(observed[0].get('response_write_completed'), failure is None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not True
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.026s
+
+FAILED (failures=10, errors=52)

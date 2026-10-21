@@ -1,0 +1,42 @@
+EFE
+======================================================================
+ERROR: test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors (test_native_stable_clients_drill.NativeStableClientsTests.test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 69, in test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors
+    drill = load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 18, in load
+    spec.loader.exec_module(module)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py'
+
+======================================================================
+ERROR: test_http_routes_preserve_a_bytes_at_request_barriers (test_native_stable_clients_drill.NativeStableClientsTests.test_http_routes_preserve_a_bytes_at_request_barriers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 41, in test_http_routes_preserve_a_bytes_at_request_barriers
+    drill = load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 18, in load
+    spec.loader.exec_module(module)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/native_stable_clients_drill.py'
+
+======================================================================
+FAIL: test_help_and_wrong_product_identity_do_not_launch_tools (test_native_stable_clients_drill.NativeStableClientsTests.test_help_and_wrong_product_identity_do_not_launch_tools)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 24, in test_help_and_wrong_product_identity_do_not_launch_tools
+    self.assertTrue(SCRIPT.is_file(), 'missing stable native client drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing stable native client drill
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1, errors=2)

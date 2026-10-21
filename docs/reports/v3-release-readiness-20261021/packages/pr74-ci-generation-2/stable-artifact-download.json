@@ -1,0 +1,21 @@
+{
+  "id": 12344826730,
+  "api_digest": "sha256:438f2575a58a7bd8950a4585d0f7534fd171dfb699136ca0a9b861017410e3df",
+  "actual_zip_sha256": "438f2575a58a7bd8950a4585d0f7534fd171dfb699136ca0a9b861017410e3df",
+  "zip_bytes": 40483,
+  "downloaded_at": "2026-10-21T12:21:45.882116+00:00",
+  "members": [
+    {
+      "name": "https-requests.jsonl",
+      "size": 4590,
+      "sha256": "be5821b885ca15b52c615eab61f4644f90a902f74a7458543db8b149bb7b2ca3",
+      "crc32": 3937744489
+    },
+    {
+      "name": "native-stable-clients.json",
+      "size": 185304,
+      "sha256": "be85f5d640bfd0cd9845e82a3d17b633f88a34b0aa06250fe2c732db9df5b68d",
+      "crc32": 4205655266
+    }
+  ]
+}

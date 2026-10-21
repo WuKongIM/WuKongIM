@@ -1,0 +1,136 @@
+{
+  "first": {
+    "verified": true,
+    "creation_attempts": {
+      "containers": [],
+      "networks": [
+        "wk-scl-frozen-v2"
+      ]
+    },
+    "discovered": {
+      "containers": [],
+      "networks": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ]
+    },
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "errors": []
+  },
+  "final": {
+    "verified": false,
+    "creation_attempts": {
+      "containers": [],
+      "networks": [
+        "wk-scl-frozen-v2"
+      ]
+    },
+    "discovered": {
+      "containers": [],
+      "networks": []
+    },
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "errors": [
+      "network identity query failed"
+    ]
+  },
+  "network_removed": true,
+  "commands": [
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "network",
+      "inspect",
+      "--format",
+      "{{.Id}} {{.Name}} {{index .Labels \"wk-stable-client-run\"}}",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    [
+      "docker",
+      "network",
+      "rm",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "network",
+      "inspect",
+      "--format",
+      "{{.Id}} {{.Name}} {{index .Labels \"wk-stable-client-run\"}}",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=frozen-v2"
+    ]
+  ],
+  "basis": "Frozen v2 actual cleanup code; Docker native command replaced with root-reported actual missing-network stderr form. No Docker invoked here."
+}

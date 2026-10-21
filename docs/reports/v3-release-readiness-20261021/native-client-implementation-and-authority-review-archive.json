@@ -1,0 +1,856 @@
+{
+  "public_only": true,
+  "paid_cloud_dispatched": false,
+  "copied_files": [
+    {
+      "path": "packages/stable-native-clients-implementation/01-client-admission-red.log",
+      "bytes": 3044,
+      "sha256": "86c760b32e2f10c22b5621b788c9b90812fdd2ef95f224d27cc250469fe5978c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/02-client-admission-green.log",
+      "bytes": 131,
+      "sha256": "78b705ee92db88de3c18e3b457ee3c326b0ccc89af3dd367cb66287fd835c1cc"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/03-client-stable-scope-red.log",
+      "bytes": 4713,
+      "sha256": "77b6f854204f7ec70c978e71ccd398e50e041bc67948fc9d06888d8032819453"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/04-client-stable-scope-green.log",
+      "bytes": 132,
+      "sha256": "efc59cba875265e65e088c74627ca90598a9488ec9de6837e23a54442bc7895d"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/05-native-boundaries-red.log",
+      "bytes": 3379,
+      "sha256": "a884ff8b24053d0a003a533894a2fd21f7735a1dd347417d97ae9f1d3cbc4751"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/06-native-boundaries-green.log",
+      "bytes": 916,
+      "sha256": "8fa54773bec84ebe790691212a0196729460fd0dd7a97b5b6a7897bec307dd8a"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/07-native-boundaries-green.log",
+      "bytes": 101,
+      "sha256": "42a1a7f1a3ee9b0c876975d82ccf82a283789458bbb6368cba5bbf1771bff02f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/08-bounded-runner-red.log",
+      "bytes": 849,
+      "sha256": "171f30f9168ba3be07bbb5527ac5ac1f15c7eef8f4d8c2f233b01a71861d2148"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/09-bounded-runner-green.log",
+      "bytes": 102,
+      "sha256": "0cf57cbf8729980143491e1e90cf89ca373c60c2f055a0e4aa49946257c29314"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/10-required-cli-deadline-red.log",
+      "bytes": 2446,
+      "sha256": "604f4bee1d4d8e5f31321d664ad20eb3125a062f4f4c33424803ab9740c8e38e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/11-required-cli-deadline-green.log",
+      "bytes": 133,
+      "sha256": "769e81ed763113309e1d39f1ca768591989c85139c62af532967029b2bc65547"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/12-coordinator-lightweight.log",
+      "bytes": 102,
+      "sha256": "b5f6f96802e5c8f9c2d3b6078732b8b6107adf2eb4986e74c98e0dd72c43b3ee"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/13-request-evidence-lightweight.log",
+      "bytes": 102,
+      "sha256": "15ee423ebe849000a7fd2672cd59242b6bc9bf17a2b7874102a419cf9304888c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/14-native-ci-red.log",
+      "bytes": 12377,
+      "sha256": "4b74ecb44acee776e08ff545abfe0aa4ab625f752d53737a9955b34c96063138"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/15-native-ci-green.log",
+      "bytes": 103,
+      "sha256": "a11a1237c8ea6a213866d783c6f5164de18766b1752bdabf6715b9c4b389a6b9"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/16-integrated-fixture-boundaries.log",
+      "bytes": 109,
+      "sha256": "42f65b82105a0d494e2162713fd47c4fc510b305a71828c9a5ad08a196d0e0c2"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/17-cleanup-idempotent-red.log",
+      "bytes": 831,
+      "sha256": "857904d13a867f2e2ad0875e767c86af150ade56b29a9810e005675347d484fe"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/18-cleanup-idempotent-green.log",
+      "bytes": 109,
+      "sha256": "9be41ab49c8cca46d17293b57ee063859c0f0048f2a6699b9676d26781175992"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/19-all-python.log",
+      "bytes": 2204,
+      "sha256": "08bd0fdd69d96be8a9f709966237c878380a2f733d484b39f1d118af61ca7748"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/20-contract.log",
+      "bytes": 176,
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/21-final-driver-lightweight.log",
+      "bytes": 109,
+      "sha256": "8a58bdb0e77fee0a8b5b985ddd247b683b8c9bfa7c152d85ed4ea46990dc3955"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/22-actionlint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/23-final-native-contract.log",
+      "bytes": 109,
+      "sha256": "abb1a47a4f44302a25663b7dcbc27d76504bee0a20fc4c4b0db24bec527deb08"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/24-final-focused.log",
+      "bytes": 109,
+      "sha256": "9e5cefcc28eac587c7be22305d8658525993c3811bb715ff9442c0158734bc53"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/25-final-actionlint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/README.md",
+      "bytes": 2513,
+      "sha256": "ab0a75326718c9481197a9e444f8d08106db05365b9337137000c25f50c23c46"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/approved-failure-matrix.md",
+      "bytes": 3065,
+      "sha256": "0ab3c0f321aefaf40fae8dfb43fcabd3e0bfb20b7c54c208235644172df154ac"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/approved-rules-summary.md",
+      "bytes": 1044,
+      "sha256": "1b71a4c54b93a5b2af2a16916eb482f097265586c917b4168908cafcb1ded0b4"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/approved-scope-proposal.md",
+      "bytes": 13067,
+      "sha256": "757ca30d9f83cb5abdd5296873cf2ab67c3dac4bd145fbc04643d3239f53e572"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/approved-source-freeze.json",
+      "bytes": 5380,
+      "sha256": "44905ffd904e70129e7f73eeb3113c1cded33558f1114552f7a86ea4a7af34d0"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 15073,
+      "sha256": "4591f042b5f3bd4d51aee77913fca9901d899bb77ca0e6f5e7967e552c0041e8"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/CHANGELOG.md",
+      "bytes": 2052,
+      "sha256": "d3dddcc8c2757ed0c4ac7856c78a8fc5cff4c91dba51e88c55e9701620e4b442"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/docs/stable-audit-transport.md",
+      "bytes": 9119,
+      "sha256": "1858d6c92cb8adec5462b57f98f95ede2ddda0e8f57761a5d4f93e5540de626f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/scripts/validate-production-package-clients.py",
+      "bytes": 87886,
+      "sha256": "9b9f59878a3c26ce2413490ec68bc831e052ea9b348a2a3f1d74e0c384aa05dd"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/native_source_metadata_drill.py",
+      "bytes": 12447,
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/native_stable_candidate_drill.py",
+      "bytes": 42889,
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/native_stable_clients_drill.py",
+      "bytes": 47021,
+      "sha256": "cbded82e01dd49e6bc8f9951f6dc3f09a03773135f6a55f48a3f9bc1e2ebcc24"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/test_native_stable_clients_drill.py",
+      "bytes": 14692,
+      "sha256": "803d16e7fd1ecd274e4fb70c3361395963af25c5e9bfa12f61d96c0bf3159fe7"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/test_validate_production_package_clients.py",
+      "bytes": 67130,
+      "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/manifest.json",
+      "bytes": 10222,
+      "sha256": "88e3cfb7e27b340eab43281491e01b88adfa12f4d8b142cda1746943ca7c7c6b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v1/review.patch",
+      "bytes": 113138,
+      "sha256": "c46134b224d51fb11e386852b6f9357e764da873a04250c8b58d122478689677"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture-interface.md",
+      "bytes": 2520,
+      "sha256": "1f83d3a2d3cdc0c5ed346f0ddf8637101b5a7af8790f3aa2ecee4fcc54bfbf85"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/01-payload-red.log",
+      "bytes": 1077,
+      "sha256": "dd69dd2d0dddb7cdfd90567c9223f08b3a58eda745789721b571a2973583a6f2"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/02-payload-green.log",
+      "bytes": 260,
+      "sha256": "5ddbb9f52779b7a0b984ef75c365e426d63863e25761823dbbddd7eefa67f35e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/03-invalid-input-red.log",
+      "bytes": 21482,
+      "sha256": "2183ffd9bb9272f64569048bd2cd8730ce2728b602d705c12fed7b251ced1239"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/04-invalid-input-green.log",
+      "bytes": 400,
+      "sha256": "6d9e6645eff2215a9322f36a1543020de73320dd6fab9c3b854958079a46bd47"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/05-export-red.log",
+      "bytes": 1330,
+      "sha256": "092c755a1bb86361fa6ce2f72e6a9db56e18cca72d6699a9845826fd13da4ddf"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/06-export-source-green.log",
+      "bytes": 557,
+      "sha256": "139c065002f9664dbd0dc26d609e08cf23f28140dd88ea3643778f54b16ec6ab"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/07-export-preflight-red.log",
+      "bytes": 6226,
+      "sha256": "251cda53eac3e1143da6729983a95f46b53e01e1b116198ab51521025be1c862"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/08-export-preflight-green.log",
+      "bytes": 879,
+      "sha256": "65c1e1a70403e0140ee0819889864ebe734ad3dd2262d1e8e46b409c9923ccd4"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/09-export-native-boundary-red.log",
+      "bytes": 2065,
+      "sha256": "308a013ed6f80568bd3d8486fd4d852d0b0a5ec2bae2561496e550f49d5fb655"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/10-export-native-boundary-green.log",
+      "bytes": 1052,
+      "sha256": "4d82b8aa71606c1ae5227b9eaa9de0a5fd43da9dfc60937a54c76037701b3009"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/11-existing-candidate-unit.log",
+      "bytes": 3107,
+      "sha256": "ee5d6504fab14af1914b277303420a4147bab2f26a579e1d08d8cd138d1e7851"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/12-default-equivalence.json",
+      "bytes": 1172,
+      "sha256": "a3994e4ec196f0e5bb1c393e12c19c5b9148562500aa43295d06c039ea3a0fae"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/13-portability.json",
+      "bytes": 621,
+      "sha256": "7b4fdf9f5d731e23b453384ee6c0c25c4d24e4406dd807873d47ec3c1b59ba90"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/README.md",
+      "bytes": 4592,
+      "sha256": "1da5aaa07d0745a48630775118f010133d46f0d827c2904eb281a854889f270b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/allowlist.txt",
+      "bytes": 659,
+      "sha256": "dd667e079d40cf77298d6384aef185eed39cb1fc1cff483f25d312a55d87d78f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/baseline-native_source_metadata_drill.py",
+      "bytes": 9821,
+      "sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/baseline-native_stable_candidate_drill.py",
+      "bytes": 32029,
+      "sha256": "7547aff5c5c72e79d33492abc5f10f00720ee346c4b7016db40bfba8c60c8377"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/default_equivalence_probe.py",
+      "bytes": 2968,
+      "sha256": "896c995d1ea8cd1a5024a2b0b1b7cc2ab31b42ee8e473fc163c4951cff6fb12e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/failure-inventory.md",
+      "bytes": 1706,
+      "sha256": "6e384fd5e579f1ffba79b002948294b6f0e75e55471ea1e6ad03d571b444013e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/fixture.patch",
+      "bytes": 18302,
+      "sha256": "ffe40c899076ac909c8719634365350e8530ae4c2d3738a66746cd2b7d09b3d3"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/portability-addendum.md",
+      "bytes": 1644,
+      "sha256": "f675c1ebea52223615964470a7bcfd60932bbf0a541698a93103f363ace9e54f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/portability_probe.py",
+      "bytes": 2174,
+      "sha256": "63d6153b9e9b4a75e6a95fd1379ef7310a9cf63367ff4a13db9b293945e0f2d2"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/source-freeze.json",
+      "bytes": 621,
+      "sha256": "4ea677512912aef373ae82e3a4c3a116e7a0f18403156666bf281354cb163391"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/test_fixture_boundaries.py",
+      "bytes": 10047,
+      "sha256": "0de2288aec81509f9d003ad9ebe560ca7a9e019f4c20c484cca24e9ddccfe7f1"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/fixture/trusted/scripts/build-native-package-repositories.sh",
+      "bytes": 5052,
+      "sha256": "09d87b6b8191ba0c80cf9be64150f16be19b2fdd5c5fc8f1ade66e784695e7d2"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/implementation-baseline.json",
+      "bytes": 4173,
+      "sha256": "695a602ef9cbbd02ae8e15ca649aafd6acb8522acd4375a464980d9b134fa084"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/implementation-summary.json",
+      "bytes": 1169,
+      "sha256": "2505919de7da5cd5c3b362c8c2e7c1a41f4aa7170d64d3bdaef8798de2e450f9"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/native-cases-before-implementation.json",
+      "bytes": 676,
+      "sha256": "b34976469bfb6472172f3e32fafed379d113b14d549c7c94452972fedffcee21"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/stable-client-functions.py",
+      "bytes": 12611,
+      "sha256": "307595374b1524d8cd986cf8bf4167d34f5d3783e66b99eb3da1ec3aefda059c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 2502,
+      "sha256": "79365e8f74540ed6d4c262dd9591d4db0b22f527c6948985745a1264dc3c2546"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/archive-sha256.json",
+      "bytes": 10595,
+      "sha256": "a52a0bf61b3813626d5242d32e6f6768826aa1bba890d2124abfd494a4080231"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/delta-from-v1.patch",
+      "bytes": 37960,
+      "sha256": "d08db68f6aa4be0a0b9755f59fc1b78464cc77799244bd6f5ad2a2fc0f2e689b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 15073,
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/CHANGELOG.md",
+      "bytes": 2052,
+      "sha256": "d3dddcc8c2757ed0c4ac7856c78a8fc5cff4c91dba51e88c55e9701620e4b442"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/docs/stable-audit-transport.md",
+      "bytes": 9119,
+      "sha256": "1858d6c92cb8adec5462b57f98f95ede2ddda0e8f57761a5d4f93e5540de626f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/scripts/validate-production-package-clients.py",
+      "bytes": 87886,
+      "sha256": "9b9f59878a3c26ce2413490ec68bc831e052ea9b348a2a3f1d74e0c384aa05dd"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/native_source_metadata_drill.py",
+      "bytes": 12447,
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/native_stable_candidate_drill.py",
+      "bytes": 42889,
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/native_stable_clients_drill.py",
+      "bytes": 58072,
+      "sha256": "59598cca944524740e202199141552fe79e1b97de72f5e5dcc9c8d507d112dce"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/test_native_stable_clients_drill.py",
+      "bytes": 24333,
+      "sha256": "7c174b7a659cdb0defce500a44204184a39a1714703efb67366f8ad41e31b3a6"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/test_validate_production_package_clients.py",
+      "bytes": 67130,
+      "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/manifest.json",
+      "bytes": 10538,
+      "sha256": "e45c45554d63f9c15f889ccd71a4c7f453c1f7eeec3dac4c7374a76dbbb60a20"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v2/review.patch",
+      "bytes": 132264,
+      "sha256": "b2538222773bf58fb2b320cf20ffc0b82b63496b073e2e93c02bf3cbf55f5fb5"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/01-cleanup-and-49-red.log",
+      "bytes": 7083,
+      "sha256": "3c384261ac9976f49d07266ef92cf55e8f6eba81b242f74557ade1033eb1d352"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/02-cleanup-green.log",
+      "bytes": 111,
+      "sha256": "67bad2156758cdf0dc29fe7bc8789218d10fbec3da279764feb86c684badf86a"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/03-cache-and-installed-red.log",
+      "bytes": 1828,
+      "sha256": "6eb6ef7b4e8578cf29aef0f2761c67fb6e692f971676574fed1b589d2c3c9a57"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/04-cache-and-installed-green.log",
+      "bytes": 113,
+      "sha256": "fd817d07451e7881fa5cfb00827386bbd8ae66c04410d50591baa508cda74a40"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/05-container-ownership-red.log",
+      "bytes": 1731,
+      "sha256": "c0fdac78d435fe0c174d3671090698ae96446122fd46187200e2af122a5efe2c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/06-container-ownership-green.log",
+      "bytes": 115,
+      "sha256": "5ad1d49c8d310cdedb57d414345d31cec77f2a7cf7b3d7e9bc13bc56a474c13e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/07-focused-final-green.log",
+      "bytes": 115,
+      "sha256": "cdab39b2cd50bfaeeb6e55922662866990365439907059fc66ae0d45681cac8e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/08-exercise-ambiguous-result.json",
+      "bytes": 4032,
+      "sha256": "c3940c8848cf333847f0b9eb7d8a40b82938d593fe6f04768a6de039f8915418"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/08-exercise-ambiguous.log",
+      "bytes": 126,
+      "sha256": "8d582d5ec6c9820047839c5461b35deb0e203e16bb3ab59296cd40b0b6f712b1"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/09-related-production-clients.log",
+      "bytes": 133,
+      "sha256": "fec83b439dbc66560e3c3629070075edcf88150e2ba2394e29457c1ec071bad8"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/10-related-installed-cli.log",
+      "bytes": 111,
+      "sha256": "c328cf2340c6e31baae76ff9da638fb106de2a70cc5953c6160ddfae6fbbd8a0"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/README.md",
+      "bytes": 1956,
+      "sha256": "893c1092eb4697211c1234b1be8f70c5bc950f5bfa6488796a99faf0f9346e48"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/before-native_stable_clients_drill.py",
+      "bytes": 47021,
+      "sha256": "cbded82e01dd49e6bc8f9951f6dc3f09a03773135f6a55f48a3f9bc1e2ebcc24"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/before-test_native_stable_clients_drill.py",
+      "bytes": 14692,
+      "sha256": "803d16e7fd1ecd274e4fb70c3361395963af25c5e9bfa12f61d96c0bf3159fe7"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/exercise-ambiguous-probe.py",
+      "bytes": 3059,
+      "sha256": "4128900917177fbe4ef78420e76317e95ecc69840daadd49e3c3320ae353bfbd"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/failure-inventory.md",
+      "bytes": 1632,
+      "sha256": "a35b9fcbb96418630880309b3a58b4da3ab3ca95ce3a632e02b91ec7d5ba0266"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/summary.json",
+      "bytes": 1252,
+      "sha256": "99edb906eaabcd9be4425e4bd682cc7a14b5c31b5762e807e27b215e0b556119"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/archive-sha256.json",
+      "bytes": 4849,
+      "sha256": "43a381e2fd7b88638323caad683fce1e2c23d538d68b2504f037109267e8323f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/delta-from-v2.patch",
+      "bytes": 3925,
+      "sha256": "8ee54c78c7da4366373642b0021f3a2f4e62be491804cd5248376391fd154b18"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 15073,
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/CHANGELOG.md",
+      "bytes": 2052,
+      "sha256": "d3dddcc8c2757ed0c4ac7856c78a8fc5cff4c91dba51e88c55e9701620e4b442"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/docs/stable-audit-transport.md",
+      "bytes": 9119,
+      "sha256": "1858d6c92cb8adec5462b57f98f95ede2ddda0e8f57761a5d4f93e5540de626f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/scripts/validate-production-package-clients.py",
+      "bytes": 87886,
+      "sha256": "9b9f59878a3c26ce2413490ec68bc831e052ea9b348a2a3f1d74e0c384aa05dd"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/native_source_metadata_drill.py",
+      "bytes": 12447,
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/native_stable_candidate_drill.py",
+      "bytes": 42889,
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/native_stable_clients_drill.py",
+      "bytes": 58431,
+      "sha256": "041cfa1e29f1a13d2a9fb2ab8b1d1977b53c8571377674f2ce601cf086b7fc29"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/test_native_stable_clients_drill.py",
+      "bytes": 26718,
+      "sha256": "5b49a578f0a4342a9aa0a24dc0e429cd55e189788ef60f042f73ae43960b7637"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/test_validate_production_package_clients.py",
+      "bytes": 67130,
+      "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/manifest.json",
+      "bytes": 10477,
+      "sha256": "90c77a141e13f3a177f2ed51ad2afd186a80e098c6262c526bc1810c10cc1c55"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/final-freeze-v3/review.patch",
+      "bytes": 135048,
+      "sha256": "a06fa094c6df2b09c38c21226cd5d5f8f6d920b17d667540a0a5faebbf3f95ec"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/01-staged-network-red.log",
+      "bytes": 1177,
+      "sha256": "b1384944f2d19bff23f8be6caa840c9b7fdf669630d4bdd6bc8886a4a14132ff"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/02-staged-network-green.log",
+      "bytes": 116,
+      "sha256": "f96891422cde1059ee65707f4e2d902e59af8dc335534cc5abf9d24d2a2acb54"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/03-exact-network-diagnostic-v2-red.log",
+      "bytes": 1103,
+      "sha256": "adcdd77f0f4ee0cbc39ff4bf173a74ff589ef3b4f314b3238198fd597eb827a0"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/04-exact-network-diagnostic-green.log",
+      "bytes": 116,
+      "sha256": "1ae3b1e54f2bf9f98399cc8915b37d48f8e7132ae0e9236777f89955680a7144"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/README.md",
+      "bytes": 843,
+      "sha256": "1ec1306078b62e8c5390525d30fec10c9ff4265f0213162c965885ae0e999563"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/failure-inventory.md",
+      "bytes": 763,
+      "sha256": "53de1e3034f339ddf9e91053062ef652a5af9233012327964eb97eb295ab7a45"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/summary.json",
+      "bytes": 1002,
+      "sha256": "07d55251e521faff7066e6480078d6e96beeb3507072e01f51f24f7c486ad98a"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-3-repair/archive-sha256.json",
+      "bytes": 3236,
+      "sha256": "b4962b5ea14712d2666dbacf578c3751d2697300ba6ee1cf167859177593fa31"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/closure-probe-results.json",
+      "bytes": 4233,
+      "sha256": "011a4265f4b9ac40efd85955185b0c8adcb30d7f9a12275d7989bf1cfb247fe2"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/independent-freeze-check.json",
+      "bytes": 275,
+      "sha256": "3125a473951715fe7dc199b0e0e225a1fae72d513a5936b392085498033e0a83"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/independent-light-tests.json",
+      "bytes": 226,
+      "sha256": "605416b66e70f0b8320f603b1c0ba0361b1b20aa50c59e60a30faf09fd9c7e78"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/independent-light-tests.log",
+      "bytes": 3181,
+      "sha256": "1aeff01e503f96b4e5dd4445fb24d01bdb9a4085de7ef06f171da2cfa2510155"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/input-delta-from-v1.patch",
+      "bytes": 37960,
+      "sha256": "d08db68f6aa4be0a0b9755f59fc1b78464cc77799244bd6f5ad2a2fc0f2e689b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/input-manifest.json",
+      "bytes": 10538,
+      "sha256": "e45c45554d63f9c15f889ccd71a4c7f453c1f7eeec3dac4c7374a76dbbb60a20"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/network-repeat-probe.py",
+      "bytes": 1621,
+      "sha256": "e8cb6a5d4d5c901abc207dd7feb7a299fc77ec01c6d30d486df01cb73ee5a88d"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/network-repeat-result.json",
+      "bytes": 2696,
+      "sha256": "2b9fa6f28726b43048fe8241206400104e0b2c95edbfcd8acbeec4dcd1f4c39f"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/probe.py",
+      "bytes": 5547,
+      "sha256": "48a58aec1866c7794dcc30328fcffe0081fc21ea54aea47e6be815a67c7abcf7"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/review.md",
+      "bytes": 4036,
+      "sha256": "daea13138f10691dbaf4dcf5436ab51e710e37e73e9e120bee53d3fad370ad0d"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/source/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 15073,
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc",
+      "bytes": 82012,
+      "sha256": "0f7dadf0f69ded17b4aa72897eac3c890e798d8d4201d83c3b3fefedca675302"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/source/tests/native_stable_clients_drill.py",
+      "bytes": 58072,
+      "sha256": "59598cca944524740e202199141552fe79e1b97de72f5e5dcc9c8d507d112dce"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/source/tests/test_native_stable_clients_drill.py",
+      "bytes": 24333,
+      "sha256": "7c174b7a659cdb0defce500a44204184a39a1714703efb67366f8ad41e31b3a6"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/manifest.json",
+      "bytes": 2233,
+      "sha256": "6c61a76d4828b875f7cfebfb2f9d6443c6e61c8fdaef6edbd717f085f82ff9b8"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v2/SHA256SUMS",
+      "bytes": 1457,
+      "sha256": "82491b3466f898192d088cb1579bcfb2605d10c267e297aa2b728791241655bd"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/focused-regression.log",
+      "bytes": 725,
+      "sha256": "a4ce9a957d7453e2d06c41847a26dd5025b3e3cda0611f03a45a78ea0a674958"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/input-delta-from-v2.patch",
+      "bytes": 3925,
+      "sha256": "8ee54c78c7da4366373642b0021f3a2f4e62be491804cd5248376391fd154b18"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/input-manifest.json",
+      "bytes": 10477,
+      "sha256": "90c77a141e13f3a177f2ed51ad2afd186a80e098c6262c526bc1810c10cc1c55"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/network-repeat-probe.log",
+      "bytes": 2428,
+      "sha256": "093df234362ef8d2cbf46e4df639d56127d96dc73d5a72ddc49684c7e90f165e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/network-repeat-probe.py",
+      "bytes": 1781,
+      "sha256": "78ed4edada661e62beeb127025ddd1f6af6501978dba8bb60c4283b1f7f1a02e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/network-repeat-result.json",
+      "bytes": 2428,
+      "sha256": "093df234362ef8d2cbf46e4df639d56127d96dc73d5a72ddc49684c7e90f165e"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/review.md",
+      "bytes": 2132,
+      "sha256": "a7cb09844f4808ee68914ccfe90fd357ddf533f111ad9ed1bc574e8c49082c55"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc",
+      "bytes": 82202,
+      "sha256": "eea0495a1fe6c426797fa9a7de7b36aaf4f92056969258bd56ea3c815cd6218a"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/source/tests/native_stable_clients_drill.py",
+      "bytes": 58431,
+      "sha256": "041cfa1e29f1a13d2a9fb2ab8b1d1977b53c8571377674f2ce601cf086b7fc29"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/source/tests/test_native_stable_clients_drill.py",
+      "bytes": 26718,
+      "sha256": "5b49a578f0a4342a9aa0a24dc0e429cd55e189788ef60f042f73ae43960b7637"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/verification.json",
+      "bytes": 838,
+      "sha256": "b288d807a11198efd970c49460959dfb4614f173c815c4a2df1d6f75194bd2c3"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/manifest.json",
+      "bytes": 1792,
+      "sha256": "f457698e25b8de17186b347e70a90909bb892e59330b89ebc70be21aedc5706b"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation-review/main-v3/SHA256SUMS",
+      "bytes": 1141,
+      "sha256": "c461b9fccd5895b48923806765a8e0030eafee1795071d6c14b523cbb708a2a9"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/ARCHIVE_ALLOWLIST",
+      "bytes": 304,
+      "sha256": "86bc78444a2b9d04f59d07fdc1729faff6b304e5f96c6bfa4443fab9d018aebb"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/classifier-at-base.sh",
+      "bytes": 3954,
+      "sha256": "7d72d5e83b590a74eab8cda6db70f3f347adf71865a7c3661597de662431d415"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/fixture/source/scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "bytes": 41040,
+      "sha256": "5d3b8d15d3ea097ba80e54fb68502551a878a68eab90ad1313f60a56b0fa72c8"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/fixture/source/scripts/testdata/chat-lifecycle-released-preclock/original.json",
+      "bytes": 64116,
+      "sha256": "54af1615a2dc07cd780acf8e50a2f45b0175bcb9ec18c909341d59cabc6edb27"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/input-freeze.json",
+      "bytes": 7156,
+      "sha256": "d3e4ac44ce74ee61e8b901ce184a7d09ca5031f4cd19824cd706b0ae90685e75"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/probe-results-v2.json",
+      "bytes": 3416,
+      "sha256": "a3bfe8d4883ebef9ff9c223c01570bbaeb2e67de3611974d2dbfefa9818a5499"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/probe-results.json",
+      "bytes": 3422,
+      "sha256": "2d6f31678b125d88000772db5d7de6439adc09035796e58c521fc9469e2b37d1"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/probe-v2.py",
+      "bytes": 7376,
+      "sha256": "cd5f975919e8362e35038159bdbb123ad6e3fcb11ad20d38812e14aabd139013"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/probe.py",
+      "bytes": 7385,
+      "sha256": "398f5e4e3fe7d200fa8cf25addab50d661fac05101142f786190ffa9ef1edaf4"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/replay.py",
+      "bytes": 7319,
+      "sha256": "9dcf18cab4a61696f082a4f989793583fd8ed1907649b2457b048f7285ff38f1"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/review.md",
+      "bytes": 5131,
+      "sha256": "10281a5cd35ae3b9f1d5dba62a4e77182741b5875e01a6743b77a14c48856c97"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/summary.json",
+      "bytes": 1181,
+      "sha256": "ca1d08230443d0f23e17c9d119ef26aab3ffbe7e1856fe4f5f056832e2b442fd"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/SHA256SUMS",
+      "bytes": 1096,
+      "sha256": "f91caf76907af1090d2c1ecb483b847ec696b8a9dfe1fbdf2dae3e4090fbd082"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/root-final-contract.log",
+      "bytes": 176,
+      "sha256": "28a3f90a76e6f8d51864abea441b5bc08f0790fe3e2ff7a0196f99ee46ea8511"
+    },
+    {
+      "path": "packages/stable-native-clients-implementation/generation-2-repair/root-network-inspect-observation.json",
+      "bytes": 642,
+      "sha256": "ef76b9cfe2a8bd92306f90e4c15862f4cb4923cb550488f76f5f50883116c9ac"
+    }
+  ]
+}

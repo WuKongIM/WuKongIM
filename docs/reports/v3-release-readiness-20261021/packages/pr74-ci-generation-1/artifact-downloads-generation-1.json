@@ -1,0 +1,78 @@
+[
+  {
+    "artifact_id": 12344580071,
+    "name": "native-source-metadata-test-only",
+    "api_size": 1264,
+    "api_digest": "sha256:a6347650291a4ae6fae466fadaee7e7d6fc5e7aa13573d59054ee63d2493dd63",
+    "download_exit": 0,
+    "observed_at": "2026-10-21T12:04:37.688697+00:00",
+    "zip_sha256": "a6347650291a4ae6fae466fadaee7e7d6fc5e7aa13573d59054ee63d2493dd63",
+    "zip_bytes": 1264,
+    "digest_matches": true,
+    "members": [
+      {
+        "name": "native-source-metadata.json",
+        "size": 4464,
+        "crc32": 3308851040,
+        "sha256": "6f6beb4b1b4b89379f3554f80a9347b98f57bfe1affdfbd83d09a0cc7d8d37ad"
+      }
+    ]
+  },
+  {
+    "artifact_id": 12344332778,
+    "name": "native-stable-candidate-test-only",
+    "api_size": 4191,
+    "api_digest": "sha256:7c65a0d88c857e46051d73d5104edcb8e1ec79e62df2574f8c4f16a94a4cbd79",
+    "download_exit": 0,
+    "observed_at": "2026-10-21T12:04:40.522627+00:00",
+    "zip_sha256": "7c65a0d88c857e46051d73d5104edcb8e1ec79e62df2574f8c4f16a94a4cbd79",
+    "zip_bytes": 4191,
+    "digest_matches": true,
+    "members": [
+      {
+        "name": "native-stable-candidate.json",
+        "size": 28830,
+        "crc32": 3413767188,
+        "sha256": "fc3e8eec6e3ff98cf4b2ae0b14a73d42d972c21d279e722dbe180f5afeed5d1d"
+      }
+    ]
+  },
+  {
+    "artifact_id": 12343768333,
+    "name": "native-local-signing-test-only",
+    "api_size": 2798,
+    "api_digest": "sha256:5d65d97db269c506c36718187d0f56583b4b2fb9425e8add154f13a05fd4bc19",
+    "download_exit": 0,
+    "observed_at": "2026-10-21T12:04:42.884161+00:00",
+    "zip_sha256": "5d65d97db269c506c36718187d0f56583b4b2fb9425e8add154f13a05fd4bc19",
+    "zip_bytes": 2798,
+    "digest_matches": true,
+    "members": [
+      {
+        "name": "native-local-signing.json",
+        "size": 12973,
+        "crc32": 3951498871,
+        "sha256": "08301e2a2ed8e59ac0b53b6e0bccd5e4c414f13ea7aea233397c7efad0b91cf3"
+      }
+    ]
+  },
+  {
+    "artifact_id": 12343508864,
+    "name": "native-bootstrap-preparation-test-only",
+    "api_size": 7152,
+    "api_digest": "sha256:614434aae1a4cdc4d09e652db7e50e9675ebe4db1dc6b13ae137e9a8db04640c",
+    "download_exit": 0,
+    "observed_at": "2026-10-21T12:04:45.282932+00:00",
+    "zip_sha256": "614434aae1a4cdc4d09e652db7e50e9675ebe4db1dc6b13ae137e9a8db04640c",
+    "zip_bytes": 7152,
+    "digest_matches": true,
+    "members": [
+      {
+        "name": "native-bootstrap-preparation.json",
+        "size": 44122,
+        "crc32": 644737831,
+        "sha256": "45a31a6433406658a93aba0f019a0c9b99a73c12944bab205d45714f4240dcaf"
+      }
+    ]
+  }
+]

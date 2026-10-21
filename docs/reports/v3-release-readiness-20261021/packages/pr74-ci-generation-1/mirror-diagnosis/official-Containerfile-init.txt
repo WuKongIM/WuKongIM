@@ -1,0 +1,22 @@
+ARG ImageVersion
+
+FROM rockylinux/rockylinux:$ImageVersion-ubi
+LABEL summary="Rocky Linux UBI init image" \
+      usage="Do not use directly. Use as a base image for daemons. Install chosen packages and 'systemctl enable' them." \
+      org.opencontainers.image.authors="Magauer Lukas <lukas@magauer.eu>" \
+      org.opencontainers.image.description="This image is designed to run an init system as PID 1 for running multi-services inside a container." \
+      org.opencontainers.image.licenses="BSD-3-Clause" \
+      org.opencontainers.image.url="https://github.com/rocky-linux/sig-cloud-instance-images" \
+      org.opencontainers.image.vendor="Rocky Enterprise Software Foundation"
+
+CMD ["/sbin/init"]
+
+STOPSIGNAL SIGRTMIN+3
+
+#TODO: this is a workaround until the ubi image has systemd in it again
+RUN dnf -y install systemd
+
+#mask systemd-machine-id-commit.service - partial fix for https://bugzilla.redhat.com/show_bug.cgi?id=1472439
+RUN systemctl mask systemd-remount-fs.service dev-hugepages.mount sys-fs-fuse-connections.mount systemd-logind.service getty.target console-getty.service systemd-udev-trigger.service systemd-udevd.service systemd-random-seed.service systemd-machine-id-commit.service
+
+RUN dnf -y install procps-ng && dnf clean all; rm -rf /var/cache /var/log/dnf* /var/log/yum.*

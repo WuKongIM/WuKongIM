@@ -1,0 +1,12 @@
+ARCHIVE_ALLOWLIST
+classifier-at-base.sh
+fixture/source/scripts/chat-lifecycle/authenticate-released-preclock.py
+fixture/source/scripts/testdata/chat-lifecycle-released-preclock/original.json
+input-freeze.json
+probe-results-v2.json
+probe-results.json
+probe-v2.py
+probe.py
+replay.py
+review.md
+summary.json

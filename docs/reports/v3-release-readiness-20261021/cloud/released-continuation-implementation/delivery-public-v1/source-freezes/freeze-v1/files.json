@@ -1,0 +1,125 @@
+{
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "files": [
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5",
+      "bytes": 84251
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "91fc7088f634e3ab521571e468fb0526922ec1631f8c20202935cdd0139b1a3a",
+      "bytes": 30143
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a",
+      "bytes": 15796
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "c830cbb8387e3651b70fdb0e99af893d4dec0acecf268b131903ac18492d5587",
+      "bytes": 33988
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad9597a238b812711307b1d801736daa973b50df2ae336ff20b4b396aafa29da",
+      "bytes": 10261
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "96f092e7073d65a2beb8497931f1226bad551b6da11e4f70ec03f8142517ef21",
+      "bytes": 189092
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "sha256": "e9166cd98f03fbda72f47b20e7c4b7ec056ae1004a208d81df73a6de76f51b76",
+      "bytes": 16336
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main_test.go",
+      "sha256": "a5a30a6b5b85fcbcfa2e385da9f0278030fb440c04055160a1cfd3848e4fbe4d",
+      "bytes": 23252
+    },
+    {
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+      "sha256": "6ae3d060cd9e619e2ad03c24eff1f61ea0719e838a8137316c7aba3804cf03da",
+      "bytes": 3197
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "3ecd22bc7f2f0d0e0cb6a0a088dae5fb1b58b5160085691e87fd7c2639810a20",
+      "bytes": 19368
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "8ed3a9a9f09907ef574a0ca64ac0bf61ec564694f4f240a7cf9cfc402e381c35",
+      "bytes": 142062
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "bytes": 3510
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "90b90cd3b1ad0151d8a02459731d796228e9ce2eb34a7ea2cd6b2fbca8cf43c5",
+      "bytes": 24992
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run_test.go",
+      "sha256": "bc0e30941705f7e2d7bc40789e2a2eecd613ae5229513546d7491ac4df4398a5",
+      "bytes": 20748
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "sha256": "5d3b8d15d3ea097ba80e54fb68502551a878a68eab90ad1313f60a56b0fa72c8",
+      "bytes": 41040
+    },
+    {
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "sha256": "c692318316837e07833ccc5dcb19de38af732f987069e71fd4f1d92c9758316e",
+      "bytes": 3630
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "0d202be2d48e61dccfeccf795c57cb35be427753486657a1ac7b0211d2fa3625",
+      "bytes": 48186
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+      "sha256": "f33a1a6ce45ed6fb4574139c77213b3847ede96929876cc1e15b4e744e6cf6e5",
+      "bytes": 5471
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_test.go",
+      "sha256": "74759db8e522f2097a913772c4958befb94cfa1b45cdbfb0c94dd317e0add402",
+      "bytes": 7054
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_integration_test.go",
+      "sha256": "217162c43b7538c0e51d7a4dd20471c1c867e6226039a0e250bd0768fa6c06f3",
+      "bytes": 28448
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_test.go",
+      "sha256": "3de293748facabf9c884a837ebcfb79f5d62668e1a4d3028e451dd2d08c5780c",
+      "bytes": 1477
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "sha256": "1313da32149fc1f7b082d271f5c9026b0bffc9ee837747e2fb6e8f0ffc730847",
+      "bytes": 90073
+    },
+    {
+      "path": "scripts/testdata/chat-lifecycle-released-preclock/README.md",
+      "sha256": "fba1ae9ce62f84d1a37301f3d15224975da4be42a794a6e1e5433b32473396ff",
+      "bytes": 675
+    },
+    {
+      "path": "scripts/testdata/chat-lifecycle-released-preclock/original.json",
+      "sha256": "54af1615a2dc07cd780acf8e50a2f45b0175bcb9ec18c909341d59cabc6edb27",
+      "bytes": 64116
+    }
+  ]
+}

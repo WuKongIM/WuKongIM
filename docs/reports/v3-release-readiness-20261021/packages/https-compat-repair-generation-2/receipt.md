@@ -1,0 +1,13 @@
+# Native stable clients: SHA256/SHA512 fixture follow-up
+
+Parent authorization: same two driver/test files only, following the independently reviewed TEST ONLY TLS repair. The original TLS freeze is untouched at ../https-compat-repair (manifest SHA 49dd174e68c0ac61d63cbd8a00003a4e1cc092e287ea4176b0967832f8f8edbb). This generation's incremental patch excludes that prior TLS delta. No commit/push, CI dispatch, Docker, keys, native packages or protected producer changes by this agent.
+
+## Tests first and repair
+
+The first tests exercise actual RouteTable responses with SHA256 and SHA512 digest paths and retained A objects in the B map. Before repair, SHA512 missing-byhash incorrectly returned 200 with intact A bytes; corrupt-byhash returned the unchanged digest (01). The A-to-B retention, B mutable fallback contents and absence of unplanned aliases are asserted. Both algorithms now use the same valid-digest path predicate in fault injection and the native successful-request proof. Mutable Packages/Packages.gz, SHA1, invalid digest lengths and query suffixes do not count as by-hash proof. RouteTable still only reads supplied planner maps; it does not manufacture aliases. Planner aliases are owned by ci_audit's separate change.
+
+On parent request, two negative cases now require direct causal receipts as well as the unchanged native command exit/diagnostic checks: missing requires an actual by-hash 404; corrupt requires an actual by-hash 200 whose recorded response SHA256 equals the shared fixed injected bytes. The matching public request is included in the case's by_hash_fault_response. First, a bounded probe of the actual download branch demonstrated it accepted unrelated SSL failure after only InRelease200 (04). That same branch now rejects both false positives (07). New tests cover absent receipts, mutable-only requests, wrong status, and unmodified bytes for both algorithms (05 red before helper; 06 final green). A second branch probe confirms actual receipts cannot excuse success exits, timeout/tool/signal exits or harness/unrelated diagnostics, while legitimate exit100 plus matching diagnostics and receipts remains accepted (08).
+
+## Validation and limits
+
+55 directly related driver/production-validator tests pass, including the real TLS regression; git diff --check passes. Workflow bytes equal HEAD and the 49 native case target is unchanged. No ForceHash, client TLS/signature/version change, production publication or synthetic server aliases were added. Cache reuse behavior is unchanged. These are local routing/control/TLS checks, not native Linux APT/RPM success: all 49 cases and public production verification remain pending.

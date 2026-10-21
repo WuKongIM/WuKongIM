@@ -1,0 +1,140 @@
+{
+  "artifact_id": 12344867793,
+  "source_sha": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+  "local_step": {
+    "schema": "wukongim/chat-lifecycle-local-step/v1",
+    "outcome": "clean",
+    "reason": "complete",
+    "offered_rate_per_second": 500,
+    "actual_rate_per_second": 511.1222222222222,
+    "minimum_throughput_percent": 90,
+    "measured_duration_seconds": 90,
+    "qualification_reached": true,
+    "target_connections": 2500,
+    "online_connections": 2500,
+    "sent": 46001,
+    "acknowledged": 46001,
+    "expected": 45000,
+    "minimum_filesystem_free_percent": 56.43587189791063,
+    "storage_evidence_complete": true,
+    "host_io_evidence_complete": true,
+    "product_metrics_complete": true,
+    "product_queue_evidence_complete": true,
+    "product_queues_converged": true,
+    "process_continuity_complete": true,
+    "timeline_evidence_complete": true,
+    "profile_evidence_complete": true,
+    "operator_interrupted": false,
+    "harness_failure_reason": ""
+  },
+  "final_window": {
+    "start": "2026-10-21T12:23:50.754120299Z",
+    "warmup_end": "2026-10-21T12:24:50.754120299Z",
+    "qualification_at": "2026-10-21T12:24:50.755120299Z",
+    "final_at": "2026-10-21T12:28:50.754120299Z",
+    "end": "2026-10-21T12:26:22.871436444Z",
+    "elapsed": 152117316145
+  },
+  "final_verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 13,
+      "minute_capacity": 16,
+      "latency_samples": [
+        19,
+        19,
+        19
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "messages": {
+    "sent": 76002,
+    "send_attempts": 76002,
+    "first_attempts": 76002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 76002,
+    "send_rejected": 0,
+    "received": 98808,
+    "receive_acknowledged": 98808,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 838,
+    "delivered": 838,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "qualification_window": {
+    "start": "2026-10-21T12:23:50.754120299Z",
+    "warmup_end": "2026-10-21T12:24:50.754120299Z",
+    "qualification_at": "2026-10-21T12:24:50.755120299Z",
+    "final_at": "2026-10-21T12:28:50.754120299Z",
+    "end": "2026-10-21T12:24:50.779954271Z",
+    "elapsed": 60025833973
+  },
+  "qualification_online": 2500,
+  "limitation": "This is PR smoke with bounded measured 90-second step and coordinated operator_stop; not formal 2h/72h qualification."
+}

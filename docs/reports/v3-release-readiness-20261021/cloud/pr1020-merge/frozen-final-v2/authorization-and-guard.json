@@ -1,0 +1,15 @@
+{
+  "observed_at": "2026-10-21T12:43:36.167668+00:00",
+  "human_authorization": "同意合并 #1020",
+  "scope": "exact0cdf merge only; no cloud acquisition or release publication",
+  "checks": {
+    "count": 22,
+    "success": 20,
+    "conditional_skips": 2,
+    "incomplete": 0,
+    "failed": 0
+  },
+  "review_blockers": [],
+  "initial_count_assertion": "previous21 became22 because ready lifecycle emitted one extra successful credential-free wake-up; no CI rerun",
+  "method": "normal merge, exact head fence, no admin or protection writes"
+}

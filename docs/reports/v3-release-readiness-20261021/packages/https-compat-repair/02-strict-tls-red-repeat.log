@@ -1,0 +1,15 @@
+F
+======================================================================
+FAIL: test_https_normal_response_has_authenticated_tls_eof (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_https_normal_response_has_authenticated_tls_eof)
+Exercise the actual fixture server with strict OpenSSL EOF handling.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 81, in test_https_normal_response_has_authenticated_tls_eof
+    self.assertIsNone(eof_error, 'strict TLS EOF after complete valid HTTP response: ' + str(eof_error))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:2648)') is not None : strict TLS EOF after complete valid HTTP response: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:2648)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.051s
+
+FAILED (failures=1)

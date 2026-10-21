@@ -1,0 +1,41 @@
+{
+  "pass_events": 72,
+  "fail_events": [
+    {
+      "Time": "2026-10-21T19:54:48.314972+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration/comment_words",
+      "Elapsed": 0.44
+    },
+    {
+      "Time": "2026-10-21T19:54:48.755633+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockNormalizesPublicKeyCommentAndFixesOriginalDuration",
+      "Elapsed": 0.88
+    },
+    {
+      "Time": "2026-10-21T19:54:49.267761+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleReleasedPreclockReusesCompleteBoundedDiscoveryInventory",
+      "Elapsed": 0.42
+    },
+    {
+      "Time": "2026-10-21T19:54:49.611843+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 16.066
+    }
+  ],
+  "skip_events": [],
+  "packages": [
+    {
+      "Time": "2026-10-21T19:54:49.611843+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 16.066
+    }
+  ]
+}

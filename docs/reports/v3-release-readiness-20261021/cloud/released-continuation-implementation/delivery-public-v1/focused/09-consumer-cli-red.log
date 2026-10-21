@@ -1,0 +1,29 @@
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run
+    chat_lifecycle_released_preclock_integration_test.go:195: must return controlled JSON: exit status 2 usage: authenticate-released-preclock.py [-h] {prepare} ...
+        authenticate-released-preclock.py: error: argument mode: invalid choice: 'validate' (choose from prepare)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof
+    chat_lifecycle_released_preclock_integration_test.go:195: must return controlled JSON: exit status 2 usage: authenticate-released-preclock.py [-h] {prepare} ...
+        authenticate-released-preclock.py: error: argument mode: invalid choice: 'validate' (choose from prepare)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve
+    chat_lifecycle_released_preclock_integration_test.go:195: must return controlled JSON: exit status 2 usage: authenticate-released-preclock.py [-h] {prepare} ...
+        authenticate-released-preclock.py: error: argument mode: invalid choice: 'validate' (choose from prepare)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence
+    chat_lifecycle_released_preclock_integration_test.go:195: must return controlled JSON: exit status 2 usage: authenticate-released-preclock.py [-h] {prepare} ...
+        authenticate-released-preclock.py: error: argument mode: invalid choice: 'validate' (choose from prepare)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt
+    chat_lifecycle_released_preclock_integration_test.go:195: must return controlled JSON: exit status 2 usage: authenticate-released-preclock.py [-h] {prepare} ...
+        authenticate-released-preclock.py: error: argument mode: invalid choice: 'validate' (choose from prepare)
+=== RUN   TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest
+    chat_lifecycle_released_preclock_integration_test.go:195: must return controlled JSON: exit status 2 usage: authenticate-released-preclock.py [-h] {prepare} ...
+        authenticate-released-preclock.py: error: argument mode: invalid choice: 'validate' (choose from prepare)
+--- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar (2.85s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/valid_other_consumer_run (0.45s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/missing_proof (0.47s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_reserve (0.48s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_raw_evidence (0.48s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_api_attempt (0.48s)
+    --- FAIL: TestChatLifecycleReleasedPreclockConsumerReauthenticatesSidecar/changed_archive_digest (0.48s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	3.190s
+FAIL

@@ -1,0 +1,76 @@
+{
+  "job_id": 119218334862,
+  "run_id": 39598983347,
+  "conclusion": "success",
+  "raw_bytes": 70489,
+  "raw_sha256": "7a62b38dbf6f82b23f7bb254cb236a029dfdf1923fbfca6686d88837a1edd32e",
+  "public_sha256": "f4a3d7494ce3c011f95d5b3c7f5bee0174896494dc37c3019cdaf0b75269902c",
+  "synthetic_sha_present": true,
+  "synthetic_sha_exact_output_line": true,
+  "checkout_identity_lines": [
+    "2026-10-21T12:21:52.9887380Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +922bc66a9cebcbe09bef5fc43afc0593c4f07fb8:refs/remotes/pull/1020/merge",
+    "2026-10-21T12:21:57.7044490Z  * [new ref]         922bc66a9cebcbe09bef5fc43afc0593c4f07fb8 -> pull/1020/merge",
+    "2026-10-21T12:21:59.2466220Z HEAD is now at 922bc66 Merge 0cdfaa37b00c58819895dee54029c27c83c9caa9 into ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "2026-10-21T12:21:59.2670000Z 922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+    "2026-10-21T12:24:05.2505060Z RUNTIME_READY platform=flutter server_source=922bc66a9cebcbe09bef5fc43afc0593c4f07fb8"
+  ],
+  "redacted_lines": [
+    {
+      "line": 21,
+      "sha256": "4c3efb9a8422e24c035e5288a3380bd6f494b55b909e9b3fb7b495a822dd3cd4",
+      "bytes": 63
+    },
+    {
+      "line": 25,
+      "sha256": "eb9a259016a70d63a213d196af62cdff696d67bd3fd4d236f7499e14d3cbbe35",
+      "bytes": 52
+    },
+    {
+      "line": 40,
+      "sha256": "b6f69b339949467a4dcf3a856d067749f85df8ffa98677c89ad185de2debfe8a",
+      "bytes": 42
+    },
+    {
+      "line": 101,
+      "sha256": "45543ddc76689d49fcc461cb398dd31c9c3132c6358e53f4ec439ad045ed8b96",
+      "bytes": 221
+    },
+    {
+      "line": 133,
+      "sha256": "0a51cf739190aa6ed50c6f1cd28808dba6c6d1d4f6a869ad99cb99d0ce32ba7a",
+      "bytes": 42
+    },
+    {
+      "line": 222,
+      "sha256": "8e88aa581a76c2e4b8613f3986cb665dca71603233129eabdde1063c108c9314",
+      "bytes": 42
+    },
+    {
+      "line": 409,
+      "sha256": "24f0fd3f566ab7a060db1e93145c72b39cda299249e5a578e470a9a4ea20980f",
+      "bytes": 42
+    },
+    {
+      "line": 472,
+      "sha256": "b46fd07ab227c2c5877a294a19d2342e223a55f095acd33702490093098f14ea",
+      "bytes": 221
+    },
+    {
+      "line": 582,
+      "sha256": "3368700adfef83151395af61ff50cc150e2152afa804b415875cabce03646846",
+      "bytes": 86
+    },
+    {
+      "line": 712,
+      "sha256": "f9965f5b77b5dfdae65a15be6cd714f33ba41ef8762c23f273ca1d97a8dd806d",
+      "bytes": 86
+    },
+    {
+      "line": 761,
+      "sha256": "b935361389c63531c4371b8012fb5deb3a02619d86c8976d064ce0091b6ac8d2",
+      "bytes": 86
+    }
+  ],
+  "no_private_key_marker_in_public": true,
+  "no_github_token_shape_in_public": true
+}

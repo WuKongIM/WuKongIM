@@ -1,0 +1,28 @@
+{
+  "artifact": {
+    "id": 12345053387,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0NTA1MzM4Nw==",
+    "name": "500qps-tcp-sendack-922bc66a9cebcbe09bef5fc43afc0593c4f07fb8-1",
+    "size_in_bytes": 8270,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12345053387",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12345053387/zip",
+    "expired": false,
+    "digest": "sha256:681ba6d4a1f24ddca028deaa8399625ea0b4e98364b281fe0aa0fc2b45a8bb31",
+    "created_at": "2026-10-21T12:26:37Z",
+    "updated_at": "2026-10-21T12:26:37Z",
+    "expires_at": "2026-11-04T12:26:37Z",
+    "workflow_run": {
+      "id": 39598983277,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-released-continuation",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9"
+    }
+  },
+  "observed_sha256": "681ba6d4a1f24ddca028deaa8399625ea0b4e98364b281fe0aa0fc2b45a8bb31",
+  "observed_bytes": 8270,
+  "zip_crc_pass": true,
+  "entry_count": 11,
+  "uncompressed_bytes": 85915,
+  "at": "2026-10-21T12:31:03.375058+00:00"
+}

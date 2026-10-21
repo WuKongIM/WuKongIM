@@ -1,0 +1,29 @@
+{
+  "files": {
+    "docs/object-storage-planning.md": {
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+      "size": 7359
+    },
+    "docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "1858d6c92cb8adec5462b57f98f95ede2ddda0e8f57761a5d4f93e5540de626f",
+      "size": 9119
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "b45845f469c5081b7bbb2e5eb8aaa73cc6faa14aa1985df75756032d0639128f",
+      "size": 34845
+    },
+    "tests/test_composite_storage_plan.py": {
+      "sha256": "e26dae520a1e1d160d7c6d69c44df16627fe7207bfd09b330df550412e5333ee",
+      "size": 5804
+    }
+  },
+  "head": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "inherited_rules": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "package_local_agents_flow_context": "none found via rg --files"
+}

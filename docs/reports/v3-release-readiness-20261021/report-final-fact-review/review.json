@@ -1,0 +1,120 @@
+{
+  "recorded_at_utc": "2026-10-21T12:49:28.536655+00:00",
+  "scope": "root unstaged report paragraphs since 12:16 staged checkpoint, reviewed 12:46 cutoff",
+  "report_bindings": [
+    {
+      "path": "docs/reports/2026-10-21-v3-release-readiness.md",
+      "sha256": "174baf3439492c04bf17301a14e95089405340cdc5bc22c1c85a6ab87f621492",
+      "size": 62416,
+      "snapshot": "readiness-before-final-review.md"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/README.md",
+      "sha256": "651ccd2ff3288551f76404feda296b2b22906898bafe2cc61b0a99df238bf6e8",
+      "size": 24903,
+      "snapshot": "evidence-README-before-final-review.md"
+    }
+  ],
+  "patch_sha256": "344436135dd0ec210b9fc1801d3a70a0c4af818c5e7b17a5911ef2cd1018d1d6",
+  "relative_markdown_links_checked": 128,
+  "missing_links": [],
+  "substantive_fact_findings": 0,
+  "minor_clarity_findings": [
+    {
+      "id": "C1",
+      "path": "docs/reports/v3-release-readiness-20261021/README.md",
+      "lines": [
+        296,
+        297
+      ],
+      "text": "Mark beginning/entering implementation bullets as historical; final outcome is later in same README."
+    }
+  ],
+  "source_evidence": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/cloud/pr1020-ci-generation-1/frozen-final/summary.json",
+      "sha256": "e29a748772d7a946d05e6c4e29f2f360ea7f61c5916e302d04dd084fe87cecd0",
+      "size": 10565
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/cloud/pr1020-ci-generation-1/frozen-final/chat-performance-summary.json",
+      "sha256": "e66cc14e460b66935bb5de8068d73534f9e5e38d2761e01f2a9cd80dff6ef1e2",
+      "size": 4157
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/cloud/pr1020-ci-generation-1/frozen-final/chat-correctness-summary.json",
+      "sha256": "c2aeac4eb4a438083454a636f6a18c6d9d97de43f7925c8a3334fef69e057590",
+      "size": 3813
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/cloud/released-continuation-implementation/delivery-public-v1/scripts-integration-timeout-classification.json",
+      "sha256": "c88dc2aa2ac73f0a145395616f5bd4f4b4e975a6108ea30bea0c2f379b30d227",
+      "size": 12080
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/packages/pr74-ci-generation-1/summary.json",
+      "sha256": "688ba2e37cef45d784029c528eec84ae6359f61728d71acbc25b36ff9c791a1c",
+      "size": 2890
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/packages/pr74-ci-generation-2/summary.json",
+      "sha256": "0c0565dc94819be4e4b91d55f14214a27fc5e17372507db373069cd648fc3ca2",
+      "size": 11165
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/packages/client-compatibility-review/generation-2/review.md",
+      "sha256": "d47775db6b91e6fa1670a4112e49e20b35e7cb572d1aff873dfde07a0585f27f",
+      "size": 2041
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/packages/client-compatibility-scope-v1/standards-deviation.md",
+      "sha256": "316f852d5da853bff58c0cdd98d520317d063b71c75d972fa2aed923761ee63f",
+      "size": 745
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261021/packages/client-compatibility-final-v2/commit-source-binding.json",
+      "sha256": "f60370d892a05fb01ccf7300fedd27b7bc6c12c7bcf92ededea3dfb96e6d54b9",
+      "size": 2845
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1020-merge/merge-summary.json",
+      "sha256": "f7e1be360b1d4f566d60f9cc027e5b9af46f0036c24177fe914abd8ed466fd1e",
+      "size": 814,
+      "not_yet_archived": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1020-merge/cleanup.json",
+      "sha256": "c742e8a944b9ce6a0bfa7d486a73f0f510e4ef6835d4d0beb9f70497e1f17339",
+      "size": 3721,
+      "not_yet_archived": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1020-merge/authorization-and-guard.json",
+      "sha256": "23dfa7ee24e7f5a3b2f1a62a543982ad37faf50fbe09cd32b220d00f2541c10d",
+      "size": 547,
+      "not_yet_archived": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1020-merge/postmerge-03/summary.json",
+      "sha256": "e36f380889126adb7139d98675795bc024401fb7f40c4848aef6dbe4ab2446c8",
+      "size": 1266,
+      "not_yet_archived": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-3/runs-initial.json",
+      "sha256": "ebb3ce325272c2944c9103c3fb4dfa68ff8fce7153059e193455be0effb1102a",
+      "size": 24958
+    }
+  ],
+  "limits": [
+    "No terminal result for package PR74 generation3 inferred.",
+    "Merge facts checked against existing local public receipts, archive link still pending.",
+    "12:47:44 postmerge success is newer than 12:46 cutoff and does not invalidate that historical cutoff.",
+    "No source/evidence mutation, private logs read, network or tests."
+  ],
+  "no_source_or_evidence_mutation": true,
+  "root_response": {
+    "minor_clarity_C1": "accepted and reported fixed by root; historical wording now points to later outcome",
+    "future_cutoff_and_merge_archive": "not yet reviewed; root will update only after complete merge evidence freeze"
+  }
+}

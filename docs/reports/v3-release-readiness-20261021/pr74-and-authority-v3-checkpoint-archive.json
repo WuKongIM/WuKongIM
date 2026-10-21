@@ -1,0 +1,885 @@
+{
+  "recorded_at_utc": "2026-10-21T12:15:19.093973+00:00",
+  "public_only": true,
+  "source_head": "4d8f8e21facd5251074ac3a9040fdb8c8d676351",
+  "no_conflicting_bytes_overwritten": true,
+  "existing_pending_170_receipt_entries_verified": 170,
+  "existing_fact_review_manifest_entries_verified": 6,
+  "existing_approved_paths": [
+    "packages/stable-native-clients-implementation/01-client-admission-red.log",
+    "packages/stable-native-clients-implementation/02-client-admission-green.log",
+    "packages/stable-native-clients-implementation/03-client-stable-scope-red.log",
+    "packages/stable-native-clients-implementation/04-client-stable-scope-green.log",
+    "packages/stable-native-clients-implementation/05-native-boundaries-red.log",
+    "packages/stable-native-clients-implementation/06-native-boundaries-green.log",
+    "packages/stable-native-clients-implementation/07-native-boundaries-green.log",
+    "packages/stable-native-clients-implementation/08-bounded-runner-red.log",
+    "packages/stable-native-clients-implementation/09-bounded-runner-green.log",
+    "packages/stable-native-clients-implementation/10-required-cli-deadline-red.log",
+    "packages/stable-native-clients-implementation/11-required-cli-deadline-green.log",
+    "packages/stable-native-clients-implementation/12-coordinator-lightweight.log",
+    "packages/stable-native-clients-implementation/13-request-evidence-lightweight.log",
+    "packages/stable-native-clients-implementation/14-native-ci-red.log",
+    "packages/stable-native-clients-implementation/15-native-ci-green.log",
+    "packages/stable-native-clients-implementation/16-integrated-fixture-boundaries.log",
+    "packages/stable-native-clients-implementation/17-cleanup-idempotent-red.log",
+    "packages/stable-native-clients-implementation/18-cleanup-idempotent-green.log",
+    "packages/stable-native-clients-implementation/19-all-python.log",
+    "packages/stable-native-clients-implementation/20-contract.log",
+    "packages/stable-native-clients-implementation/21-final-driver-lightweight.log",
+    "packages/stable-native-clients-implementation/22-actionlint.log",
+    "packages/stable-native-clients-implementation/23-final-native-contract.log",
+    "packages/stable-native-clients-implementation/24-final-focused.log",
+    "packages/stable-native-clients-implementation/25-final-actionlint.log",
+    "packages/stable-native-clients-implementation/README.md",
+    "packages/stable-native-clients-implementation/approved-failure-matrix.md",
+    "packages/stable-native-clients-implementation/approved-rules-summary.md",
+    "packages/stable-native-clients-implementation/approved-scope-proposal.md",
+    "packages/stable-native-clients-implementation/approved-source-freeze.json",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/.github/workflows/native-package-repository-drill.yml",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/CHANGELOG.md",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/docs/release-contract.md",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/docs/stable-audit-transport.md",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/scripts/validate-production-package-clients.py",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/native_source_metadata_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/native_stable_candidate_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/test_native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v1/files/tests/test_validate_production_package_clients.py",
+    "packages/stable-native-clients-implementation/final-freeze-v1/manifest.json",
+    "packages/stable-native-clients-implementation/final-freeze-v1/review.patch",
+    "packages/stable-native-clients-implementation/fixture-interface.md",
+    "packages/stable-native-clients-implementation/fixture/01-payload-red.log",
+    "packages/stable-native-clients-implementation/fixture/02-payload-green.log",
+    "packages/stable-native-clients-implementation/fixture/03-invalid-input-red.log",
+    "packages/stable-native-clients-implementation/fixture/04-invalid-input-green.log",
+    "packages/stable-native-clients-implementation/fixture/05-export-red.log",
+    "packages/stable-native-clients-implementation/fixture/06-export-source-green.log",
+    "packages/stable-native-clients-implementation/fixture/07-export-preflight-red.log",
+    "packages/stable-native-clients-implementation/fixture/08-export-preflight-green.log",
+    "packages/stable-native-clients-implementation/fixture/09-export-native-boundary-red.log",
+    "packages/stable-native-clients-implementation/fixture/10-export-native-boundary-green.log",
+    "packages/stable-native-clients-implementation/fixture/11-existing-candidate-unit.log",
+    "packages/stable-native-clients-implementation/fixture/12-default-equivalence.json",
+    "packages/stable-native-clients-implementation/fixture/13-portability.json",
+    "packages/stable-native-clients-implementation/fixture/README.md",
+    "packages/stable-native-clients-implementation/fixture/allowlist.txt",
+    "packages/stable-native-clients-implementation/fixture/baseline-native_source_metadata_drill.py",
+    "packages/stable-native-clients-implementation/fixture/baseline-native_stable_candidate_drill.py",
+    "packages/stable-native-clients-implementation/fixture/default_equivalence_probe.py",
+    "packages/stable-native-clients-implementation/fixture/failure-inventory.md",
+    "packages/stable-native-clients-implementation/fixture/fixture.patch",
+    "packages/stable-native-clients-implementation/fixture/portability-addendum.md",
+    "packages/stable-native-clients-implementation/fixture/portability_probe.py",
+    "packages/stable-native-clients-implementation/fixture/source-freeze.json",
+    "packages/stable-native-clients-implementation/fixture/test_fixture_boundaries.py",
+    "packages/stable-native-clients-implementation/fixture/trusted/scripts/build-native-package-repositories.sh",
+    "packages/stable-native-clients-implementation/implementation-baseline.json",
+    "packages/stable-native-clients-implementation/implementation-summary.json",
+    "packages/stable-native-clients-implementation/native-cases-before-implementation.json",
+    "packages/stable-native-clients-implementation/stable-client-functions.py",
+    "packages/stable-native-clients-implementation/ARCHIVE_ALLOWLIST.txt",
+    "packages/stable-native-clients-implementation/archive-sha256.json",
+    "packages/stable-native-clients-implementation/final-freeze-v2/delta-from-v1.patch",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/.github/workflows/native-package-repository-drill.yml",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/CHANGELOG.md",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/docs/release-contract.md",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/docs/stable-audit-transport.md",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/scripts/validate-production-package-clients.py",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/native_source_metadata_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/native_stable_candidate_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/test_native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v2/files/tests/test_validate_production_package_clients.py",
+    "packages/stable-native-clients-implementation/final-freeze-v2/manifest.json",
+    "packages/stable-native-clients-implementation/final-freeze-v2/review.patch",
+    "packages/stable-native-clients-implementation/generation-2-repair/01-cleanup-and-49-red.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/02-cleanup-green.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/03-cache-and-installed-red.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/04-cache-and-installed-green.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/05-container-ownership-red.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/06-container-ownership-green.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/07-focused-final-green.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/08-exercise-ambiguous-result.json",
+    "packages/stable-native-clients-implementation/generation-2-repair/08-exercise-ambiguous.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/09-related-production-clients.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/10-related-installed-cli.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/README.md",
+    "packages/stable-native-clients-implementation/generation-2-repair/before-native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/generation-2-repair/before-test_native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/generation-2-repair/exercise-ambiguous-probe.py",
+    "packages/stable-native-clients-implementation/generation-2-repair/failure-inventory.md",
+    "packages/stable-native-clients-implementation/generation-2-repair/summary.json",
+    "packages/stable-native-clients-implementation/generation-2-repair/archive-sha256.json",
+    "packages/stable-native-clients-implementation/final-freeze-v3/delta-from-v2.patch",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/.github/workflows/native-package-repository-drill.yml",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/CHANGELOG.md",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/docs/release-contract.md",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/docs/stable-audit-transport.md",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/scripts/validate-production-package-clients.py",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/native_source_metadata_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/native_stable_candidate_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/test_native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation/final-freeze-v3/files/tests/test_validate_production_package_clients.py",
+    "packages/stable-native-clients-implementation/final-freeze-v3/manifest.json",
+    "packages/stable-native-clients-implementation/final-freeze-v3/review.patch",
+    "packages/stable-native-clients-implementation/generation-3-repair/01-staged-network-red.log",
+    "packages/stable-native-clients-implementation/generation-3-repair/02-staged-network-green.log",
+    "packages/stable-native-clients-implementation/generation-3-repair/03-exact-network-diagnostic-v2-red.log",
+    "packages/stable-native-clients-implementation/generation-3-repair/04-exact-network-diagnostic-green.log",
+    "packages/stable-native-clients-implementation/generation-3-repair/README.md",
+    "packages/stable-native-clients-implementation/generation-3-repair/failure-inventory.md",
+    "packages/stable-native-clients-implementation/generation-3-repair/summary.json",
+    "packages/stable-native-clients-implementation/generation-3-repair/archive-sha256.json",
+    "packages/stable-native-clients-implementation-review/main-v2/closure-probe-results.json",
+    "packages/stable-native-clients-implementation-review/main-v2/independent-freeze-check.json",
+    "packages/stable-native-clients-implementation-review/main-v2/independent-light-tests.json",
+    "packages/stable-native-clients-implementation-review/main-v2/independent-light-tests.log",
+    "packages/stable-native-clients-implementation-review/main-v2/input-delta-from-v1.patch",
+    "packages/stable-native-clients-implementation-review/main-v2/input-manifest.json",
+    "packages/stable-native-clients-implementation-review/main-v2/network-repeat-probe.py",
+    "packages/stable-native-clients-implementation-review/main-v2/network-repeat-result.json",
+    "packages/stable-native-clients-implementation-review/main-v2/probe.py",
+    "packages/stable-native-clients-implementation-review/main-v2/review.md",
+    "packages/stable-native-clients-implementation-review/main-v2/source/.github/workflows/native-package-repository-drill.yml",
+    "packages/stable-native-clients-implementation-review/main-v2/source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc",
+    "packages/stable-native-clients-implementation-review/main-v2/source/tests/native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation-review/main-v2/source/tests/test_native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation-review/main-v2/manifest.json",
+    "packages/stable-native-clients-implementation-review/main-v2/SHA256SUMS",
+    "packages/stable-native-clients-implementation-review/main-v3/focused-regression.log",
+    "packages/stable-native-clients-implementation-review/main-v3/input-delta-from-v2.patch",
+    "packages/stable-native-clients-implementation-review/main-v3/input-manifest.json",
+    "packages/stable-native-clients-implementation-review/main-v3/network-repeat-probe.log",
+    "packages/stable-native-clients-implementation-review/main-v3/network-repeat-probe.py",
+    "packages/stable-native-clients-implementation-review/main-v3/network-repeat-result.json",
+    "packages/stable-native-clients-implementation-review/main-v3/review.md",
+    "packages/stable-native-clients-implementation-review/main-v3/source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc",
+    "packages/stable-native-clients-implementation-review/main-v3/source/tests/native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation-review/main-v3/source/tests/test_native_stable_clients_drill.py",
+    "packages/stable-native-clients-implementation-review/main-v3/verification.json",
+    "packages/stable-native-clients-implementation-review/main-v3/manifest.json",
+    "packages/stable-native-clients-implementation-review/main-v3/SHA256SUMS",
+    "cloud/released-continuation-authority-review/ARCHIVE_ALLOWLIST",
+    "cloud/released-continuation-authority-review/classifier-at-base.sh",
+    "cloud/released-continuation-authority-review/fixture/source/scripts/chat-lifecycle/authenticate-released-preclock.py",
+    "cloud/released-continuation-authority-review/fixture/source/scripts/testdata/chat-lifecycle-released-preclock/original.json",
+    "cloud/released-continuation-authority-review/input-freeze.json",
+    "cloud/released-continuation-authority-review/probe-results-v2.json",
+    "cloud/released-continuation-authority-review/probe-results.json",
+    "cloud/released-continuation-authority-review/probe-v2.py",
+    "cloud/released-continuation-authority-review/probe.py",
+    "cloud/released-continuation-authority-review/replay.py",
+    "cloud/released-continuation-authority-review/review.md",
+    "cloud/released-continuation-authority-review/summary.json",
+    "cloud/released-continuation-authority-review/SHA256SUMS",
+    "packages/stable-native-clients-implementation/root-final-contract.log",
+    "packages/stable-native-clients-implementation/generation-2-repair/root-network-inspect-observation.json",
+    "evidence-fact-review/generation-post1019-merge/ARCHIVE_ALLOWLIST",
+    "evidence-fact-review/generation-post1019-merge/fact-review.json",
+    "evidence-fact-review/generation-post1019-merge/git-manifest-verification.json",
+    "evidence-fact-review/generation-post1019-merge/incremental-log-fix.patch",
+    "evidence-fact-review/generation-post1019-merge/report-update.patch",
+    "evidence-fact-review/generation-post1019-merge/review.md",
+    "evidence-fact-review/generation-post1019-merge/SHA256SUMS",
+    "native-client-implementation-and-authority-review-archive.json"
+  ],
+  "preserved_original_review_pycache_files": [
+    "packages/stable-native-clients-implementation-review/main-v2/source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc",
+    "packages/stable-native-clients-implementation-review/main-v3/source/tests/__pycache__/native_stable_clients_drill.cpython-313.pyc"
+  ],
+  "groups": [
+    {
+      "path": "packages/pr74-ci-generation-1",
+      "allowlist_entries": 87,
+      "copied_including_manifest_metadata": 89,
+      "allowlist_sha256": "fb276a981ec979f87430031fc80c0d9a4f8964be46d10ec9f0ddba7bfb22f91a",
+      "manifest_sha256": "ecb63ae66deb8c2f2b980e43a8a1a34485162f7f54736d815a2054d045c0a43d"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3",
+      "allowlist_entries": 10,
+      "copied_including_manifest_metadata": 11,
+      "allowlist_sha256": "cf62aaae1d300a8e3d69d647b0d13b1e39ab4ae942b18e26a63fc45387a73858",
+      "manifest_sha256": "944d7e325379cf88aecc7cb8ae5b833612d69ab4df4b91a0868ae5a01de7d53e"
+    },
+    {
+      "path": "packages/mirror-pin-repair",
+      "payload_entries": 16,
+      "allowlist_entries": 17,
+      "copied_including_manifest_metadata": 18,
+      "manifest_sha256": "837f034cf2fa76722eb82e7dbace469bf411d2cc3732e3c62cdde4e033c11cfd",
+      "allowlist_sha256": "cb186ca4f57b4897faa14da31b36410a1af5eeb1f199e7d4e1ee693c846e5140"
+    }
+  ],
+  "copied_files": [
+    {
+      "path": "packages/pr74-ci-generation-1/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 3022,
+      "sha256": "fb276a981ec979f87430031fc80c0d9a4f8964be46d10ec9f0ddba7bfb22f91a"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/README.md",
+      "bytes": 2228,
+      "sha256": "8c75675ecd86dde927047a597ca9625985943ce87263f8c887b56c3aff33606a"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/archive-sha256.json",
+      "bytes": 12582,
+      "sha256": "ecb63ae66deb8c2f2b980e43a8a1a34485162f7f54736d815a2054d045c0a43d"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/artifact-downloads-generation-1.json",
+      "bytes": 2583,
+      "sha256": "b5b1e4a38c1a074349b97ff286fee1585d09ca5e51200f388c6d959609adca21"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "bytes": 44122,
+      "sha256": "45a31a6433406658a93aba0f019a0c9b99a73c12944bab205d45714f4240dcaf"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/artifacts/native-local-signing-test-only/native-local-signing.json",
+      "bytes": 12973,
+      "sha256": "08301e2a2ed8e59ac0b53b6e0bccd5e4c414f13ea7aea233397c7efad0b91cf3"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/artifacts/native-source-metadata-test-only/native-source-metadata.json",
+      "bytes": 4464,
+      "sha256": "6f6beb4b1b4b89379f3554f80a9347b98f57bfe1affdfbd83d09a0cc7d8d37ad"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+      "bytes": 28830,
+      "sha256": "fc3e8eec6e3ff98cf4b2ae0b14a73d42d972c21d279e722dbe180f5afeed5d1d"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/first-failure.json",
+      "bytes": 1301,
+      "sha256": "98083f61e6d6f6192a36b1f4236693500189d9daa5c0b322ce6d0734374c0126"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/head-commit.json",
+      "bytes": 1125,
+      "sha256": "1a4a1fe1fb7632a79bc51d5682fd91d97af3854b6cfb0f9ae6bad6c4f630b5c6"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/head-commit.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/identity-proof.json",
+      "bytes": 533,
+      "sha256": "d4fb28b9b72140a0f87fe38e7089af98c539fa448095c52a4e89a472054377eb"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/identity-read-receipts.json",
+      "bytes": 992,
+      "sha256": "4dcdd01978b0dccd1d71f69de4581d7951f5c5db8d8a663f499a5393a9feb072"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/initial-read-receipts.json",
+      "bytes": 914,
+      "sha256": "81392040f1efbaa8c002651795bf15f7cbbc881f320792d9d5bce72ada0e719e"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/merge-commit.json",
+      "bytes": 2602,
+      "sha256": "f4a7014acad0fadb2fc62615b6ed716c951d299b2f88c337e1a7d32b52f065cc"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/merge-commit.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 588,
+      "sha256": "d1e347bf8bd560d1acae3d02db43ee43d98c7108a0f90a186b6797dacf50e4cd"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/alma-current-digest.stderr",
+      "bytes": 112,
+      "sha256": "635421125669a44867fc0ac6c164b256a920fab18ef9da5d958e442211d7f1f6"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/alma-current-digest.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/alma-current-registry-body.json",
+      "bytes": 1029,
+      "sha256": "28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/alma-current-registry-receipt.json",
+      "bytes": 660,
+      "sha256": "40a9d15f9098f5434ca089a62b06c8e8e6331056147ac954e5515aae3ea16ae5"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/alma-tag9.stderr",
+      "bytes": 143,
+      "sha256": "697c62180a3ad42e1f7605184569c90da09a4e3ffac48dabdec9834fecdbeb1a"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/alma-tag9.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/archive-sha256.json",
+      "bytes": 3118,
+      "sha256": "3559ca221c6c4a4a7c4b7e2e48cd9a7c463d00495a402db0804794075cc9eb69"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/inspect-public-quay.py",
+      "bytes": 1906,
+      "sha256": "06be8eca2857eefab905f5ed2c73e45bdf82a8befdf3aff1f633ddc55ee6a20d"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/manifest-first-read.json",
+      "bytes": 481,
+      "sha256": "a189925c90bdbf63ce9d3f4fde6ae4027d426d82fd466f8efa6565f4f13266c5"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/manifest-second-read.json",
+      "bytes": 689,
+      "sha256": "223687a03646bb90dfb978dbcda68a49cacdc74a11bf381dfba75dda5cfb506d"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/official-Containerfile-init.txt",
+      "bytes": 1301,
+      "sha256": "bcc1454e7522eaf68313a0fc8e275837f748a5ba33610091cf37a07afa4316f1"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/official-sources.json",
+      "bytes": 504,
+      "sha256": "94a4ca7f0b0eb7c58e845ef2e956b6b510a05b3380c946d050f7c5e37217dd01"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/quay-http-receipts.json",
+      "bytes": 929,
+      "sha256": "b901319fb8438508e95337fdfa5f749f3b1846a95baff270f925a341b8975f2a"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/quay-http-result.log",
+      "bytes": 1208,
+      "sha256": "89cd70ad389a2b0c1c75058aeecd82dd6584c584d5b2e9d6ffdd71fea2c97038"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-docker-old-digest.stderr",
+      "bytes": 122,
+      "sha256": "737d5e56c6d50bb5ab6df6f131042de81b4388ef98c544c42ec226d280818963"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-docker-old-digest.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-init-amd64-registry-manifest.json",
+      "bytes": 593,
+      "sha256": "aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-init-candidate.json",
+      "bytes": 1208,
+      "sha256": "89cd70ad389a2b0c1c75058aeecd82dd6584c584d5b2e9d6ffdd71fea2c97038"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-init-registry-index.json",
+      "bytes": 970,
+      "sha256": "1339a167e57330c1b6b9afb7bdcf5059e9ffdeb3b3d49bbcb4f6eaf39d8ed7c4"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-quay-init.stderr",
+      "bytes": 134,
+      "sha256": "c87c61932f1d6dec76d45f947450079a979ba9d8d894cc7255a995cbe5c5459c"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-quay-init.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-quay-tag9.json",
+      "bytes": 7449,
+      "sha256": "bbdb7821c71d7c6fcd283ec1651c7746e49e572c8c1928fa40d9d898fe59002e"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/rocky-quay-tag9.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/mirror-diagnosis/summary.md",
+      "bytes": 2505,
+      "sha256": "4eff27034de015697d253974c74f3d57e872ebedd2ba85f4c00860f0ea195487"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-artifacts-final.json",
+      "bytes": 2900,
+      "sha256": "3a3436bb41b37e6cf18db2bedd3ec7abd7fa6a6c2feca34976dc50b5348095ff"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-artifacts-final.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-artifacts-initial.json",
+      "bytes": 2900,
+      "sha256": "3a3436bb41b37e6cf18db2bedd3ec7abd7fa6a6c2feca34976dc50b5348095ff"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-artifacts-initial.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-bootstrap-preparation-test-only.download.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-final-read-receipts.json",
+      "bytes": 980,
+      "sha256": "9e8d478d40f06f758122d08d6f6489f1a72378ec9c02e93730ce30ee08972bf8"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-120453.json",
+      "bytes": 8233,
+      "sha256": "b38a54ffe16f9b1964d21559e8038c69767493265cd0ede8f101c3b67596ad1f"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-120453.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-120744.json",
+      "bytes": 8499,
+      "sha256": "e15b38dd637918013c0e9948e4d5cc792505c249bda5dbfa3e286565185b7c23"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-120744.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-120940.json",
+      "bytes": 8910,
+      "sha256": "a81577f89e3424b7b6cacd288f975db9927d8034e9c4385b08b9594582299342"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-120940.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-final.json",
+      "bytes": 8910,
+      "sha256": "a81577f89e3424b7b6cacd288f975db9927d8034e9c4385b08b9594582299342"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-final.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-initial.json",
+      "bytes": 8190,
+      "sha256": "a1e0702ea5c0c0da256135c1a4d7fe9a2cf3a3cb2894401fab5ef841b954c9fa"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-jobs-initial.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-local-signing-test-only.download.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-original-job-119209867267.log",
+      "bytes": 195774,
+      "sha256": "6cc32b47de46f8207371ae1818c0fec08d9abe8855345b153e5589b9301db2b9"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-original-job-119209867267.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-run-final.json",
+      "bytes": 12475,
+      "sha256": "39442952557c5fb4cf12061113200474ac138d103d07069a7ad930e4b4dd5eed"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-run-final.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-run-initial.json",
+      "bytes": 12472,
+      "sha256": "34632046aa07918e81ad301a79a0b1141eb015d952e906d40da5e868a84a16ae"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-run-initial.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-source-metadata-test-only.download.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/native-stable-candidate-test-only.download.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-artifacts-final.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-artifacts-final.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-final-read-receipts.json",
+      "bytes": 575,
+      "sha256": "2120d9962539d0576412e53ca1832f8af313d43930354ae5995cc1f9cf34c2d8"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-job-119209867023.log",
+      "bytes": 19772,
+      "sha256": "6b01259dfde582d3e4fd2f4e240eac4df211b6d153d7f63d32369c1d6b06f595"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-job-119209867023.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-jobs-120453.json",
+      "bytes": 3081,
+      "sha256": "cab1d3c243d0f10e7f4ee00319b760cece429ba37be332c9aca8286a9a0b75ab"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-jobs-120453.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-jobs-final.json",
+      "bytes": 3081,
+      "sha256": "cab1d3c243d0f10e7f4ee00319b760cece429ba37be332c9aca8286a9a0b75ab"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-jobs-final.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-jobs-initial.json",
+      "bytes": 1828,
+      "sha256": "f000568bf2902f411e73f744ec7e2ef32cfb69ce2ca8fc76337b1294433f722b"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-jobs-initial.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-run-final.json",
+      "bytes": 12454,
+      "sha256": "0ba384186856469ff69bd72921ec1801fe14840830928dc9939661399ea87122"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-run-final.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-run-initial.json",
+      "bytes": 12451,
+      "sha256": "0cf05a1279c4f126070acf5a0ea7b0b4a0d8f5205d5b586f541f9a44c22c8e05"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pages-run-initial.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pr-initial.json",
+      "bytes": 16624,
+      "sha256": "70e00a7a5389b9155e3d26b799653ebcd08c7787ba1112f32d60d5136628dd42"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/pr-initial.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/public-receipts-summary.json",
+      "bytes": 1812,
+      "sha256": "b96ca1bf7a21908a5173e481ed1327de0777048c404ad8d55c85f4c3e9074764"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/stable-job-119209866922.json",
+      "bytes": 3501,
+      "sha256": "5a4fdf47fd6a1cdc1bf4970e8374dbffb994a13c7ab024ccaac35834ac47aa5c"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/stable-job-119209866922.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/stable-job-119209866922.log",
+      "bytes": 59214,
+      "sha256": "7e818e61dd255bd20927064c3cf95d3b4591ad94ddafa401fee8af7e359da687"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/stable-job-119209866922.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr74-ci-generation-1/summary.json",
+      "bytes": 2890,
+      "sha256": "688ba2e37cef45d784029c528eec84ae6359f61728d71acbc25b36ff9c791a1c"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/ARCHIVE_ALLOWLIST",
+      "bytes": 283,
+      "sha256": "cf62aaae1d300a8e3d69d647b0d13b1e39ab4ae942b18e26a63fc45387a73858"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/SHA256SUMS",
+      "bytes": 943,
+      "sha256": "944d7e325379cf88aecc7cb8ae5b833612d69ab4df4b91a0868ae5a01de7d53e"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/delta-from-v2.patch",
+      "bytes": 5741,
+      "sha256": "616c12acfed0452729b5fe54116821b9839b8c002af7ee54a6285d76f3e981e8"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/fixture/source/scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "bytes": 41136,
+      "sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/fixture/source/scripts/testdata/chat-lifecycle-released-preclock/original.json",
+      "bytes": 64116,
+      "sha256": "54af1615a2dc07cd780acf8e50a2f45b0175bcb9ec18c909341d59cabc6edb27"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/input-freeze.json",
+      "bytes": 4861,
+      "sha256": "5d2da8608c0534c2e7991d5ec5ada1eb04d5409532aea7480e85c6d14f41fad5"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/probe-results.json",
+      "bytes": 5840,
+      "sha256": "6bf5178d7934ba15bf2618ffe6ee8013a2ebf0f6445b07ff619c3251bbda7db4"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/probe.py",
+      "bytes": 8146,
+      "sha256": "1aba0b2c02715662dd24171ceb43f69298c3deff6a6b0d4aae14febcca1167d0"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/review.md",
+      "bytes": 2477,
+      "sha256": "13e73612ca2761375e87eb1d5340ed0dc107b6af49097ff172dca754a4ef610e"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/summary.json",
+      "bytes": 445,
+      "sha256": "f9eb346dfd3fc9b0b88c4caec07fc3b25583d652b1c03aa794c8d9e18f7c2019"
+    },
+    {
+      "path": "cloud/released-continuation-authority-review/v3/validation-evidence.json",
+      "bytes": 2809,
+      "sha256": "18e5198f30215ea9c6a22eb8932b68d6223296c04fcba616f17b38cbfa5b79f4"
+    },
+    {
+      "path": "packages/mirror-pin-repair/01-old-source-red.json",
+      "bytes": 430,
+      "sha256": "92d6f835a510e5957957b550f8efb080b643768e512e2f9287de55755e8d6eb9"
+    },
+    {
+      "path": "packages/mirror-pin-repair/02-new-source-green.json",
+      "bytes": 506,
+      "sha256": "db693f19a1e63a9ec9a1f148c3796805cac1db18fdfafa728943062a870422d6"
+    },
+    {
+      "path": "packages/mirror-pin-repair/03-client-tests.log",
+      "bytes": 133,
+      "sha256": "36eec2fc56c5c7c94ad1081bab118ac2560df9a28f90bf525fa706461e453879"
+    },
+    {
+      "path": "packages/mirror-pin-repair/04-driver-tests.log",
+      "bytes": 116,
+      "sha256": "8fa6ab79438e951aa0b5e85f7e95209bd51a84eee839379f836f57ce85956fa9"
+    },
+    {
+      "path": "packages/mirror-pin-repair/05-contract.log",
+      "bytes": 176,
+      "sha256": "c4d9ed4f9df1f3bc65d794d67307147825ae96219d666bd0e436824680322c71"
+    },
+    {
+      "path": "packages/mirror-pin-repair/06-summary.json",
+      "bytes": 510,
+      "sha256": "e5c29ad7635c7ae5e84d7ef81d7f59ca7f16fe96c15bf5a3672cf6c023d900d6"
+    },
+    {
+      "path": "packages/mirror-pin-repair/07-repair-diff.patch",
+      "bytes": 728,
+      "sha256": "d172bc1c1689f60cf7404d65d210f756e9aeaad97d042a4668b2ad637ab4d153"
+    },
+    {
+      "path": "packages/mirror-pin-repair/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 389,
+      "sha256": "cb186ca4f57b4897faa14da31b36410a1af5eeb1f199e7d4e1ee693c846e5140"
+    },
+    {
+      "path": "packages/mirror-pin-repair/archive-sha256.json",
+      "bytes": 2548,
+      "sha256": "837f034cf2fa76722eb82e7dbace469bf411d2cc3732e3c62cdde4e033c11cfd"
+    },
+    {
+      "path": "packages/mirror-pin-repair/check_source_rocky_pin.py",
+      "bytes": 2018,
+      "sha256": "0a1da70c81e5c78c7b0dcd4260f90dd254ce221aa054ac499eb2d2706f36f399"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/SHA256SUMS",
+      "bytes": 597,
+      "sha256": "b12c5a313194a185f0b229e903ff2abf4d4fb9e14360128a5c562bb02978da16"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/exact-child-config-receipt.json",
+      "bytes": 373,
+      "sha256": "3dc5cccb6bad5aadcb9154ea048b8b0a4fc0e5e0e9ab20a15c8bc051b67918e4"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/exact-child-config.json",
+      "bytes": 3476,
+      "sha256": "e42ec5c806749305fa130168eacda5378b23ba608bdd904a3e79539f3f782bcd"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/independent-check.json",
+      "bytes": 868,
+      "sha256": "528d10072fba408bb8ed5e607169ccb638e825c5f474d32060c7e47675152989"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/manifest.json",
+      "bytes": 1005,
+      "sha256": "f525171c66f78d567088c12d8e523a6811437b3a7ac7a854f6a69db6768a0f38"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/review-inputs.json",
+      "bytes": 2315,
+      "sha256": "d71109c61eef3a596349d054890edcc6940f1d222f3d0e22ed7aef10240bc1be"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/review.md",
+      "bytes": 2102,
+      "sha256": "540e879ea484420f8dbe846a95261c33f8b5987ebcec95834f04679b9b26406f"
+    },
+    {
+      "path": "packages/mirror-pin-repair/review/source.patch",
+      "bytes": 728,
+      "sha256": "d172bc1c1689f60cf7404d65d210f756e9aeaad97d042a4668b2ad637ab4d153"
+    }
+  ],
+  "no_private_material_accessed": true,
+  "no_cloud_actions": true,
+  "no_commit_or_push": true,
+  "status_observation_utc": "2026-10-21T12:16:34.360500+00:00",
+  "pending_latest_results": [
+    "Packages #74 head 4ba39668c892ca17eb33b165afe993ccc683161f new CI; no stable49 result imported in this checkpoint.",
+    "Cloud freeze-v3 full scripts-integration result and final combined named-check receipt.",
+    "Final root review, commit and push of this evidence checkpoint."
+  ],
+  "cloud_named_check_observations": [
+    {
+      "check": "go-unit",
+      "source_receipt": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/named-checks-v1/go-unit/result.json",
+      "receipt_sha256": "f8b6f945b4f6d41beb24eabbd2d07e835e4945ddaf7950992f3aa2b7b895a43d",
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 453.555,
+      "source_generation": "v2 (before helper-only correction)",
+      "cleanup": {
+        "session_id": 16788,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    {
+      "check": "go-vet",
+      "source_receipt": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/named-checks-v1/go-vet/result.json",
+      "receipt_sha256": "296358ee29e8898ccc02338f079137513b022e8d06f0d9d78d24d6dd0c1490fb",
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 18.375,
+      "source_generation": "v3 (author/root-bound source)",
+      "cleanup": {
+        "session_id": 26532,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    {
+      "check": "go-mod-tidy",
+      "source_receipt": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/named-checks-v1/go-mod-tidy/result.json",
+      "receipt_sha256": "74ae45e4cc5c8098decfc2b2d461f9e55e0b0e6a9e059e691fd5be2de7406926",
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.5,
+      "source_generation": "v3 (author/root-bound source)",
+      "cleanup": {
+        "session_id": 27776,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    }
+  ],
+  "protected_rules": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "checkpoint_validation": {
+    "all_existing_top_manifest_entries_verified_except_intended_README_edit": 3583,
+    "allowed_evidence_files_excluding_top_manifest": 3880,
+    "unexpected_files": [],
+    "relative_markdown_links_checked": 117,
+    "missing_relative_links": [],
+    "original_review_pyc_preserved_without_execution": true,
+    "new_mirror_head": "4ba39668c892ca17eb33b165afe993ccc683161f",
+    "readiness": "NO-GO",
+    "scripts_integration": "pending at report cutoff",
+    "new_pr74_ci": "pending at report cutoff"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "reviewed_at_utc": "2026-10-21T12:11:54.540422+00:00",
+  "decision": "no_remaining_blocking_findings",
+  "closed_findings": [
+    "R1",
+    "R2"
+  ],
+  "changed_files": 2,
+  "verified_files": 24,
+  "independent_cli_cases": 15,
+  "additional_consumer_validate": 1,
+  "all_expected_outcomes": true,
+  "live_authority_verified": false,
+  "cloud_operations": false,
+  "source_modified": false,
+  "remaining_named_checks_claimed_passed": false
+}

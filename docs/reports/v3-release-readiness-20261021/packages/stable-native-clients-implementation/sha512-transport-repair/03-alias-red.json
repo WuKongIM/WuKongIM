@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_composite_storage_plan.py",
+    "-v"
+  ],
+  "exit_code": 1,
+  "at": "2026-10-21T12:29:30.158897+00:00"
+}

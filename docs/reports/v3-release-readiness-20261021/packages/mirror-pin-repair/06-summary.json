@@ -1,0 +1,14 @@
+{
+  "head_sha": "4ba39668c892ca17eb33b165afe993ccc683161f",
+  "tree_sha": "95e50d2549e51436d8a9ef76ab5bb004bca36ef6",
+  "prior_head": "6760cbedb0d87ad51be958f0f78c91db49f27328",
+  "change": "one Rocky init linux/amd64 manifest pin only",
+  "red_probe_http": 404,
+  "green_probe_http": 200,
+  "focused_client_tests": 34,
+  "focused_driver_tests": 17,
+  "contract_tests": 4,
+  "native_49_cases": "pending_new_ci",
+  "independent_review": "review/review.md",
+  "observed_at": "2026-10-21T12:15:35.737546+00:00"
+}

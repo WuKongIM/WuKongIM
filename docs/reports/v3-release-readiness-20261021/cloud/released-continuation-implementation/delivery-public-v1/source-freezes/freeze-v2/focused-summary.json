@@ -1,0 +1,13 @@
+{
+  "pass_events": 75,
+  "fail_events": [],
+  "skip_events": [],
+  "packages": [
+    {
+      "Time": "2026-10-21T19:56:02.041183+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 15.838
+    }
+  ]
+}

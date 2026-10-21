@@ -1,0 +1,27 @@
+{
+  "artifact": {
+    "id": 12345996635,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0NTk5NjYzNQ==",
+    "name": "v3-candidate-default-39598983439-1",
+    "size_in_bytes": 8230,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12345996635",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12345996635/zip",
+    "expired": false,
+    "digest": "sha256:4e14b397488b40eedb7b96047cf4a8c5cd6565a160bc654e966c8aee40f9a70f",
+    "created_at": "2026-10-21T12:28:45Z",
+    "updated_at": "2026-10-21T12:28:45Z",
+    "expires_at": "2026-11-04T12:28:44Z",
+    "workflow_run": {
+      "id": 39598983439,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-released-continuation",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9"
+    }
+  },
+  "observed_sha256": "4e14b397488b40eedb7b96047cf4a8c5cd6565a160bc654e966c8aee40f9a70f",
+  "observed_size": 8230,
+  "zip_crc_pass": true,
+  "downloaded_at": "2026-10-21T12:30:58.581165+00:00",
+  "directory": "/private/tmp/wukongim-v3-readiness-20261021/cloud/pr1020-ci-generation-1/candidate-artifacts/artifact-12345996635"
+}

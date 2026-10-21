@@ -1,0 +1,69 @@
+{
+  "observed_at": "2026-10-21T12:17:46.779323+00:00",
+  "root_pid": 16493,
+  "processes": [
+    {
+      "pid": 16493,
+      "ppid": 45451,
+      "elapsed": "18:20",
+      "cpu_percent": "0.0",
+      "command": "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+    },
+    {
+      "pid": 27784,
+      "ppid": 16493,
+      "elapsed": "07:28",
+      "cpu_percent": "0.0",
+      "command": "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+    },
+    {
+      "pid": 27785,
+      "ppid": 27784,
+      "elapsed": "07:28",
+      "cpu_percent": "0.0",
+      "command": "go"
+    },
+    {
+      "pid": 27866,
+      "ppid": 27785,
+      "elapsed": "07:27",
+      "cpu_percent": "0.1",
+      "command": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-build320532482/b001/scripts.test"
+    },
+    {
+      "pid": 85841,
+      "ppid": 27866,
+      "elapsed": "00:01",
+      "cpu_percent": "1.0",
+      "command": "bash"
+    },
+    {
+      "pid": 85919,
+      "ppid": 27866,
+      "elapsed": "00:00",
+      "cpu_percent": "1.3",
+      "command": "bash"
+    },
+    {
+      "pid": 86057,
+      "ppid": 85919,
+      "elapsed": "00:00",
+      "cpu_percent": "0.0",
+      "command": "bash"
+    },
+    {
+      "pid": 86058,
+      "ppid": 86057,
+      "elapsed": "00:00",
+      "cpu_percent": "0.0",
+      "command": "/usr/bin/env"
+    },
+    {
+      "pid": 86069,
+      "ppid": 85841,
+      "elapsed": "00:00",
+      "cpu_percent": "0.0",
+      "command": "(rm)"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "artifact": {
+    "id": 12344867793,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0NDg2Nzc5Mw==",
+    "name": "three-node-pr-1020-922bc66a9cebcbe09bef5fc43afc0593c4f07fb8-1",
+    "size_in_bytes": 230121216,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12344867793",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12344867793/zip",
+    "expired": false,
+    "digest": "sha256:b7d33f2b1559c567aec67b0dbfe64fccdcbd2591ecf137a80c011dcaafd5c590",
+    "created_at": "2026-10-21T12:26:43Z",
+    "updated_at": "2026-10-21T12:26:43Z",
+    "expires_at": "2026-10-28T12:26:27Z",
+    "workflow_run": {
+      "id": 39598983277,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-released-continuation",
+      "head_sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9"
+    }
+  },
+  "observed_sha256": "b7d33f2b1559c567aec67b0dbfe64fccdcbd2591ecf137a80c011dcaafd5c590",
+  "observed_bytes": 230121216,
+  "zip_crc_pass": true,
+  "entry_count": 337,
+  "uncompressed_bytes": 866727278,
+  "at": "2026-10-21T12:32:50.542655+00:00"
+}

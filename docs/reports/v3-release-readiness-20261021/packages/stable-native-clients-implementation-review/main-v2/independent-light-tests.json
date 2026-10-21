@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_native_stable_clients_drill.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "elapsed_seconds": 0.21566287497989833
+}

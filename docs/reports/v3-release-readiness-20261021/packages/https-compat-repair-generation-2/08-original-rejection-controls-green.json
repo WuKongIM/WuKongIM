@@ -1,0 +1,145 @@
+{
+  "results": [
+    {
+      "accepted": true,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 100,
+      "expected": true,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 0,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 124,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 125,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 126,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 127,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 137,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 143,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "command not found",
+      "exit": 100,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "cryptic non-transport error",
+      "exit": 100,
+      "expected": false,
+      "mode": "missing-byhash"
+    },
+    {
+      "accepted": true,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 100,
+      "expected": true,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 0,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 124,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 125,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 126,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 127,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 137,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "Failed to fetch authenticated index",
+      "exit": 143,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "command not found",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    },
+    {
+      "accepted": false,
+      "diagnostic": "cryptic non-transport error",
+      "exit": 100,
+      "expected": false,
+      "mode": "corrupt-byhash"
+    }
+  ],
+  "scope": "actual negative branch control flow; no Docker/native client"
+}

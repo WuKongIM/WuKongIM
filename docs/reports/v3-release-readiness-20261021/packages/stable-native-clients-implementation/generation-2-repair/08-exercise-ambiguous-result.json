@@ -1,0 +1,159 @@
+{
+  "scope": "Actual exercise/create/cleanup; native commands/build/platform substituted, no Docker/GPG/native execution.",
+  "failure_preserved": "simulated TERM after daemon creation before client ID capture",
+  "creation": [
+    {
+      "label": "0123456789abcdef0123456789abcdef",
+      "name": "wk-scl-0123456789abcdef0123456789abcdef-1",
+      "kind": "container"
+    }
+  ],
+  "outside_sentinel_preserved": true,
+  "cleanup_commands": [
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "inspect",
+      "--type",
+      "container",
+      "--format",
+      "{{.Id}} {{.Name}} {{index .Config.Labels \"wk-stable-client-run\"}}",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    [
+      "docker",
+      "rm",
+      "--force",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "ps",
+      "-aq",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ],
+    [
+      "docker",
+      "network",
+      "ls",
+      "-q",
+      "--no-trunc",
+      "--filter",
+      "label=wk-stable-client-run=0123456789abcdef0123456789abcdef"
+    ]
+  ],
+  "evidence": {
+    "commands": [],
+    "images": [
+      "ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922",
+      "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "quay.io/rockylinux/rockylinux@sha256:45e07bfa0996c2f62f8aa49492b37f0db1fd2eab1c182f9cf2b04b9fdcd3ade4",
+      "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e"
+    ],
+    "control": {
+      "checkout_sha": "public probe",
+      "tree": "public probe"
+    },
+    "host_tools": {
+      "gpg": "public probe\n",
+      "gpgv": "public probe\n",
+      "rpm": "public probe\n",
+      "rpmkeys": "public probe\n",
+      "dpkg-deb": "public probe\n",
+      "zstd": "public probe\n"
+    },
+    "exercise_failure": "simulated TERM after daemon creation before client ID capture",
+    "reader_cleanup": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-0123456789abcdef0123456789abcdef-1"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "cache_cleanup": [],
+    "cleanup": {
+      "verified": true,
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-0123456789abcdef0123456789abcdef-1"
+        ],
+        "networks": []
+      },
+      "discovered": {
+        "containers": [],
+        "networks": []
+      },
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "pr": 1020,
+  "head": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+  "head_tree": "36f96357c967418517a00444e52ae03f77c3ff90",
+  "synthetic_merge": "922bc66a9cebcbe09bef5fc43afc0593c4f07fb8",
+  "synthetic_tree": "36f96357c967418517a00444e52ae03f77c3ff90",
+  "parents": [
+    "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+    "0cdfaa37b00c58819895dee54029c27c83c9caa9"
+  ],
+  "tree_equivalent": true,
+  "actual_checkout_still_requires_job_receipt": true
+}

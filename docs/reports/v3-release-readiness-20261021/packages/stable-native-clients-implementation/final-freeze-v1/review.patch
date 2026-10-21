@@ -1,0 +1,1792 @@
+diff --git a/.github/workflows/native-package-repository-drill.yml b/.github/workflows/native-package-repository-drill.yml
+index 7b9c603..3efbdbb 100644
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -237,3 +237,88 @@ jobs:
+         if: always()
+         shell: bash
+         run: git diff --exit-code HEAD -- . ':!.trusted'
++
++  stable-clients:
++    name: TEST ONLY stable four clients and A/B
++    if: github.repository == 'WuKongIM/packages'
++    runs-on: ubuntu-24.04
++    timeout-minutes: 60
++    steps:
++      - name: Check out exact package client control
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
++        with:
++          persist-credentials: false
++
++      - name: Check out immutable trusted repository tools
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
++        with:
++          repository: WuKongIM/WuKongIM
++          ref: ed7e67d8f781b4f92872e42116c11b304fe03b5c
++          path: .trusted/wukongim
++          persist-credentials: false
++
++      - name: Check out exact TEST ONLY product build source
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
++        with:
++          repository: WuKongIM/WuKongIM
++          ref: fc18221282f289088ec9b4282fda8e0bfc67a3b8
++          path: .product/wukongim
++          persist-credentials: false
++
++      - name: Prepare fixed product Go toolchain
++        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
++        with:
++          go-version: "1.25.11"
++          cache-dependency-path: .product/wukongim/go.sum
++          cache: true
++
++      - name: Prepare host verification tools and pinned images
++        shell: bash
++        run: |
++          set -euo pipefail
++          sudo apt-get update
++          sudo apt-get install --yes --no-install-recommends gnupg gpgv rpm dpkg zstd
++          ./tests/contract.sh
++          test "$(git -C .trusted/wukongim rev-parse HEAD)" = "$(jq -r .commit manifests/trusted-toolchain.json)"
++          jq -r '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \
++            manifests/trusted-toolchain.json | sha256sum --check --strict
++          python3 - <<'PY' > "$RUNNER_TEMP/stable-client-images.txt"
++          import importlib.util,json
++          spec=importlib.util.spec_from_file_location('clients','scripts/validate-production-package-clients.py')
++          clients=importlib.util.module_from_spec(spec);spec.loader.exec_module(clients)
++          signing=json.load(open('manifests/signing-toolchain.json'))
++          assert signing['enabled'] is True
++          print(signing['image']+'@'+signing['digest'])
++          for _,image in clients.APT_CLIENTS+clients.RPM_CLIENTS: print(image)
++          PY
++          while IFS= read -r image; do docker pull --platform linux/amd64 "$image"; done < "$RUNNER_TEMP/stable-client-images.txt"
++
++      - name: Exercise signed TEST ONLY stable clients and exact installed CLI
++        shell: bash
++        run: |
++          set -euo pipefail
++          output="$RUNNER_TEMP/stable-clients-native"
++          mkdir "$output"
++          timeout --signal=TERM --kill-after=45s 55m \
++            python3 -B tests/native_stable_clients_drill.py \
++              --output-dir "$output" --product-root "$GITHUB_WORKSPACE/.product/wukongim" \
++              --product-sha fc18221282f289088ec9b4282fda8e0bfc67a3b8 \
++              --trusted-root "$GITHUB_WORKSPACE/.trusted/wukongim"
++          jq -e '.test_only == true and .passed == true and .cleanup.verified == true and (.cases | length) == 47 and all(.cases[]; .passed == true)' \
++            "$output/native-stable-clients.json" >/dev/null
++
++      - name: Preserve public stable client evidence
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: native-stable-four-clients-test-only
++          path: |
++            ${{ runner.temp }}/stable-clients-native/*.json
++            ${{ runner.temp }}/stable-clients-native/https-requests.jsonl
++          if-no-files-found: warn
++          retention-days: 30
++
++      - name: Reject tracked client-control mutation
++        if: always()
++        shell: bash
++        run: git diff --exit-code HEAD -- . ':!.trusted' ':!.product'
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6051482..6ac6226 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,9 @@
+ 
+ ## Unreleased
+ 
++- Add explicit stable four-client acceptance with required installed CLI checks
++  and isolated TEST ONLY A/B repository switching; stable publication remains disabled.
++
+ - Add explicit stable audit sealing with fresh source/control verification and offline composite transport planning; keep stable disabled and production publication unconnected.
+ 
+ - Build and independently verify first-generation stable offline repository
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index 325c2e5..2116e8c 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -729,3 +729,30 @@ TEST ONLY loopback evidence remains separate. The explicit offline composite
+ planner retains both channels and all supplied generations without uploading or
+ activating. Stable remains disabled and no production workflow is connected.
+ See [the operator contract](stable-audit-transport.md) for identities, inputs and verification limits.
++
++### Explicit stable package-client acceptance
++
++Use `scripts/validate-production-package-clients.py --channel stable
++--transport-inputs <reviewed-composite-inputs.json> --base-url
++https://packages.githubim.com --expected-version <X.Y.Z> --apt-public-cert
++<apt-stable.asc> --rpm-public-cert <rpm-stable.asc> --verify-installed-cli`.
++Stable requires installed CLI acceptance; it cannot report a release-qualified
++success from a download-only run. The same-process host verifier requires
++GnuPG/gpgv, rpm/rpmkeys, dpkg-deb and zstd. Preview remains the default and keeps
++its existing interface and receipt schema.
++
++Stable returns `wukongim/stable-package-client-validation/v1` and derives its
++identity from the explicitly reviewed current stable transport descriptor,
++canonical candidate archive, signatures, public keys and immutable bootstrap.
++It rechecks stable InRelease and mirrorlist at both ends. Root `/repo`,
++`/status.json` and `/bootstrap/manifest.json` remain preview and are not stable
++identity evidence. Local resolution evidence is not a fresh GitHub query.
++
++The native repository safety workflow adds an independent contents-read-only
++stable-client job. It uses fixed real product source, disposable TEST ONLY
++signing material and four pinned Linux images; production signer/publication
++jobs and their permissions do not change. The explicit test opt-in and fixed
++test source identity are unavailable to production mode. See
++[stable audit transport](stable-audit-transport.md) for the isolated A/B and
++installed-client network boundaries. A passing TEST ONLY run is preparation
++for, and does not replace, exact-version public APT/RPM release verification.
+diff --git a/docs/stable-audit-transport.md b/docs/stable-audit-transport.md
+index a0d1fa1..f7160f6 100644
+--- a/docs/stable-audit-transport.md
++++ b/docs/stable-audit-transport.md
+@@ -93,3 +93,49 @@ composite planning, deterministic repetition, retained-generation validation,
+ and rejection without the test opt-in. Any transport failure fails the whole drill. Its stable DEB/RPM signatures
+ are real native signatures; its preview transport fixture is explicitly
+ structural and is not reported as native preview signature acceptance.
++
++## Stable native clients and retained generations
++
++The package client validator has an explicit stable mode. Supply the reviewed
++v2 composite transport inputs, both reviewed stable public certificates, the
++canonical HTTPS origin, an exact release version, and `--verify-installed-cli`.
++The host must provide `gpg`, `gpgv`, `rpm`, `rpmkeys`, `dpkg-deb`, and `zstd`.
++It repeats the existing candidate signature and closure verification in the
++same process; it does not trust a caller-supplied `verified` receipt. Tool
++versions, the transport input and plan digests, the candidate, downloads and
++installed CLI results are recorded separately from GitHub provenance.
++
++Stable bootstrap inventory comes from the immutable stable snapshot, not the
++preview root manifest or status. Native APT reads stable sources and by-hash;
++native DNF reads the packaged mirrorlist with TLS, metadata and package
++signature checks enabled. There is no baseurl fallback. Each download client
++has a 300-second limit and each installed client retains its existing
++600-second limit and full server/wkcli identity, bench, query and migration
++checks. Download-only consistency tests do not pass the production stable gate.
++
++The independent Linux TEST ONLY job builds real server and wkcli binaries from
++fixed source `fc18221282f289088ec9b4282fda8e0bfc67a3b8`, using Go 1.25.11 and
++explicit test versions 3.0.0/3.0.1. Those versions are test build parameters, not
++source Release or attestation claims. A/B share disposable public keys but use
++bootstrap 1.1.1/1.1.2, avoiding conflicting independently signed bytes under one
++immutable URL. Production bootstrap controls remain unchanged. Test private
++keys are destroyed before public fixture export and host verification.
++
++The four digest-pinned Ubuntu, Debian, Rocky Linux and AlmaLinux download
++clients use an internal Docker network and an ephemeral CA for the exact
++`packages.githubim.com` name. A deterministic server switches after serving A's
++InRelease or mirrorlist; retained by-hash and immutable RPM objects remain A.
++Request logs expose the actual URLs, response digests and cache conditionals.
++Separate cases cover persistent caches and missing/corrupt retained objects,
++TLS rejection, redirect escape, interrupted responses, and exact-target/source
++identity rejection. Installed CLI containers use ordinary distro dependency
++networking and only the already authenticated local product package; that
++traffic is not part of the isolated A/B proof.
++
++The driver records and removes only its own container/network IDs. Controlled
++failure, timeout and TERM attempt cleanup and publish the independent cleanup
++result. Host loss or SIGKILL cannot guarantee a final receipt. Public artifacts
++contain bounded JSON and request logs, not private keys or package trees.
++These tests do not enable stable, create public Releases, activate storage, or
++prove global CDN atomicity. Actual public-origin verification of the exact
++published stable version remains a release requirement.
+diff --git a/scripts/validate-production-package-clients.py b/scripts/validate-production-package-clients.py
+index 0486cad..9659449 100755
+--- a/scripts/validate-production-package-clients.py
++++ b/scripts/validate-production-package-clients.py
+@@ -31,6 +31,7 @@ import json
+ import os
+ import re
+ import stat
++import shutil
+ import subprocess
+ import sys
+ import tempfile
+@@ -1424,6 +1425,180 @@ def _installed_cli_receipt(path, identity):
+     _require(value.get("fixtures") == fixture_manifest, "installed CLI fixture identity mismatch")
+     return value
+ 
++STABLE_RECEIPT_SCHEMA = "wukongim/stable-package-client-validation/v1"
++TEST_PRODUCT_SHA = "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
++
++
++def stable_client_command(image, downloads, certificate, family, bootstrap):
++    """Use the real stable bootstrap's sources and mirrorlist without a baseurl fallback."""
++    _require(family in {"apt", "rpm"} and bootstrap is not None,
++             "stable client requires its family bootstrap")
++    command = _client_command(image, downloads, certificate, family, None,
++                              COMPOSER.REPOSITORY_ORIGIN, bootstrap)
++    script = command[-1].replace("preview", "stable")
++    if family == "apt":
++        script = script.replace("wukongim-archive-keyring", "wukongim-archive-keyring-stable")
++    else:
++        script = script.replace("wukongim-release", "wukongim-release-stable")
++        start = script.index('  if ! grep -Fxq "baseurl=$WK_REPOSITORY_URL"')
++        end = script.index("\ndnf_options=(", start)
++        script = (script[:start] +
++                  '  grep -Fxq "mirrorlist=$WK_REPOSITORY_URL" /tmp/repos.d/wukongim-stable.repo\n'
++                  'else\n  echo "stable bootstrap is required" >&2\n  exit 1\nfi' + script[end:])
++        script = script.replace("baseurl=https://packages.githubim.com/rpm/stable/el/9/x86_64",
++                                "mirrorlist=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist")
++        # A CA override is supplied only by the isolated TEST ONLY runner. Normal
++        # HTTPS clients use the image's ordinary trust store and keep sslverify=1.
++        script = script.replace('dnf "${dnf_options[@]}" makecache',
++                                'if [[ -n "${WK_TEST_CA_BUNDLE:-}" ]]; then\n'
++                                '  test "${WK_TEST_ONLY_CLIENT:-}" = true\n'
++                                '  dnf_options+=(--setopt=wukongim-stable.sslcacert="$WK_TEST_CA_BUNDLE")\n'
++                                'fi\ndnf "${dnf_options[@]}" makecache')
++    script = 'test -n "${WK_BOOTSTRAP_PACKAGE:-}"\n' + script
++    for i, value in enumerate(command[:-1]):
++        if value.endswith(f":/keys/{family}-preview.asc:ro"):
++            command[i] = value.replace(f":/keys/{family}-preview.asc:ro", f":/keys/{family}-stable.asc:ro")
++        if value.startswith("WK_REPOSITORY_URL=") and family == "rpm":
++            command[i] = "WK_REPOSITORY_URL=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist"
++    command[-1] = script
++    command[-3:-3] = ['timeout', '--signal=TERM', '--kill-after=10s', '300s']
++    return command
++
++
++def _validate_stable_clients(*, site_root, snapshot_path, base_url, transport_inputs,
++                             apt_public_cert, rpm_public_cert, expected_version,
++                             verify_installed_cli, test_only, test_product_sha, runner, fetcher):
++    """Authenticate explicit stable inputs, then exercise the four actual package clients."""
++    _require(transport_inputs is not None, "stable requires transport inputs")
++    _require(site_root is None and snapshot_path is None,
++             "stable derives its snapshot from transport inputs")
++    _require(base_url == COMPOSER.REPOSITORY_ORIGIN,
++             "stable clients require the canonical HTTPS origin")
++    _require(isinstance(expected_version, str) and RELEASE_VERSION_RE.fullmatch(expected_version),
++             "stable target must be strict release SemVer")
++    _require(test_only or test_product_sha is None,
++             "TEST ONLY product identity requires explicit test mode")
++    _require(not test_only or test_product_sha == TEST_PRODUCT_SHA,
++             "TEST ONLY clients require the fixed fixture product SHA")
++    _require(verify_installed_cli, "stable requires installed CLI acceptance")
++    tools = ("gpg", "gpgv", "rpm", "rpmkeys", "dpkg-deb", "zstd")
++    missing = [name for name in tools if shutil.which(name) is None]
++    _require(not missing, "stable native verifier tools are unavailable: " + ",".join(missing))
++    planner = COMPOSER.local_module("plan-object-storage-publication.py")
++    try:
++        tool_versions = {}
++        for name in tools:
++            result = subprocess.run([name, '--version'], stdin=subprocess.DEVNULL,
++                                    capture_output=True, timeout=10)
++            _require(result.returncode == 0 and len(result.stdout) <= 16384 and len(result.stderr) <= 16384,
++                     'stable native verifier version query failed: ' + name)
++            tool_versions[name] = {'path': shutil.which(name),
++                                   'version': result.stdout.decode(errors='replace').strip()}
++        input_bytes = _read_regular(transport_inputs, "transport inputs", MAX_CONTROL_BYTES)
++        inputs = planner.composite_inputs(transport_inputs, test_only)
++        planned = planner.make_composite_plan(transport_inputs, test_only)
++        _require(_read_regular(transport_inputs, "transport inputs", MAX_CONTROL_BYTES) == input_bytes,
++                 "transport inputs changed during verification")
++        descriptor = inputs["current"]["stable"]
++        identity = next(item for item in planned["snapshots"]
++                        if item["channel"] == "stable" and item["audit_release_id"] == descriptor["audit_release_id"])
++        _require(identity["candidate"] == descriptor["candidate"], "stable candidate differs from transport input")
++        candidate = identity["candidate"]
++        _require(candidate["version"] == expected_version, "stable candidate differs from exact target")
++        source_sha = test_product_sha if test_only else candidate["source"]["source_sha"]
++        _require(isinstance(source_sha, str) and SHA1_RE.fullmatch(source_sha),
++                 "stable target source SHA is invalid")
++        archive = planner.local_path(descriptor["archive"], transport_inputs.parent, "stable archive")
++        prefix = f"snapshots/stable/r{identity['audit_release_id']}-{candidate['snapshot_sha256']}"
++        mirror_path = "/rpm/stable/el/9/x86_64/mirrorlist"
++        mirror_route = next(item for item in planned["entrypoints"] if item["public_uri"] == mirror_path)
++        mirror = next(item for item in planned["generated_objects"]
++                      if item["object_key"] == mirror_route["object_key"])["content_utf8"].encode()
++        origin = COMPOSER.REPOSITORY_ORIGIN
++        _require(mirror == (origin + "/" + prefix + "/site/rpm/stable/el/9/x86_64/\n").encode(),
++                 "stable mirrorlist differs from candidate snapshot")
++        with tempfile.TemporaryDirectory(prefix="wk-stable-clients-") as temporary:
++            root = Path(temporary)
++            extracted = root / "snapshot"
++            extracted_facts = planner.R.snapshot_archive.extract_snapshot(
++                archive_path=archive, output_dir=extracted,
++                max_members=planner.R.snapshot_archive.DEFAULT_MAX_MEMBERS,
++                max_total_size=planner.R.ARCHIVE_MAX_TOTAL_BYTES)
++            _require(extracted_facts["sha256"] == candidate["archive"]["sha256"]
++                     and extracted_facts["size"] == candidate["archive"]["size"],
++                     "stable archive changed during client preparation")
++            snapshot_bytes = _read_regular(extracted / "audit/snapshot.json", "stable snapshot", MAX_CONTROL_BYTES)
++            _require(_sha256(snapshot_bytes) == candidate["snapshot_sha256"], "stable snapshot digest differs")
++            snapshot = json.loads(snapshot_bytes, object_pairs_hook=_reject_duplicate_pairs)
++            bootstrap_bytes = _read_regular(extracted / "site/bootstrap/manifest.json", "stable bootstrap", MAX_CONTROL_BYTES)
++            bootstrap = COMPOSER.validate_bootstrap_inventory(
++                json.loads(bootstrap_bytes, object_pairs_hook=_reject_duplicate_pairs), prepared=False, channel="stable")
++            certs = {"apt": apt_public_cert, "rpm": rpm_public_cert}
++            for family, path in certs.items():
++                public = _read_regular(path, family + " public certificate", MAX_CERTIFICATE_BYTES)
++                archived = _read_regular(extracted / f"site/keys/{family}-stable.asc", "archived certificate", MAX_CERTIFICATE_BYTES)
++                _require(public == archived, "stable reviewed public certificate differs")
++                _require(fetcher(origin + f"/keys/{family}-stable.asc", MAX_CERTIFICATE_BYTES) == public,
++                         "stable public endpoint certificate differs")
++            _require(fetcher(origin + "/" + prefix + "/site/bootstrap/manifest.json", MAX_CONTROL_BYTES) == bootstrap_bytes,
++                     "stable public bootstrap inventory differs")
++            inrelease = _read_regular(extracted / "site/apt/dists/stable/InRelease", "stable InRelease", MAX_CONTROL_BYTES)
++            _require(fetcher(origin + "/apt/dists/stable/InRelease", MAX_CONTROL_BYTES) == inrelease,
++                     "stable public InRelease differs from exact target")
++            _require(fetcher(origin + mirror_path, MAX_CONTROL_BYTES) == mirror,
++                     "stable public mirrorlist differs from exact target")
++            results = {"apt": [], "rpm": []}
++            for family, clients in (("apt", APT_CLIENTS), ("rpm", RPM_CLIENTS)):
++                package = bootstrap["packages"][family]
++                raw = _read_regular(extracted / "site" / package["repository_path"], "stable bootstrap package", MAX_BOOTSTRAP_BYTES)
++                _require(len(raw) == package["published_size"] and _sha256(raw) == package["published_sha256"],
++                         "stable bootstrap package differs from inventory")
++                for suffix in (package["download_path"], prefix + "/site/" + package["repository_path"]):
++                    _require(fetcher(origin + "/" + suffix, MAX_BOOTSTRAP_BYTES) == raw,
++                             "stable public bootstrap package differs")
++                expected = {item["published_sha256"]: [item["version"]]
++                            for item in snapshot["payloads"][family] if item["indexed"]}
++                _require(len(expected) == 1 and next(iter(expected.values())) == [expected_version],
++                         "stable indexed target differs")
++                for distribution, image in clients:
++                    downloads = root / distribution
++                    downloads.mkdir(mode=0o777); downloads.chmod(0o777)
++                    command = stable_client_command(image, downloads, certs[family], family,
++                                                    extracted / "site" / package["repository_path"])
++                    runner(command)
++                    downloaded = _download_receipt(downloads, family, expected)
++                    _require(downloaded["snapshot_versions"] == [expected_version], "stable downloaded target differs")
++                    installed = None
++                    if verify_installed_cli:
++                        evidence = root / ("installed-" + distribution)
++                        evidence.mkdir(mode=0o777); evidence.chmod(0o777)
++                        expected_identity = {"version": expected_version, "commit": source_sha, "build_source": "release"}
++                        runner(_installed_cli_command(image, downloads / downloaded["filename"], evidence,
++                                                      certs[family], family, expected_identity, downloaded["sha256"]))
++                        installed = _installed_cli_receipt(evidence / "installed-cli.json", expected_identity)
++                    results[family].append({"distribution": distribution, "image": image,
++                                            "bootstrap_installed": True, "download": downloaded, "installed_cli": installed})
++            _require(fetcher(origin + "/apt/dists/stable/InRelease", MAX_CONTROL_BYTES) == inrelease
++                     and fetcher(origin + mirror_path, MAX_CONTROL_BYTES) == mirror,
++                     "stable public entrypoints changed during client validation")
++        _require(_read_regular(transport_inputs, "transport inputs", MAX_CONTROL_BYTES) == input_bytes,
++                 "transport inputs changed during client validation")
++        return {"schema": STABLE_RECEIPT_SCHEMA, "channel": "stable", "test_only": test_only,
++                "base_url": origin, "expected_version": expected_version, "expected_source_sha": source_sha,
++                "expected_version_verified": True, "installed_cli_verified": verify_installed_cli,
++                "bootstrap_verified": True, "bootstrap_version": bootstrap["version"],
++                "repository_entrypoint_executed": False, "audit_release_id": identity["audit_release_id"],
++                "snapshot_sha256": candidate["snapshot_sha256"], "transport_inputs_sha256": _sha256(input_bytes),
++                "transport_plan_sha256": _sha256(_canonical_json(planned)),
++                "status_revalidated": False, "stable_entrypoints_revalidated": True,
++                "github_provenance_verified": False, "publication_verified": False,
++                "native_verifier_tools": tool_versions, **results}
++    except ClientValidationError:
++        raise
++    except (RuntimeError, ValueError, OSError, KeyError, TypeError, StopIteration, subprocess.SubprocessError) as error:
++        raise ClientValidationError("stable client verification failed: " + str(error)) from error
++
++
+ def validate_clients(
+     *,
+     site_root: Path | None,
+@@ -1433,9 +1608,23 @@ def validate_clients(
+     rpm_public_cert: Path,
+     expected_version: str | None = None,
+     verify_installed_cli: bool = False,
++    channel: str = "preview",
++    transport_inputs: Path | None = None,
++    test_only: bool = False,
++    test_product_sha: str | None = None,
+     runner: Callable[[Sequence[str]], None] = _run,
+     fetcher: Callable[[str, int], bytes] = _fetch_public_file,
+ ) -> dict[str, Any]:
++    _require(channel in {"preview", "stable"}, "unsupported client channel")
++    if channel == "stable":
++        return _validate_stable_clients(
++            site_root=site_root, snapshot_path=snapshot_path, base_url=base_url,
++            transport_inputs=transport_inputs, apt_public_cert=apt_public_cert,
++            rpm_public_cert=rpm_public_cert, expected_version=expected_version,
++            verify_installed_cli=verify_installed_cli, test_only=test_only,
++            test_product_sha=test_product_sha, runner=runner, fetcher=fetcher)
++    _require(transport_inputs is None and not test_only and test_product_sha is None,
++             "stable-only options require explicit stable mode")
+     local = site_root is not None
+     _require(local != (base_url is not None),
+              "exactly one of site root or base URL is required")
+@@ -1672,6 +1861,10 @@ def build_parser() -> argparse.ArgumentParser:
+     location.add_argument("--site-root", type=Path)
+     location.add_argument("--base-url")
+     parser.add_argument("--snapshot", type=Path)
++    parser.add_argument("--channel", choices=("preview", "stable"), default="preview")
++    parser.add_argument("--transport-inputs", type=Path)
++    parser.add_argument("--test-only", action="store_true")
++    parser.add_argument("--test-product-sha")
+     parser.add_argument("--expected-version")
+     parser.add_argument("--verify-installed-cli", action="store_true")
+     parser.add_argument("--apt-public-cert", required=True, type=Path)
+@@ -1683,6 +1876,8 @@ def main(argv: list[str] | None = None) -> int:
+     args = build_parser().parse_args(argv)
+     try:
+         receipt = validate_clients(
++            channel=args.channel, transport_inputs=args.transport_inputs,
++            test_only=args.test_only, test_product_sha=args.test_product_sha,
+             site_root=args.site_root,
+             snapshot_path=args.snapshot,
+             base_url=args.base_url,
+diff --git a/tests/native_source_metadata_drill.py b/tests/native_source_metadata_drill.py
+index 401f931..29d0fdf 100644
+--- a/tests/native_source_metadata_drill.py
++++ b/tests/native_source_metadata_drill.py
+@@ -13,6 +13,7 @@ import hashlib
+ import json
+ import os
+ import shutil
++import stat
+ import subprocess
+ import sys
+ import tempfile
+@@ -31,30 +32,75 @@ def run(command: list[str], *, environment: dict | None = None) -> str:
+     return result.stdout.strip()
+ 
+ 
++def validate_binary_payloads(binary_payloads: dict[str, Path]) -> None:
++    """Bound explicit Linux amd64 executables before creating any package input."""
++    if set(binary_payloads) != {"wukongim", "wkcli"}:
++        raise RuntimeError("binary payload names must be exactly wukongim and wkcli")
++    for path in binary_payloads.values():
++        try:
++            info = path.lstat()
++            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
++                    or not info.st_mode & 0o111 or not 64 <= info.st_size <= 256 * 1024 * 1024):
++                raise RuntimeError("binary payload must be a bounded nonlinked executable")
++            with path.open("rb") as stream:
++                header = stream.read(64)
++        except OSError:
++            raise RuntimeError("binary payload is unavailable") from None
++        if (header[:7] != b"\x7fELF\x02\x01\x01" or header[16:18] not in (b"\x02\x00", b"\x03\x00")
++                or header[18:20] != b"\x3e\x00"):
++            raise RuntimeError("binary payload must be a Linux amd64 ELF executable")
++
++
+ def build_packages(root: Path, deb_version: str, rpm_version: str,
+-                   *, epoch: int = 0) -> tuple[Path, Path]:
+-    """Build data-only fixtures; neither package contains an executable payload."""
++                   *, epoch: int = 0,
++                   binary_payloads: dict[str, Path] | None = None) -> tuple[Path, Path]:
++    """Build data-only defaults, or package explicit TEST ONLY product binaries."""
++    if binary_payloads is not None:
++        validate_binary_payloads(binary_payloads)
+     deb_root = root / "deb"
+     (deb_root / "DEBIAN").mkdir(parents=True)
+     (deb_root / "DEBIAN/control").write_text(
+         f"Package: wukongim\nVersion: {deb_version}\nArchitecture: amd64\n"
+         "Maintainer: TEST ONLY <test-only@invalid>\nDescription: TEST ONLY metadata fixture\n"
++        + ("Depends: systemd\n" if binary_payloads is not None else "")
+     )
+     data = deb_root / "usr/share/doc/wukongim/TEST-ONLY"
+     data.parent.mkdir(parents=True)
+     data.write_text("TEST ONLY, no product binary\n")
++    if binary_payloads is not None:
++        data.write_text("TEST ONLY compiled product fixture, not a release\n")
++        binaries = deb_root / "usr/bin"
++        binaries.mkdir(parents=True)
++        for name, path in binary_payloads.items():
++            shutil.copyfile(path, binaries / name)
++            (binaries / name).chmod(0o755)
+     deb = root / "fixture.deb"
+     run(["dpkg-deb", "--build", "--root-owner-group", str(deb_root), str(deb)])
+     top = root / "rpmbuild"
+     top.mkdir()
++    if binary_payloads is not None:
++        sources = top / "SOURCES"
++        sources.mkdir()
++        for name, path in binary_payloads.items():
++            shutil.copyfile(path, sources / name)
+     spec = root / "fixture.spec"
+     spec.write_text(
+         f"Name: wukongim\nVersion: {rpm_version}\nRelease: 1\nEpoch: {epoch}\n"
+         "Summary: TEST ONLY metadata fixture\nLicense: Apache-2.0\nBuildArch: x86_64\n"
+-        "%description\nTEST ONLY, no product binary.\n"
+-        "%install\nmkdir -p %{buildroot}/usr/share/doc/wukongim\n"
+-        "printf 'TEST ONLY, no product binary\\n' > %{buildroot}/usr/share/doc/wukongim/TEST-ONLY\n"
+-        "%files\n/usr/share/doc/wukongim/TEST-ONLY\n"
++        + ("Requires: systemd\n%global __os_install_post %{nil}\n%global debug_package %{nil}\n"
++           if binary_payloads is not None else "")
++        + ("%description\nTEST ONLY compiled product fixture, not a release.\n"
++           if binary_payloads is not None else "%description\nTEST ONLY, no product binary.\n")
++        + "%install\nmkdir -p %{buildroot}/usr/share/doc/wukongim\n"
++        + ("printf 'TEST ONLY compiled product fixture, not a release\\n' > %{buildroot}/usr/share/doc/wukongim/TEST-ONLY\n"
++           if binary_payloads is not None else
++           "printf 'TEST ONLY, no product binary\\n' > %{buildroot}/usr/share/doc/wukongim/TEST-ONLY\n")
++        + ("mkdir -p %{buildroot}/usr/bin\n"
++           "install -m 0755 %{_sourcedir}/wukongim %{buildroot}/usr/bin/wukongim\n"
++           "install -m 0755 %{_sourcedir}/wkcli %{buildroot}/usr/bin/wkcli\n"
++           if binary_payloads is not None else "")
++        + "%files\n/usr/share/doc/wukongim/TEST-ONLY\n"
++        + ("/usr/bin/wukongim\n/usr/bin/wkcli\n" if binary_payloads is not None else "")
+     )
+     run(["rpmbuild", "-bb", "--define", f"_topdir {top}",
+          "--define", f"_tmppath {root}", "--define", "_build_id_links none", str(spec)])
+diff --git a/tests/native_stable_candidate_drill.py b/tests/native_stable_candidate_drill.py
+index 8bfc56f..f9178da 100644
+--- a/tests/native_stable_candidate_drill.py
++++ b/tests/native_stable_candidate_drill.py
+@@ -1,9 +1,9 @@
+ #!/usr/bin/env python3
+ """TEST ONLY: compose, sign and verify an unpublished stable offline candidate.
+ 
+-Run in the existing non-root, network-disabled Linux signing image. Tiny native
+-packages contain only data. Only a bounded public JSON receipt leaves scratch;
+-ephemeral private keys, packages and candidate archives are never uploaded.
++Run in the existing non-root, network-disabled Linux signing image. The default
++drill uses tiny data-only packages and exports only a public JSON receipt. The
++explicit client fixture callable exports public A/B packages after key removal.
+ """
+ from __future__ import annotations
+ 
+@@ -180,26 +180,184 @@ def common(control: Path, source: Path) -> list[str]:
+             '--candidate-source-root', str(source), '--test-only']
+ 
+ 
+-def fixture_source(scratch: Path) -> Path:
++def fixture_source(scratch: Path, *, version: str = VERSION,
++                   binary_payloads: dict[str, Path] | None = None) -> Path:
+     fixtures = load_fixture('stable_candidate_native_packages', 'native_source_metadata_drill.py')
+     build = scratch / 'package-build'
+     build.mkdir()
+-    deb, rpm = fixtures.build_packages(build, VERSION, VERSION)
++    deb, rpm = fixtures.build_packages(build, version, version, binary_payloads=binary_payloads)
+     source = scratch / 'source'
+     assets = source / 'assets'
+     assets.mkdir(parents=True)
+     records = []
+     for extension, path in (('deb', deb), ('rpm', rpm)):
+-        name = f'wukongim_{VERSION}_linux_amd64.{extension}'
++        name = f'wukongim_{version}_linux_amd64.{extension}'
+         shutil.copyfile(path, assets / name)
+         records.append({'name': name, 'id': None, **facts(assets / name)})
+     (source / 'resolution.json').write_bytes(canonical({
+-        'schema': 'wukongim/test-source-fixture/v1', 'version': VERSION,
++        'schema': 'wukongim/test-source-fixture/v1', 'version': version,
+         'source_sha': None, 'release_id': None, 'assets': records,
+     }))
+     return source
+ 
+ 
++def export_client_generations(*, output_root: Path, binaries_root: Path,
++                              trusted_root: Path, product_source_sha: str) -> dict:
++    """Export public TEST ONLY fixtures built from explicit fixed-source binaries."""
++    require(product_source_sha == 'fc18221282f289088ec9b4282fda8e0bfc67a3b8',
++            'client fixtures require the fixed product source')
++    require(output_root.is_dir() and not output_root.is_symlink() and not any(output_root.iterdir()),
++            'client fixture output directory must exist, be nonlinked and empty')
++    require(binaries_root.is_dir() and not binaries_root.is_symlink(),
++            'client fixture binary generation root must be a nonlinked directory')
++    fixtures = load_fixture('stable_client_native_packages', 'native_source_metadata_drill.py')
++    payloads = {}
++    for version in ('3.0.0', '3.0.1'):
++        directory = binaries_root / version
++        require(directory.is_dir() and not directory.is_symlink(),
++                'client fixture binary generation is missing or linked')
++        payloads[version] = {name: directory / name for name in ('wukongim', 'wkcli')}
++        fixtures.validate_binary_payloads(payloads[version])
++    require(sys.platform.startswith('linux') and os.geteuid() != 0,
++            'client fixtures require the isolated non-root Linux container')
++    for tool in ('gpg', 'gpgconf', 'rpm', 'rpmbuild', 'rpmsign', 'rpmkeys', 'createrepo_c',
++                 'dpkg-deb', 'dpkg-scanpackages', 'apt-ftparchive'):
++        require(shutil.which(tool) is not None, 'required native client fixture tool unavailable')
++    trusted = trusted_root.resolve(strict=True)
++    manifest = json.loads((ROOT / 'manifests/trusted-toolchain.json').read_bytes())
++    builder = 'scripts/build-native-package-repositories.sh'
++    require(facts(trusted / builder)['sha256'] == manifest['files'][builder], 'trusted builder bytes differ')
++    controls = [path for directory in ('manifests', 'keys') for path in (ROOT / directory).rglob('*')
++                if path.is_file()]
++    before = {str(path.relative_to(ROOT)): facts(path) for path in controls}
++    previous_environment = dict(os.environ)
++    result = {'test_only': True, 'source_sha': product_source_sha,
++              'secret_tree_removed': False, 'generations': {}}
++    exported = []
++    try:
++        with tempfile.TemporaryDirectory(prefix='wk-cc-', dir='/tmp') as temporary:
++            scratch = Path(temporary).resolve()
++            env = {'PATH': '/usr/bin:/bin', 'HOME': str(scratch), 'LANG': 'C', 'LC_ALL': 'C', 'TZ': 'UTC'}
++            os.environ.clear(); os.environ.update(env)
++            evidence = {'cases': [], 'commands': []}
++            keys = load_fixture('stable_client_test_keys', 'test_validate_signing_material.py')
++            private = scratch / 'private-test-keys'
++            factory = keys.TestKeyFactory(private)
++            prepared = {}
++            try:
++                # Generate each family once; both controls copy the same public certificates.
++                shared_control, generated = generate_control(scratch, factory, keys)
++                for label, version, bootstrap_version in (('A', '3.0.0', '1.1.1'), ('B', '3.0.1', '1.1.2')):
++                    generation = scratch / label
++                    generation.mkdir()
++                    control = generation / 'control'
++                    shutil.copytree(shared_control, control)
++                    bootstrap_manifest = control / 'manifests/bootstrap-packages.json'
++                    bootstrap_value = json.loads(bootstrap_manifest.read_bytes())
++                    bootstrap_value['version'] = bootstrap_version
++                    bootstrap_manifest.write_bytes(canonical(bootstrap_value))
++                    source = fixture_source(generation, version=version, binary_payloads=payloads[version])
++                    shared = common(control, source)
++                    channels = control / 'manifests/channels.json'
++                    plan, inventory, bootstrap = (generation / name for name in
++                                                   ('plan.json', 'inventory.json', 'bootstrap.json'))
++                    unsigned, composed = generation / 'unsigned', generation / 'composed'
++                    planned = invoke(evidence, 'plan', cli('plan-package-publication.py', '--channels', channels,
++                                                         *shared), env)
++                    plan.write_bytes(planned.stdout)
++                    value = json.loads(planned.stdout)
++                    require(value['schema'] == 'wukongim.native_package_publication_plan/v2'
++                            and value['control_sha'] is None, 'TEST ONLY candidate plan identity differs')
++                    invoke(evidence, 'prepare', cli('prepare-package-site.py', '--channels', channels, '--plan', plan,
++                           '--source-assets', source / 'assets', '--bootstrap-manifest', bootstrap_manifest,
++                           '--apt-public-cert', control / 'keys/apt-stable.asc',
++                           '--rpm-public-cert', control / 'keys/rpm-stable.asc',
++                           '--bootstrap-builder', ROOT / 'scripts/build-repository-bootstrap-packages.py',
++                           '--builder', trusted / builder, '--output', unsigned, '--inventory', inventory,
++                           '--bootstrap-inventory', bootstrap, *shared), env)
++                    signed, receipts = {}, {}
++                    for family in ('apt', 'rpm'):
++                        key, successor = generated[family]
++                        signed[family], receipts[family] = sign_family(generation, family, key, successor,
++                                                                      control, unsigned, evidence, env)
++                    invoke(evidence, 'compose', cli('compose-package-site.py', '--channels', channels,
++                           '--signing', control / 'manifests/stable-public-keys.json',
++                           '--signing-toolchain', control / 'manifests/signing-toolchain.json', '--plan', plan,
++                           '--inventory', inventory, '--bootstrap-inventory', bootstrap,
++                           '--apt-tree', signed['apt'], '--apt-receipt', receipts['apt'],
++                           '--apt-public-cert', control / 'keys/apt-stable.asc',
++                           '--rpm-tree', signed['rpm'], '--rpm-receipt', receipts['rpm'],
++                           '--rpm-public-cert', control / 'keys/rpm-stable.asc', '--output-root', composed,
++                           *shared), env)
++                    prepared[label] = (generation, version, bootstrap_version, control, source, plan,
++                                       composed, receipts)
++            finally:
++                try:
++                    factory.close()
++                finally:
++                    if private.exists():
++                        shutil.rmtree(private)
++            require(not private.exists(), 'TEST ONLY secret cleanup failed')
++            result['secret_tree_removed'] = True
++            public = scratch / 'public'
++            public.mkdir()
++            for label, (generation, version, bootstrap_version, control, source, plan,
++                        composed, receipts) in prepared.items():
++                shared = common(control, source)
++                anchors = ['--channels', str(control / 'manifests/channels.json'),
++                           '--signing', str(control / 'manifests/stable-public-keys.json'),
++                           '--apt-public-cert', str(control / 'keys/apt-stable.asc'),
++                           '--rpm-public-cert', str(control / 'keys/rpm-stable.asc')]
++                snapshot = composed / 'audit/snapshot.json'
++                invoke(evidence, 'verify-after-secret-removal', cli('verify-production-package-site.py',
++                       '--site-root', composed / 'site', '--snapshot', snapshot, '--plan', plan,
++                       *anchors, *shared), env)
++                archive_name = f'wukongim-stable-{version}-{facts(snapshot)["sha256"]}-candidate-site.tar'
++                archive = generation / archive_name
++                receipt = generation / archive_name.replace('-site.tar', '-receipt.json')
++                invoke(evidence, 'archive-create', cli('archive-package-snapshot.py', 'create',
++                       '--source-dir', composed, '--archive', archive), env)
++                audit = [*anchors, '--signing-toolchain', str(control / 'manifests/signing-toolchain.json'),
++                         '--plan', str(plan), '--apt-receipt', str(receipts['apt']),
++                         '--rpm-receipt', str(receipts['rpm']), '--archive', str(archive), *shared]
++                invoke(evidence, 'audit-create', cli('package-audit-receipt.py', 'create', *audit,
++                       '--output', receipt), env)
++                invoke(evidence, 'audit-verify', cli('package-audit-receipt.py', 'verify', *audit,
++                       '--receipt', receipt), env)
++                destination = public / label
++                destination.mkdir()
++                paths = {'control': control, 'source': source, 'plan': plan, 'archive': archive,
++                         'receipt': receipt, 'apt_receipt': receipts['apt'], 'rpm_receipt': receipts['rpm'],
++                         'site': composed / 'site'}
++                exported_paths = {}
++                for name, path in paths.items():
++                    target = destination / path.name
++                    if path.is_dir():
++                        shutil.copytree(path, target)
++                    else:
++                        shutil.copyfile(path, target)
++                    exported_paths[name] = f'{label}/{path.name}'
++                result['generations'][label] = {**exported_paths, 'version': version,
++                                                 'bootstrap_version': bootstrap_version}
++            require(before == {str(path.relative_to(ROOT)): facts(path) for path in controls},
++                    'checked-in control changed during client fixture generation')
++            # No output crosses the public boundary until both generations validate
++            # without private material. Clean only directories created by this call.
++            for label in ('A', 'B'):
++                target = output_root / label
++                require(not target.exists(), 'client fixture export path already exists')
++                exported.append(target)
++                shutil.copytree(public / label, target)
++        return result
++    except Exception:
++        for path in exported:
++            if path.exists():
++                shutil.rmtree(path)
++        raise
++    finally:
++        os.environ.clear(); os.environ.update(previous_environment)
++
++
+ def generate_control(scratch: Path, factory, keys) -> tuple[Path, dict]:
+     control = scratch / 'control'
+     control.mkdir()
+diff --git a/tests/test_validate_production_package_clients.py b/tests/test_validate_production_package_clients.py
+index 3fc5069..80ef30d 100644
+--- a/tests/test_validate_production_package_clients.py
++++ b/tests/test_validate_production_package_clients.py
+@@ -1381,5 +1381,73 @@ class ValidateProductionPackageClientsTest(unittest.TestCase):
+         )
+ 
+ 
++class StableClientAdmissionTest(unittest.TestCase):
++    """The public CLI separates stable input from all legacy preview modes."""
++
++    def test_stable_missing_transport_is_an_admission_failure(self):
++        result = subprocess.run([
++            __import__("sys").executable, str(SCRIPT), "--channel", "stable",
++            "--base-url", "https://packages.githubim.com", "--expected-version", "3.0.0",
++            "--apt-public-cert", "/missing/apt", "--rpm-public-cert", "/missing/rpm",
++        ], capture_output=True, text=True)
++        self.assertEqual(1, result.returncode)
++        self.assertEqual("", result.stdout)
++        self.assertIn("stable requires transport inputs", result.stderr)
++        self.assertNotIn("Traceback", result.stderr)
++
++    def test_stable_rejects_wrong_scope_before_native_or_network(self):
++        bad = [
++            ([], "stable requires installed CLI acceptance"),
++            (["--expected-version", "3.0.0-rc.1"], "stable target must be strict release SemVer"),
++            (["--base-url", "https://unreviewed.example"], "stable clients require the canonical HTTPS origin"),
++            (["--snapshot", "old.json"], "stable derives its snapshot from transport inputs"),
++            (["--test-product-sha", "1" * 40], "TEST ONLY product identity requires explicit test mode"),
++            (["--test-only"], "TEST ONLY clients require the fixed fixture product SHA"),
++        ]
++        for override, reason in bad:
++            with self.subTest(reason=reason):
++                result = subprocess.run([
++                    __import__("sys").executable, str(SCRIPT), "--channel", "stable",
++                    "--transport-inputs", "/missing/transport.json",
++                    "--base-url", "https://packages.githubim.com", "--expected-version", "3.0.0",
++                    "--apt-public-cert", "/missing/apt", "--rpm-public-cert", "/missing/rpm",
++                    *override,
++                ], capture_output=True, text=True)
++                self.assertEqual(1, result.returncode)
++                self.assertIn(reason, result.stderr)
++                self.assertEqual("", result.stdout)
++                self.assertNotIn("Traceback", result.stderr)
++
++    def test_stable_download_command_preserves_checks_and_has_fixed_deadline(self):
++        with TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            certificate = root / 'public.asc'; certificate.write_text('public')
++            bootstrap = root / 'bootstrap.pkg'; bootstrap.write_text('bootstrap')
++            for family in ('apt', 'rpm'):
++                command = validator.stable_client_command('image@sha256:' + '1' * 64,
++                    root, certificate, family, bootstrap)
++                self.assertEqual(command[-7:-1], ['timeout', '--signal=TERM', '--kill-after=10s', '300s', 'bash', '-c'])
++                self.assertNotIn('preview', command[-1])
++                if family == 'rpm':
++                    self.assertIn('mirrorlist=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist', command[-1])
++                    self.assertNotIn('baseurl=', command[-1])
++                    for check in ('sslverify=1', 'gpgcheck=1', 'repo_gpgcheck=1'):
++                        self.assertIn(check, command[-1])
++
++    def test_preview_cannot_accept_test_identity_or_transport(self):
++        for extra in (["--test-only"], ["--transport-inputs", "ignored.json"],
++                      ["--test-product-sha", "1" * 40]):
++            with self.subTest(extra=extra):
++                result = subprocess.run([
++                    __import__("sys").executable, str(SCRIPT),
++                    "--base-url", "https://packages.githubim.com",
++                    "--apt-public-cert", "/missing/apt", "--rpm-public-cert", "/missing/rpm",
++                    *extra,
++                ], capture_output=True, text=True)
++                self.assertEqual(1, result.returncode)
++                self.assertIn("stable-only options require explicit stable mode", result.stderr)
++                self.assertEqual("", result.stdout)
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+new file mode 100644
+index 0000000..b309b27
+--- /dev/null
++++ b/tests/native_stable_clients_drill.py
+@@ -0,0 +1,722 @@
++#!/usr/bin/env python3
++"""TEST ONLY stable clients: signed A/B, real HTTPS, and installed product CLI.
++
++This laboratory never publishes, enables a channel, or uses production secrets.
++Only the fixture signing phase owns short-lived TEST ONLY OpenPGP keys. The
++coordinator receives public candidate exports after those keys are destroyed.
++"""
++from __future__ import annotations
++
++import argparse
++import email.utils
++import hashlib
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++import importlib.util
++import json
++import os
++from pathlib import Path, PurePosixPath
++import re
++import selectors
++import shutil
++import signal
++import ssl
++import subprocess
++import sys
++import tempfile
++import threading
++import time
++import uuid
++
++ROOT = Path(__file__).resolve().parents[1]
++PRODUCT_SHA = 'fc18221282f289088ec9b4282fda8e0bfc67a3b8'
++ORIGIN = 'https://packages.githubim.com'
++MIRROR = '/rpm/stable/el/9/x86_64/mirrorlist'
++INRELEASE = '/apt/dists/stable/InRelease'
++MAX_LOG = 8 * 1024 * 1024
++MAX_REQUESTS = 20000
++
++
++def canonical(value):
++    return json.dumps(value, sort_keys=True, separators=(',', ':')).encode() + b'\n'
++
++
++def require(condition, message):
++    if not condition:
++        raise RuntimeError(message)
++
++
++def facts(path):
++    raw = path.read_bytes()
++    return {'size': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
++
++
++def module(filename):
++    spec = importlib.util.spec_from_file_location('stable_clients_' + Path(filename).stem.replace('-', '_'), ROOT / filename)
++    value = importlib.util.module_from_spec(spec)
++    sys.modules[spec.name] = value
++    spec.loader.exec_module(value)
++    return value
++
++
++def run_command(evidence, stage, command, *, timeout=300, maximum=MAX_LOG, env=None, cwd=None):
++    """Bound public subprocess output and time while preserving its actual exit."""
++    record = {'stage': stage, 'command': list(map(str, command)), 'exit_code': None,
++              'timed_out': False, 'output_limit': False}
++    evidence['commands'].append(record)
++    process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
++                               stderr=subprocess.STDOUT, env=env, cwd=cwd, start_new_session=True)
++    output = bytearray()
++    start = time.monotonic()
++    try:
++        with selectors.DefaultSelector() as ready:
++            ready.register(process.stdout, selectors.EVENT_READ)
++            while ready.get_map():
++                if time.monotonic() - start > timeout:
++                    record['timed_out'] = True
++                    raise RuntimeError('command exceeded its bounded deadline: ' + stage)
++                for key, _ in ready.select(min(0.1, timeout)):
++                    chunk = os.read(key.fileobj.fileno(), 65536)
++                    if not chunk:
++                        ready.unregister(key.fileobj)
++                    else:
++                        if len(output) + len(chunk) > maximum:
++                            record['output_limit'] = True
++                            raise RuntimeError('command exceeded its output limit: ' + stage)
++                        output.extend(chunk)
++        process.wait(timeout=max(0.01, timeout - (time.monotonic() - start)))
++        return subprocess.CompletedProcess(command, process.returncode, bytes(output), b'')
++    finally:
++        if process.poll() is None or sys.exc_info()[0] is not None:
++            try:
++                os.killpg(process.pid, signal.SIGTERM)
++            except ProcessLookupError:
++                pass
++            try:
++                process.wait(timeout=2)
++            except subprocess.TimeoutExpired:
++                os.killpg(process.pid, signal.SIGKILL); process.wait(timeout=2)
++        process.stdout.close()
++        record.update(exit_code=process.returncode, elapsed_seconds=round(time.monotonic() - start, 3),
++                      output_size=len(output), output_sha256=hashlib.sha256(output).hexdigest(),
++                      output_tail=bytes(output[-4096:]).decode(errors='replace'))
++
++
++class RouteTable:
++    """Serve only frozen planner objects; switch after the exact response barrier."""
++    def __init__(self, root, maps):
++        self.root = root
++        self.maps = maps
++        self.serial = None
++        self.lock = threading.Lock()
++
++    def configure(self, state):
++        if self.serial != state['serial']:
++            require(state['generation'] in ('A', 'B'), 'invalid test generation')
++            self.serial = state['serial']
++            self.generation = state['generation']
++            self.mode = state['mode']
++            self.switched = False
++
++    def response(self, path, headers):
++        with self.lock:
++            parts = PurePosixPath(path).parts
++            if '?' in path or '%' in path or '..' in parts or not path.startswith('/'):
++                return 404, b'', {}
++            value = self.maps[self.generation].get(path)
++            if value is None:
++                return 404, b'', {}
++            raw = (self.root / value['file']).read_bytes()
++            result = {'Cache-Control': value.get('cache_control', 'no-store'),
++                      'ETag': '"' + hashlib.sha256(raw).hexdigest() + '"',
++                      'Last-Modified': email.utils.formatdate(1700000000 + int(hashlib.sha256(raw).hexdigest()[:6], 16), usegmt=True)}
++            if self.mode == 'redirect' and path in (INRELEASE, MIRROR):
++                return 302, b'', {'Location': 'https://forbidden.invalid/object'}
++            if self.mode == 'wrong-mirror' and path == MIRROR:
++                raw = b'https://forbidden.invalid/repodata/\n'
++            if self.mode == 'missing-byhash' and '/by-hash/SHA256/' in path:
++                return 404, b'', result
++            if self.mode == 'corrupt-byhash' and '/by-hash/SHA256/' in path:
++                raw = b'changed authenticated index\n'
++            if self.mode == 'missing-metadata' and '/repodata/' in path and not path.endswith(('repomd.xml', 'repomd.xml.asc')):
++                return 404, b'', result
++            if self.mode == 'wrong-asc' and path.endswith('/repomd.xml.asc'):
++                other = next((v for p, v in self.maps['B'].items()
++                              if p.endswith('/repomd.xml.asc') and '/r4243-' in p), None)
++                require(other is not None, 'missing B signature fault fixture')
++                raw = (self.root / other['file']).read_bytes()
++            if self.mode == 'disconnect' and path in (INRELEASE, MIRROR):
++                result['X-Test-Disconnect'] = 'true'
++            if self.mode == 'normal' and (headers.get('If-None-Match') == result['ETag']
++                    or headers.get('If-Modified-Since') == result['Last-Modified']):
++                return 304, b'', result
++            if ((self.mode in ('apt-switch', 'missing-byhash', 'corrupt-byhash') and path == INRELEASE)
++                    or (self.mode == 'rpm-switch' and path == MIRROR)) and not self.switched:
++                self.generation = 'B'
++                self.switched = True
++            return 200, raw, result
++
++
++def serve(root):
++    maps = json.loads((root / 'routes.json').read_bytes())
++    routes = RouteTable(root, maps)
++    class Handler(BaseHTTPRequestHandler):
++        def log_message(self, *_):
++            pass
++        def do_GET(self):
++            try:
++                state = json.loads((root / 'state.json').read_bytes())
++                routes.configure(state)
++                status, raw, headers = routes.response(self.path, self.headers)
++                with routes.lock:
++                    if self.server.count >= MAX_REQUESTS:
++                        raise RuntimeError('request count limit exceeded')
++                    self.server.count += 1
++                    with (root / 'requests.jsonl').open('ab') as log:
++                        log.write(canonical({'serial': state['serial'], 'mode': state['mode'], 'path': self.path, 'status': status,
++                            'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw),
++                            'if_none_match': self.headers.get('If-None-Match'),
++                            'if_modified_since': self.headers.get('If-Modified-Since'),
++                            'cache_control': headers.get('Cache-Control'), 'etag': headers.get('ETag')}))
++                self.send_response(status)
++                for key, value in headers.items():
++                    if not key.startswith('X-Test-'):
++                        self.send_header(key, value)
++                self.send_header('Content-Length', str(len(raw) + (7 if 'X-Test-Disconnect' in headers else 0)))
++                self.end_headers()
++                self.wfile.write(raw)
++                if 'X-Test-Disconnect' in headers:
++                    self.close_connection = True
++            except (BrokenPipeError, ConnectionResetError):
++                pass
++            except Exception:
++                (root / 'server-error').write_text('bounded HTTPS handler failed\n')
++                self.close_connection = True
++    server = ThreadingHTTPServer(('0.0.0.0', 443), Handler)
++    server.count = 0
++    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++    context.load_cert_chain(root / 'tls.crt', root / 'tls.key')
++    wrong_name = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++    wrong_name.load_cert_chain(root / 'wrong-name.crt', root / 'wrong-name.key')
++    def select_certificate(connection, hostname, initial):
++        if json.loads((root / 'state.json').read_bytes())['mode'] == 'wrong-san':
++            connection.context = wrong_name
++    context.set_servername_callback(select_certificate)
++    server.socket = context.wrap_socket(server.socket, server_side=True)
++    try:
++        server.serve_forever()
++    finally:
++        server.server_close()
++
++
++class OwnedDocker:
++    """Track only resources created with this run's unpredictable ownership label."""
++    def __init__(self, label, run=subprocess.run):
++        self.label = label
++        self.run = run
++        self.containers = set()
++        self.network = None
++        self.cleanup_receipt = None
++
++    def cleanup(self):
++        if self.cleanup_receipt is not None:
++            return self.cleanup_receipt
++        errors = []
++        for identifier in sorted(self.containers):
++            try:
++                result = self.run(['docker', 'rm', '--force', identifier], capture_output=True, timeout=20)
++                # A --rm client may already have gone away. Enumerate the exact
++                # ownership label below to distinguish that from real residue.
++                if result.returncode and b'No such container' not in result.stderr:
++                    errors.append('container removal failed')
++            except (OSError, subprocess.SubprocessError):
++                errors.append('container cleanup unavailable')
++        if self.network:
++            try:
++                result = self.run(['docker', 'network', 'rm', self.network], capture_output=True, timeout=20)
++                if result.returncode:
++                    errors.append('network removal failed')
++            except (OSError, subprocess.SubprocessError):
++                errors.append('network cleanup unavailable')
++        remaining = {'containers': [], 'networks': []}
++        # Never list or remove other tasks' resources. If no resources were
++        # attempted, even a missing Docker executable needs no inspection.
++        if self.containers or self.network:
++            for kind, command in [('containers', ['docker', 'ps', '-aq']),
++                                  ('networks', ['docker', 'network', 'ls', '-q'])]:
++                try:
++                    result = self.run([*command, '--filter', 'label=wk-stable-client-run=' + self.label],
++                                      capture_output=True, timeout=20)
++                    if result.returncode:
++                        errors.append(kind + ' inspection failed')
++                    else:
++                        remaining[kind] = result.stdout.decode().split()
++                except (OSError, subprocess.SubprocessError):
++                    errors.append(kind + ' inspection unavailable')
++        self.cleanup_receipt = {'verified': not errors and not any(remaining.values()),
++                                'remaining': remaining, 'errors': errors}
++        return self.cleanup_receipt
++
++
++def build_product(args, scratch, evidence):
++    require(args.product_root is not None and args.product_root.is_dir(), 'fixed product checkout is required')
++    def checked(stage, command, **kwargs):
++        result = run_command(evidence, stage, command, **kwargs)
++        require(result.returncode == 0, 'product fixture command failed: ' + stage)
++        return result.stdout.decode().strip()
++    sha = checked('product-commit', ['git', '-C', str(args.product_root), 'rev-parse', 'HEAD'])
++    require(sha == PRODUCT_SHA, 'product checkout differs from fixed source')
++    require(not checked('product-clean', ['git', '-C', str(args.product_root), 'status', '--porcelain']),
++            'product checkout must be clean')
++    tree = checked('product-tree', ['git', '-C', str(args.product_root), 'rev-parse', 'HEAD^{tree}'])
++    version = checked('go-version', ['go', 'version'])
++    require('go1.25.11 ' in version, 'fixed Go 1.25.11 toolchain is required')
++    binaries = scratch / 'binaries'; binaries.mkdir()
++    env = {**os.environ, 'GOWORK': 'off', 'CGO_ENABLED': '0', 'GOOS': 'linux', 'GOARCH': 'amd64', 'GOFLAGS': '-p=2 -mod=readonly'}
++    receipts = {}
++    for release in ('3.0.0', '3.0.1'):
++        directory = binaries / release; directory.mkdir()
++        for name in ('wukongim', 'wkcli'):
++            path = directory / name
++            flags = f'-s -w -X main.buildVersion={release} -X main.buildCommit={PRODUCT_SHA} -X main.buildSource=release'
++            checked('build-' + release + '-' + name,
++                    ['go', 'build', '-trimpath', '-ldflags', flags, '-o', str(path), './cmd/' + name],
++                    cwd=args.product_root, env=env, timeout=900)
++            receipts[release + '/' + name] = {**facts(path), 'go_version_m': checked(
++                'build-info-' + release + '-' + name, ['go', 'version', '-m', str(path)])}
++    require(receipts['3.0.0/wukongim']['sha256'] != receipts['3.0.1/wukongim']['sha256']
++            and receipts['3.0.0/wkcli']['sha256'] != receipts['3.0.1/wkcli']['sha256'], 'A/B product bytes must differ')
++    require(not checked('product-still-clean', ['git', '-C', str(args.product_root), 'status', '--porcelain']),
++            'product build changed its source checkout')
++    evidence['product_build'] = {'source_sha': sha, 'tree': tree, 'go_version': version,
++                                 'test_only_versions': True, 'binaries': receipts}
++    return binaries
++
++
++def seal_generations(exports, fixtures, scratch, evidence):
++    """Exercise existing writers only against the explicit loopback API substitute."""
++    sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / 'tests'))
++    from stable_audit_fixture import AuditState, serve_audit
++    from test_plan_object_storage_publication import InputSnapshot
++    preview = InputSnapshot(scratch / 'preview-structural')
++    descriptors = {}
++    for label, release_id in (('A', 4242), ('B', 4243)):
++        entry = exports['generations'][label]
++        paths = {key: fixtures / entry[key] for key in
++                 ('control', 'source', 'plan', 'archive', 'receipt', 'apt_receipt', 'rpm_receipt', 'site')}
++        state = AuditState(release_id=release_id)
++        def invoke(filename, args):
++            result = run_command(evidence, label + '-' + filename,
++                                 [sys.executable, '-B', str(ROOT / 'scripts' / filename), *map(str, args)],
++                                 env={**os.environ, 'WK_TEST_AUDIT_TOKEN': 'TEST ONLY loopback token'})
++            require(result.returncode == 0, 'TEST ONLY seal operation failed: ' + filename)
++            return json.loads(result.stdout)
++        with serve_audit(state) as base:
++            common = ['--channel', 'stable', '--test-only', '--release-id', release_id,
++                      '--expected-control-sha', 'a' * 40, '--api-base-url', base,
++                      '--token-env', 'WK_TEST_AUDIT_TOKEN', '--candidate-plan', paths['plan']]
++            invoke('bind-audit-release.py', [*common, '--expected-previous-control-sha', 'a' * 40,
++                                           '--control-root', paths['control']])
++            invoke('seal-audit-release.py', [*common, '--download-base-url', base,
++                '--archive', paths['archive'], '--receipt', paths['receipt'], '--control-root', paths['control'],
++                '--candidate-source-root', paths['source'], '--apt-receipt', paths['apt_receipt'],
++                '--rpm-receipt', paths['rpm_receipt']])
++            resolution = invoke('resolve-audit-release.py', [*common, '--download-base-url', base,
++                '--candidate-receipt', paths['receipt'], '--output-dir', scratch / ('resolved-' + label),
++                '--expected-tag-state', 'exact'])
++        resolution_path = scratch / ('resolution-' + label + '.json')
++        resolution_path.write_bytes(canonical(resolution))
++        descriptors[label] = {'channel': 'stable', 'audit_release_id': release_id, 'seal_control_sha': 'a' * 40,
++            'candidate': resolution['candidate'], 'resolution': str(resolution_path),
++            'resolution_sha256': facts(resolution_path)['sha256'],
++            **{name: str(paths[name]) for name in ('archive', 'receipt', 'plan', 'apt_receipt', 'rpm_receipt')},
++            'control_dir': str(paths['control']), 'source_dir': str(paths['source'])}
++    require(descriptors['A']['candidate']['archive']['sha256'] != descriptors['B']['candidate']['archive']['sha256'],
++            'A/B must be different signed candidate archives')
++    planner = module('scripts/plan-object-storage-publication.py')
++    plans = {}; inputs = {}
++    for label, other in (('A', 'B'), ('B', 'A')):
++        path = scratch / ('inputs-' + label + '.json')
++        path.write_bytes(canonical({'schema': 'wukongim.object_storage_plan_inputs/v2', 'channel': 'composite',
++            'test_only': True, 'current': {'preview': {'channel': 'preview', 'snapshot': preview.descriptor()},
++                                        'stable': descriptors[label]}, 'retain': [descriptors[other]]}))
++        inputs[label] = path
++        plans[label] = planner.make_composite_plan(path, True)
++    return descriptors, plans, inputs, preview
++
++
++def materialize_routes(plans, descriptors, preview, root):
++    """Copy only actual checked archive members into a content-addressed HTTPS fixture."""
++    archive_module = module('scripts/archive-package-snapshot.py')
++    sources = {10: preview.archive, **{value['audit_release_id']: Path(value['archive']) for value in descriptors.values()}}
++    extracts = root / 'extracted'; extracts.mkdir()
++    for release_id, archive in sources.items():
++        archive_module.extract_snapshot(archive_path=archive, output_dir=extracts / str(release_id),
++            max_members=archive_module.DEFAULT_MAX_MEMBERS, max_total_size=2 * 1024 * 1024 * 1024)
++    objects = root / 'objects'; objects.mkdir()
++    routes = {}
++    for label, plan in plans.items():
++        mapping = {}; by_key = {}
++        def copy(raw, item):
++            require(len(raw) == item['size'] and hashlib.sha256(raw).hexdigest() == item['sha256'],
++                    'fixture object differs from verified plan')
++            destination = objects / item['sha256']
++            if not destination.exists(): destination.write_bytes(raw)
++            value = {'file': str(destination.relative_to(root)), 'cache_control': item['cache_control']}
++            by_key[item['object_key']] = value
++            return value
++        for item in plan['snapshot_objects']:
++            source = item['source']
++            value = copy((extracts / str(source['audit_release_id']) / source['member']).read_bytes(), item)
++            mapping['/' + item['object_key']] = value
++        for item in plan['generated_objects']:
++            copy(item['content_utf8'].encode(), item)
++        for item in plan['immutable_aliases']:
++            source = item['source']
++            mapping[item['public_uri']] = copy(
++                (extracts / str(source['audit_release_id']) / source['member']).read_bytes(), item)
++        for item in plan['entrypoints']:
++            mapping[item['public_uri']] = by_key[item['object_key']]
++        routes[label] = mapping
++    (root / 'routes.json').write_bytes(canonical(routes))
++    shutil.rmtree(extracts)
++    return routes
++
++
++def exercise(args, evidence, owned):
++    require(sys.platform == 'linux', 'native stable clients require a Linux Docker host')
++    require(args.trusted_root is not None and args.trusted_root.is_dir(), 'trusted repository tools are required')
++    for tool in ('docker', 'git', 'go', 'openssl', 'gpg', 'gpgv', 'rpm', 'rpmkeys', 'dpkg-deb', 'zstd'):
++        require(shutil.which(tool), 'required native tool unavailable: ' + tool)
++    validator = module('scripts/validate-production-package-clients.py')
++    toolchain = json.loads((ROOT / 'manifests/signing-toolchain.json').read_bytes())
++    image = toolchain['image'] + '@' + toolchain['digest']
++    evidence['images'] = [image, *[item[1] for item in validator.APT_CLIENTS + validator.RPM_CLIENTS]]
++    def checked(stage, command, **kwargs):
++        result = run_command(evidence, stage, command, **kwargs)
++        require(result.returncode == 0, 'native stage failed: ' + stage)
++        return result.stdout
++    evidence['control'] = {'checkout_sha': checked('control-head', ['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip(),
++                           'tree': checked('control-tree', ['git', '-C', str(ROOT), 'rev-parse', 'HEAD^{tree}']).decode().strip()}
++    for item in evidence['images']:
++        checked('image-present', ['docker', 'image', 'inspect', item], maximum=1024 * 1024)
++    evidence['host_tools'] = {}
++    for tool in ('gpg', 'gpgv', 'rpm', 'rpmkeys', 'dpkg-deb', 'zstd'):
++        evidence['host_tools'][tool] = checked('version-' + tool, [tool, '--version']).decode()[:4096]
++    with tempfile.TemporaryDirectory(prefix='wk-scl-', dir='/tmp') as temporary:
++        try:
++            scratch = Path(temporary)
++            binaries = build_product(args, scratch, evidence)
++            fixtures = scratch / 'fixtures'; fixtures.mkdir(mode=0o777); fixtures.chmod(0o777)
++            serial = 0
++            def create(command):
++                nonlocal serial
++                require(command[:2] == ['docker', 'run'], 'only explicit Docker run commands are accepted')
++                serial += 1
++                tokens = [token for token in command[2:] if token != '--rm']
++                create_command = ['docker', 'create', '--name', 'wk-scl-' + owned.label + '-' + str(serial),
++                                  '--label', 'wk-stable-client-run=' + owned.label, *tokens]
++                identifier = checked('create-container', create_command).decode().strip()
++                require(re.fullmatch('[0-9a-f]{64}', identifier), 'Docker returned invalid container identity')
++                owned.containers.add(identifier)
++                return identifier
++            fixture_id = create(['docker', 'run', '--platform', 'linux/amd64', '--network', 'none', '--read-only',
++                '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--user', '65532:65532',
++                '--cpus', '2', '--memory', '4g', '--pids-limit', '256',
++                '--tmpfs', '/tmp:rw,nosuid,nodev,size=2147483648',
++                '--volume', str(ROOT) + ':/control:ro', '--volume', str(binaries) + ':/binaries:ro',
++                '--volume', str(args.trusted_root.resolve()) + ':/trusted:ro',
++                '--volume', str(fixtures) + ':/public', image, 'python3', '-B',
++                '/control/tests/native_stable_clients_drill.py', '--export-fixtures', '/public',
++                '--binary-root', '/binaries', '--trusted-root', '/trusted'])
++            checked('export-public-fixtures', ['docker', 'start', '--attach', fixture_id], timeout=900)
++            exports = json.loads((fixtures / 'export.json').read_bytes())
++            require(exports['secret_tree_removed'] is True and exports['source_sha'] == PRODUCT_SHA,
++                    'public export lacks secret-removal or source evidence')
++            evidence['fixture'] = exports
++            descriptors, plans, inputs, preview = seal_generations(exports, fixtures, scratch, evidence)
++            public = scratch / 'https'; public.mkdir(mode=0o777); public.chmod(0o777)
++            routes = materialize_routes(plans, descriptors, preview, public)
++            for common_key in ('apt', 'rpm'):
++                a = fixtures / exports['generations']['A']['control'] / ('keys/' + common_key + '-stable.asc')
++                b = fixtures / exports['generations']['B']['control'] / ('keys/' + common_key + '-stable.asc')
++                require(a.read_bytes() == b.read_bytes(), 'A/B must share the same TEST ONLY public certificates')
++            checked('test-TLS-certificate', ['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
++                '-keyout', str(public / 'tls.key'), '-out', str(public / 'tls.crt'), '-days', '1',
++                '-subj', '/CN=packages.githubim.com', '-addext', 'subjectAltName=DNS:packages.githubim.com'])
++            (public / 'tls.key').chmod(0o644)
++            # This ephemeral CA is unrelated to production signing keys and is never archived.
++            checked('wrong-test-CA', ['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
++                '-keyout', str(public / 'wrong.key'), '-out', str(public / 'wrong.crt'), '-days', '1',
++                '-subj', '/CN=untrusted.invalid'])
++            checked('wrong-name-request', ['openssl', 'req', '-new', '-newkey', 'rsa:2048', '-nodes',
++                '-keyout', str(public / 'wrong-name.key'), '-out', str(public / 'wrong-name.csr'),
++                '-subj', '/CN=wrong-name.invalid'])
++            (public / 'wrong-name.ext').write_text('subjectAltName=DNS:wrong-name.invalid\n')
++            checked('wrong-name-certificate', ['openssl', 'x509', '-req', '-in', str(public / 'wrong-name.csr'),
++                '-CA', str(public / 'tls.crt'), '-CAkey', str(public / 'tls.key'), '-set_serial', '2',
++                '-out', str(public / 'wrong-name.crt'), '-days', '1', '-extfile', str(public / 'wrong-name.ext')])
++            (public / 'wrong-name.key').chmod(0o644)
++            network = checked('create-private-network', ['docker', 'network', 'create', '--internal',
++                '--label', 'wk-stable-client-run=' + owned.label, 'wk-scl-' + owned.label]).decode().strip()
++            require(re.fullmatch('[0-9a-f]{64}', network), 'invalid created network identity')
++            owned.network = network
++            state_serial = 0
++            def configure(generation, mode='normal'):
++                nonlocal state_serial
++                state_serial += 1
++                path = public / 'next-state.json'
++                path.write_bytes(canonical({'serial': state_serial, 'generation': generation, 'mode': mode}))
++                path.replace(public / 'state.json')
++                return state_serial
++            configure('A')
++            server = create(['docker', 'run', '--platform', 'linux/amd64', '--network', network,
++                '--network-alias', 'packages.githubim.com', '--read-only', '--cap-drop', 'ALL',
++                '--security-opt', 'no-new-privileges', '--user', '65532:65532',
++                '--sysctl', 'net.ipv4.ip_unprivileged_port_start=0', '--pids-limit', '64', '--memory', '256m',
++                '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m', '--volume', str(ROOT) + ':/control:ro',
++                '--volume', str(public) + ':/public:rw', image, 'python3', '-B',
++                '/control/tests/native_stable_clients_drill.py', '--serve', '/public'])
++            checked('start-private-HTTPS', ['docker', 'start', server])
++            # Bounded readiness is not a test rerun. No externally reachable port is published.
++            checked('private-HTTPS-ready', ['docker', 'exec', server, 'python3', '-c',
++                'import socket,time\n'
++                'for n in range(100):\n'
++                ' try:\n  s=socket.create_connection(("127.0.0.1",443),.1);s.close();break\n'
++                ' except OSError: time.sleep(.1)\n'
++                'else: raise SystemExit("HTTPS readiness deadline")'], timeout=15)
++            def requests(number):
++                require(not (public / 'server-error').exists(), 'HTTPS server reported a handler failure')
++                path = public / 'requests.jsonl'
++                require(path.exists() and path.stat().st_size <= MAX_LOG, 'missing or oversized HTTP request evidence')
++                return [json.loads(line) for line in path.read_bytes().splitlines() if json.loads(line)['serial'] == number]
++            def fetch(url, maximum):
++                require(url.startswith(ORIGIN + '/'), 'TEST ONLY fetch escaped the fixed HTTPS origin')
++                code = ('import ssl,urllib.request,sys\n'
++                    'class NoRedirect(urllib.request.HTTPRedirectHandler):\n'
++                    ' def redirect_request(self,*args): return None\n'
++                    'op=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),'
++                    'urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile="/public/tls.crt")))\n'
++                    'with op.open(sys.argv[1],timeout=20) as r:\n'
++                    ' b=r.read(int(sys.argv[2])+1)\n'
++                    ' if len(b)>int(sys.argv[2]): raise SystemExit("response bound")\n'
++                    ' sys.stdout.buffer.write(b)')
++                return checked('HTTPS-fetch', ['docker', 'exec', server, 'python3', '-c', code, url, str(maximum)],
++                               maximum=maximum, timeout=30)
++            def client(command, *, cache=None, wrong_ca=False, allow_failure=False):
++                installed = any('/acceptance.py:ro' in token for token in command)
++                command = list(command)
++                if not installed:
++                    for index, token in enumerate(command):
++                        if token.endswith(':' + validator.APT_CA_BUNDLE_PATH + ':ro'):
++                            command[index] = str(public / ('wrong.crt' if wrong_ca else 'tls.crt')) + token[token.index(':'):]
++                    additions = ['--network', network, '--volume', str(public / ('wrong.crt' if wrong_ca else 'tls.crt')) + ':/test/ca.crt:ro',
++                                 '--env', 'WK_TEST_ONLY_CLIENT=true', '--env', 'WK_TEST_CA_BUNDLE=/test/ca.crt']
++                    if cache is not None:
++                        cache.mkdir(exist_ok=True); cache.chmod(0o777)
++                        apt = 'WK_REPOSITORY_URL=https://packages.githubim.com/apt' in command
++                        mounts = [('apt', '/var/lib/apt'), ('apt-cache', '/var/cache/apt')] if apt else [('dnf-cache', '/tmp/dnf-cache'), ('dnf-state', '/tmp/dnf-state')]
++                        for name, destination in mounts:
++                            directory = cache / name; directory.mkdir(exist_ok=True); directory.chmod(0o777)
++                            # Replace an existing tmpfs at this exact destination.
++                            index = 0
++                            while index < len(command) - 1:
++                                if command[index] == '--tmpfs' and command[index + 1].startswith(destination + ':'):
++                                    del command[index:index+2]
++                                else: index += 1
++                            additions += ['--volume', str(directory) + ':' + destination + ':rw']
++                    command[2:2] = additions
++                identifier = create(command)
++                result = run_command(evidence, 'installed-client' if installed else 'download-client',
++                                     ['docker', 'start', '--attach', identifier], timeout=650 if installed else 330)
++                if result.returncode and not allow_failure:
++                    raise RuntimeError('real installed client failed' if installed else 'real download client failed')
++                return result
++            def record(name, callback, *, negative=False):
++                item = {'case': name, 'passed': False, 'expected_rejection': negative}
++                evidence['cases'].append(item); evidence['phase'] = name
++                value = callback()
++                item['passed'] = True
++                if value is not None: item['result'] = value
++            for generation in ('A', 'B'):
++                configure(generation)
++                entry = exports['generations'][generation]
++                control = fixtures / entry['control']
++                def baseline():
++                    value = validator.validate_clients(site_root=None, snapshot_path=None, base_url=ORIGIN,
++                        apt_public_cert=control / 'keys/apt-stable.asc', rpm_public_cert=control / 'keys/rpm-stable.asc',
++                        expected_version=entry['version'], verify_installed_cli=True, channel='stable',
++                        transport_inputs=inputs[generation], test_only=True, test_product_sha=PRODUCT_SHA,
++                        runner=client, fetcher=fetch)
++                    path = args.output_dir / ('clients-' + generation + '.json')
++                    path.write_bytes(canonical(value))
++                    return facts(path)
++                record('baseline-' + generation + '-four-download-and-installed-cli', baseline)
++            # Direct download cases validate consistency of a retained A. They never
++            # claim the production exact-B / installed-CLI gate passed for those bytes.
++            for family, clients in (('apt', validator.APT_CLIENTS), ('rpm', validator.RPM_CLIENTS)):
++                for distribution, client_image in clients:
++                    cache = scratch / ('cache-' + distribution)
++                    def download(generation, mode, *, expected_failure=False, wrong_ca=False, persisted=False):
++                        number = configure(generation, mode)
++                        entry = exports['generations'][generation]
++                        site = fixtures / entry['site']
++                        bootstrap = json.loads((site / 'bootstrap/manifest.json').read_bytes())['packages'][family]
++                        directory = scratch / ('download-' + distribution + '-' + str(number)); directory.mkdir(mode=0o777); directory.chmod(0o777)
++                        cert = fixtures / entry['control'] / ('keys/' + family + '-stable.asc')
++                        command = validator.stable_client_command(client_image, directory, cert, family,
++                                                                  site / bootstrap['repository_path'])
++                        result = client(command, cache=cache if persisted else None, wrong_ca=wrong_ca, allow_failure=expected_failure)
++                        if expected_failure:
++                            text = result.stdout.decode(errors='replace')
++                            require(result.returncode not in (0, 124, 125, 126, 127, 137, 143), 'fault did not produce a package-client rejection')
++                            require(not re.search(r'Traceback|command not found|Usage:', text), 'fault failed at the harness layer')
++                            require(re.search(r'(?i)certificate|SSL|checksum|hash sum|unexpected size|signature|GPG|404|failed to (fetch|download)|cannot (download|prepare)|curl error|transfer|connection|could not resolve', text),
++                                    'fault lacks an authentication or transport diagnostic')
++                            if not wrong_ca and mode != 'wrong-san':
++                                require(requests(number), 'fault did not reach the HTTPS fixture')
++                            return {'exit_code': result.returncode, 'request_serial': number, 'fault': mode,
++                                    'output_sha256': hashlib.sha256(result.stdout).hexdigest()}
++                        require(result.returncode == 0, 'download client failed')
++                        # Indexed payload expected bytes come directly from the exact
++                        # candidate source/signing site, not from what was downloaded.
++                        pattern = '*.deb' if family == 'apt' else '*.rpm'
++                        product_files = [p for p in site.rglob(pattern) if p.name.startswith('wukongim_') or p.name.startswith('wukongim-3.')]
++                        hashes = {facts(p)['sha256'] for p in product_files}
++                        require(len(hashes) == 1, 'candidate product package identity is ambiguous')
++                        value = validator._download_receipt(directory, family, {next(iter(hashes)): [entry['version']]})
++                        observed = requests(number)
++                        if family == 'apt':
++                            require(any('/by-hash/SHA256/' in item['path'] and item['status'] == 200 for item in observed)
++                                    or persisted, 'native APT did not use authenticated by-hash')
++                        else:
++                            prefix = '/snapshots/stable/r' + str(descriptors[generation]['audit_release_id']) + '-'
++                            require(any(item['path'] == MIRROR for item in observed), 'native DNF did not request mirrorlist')
++                            metadata = [item['path'] for item in observed if '/repodata/' in item['path'] or '/Packages/' in item['path']]
++                            require(metadata and all(path.startswith(prefix) for path in metadata), 'DNF escaped its selected immutable snapshot')
++                        if mode.endswith('-switch'):
++                            expected_barrier = INRELEASE if family == 'apt' else MIRROR
++                            require(any(item['path'] == expected_barrier for item in observed), 'missing exact switch request barrier')
++                        return {'download': value, 'requests': observed}
++                    record(distribution + '-A-to-B-request-barrier', lambda: download('A', family + '-switch'))
++                    record(distribution + '-cache-A-first', lambda: download('A', 'normal', persisted=True))
++                    record(distribution + '-cache-A-repeat', lambda: download('A', 'normal', persisted=True))
++                    record(distribution + '-cache-B-target', lambda: download('B', 'normal', persisted=True))
++                    modes = ('missing-byhash', 'corrupt-byhash') if family == 'apt' else ('missing-metadata', 'wrong-asc', 'wrong-mirror')
++                    for mode in (*modes, 'redirect', 'disconnect'):
++                        record(distribution + '-reject-' + mode, lambda mode=mode: download('A', mode, expected_failure=True), negative=True)
++                    record(distribution + '-reject-untrusted-TLS', lambda: download('A', 'normal', expected_failure=True, wrong_ca=True), negative=True)
++                    record(distribution + '-reject-wrong-SAN', lambda: download('A', 'wrong-san', expected_failure=True), negative=True)
++            def conditional_cache():
++                # This is a real TLS cache probe, distinct from the package-client
++                # persistent-cache cases whose own conditional requests are logged.
++                code = ('import json,ssl,urllib.request,urllib.error,sys\n'
++                    'class NoRedirect(urllib.request.HTTPRedirectHandler):\n'
++                    ' def redirect_request(self,*args): return None\n'
++                    'op=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),'
++                    'urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile="/public/tls.crt")))\n'
++                    'h={} if len(sys.argv)<2 else {"If-None-Match":sys.argv[1]}\n'
++                    'try:\n'
++                    ' with op.open(urllib.request.Request("https://packages.githubim.com/apt/dists/stable/InRelease",headers=h),timeout=10) as r:\n'
++                    '  print(json.dumps({"status":r.status,"etag":r.headers["ETag"]}))\n'
++                    'except urllib.error.HTTPError as e:\n'
++                    ' if e.code!=304: raise\n'
++                    ' print(json.dumps({"status":304,"etag":e.headers["ETag"]}))')
++                configure('A')
++                def get(tag=None):
++                    command = ['docker', 'exec', server, 'python3', '-c', code]
++                    if tag is not None: command.append(tag)
++                    return json.loads(checked('TLS-conditional-cache', command))
++                initial = get(); cached = get(initial['etag'])
++                configure('B'); changed = get(initial['etag'])
++                require(initial['status'] == 200 and cached['status'] == 304 and changed['status'] == 200
++                        and changed['etag'] != initial['etag'], 'conditional HTTPS cache mixed generation identity')
++                return {'actor': 'TLS cache probe', 'initial': initial, 'cached': cached, 'changed': changed}
++            record('conditional-304-and-changed-generation', conditional_cache)
++            configure('A')
++            def exact_target():
++                entry = exports['generations']['B']; control = fixtures / entry['control']
++                try:
++                    validator.validate_clients(site_root=None, snapshot_path=None, base_url=ORIGIN,
++                        apt_public_cert=control / 'keys/apt-stable.asc', rpm_public_cert=control / 'keys/rpm-stable.asc',
++                        expected_version=entry['version'], verify_installed_cli=True, channel='stable',
++                        transport_inputs=inputs['B'], test_only=True, test_product_sha=PRODUCT_SHA, runner=client, fetcher=fetch)
++                except validator.ClientValidationError as error:
++                    require('stable public InRelease differs from exact target' in str(error), 'wrong exact-target rejection')
++                    return {'reason': str(error)}
++                raise RuntimeError('old A incorrectly passed exact B publication target')
++            record('reject-exact-B-target-with-A-entrypoint', exact_target, negative=True)
++            # Actual installed acceptance must also reject a wrong expected commit.
++            entry = exports['generations']['A']; site = fixtures / entry['site']
++            package = next(p for p in site.rglob('*.deb') if p.name.startswith('wukongim_'))
++            cli_output = scratch / 'wrong-commit'; cli_output.mkdir(mode=0o777); cli_output.chmod(0o777)
++            def wrong_commit():
++                result = client(validator._installed_cli_command(validator.APT_CLIENTS[0][1], package, cli_output,
++                    fixtures / entry['control'] / 'keys/apt-stable.asc', 'apt',
++                    {'version': '3.0.0', 'commit': '0' * 40, 'build_source': 'release'}, facts(package)['sha256']), allow_failure=True)
++                require(result.returncode == 1 and b'identity' in result.stdout.lower(), 'wrong commit failed outside installed identity check')
++                return {'exit_code': result.returncode, 'output_sha256': hashlib.sha256(result.stdout).hexdigest()}
++            record('reject-actual-installed-source-SHA', wrong_commit, negative=True)
++            require(not (public / 'server-error').exists(), 'HTTPS fixture had an internal error')
++            shutil.copyfile(public / 'requests.jsonl', args.output_dir / 'https-requests.jsonl')
++            evidence['a_b'] = {'different_archives': True, 'shared_test_public_keys': True,
++                               'bootstrap_versions': ['1.1.1', '1.1.2'], 'network_internal': True,
++                               'installed_dependencies_use_normal_network': True, 'no_global_atomicity_claim': True}
++            evidence['transport'] = {label: {'inputs': facts(inputs[label]), 'plan_sha256': hashlib.sha256(canonical(plans[label])).hexdigest(),
++                                            'candidate': descriptors[label]['candidate']} for label in ('A', 'B')}
++        finally:
++            # Stop owned readers before copying their final log or dropping scratch.
++            evidence['cleanup'] = owned.cleanup()
++            request_log = Path(temporary) / 'https/requests.jsonl'
++            if request_log.is_file():
++                if request_log.stat().st_size <= MAX_LOG:
++                    shutil.copyfile(request_log, args.output_dir / 'https-requests.jsonl')
++                else:
++                    evidence['request_log_error'] = 'request log limit exceeded'
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--serve', type=Path, help=argparse.SUPPRESS)
++    parser.add_argument('--export-fixtures', type=Path, help=argparse.SUPPRESS)
++    parser.add_argument('--binary-root', type=Path, help=argparse.SUPPRESS)
++    parser.add_argument('--output-dir', type=Path)
++    parser.add_argument('--product-root', type=Path)
++    parser.add_argument('--product-sha', default=PRODUCT_SHA)
++    parser.add_argument('--trusted-root', type=Path)
++    args = parser.parse_args(argv)
++    if args.serve:
++        serve(args.serve); return 0
++    if args.export_fixtures:
++        value = module('tests/native_stable_candidate_drill.py').export_client_generations(
++            output_root=args.export_fixtures, binaries_root=args.binary_root,
++            trusted_root=args.trusted_root, product_source_sha=args.product_sha)
++        (args.export_fixtures / 'export.json').write_bytes(canonical(value)); return 0
++    require(args.output_dir is not None and args.output_dir.is_dir()
++            and not args.output_dir.is_symlink() and not any(args.output_dir.iterdir()),
++            'output directory must exist, be nonlinked and empty')
++    evidence = {'schema': 'wukongim/test-only-stable-clients/v1', 'test_only': True,
++                'passed': False, 'published': False, 'public_origin_verified': False,
++                'source_provenance_verified': False, 'cases': [], 'commands': []}
++    owned = OwnedDocker(uuid.uuid4().hex)
++    previous = {}
++    try:
++        require(args.product_sha == PRODUCT_SHA, 'fixed product source SHA is required')
++        for sig in (signal.SIGTERM, signal.SIGINT):
++            previous[sig] = signal.signal(sig, lambda signum, _: (_ for _ in ()).throw(RuntimeError('interrupted')))
++        exercise(args, evidence, owned)
++        require(len(evidence['cases']) == 47 and all(item['passed'] for item in evidence['cases']),
++                'native case inventory is incomplete')
++        evidence['passed'] = True
++    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
++        evidence['failure'] = str(error)[:1024]
++    finally:
++        evidence['cleanup'] = owned.cleanup()
++        evidence['passed'] = evidence['passed'] and evidence['cleanup']['verified']
++        for sig, handler in previous.items():
++            signal.signal(sig, handler)
++        (args.output_dir / 'native-stable-clients.json').write_bytes(canonical(evidence))
++    return 0 if evidence['passed'] else 1
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+new file mode 100644
+index 0000000..6cbf5e7
+--- /dev/null
++++ b/tests/test_native_stable_clients_drill.py
+@@ -0,0 +1,247 @@
++"""Lightweight boundaries for the opt-in native stable client laboratory."""
++import importlib.util
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[1]
++SCRIPT = ROOT / 'tests/native_stable_clients_drill.py'
++
++
++def load():
++    spec = importlib.util.spec_from_file_location('native_stable_clients_test', SCRIPT)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++class NativeStableClientsTests(unittest.TestCase):
++    def test_native_ci_keeps_independent_fixed_source_read_only_job(self):
++        workflow = (ROOT / '.github/workflows/native-package-repository-drill.yml').read_text()
++        self.assertIn('\n  stable-clients:\n', workflow)
++        job = workflow.split('\n  stable-clients:\n', 1)[1]
++        self.assertIn('timeout-minutes: 60', job)
++        self.assertIn('ref: fc18221282f289088ec9b4282fda8e0bfc67a3b8', job)
++        self.assertIn('go-version: "1.25.11"', job)
++        self.assertIn('gnupg gpgv rpm dpkg zstd', job)
++        self.assertIn('python3 -B tests/native_stable_clients_drill.py', job)
++        self.assertIn('if: always()', job)
++        self.assertNotIn('secrets.', job)
++        self.assertNotIn('environment:', job)
++        self.assertNotIn('contents: write', job)
++        self.assertNotIn('/var/run/docker.sock', job)
++
++    def test_command_deadline_output_bound_and_original_exit(self):
++        drill = load()
++        evidence = {'commands': []}
++        result = drill.run_command(evidence, 'ordinary-failure',
++                                  [sys.executable, '-c', 'print("public error");raise SystemExit(8)'])
++        self.assertEqual(result.returncode, 8)
++        self.assertIn(b'public error', result.stdout)
++        with self.assertRaisesRegex(RuntimeError, 'output limit'):
++            drill.run_command(evidence, 'bounded-output',
++                              [sys.executable, '-c', 'print("x"*10000)'], maximum=100)
++        with self.assertRaisesRegex(RuntimeError, 'deadline'):
++            drill.run_command(evidence, 'bounded-deadline',
++                              [sys.executable, '-c', 'import time;time.sleep(10)'], timeout=0.05)
++        self.assertEqual(evidence['commands'][0]['exit_code'], 8)
++        self.assertFalse(evidence['commands'][0]['timed_out'])
++        self.assertTrue(evidence['commands'][-1]['timed_out'])
++
++    def test_help_and_wrong_product_identity_do_not_launch_tools(self):
++        self.assertTrue(SCRIPT.is_file(), 'missing stable native client drill')
++        result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--help'], capture_output=True, timeout=5)
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        self.assertIn(b'TEST ONLY', result.stdout)
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(drill.subprocess, 'run') as run:
++            output = Path(tmp) / 'out'; output.mkdir()
++            status = drill.main(['--output-dir', str(output), '--product-root', tmp,
++                                 '--product-sha', 'a' * 40, '--trusted-root', tmp])
++            self.assertEqual(status, 1)
++            run.assert_not_called()
++            value = json.loads((output / 'native-stable-clients.json').read_bytes())
++            self.assertFalse(value['passed'])
++            self.assertEqual(value['failure'], 'fixed product source SHA is required')
++            self.assertTrue(value['cleanup']['verified'])
++
++    def test_http_routes_preserve_a_bytes_at_request_barriers(self):
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            for name, raw in [('ai', b'A release'), ('bi', b'B release'), ('ah', b'A index'),
++                              ('am', b'https://packages.githubim.com/snapshots/stable/r1/repo/\n'),
++                              ('bm', b'https://packages.githubim.com/snapshots/stable/r2/repo/\n')]:
++                (root/name).write_bytes(raw)
++            maps = {'A': {'/apt/dists/stable/InRelease': {'file': 'ai'},
++                          '/apt/by-hash/SHA256/a': {'file': 'ah'},
++                          '/rpm/stable/el/9/x86_64/mirrorlist': {'file': 'am'}},
++                    'B': {'/apt/dists/stable/InRelease': {'file': 'bi'},
++                          '/apt/by-hash/SHA256/a': {'file': 'ah'},
++                          '/rpm/stable/el/9/x86_64/mirrorlist': {'file': 'bm'}}}
++            route = drill.RouteTable(root, maps)
++            route.configure({'serial': 1, 'generation': 'A', 'mode': 'apt-switch'})
++            self.assertEqual(route.response('/apt/dists/stable/InRelease', {})[1], b'A release')
++            self.assertEqual(route.response('/apt/dists/stable/InRelease', {})[1], b'B release')
++            self.assertEqual(route.response('/apt/by-hash/SHA256/a', {})[1], b'A index')
++            self.assertEqual(route.response('/../ai', {})[0], 404)
++            self.assertEqual(route.response('/ai?x=1', {})[0], 404)
++            route.configure({'serial': 2, 'generation': 'A', 'mode': 'rpm-switch'})
++            self.assertIn(b'/r1/', route.response('/rpm/stable/el/9/x86_64/mirrorlist', {})[1])
++            self.assertIn(b'/r2/', route.response('/rpm/stable/el/9/x86_64/mirrorlist', {})[1])
++            route.configure({'serial': 3, 'generation': 'A', 'mode': 'normal'})
++            status, raw, headers = route.response('/apt/by-hash/SHA256/a', {})
++            self.assertEqual(status, 200)
++            self.assertEqual(route.response('/apt/by-hash/SHA256/a', {'If-None-Match': headers['ETag']})[0], 304)
++
++    def test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors(self):
++        drill = load()
++        commands = []
++        def fake(command, **kwargs):
++            commands.append(command)
++            if command[:3] == ['docker', 'ps', '-aq']:
++                return subprocess.CompletedProcess(command, 0, b'', b'')
++            if command[:3] == ['docker', 'network', 'ls']:
++                return subprocess.CompletedProcess(command, 0, b'', b'')
++            return subprocess.CompletedProcess(command, 0, b'', b'')
++        owned = drill.OwnedDocker('unique-test', run=fake)
++        owned.containers.add('a' * 64); owned.network = 'b' * 64
++        result = owned.cleanup()
++        self.assertTrue(result['verified'])
++        self.assertIn(['docker', 'rm', '--force', 'a' * 64], commands)
++        self.assertIn(['docker', 'network', 'rm', 'b' * 64], commands)
++        self.assertNotIn('prune', str(commands))
++        self.assertNotIn('sentinel', str(commands))
++        count = len(commands)
++        self.assertEqual(owned.cleanup(), result)
++        self.assertEqual(len(commands), count)
++        owned = drill.OwnedDocker('unique-test', run=lambda *a, **k: subprocess.CompletedProcess(a, 1, b'', b'error'))
++        owned.containers.add('c' * 64)
++        self.assertFalse(owned.cleanup()['verified'])
++
++
++def fixture_module(filename):
++    spec = importlib.util.spec_from_file_location('client_fixture_' + filename.removesuffix('.py'), ROOT / 'tests' / filename)
++    value = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(value)
++    return value
++
++
++class PublicFixtureBoundaryTests(unittest.TestCase):
++    def test_export_rejects_unusable_output_without_native_commands(self):
++        module = fixture_module('native_stable_candidate_drill.py')
++        for mutation in ('missing', 'file', 'nonempty', 'symlink'):
++            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as tmp:
++                root = Path(tmp); output = root / 'output'
++                if mutation == 'file': output.write_text('existing')
++                elif mutation == 'nonempty': output.mkdir(); (output / 'existing').write_text('keep')
++                elif mutation == 'symlink':
++                    target = root / 'target'; target.mkdir(); output.symlink_to(target)
++                with mock.patch.object(module.subprocess, 'run', side_effect=AssertionError('native command must not run')):
++                    with self.assertRaisesRegex(RuntimeError, 'output directory'):
++                        module.export_client_generations(output_root=output, binaries_root=root,
++                            trusted_root=root, product_source_sha='fc18221282f289088ec9b4282fda8e0bfc67a3b8')
++                if mutation == 'nonempty': self.assertEqual((output / 'existing').read_text(), 'keep')
++
++    def test_export_rejects_missing_generation_before_native_commands(self):
++        module = fixture_module('native_stable_candidate_drill.py')
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); output = root / 'output'; output.mkdir()
++            with mock.patch.object(module.subprocess, 'run', side_effect=AssertionError('native command must not run')):
++                with self.assertRaisesRegex(RuntimeError, 'binary generation'):
++                    module.export_client_generations(output_root=output, binaries_root=root,
++                        trusted_root=root, product_source_sha='fc18221282f289088ec9b4282fda8e0bfc67a3b8')
++            self.assertEqual(list(output.iterdir()), [])
++
++    def test_export_rejects_wrong_source_before_commands_or_output(self):
++        module = fixture_module('native_stable_candidate_drill.py')
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); output = root / 'output'; output.mkdir()
++            with mock.patch.object(module.subprocess, 'run', side_effect=AssertionError('native command must not run')):
++                with self.assertRaisesRegex(RuntimeError, 'fixed product source'):
++                    module.export_client_generations(output_root=output, binaries_root=root,
++                        trusted_root=root, product_source_sha='a' * 40)
++            self.assertEqual(list(output.iterdir()), [])
++
++    def test_invalid_payloads_fail_before_native_commands(self):
++        module = fixture_module('native_source_metadata_drill.py')
++        for mutation in ('missing', 'extra', 'symlink', 'hardlink', 'directory', 'not-executable',
++                         'not-elf', 'short-elf', 'wrong-machine', 'oversized'):
++            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as tmp:
++                root = Path(tmp)
++                inputs = root / 'inputs'; inputs.mkdir()
++                payloads = {}
++                for name in ('wukongim', 'wkcli'):
++                    header = bytearray(64)
++                    header[:7] = b'\x7fELF\x02\x01\x01'
++                    header[16:20] = b'\x02\x00\x3e\x00'
++                    path = inputs / name; path.write_bytes(header); path.chmod(0o755)
++                    payloads[name] = path
++                original = payloads['wkcli']
++                if mutation == 'missing': del payloads['wkcli']
++                elif mutation == 'extra': payloads['other'] = original
++                elif mutation == 'symlink':
++                    link = inputs / 'link'; link.symlink_to(original); payloads['wkcli'] = link
++                elif mutation == 'hardlink': os.link(original, inputs / 'link')
++                elif mutation == 'directory': payloads['wkcli'] = inputs
++                elif mutation == 'not-executable': original.chmod(0o644)
++                elif mutation == 'not-elf': original.write_bytes(b'#!/bin/sh\n' + bytes(64))
++                elif mutation == 'short-elf': original.write_bytes(b'\x7fELF')
++                elif mutation == 'wrong-machine':
++                    raw = bytearray(original.read_bytes()); raw[18:20] = b'\xb7\x00'; original.write_bytes(raw)
++                elif mutation == 'oversized':
++                    with original.open('r+b') as stream: stream.truncate(256 * 1024 * 1024 + 1)
++                build = root / 'build'; build.mkdir()
++                with mock.patch.object(module.subprocess, 'run', side_effect=AssertionError('native command must not run')):
++                    with self.assertRaisesRegex(RuntimeError, 'binary payload'):
++                        module.build_packages(build, '3.0.0', '3.0.0', binary_payloads=payloads)
++                self.assertEqual(list(build.iterdir()), [])
++
++    def test_real_payloads_are_inputs_to_both_native_package_commands(self):
++        module = fixture_module('native_source_metadata_drill.py')
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            inputs = root / 'inputs'; inputs.mkdir()
++            payloads = {}
++            for name, marker in (('wukongim', b'server supplied bytes'), ('wkcli', b'cli supplied bytes')):
++                path = inputs / name
++                header = bytearray(64)
++                header[:7] = b'\x7fELF\x02\x01\x01'
++                header[16:20] = b'\x02\x00\x3e\x00'
++                path.write_bytes(header + marker); path.chmod(0o755)
++                payloads[name] = path
++            build = root / 'build'; build.mkdir()
++            observations = []
++            def external(command, **kwargs):
++                observations.append(command[0])
++                if command[0] == 'dpkg-deb':
++                    for name, original in payloads.items():
++                        staged = build / 'deb/usr/bin' / name
++                        self.assertEqual(staged.read_bytes(), original.read_bytes())
++                        self.assertEqual(staged.stat().st_mode & 0o777, 0o755)
++                    self.assertIn('Depends: systemd', (build / 'deb/DEBIAN/control').read_text())
++                    Path(command[-1]).write_bytes(b'command boundary DEB result')
++                elif command[0] == 'rpmbuild':
++                    for name, original in payloads.items():
++                        self.assertEqual((build / 'rpmbuild/SOURCES' / name).read_bytes(), original.read_bytes())
++                    spec = Path(command[-1]).read_text()
++                    self.assertIn('Requires: systemd', spec)
++                    self.assertIn('/usr/bin/wukongim', spec)
++                    self.assertIn('/usr/bin/wkcli', spec)
++                    rpm = build / 'rpmbuild/RPMS/x86_64/fixture.rpm'; rpm.parent.mkdir(parents=True)
++                    rpm.write_bytes(b'command boundary RPM result')
++                else:
++                    self.fail('unexpected external command: ' + repr(command))
++                return subprocess.CompletedProcess(command, 0, '', '')
++            with mock.patch.object(module.subprocess, 'run', side_effect=external):
++                deb, rpm = module.build_packages(build, '3.0.0', '3.0.0', binary_payloads=payloads)
++            self.assertEqual(observations, ['dpkg-deb', 'rpmbuild'])
++            self.assertTrue(deb.is_file() and rpm.is_file())
++
++if __name__ == '__main__':
++    unittest.main()

@@ -1,0 +1,723 @@
+panic: test timed out after 9m0s
+	running tests:
+		TestSingleNodeBaselineGitObservationFailureFailsSourceIdentityClosed (4s)
+		TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering (5s)
+
+goroutine 2291 [running]:
+testing.(*M).startAlarm.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2682 +0x2cc
+created by time.goFunc
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/time/sleep.go:215 +0x38
+
+goroutine 1 [chan receive]:
+testing.tRunner.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1891 +0x3d0
+testing.tRunner(0x14000582c40, 0x140004f9ad8)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1940 +0x104
+testing.runTests(0x14000011bc0, {0x1043032a0, 0x229, 0x229}, {0x14000000000?, 0x104388bc0?, 0x104382ee0?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2475 +0x3b8
+testing.(*M).Run(0x140000bde00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2337 +0x530
+github.com/WuKongIM/WuKongIM/scripts_test.TestMain(0x140000bde00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/test_main_test.go:39 +0x290
+main.main()
+	_testmain.go:1151 +0x88
+
+goroutine 55 [select]:
+github.com/panjf2000/ants/v2.(*poolCommon).purgeStaleWorkers(0x140003471e0)
+	/Users/tt/go/pkg/mod/github.com/panjf2000/ants/v2@v2.11.3/ants.go:253 +0xb4
+created by github.com/panjf2000/ants/v2.(*poolCommon).goPurge in goroutine 1
+	/Users/tt/go/pkg/mod/github.com/panjf2000/ants/v2@v2.11.3/ants.go:317 +0xa4
+
+goroutine 2356 [IO wait]:
+internal/poll.runtime_pollWait(0x12c9e8c00, 0x72)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0x1400031e7e0?, 0x1400086c975?, 0x1)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:84 +0x28
+internal/poll.(*pollDesc).waitRead(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0x1400031e7e0, {0x1400086c975, 0x28b, 0x28b})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_unix.go:165 +0x1e0
+os.(*File).read(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file_posix.go:29
+os.(*File).Read(0x14000218078, {0x1400086c975?, 0x14000318d58?, 0x1023a88fc?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file.go:144 +0x68
+bytes.(*Buffer).ReadFrom(0x14000e2b080, {0x1039c3198, 0x14000124198})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/bytes/buffer.go:217 +0x90
+io.copyBuffer({0x1039c3340, 0x14000e2b080}, {0x1039c3198, 0x14000124198}, {0x0, 0x0, 0x0})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:415 +0x14c
+io.Copy(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:388
+os.genericWriteTo(0x14000583dc0?, {0x1039c3340, 0x14000e2b080})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file.go:295 +0x58
+os.(*File).WriteTo(0x0?, {0x1039c3340?, 0x14000e2b080?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file.go:273 +0x5c
+io.copyBuffer({0x1039c3340, 0x14000e2b080}, {0x1039c3280, 0x14000218078}, {0x0, 0x0, 0x0})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:411 +0x98
+io.Copy(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:388
+os/exec.(*Cmd).writerDescriptor.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:596 +0x40
+os/exec.(*Cmd).Start.func2(0x14000583dc0?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:749 +0x30
+created by os/exec.(*Cmd).Start in goroutine 1472
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:748 +0x6a4
+
+goroutine 56 [select]:
+github.com/panjf2000/ants/v2.(*poolCommon).ticktock(0x140003471e0)
+	/Users/tt/go/pkg/mod/github.com/panjf2000/ants/v2@v2.11.3/ants.go:296 +0xf0
+created by github.com/panjf2000/ants/v2.(*poolCommon).goTicktock in goroutine 1
+	/Users/tt/go/pkg/mod/github.com/panjf2000/ants/v2@v2.11.3/ants.go:323 +0xd4
+
+goroutine 2331 [IO wait]:
+internal/poll.runtime_pollWait(0x12c9e9400, 0x72)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0x14000678240?, 0x1400013f573?, 0x1)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:84 +0x28
+internal/poll.(*pollDesc).waitRead(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0x14000678240, {0x1400013f573, 0x28d, 0x28d})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_unix.go:165 +0x1e0
+os.(*File).read(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file_posix.go:29
+os.(*File).Read(0x14000124888, {0x1400013f573?, 0x140005cad58?, 0x1023a88fc?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file.go:144 +0x68
+bytes.(*Buffer).ReadFrom(0x140010c6a50, {0x1039c3198, 0x1400034a448})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/bytes/buffer.go:217 +0x90
+io.copyBuffer({0x1039c3340, 0x140010c6a50}, {0x1039c3198, 0x1400034a448}, {0x0, 0x0, 0x0})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:415 +0x14c
+io.Copy(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:388
+os.genericWriteTo(0x140005cae98?, {0x1039c3340, 0x140010c6a50})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file.go:295 +0x58
+os.(*File).WriteTo(0x140005cae98?, {0x1039c3340?, 0x140010c6a50?})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file.go:273 +0x5c
+io.copyBuffer({0x1039c3340, 0x140010c6a50}, {0x1039c3280, 0x14000124888}, {0x0, 0x0, 0x0})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:411 +0x98
+io.Copy(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/io/io.go:388
+os/exec.(*Cmd).writerDescriptor.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:596 +0x40
+os/exec.(*Cmd).Start.func2(0x14000d87440?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:749 +0x30
+created by os/exec.(*Cmd).Start in goroutine 1469
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:748 +0x6a4
+
+goroutine 2355 [IO wait]:
+internal/poll.runtime_pollWait(0x12c9ea000, 0x72)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0x14000bc4000?, 0x14000069808?, 0x0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:84 +0x28
+internal/poll.(*pollDesc).waitRead(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0x14000bc4000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_unix.go:613 +0x21c
+net.(*netFD).accept(0x14000bc4000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/fd_unix.go:161 +0x28
+net.(*TCPListener).accept(0x14000ff6000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock_posix.go:159 +0x24
+net.(*TCPListener).Accept(0x14000ff6000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock.go:380 +0x2c
+github.com/WuKongIM/WuKongIM/scripts_test.listenLocalTCP.func1()
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_three_node_bench_script_integration_test.go:3738 +0x6c
+created by github.com/WuKongIM/WuKongIM/scripts_test.listenLocalTCP in goroutine 1472
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_three_node_bench_script_integration_test.go:3735 +0xd4
+
+goroutine 2330 [IO wait]:
+internal/poll.runtime_pollWait(0x12c9e9e00, 0x72)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0x14000bc4300?, 0x14000069808?, 0x0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:84 +0x28
+internal/poll.(*pollDesc).waitRead(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0x14000bc4300)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_unix.go:613 +0x21c
+net.(*netFD).accept(0x14000bc4300)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/fd_unix.go:161 +0x28
+net.(*TCPListener).accept(0x140006f2580)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock_posix.go:159 +0x24
+net.(*TCPListener).Accept(0x140006f2580)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock.go:380 +0x2c
+github.com/WuKongIM/WuKongIM/scripts_test.listenLocalTCP.func1()
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_three_node_bench_script_integration_test.go:3738 +0x6c
+created by github.com/WuKongIM/WuKongIM/scripts_test.listenLocalTCP in goroutine 1469
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_three_node_bench_script_integration_test.go:3735 +0xd4
+
+goroutine 1143 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140006448c0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140006448c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestEasySDKReadinessDeadlineStartsAfterAdmission(0x140006448c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/easysdk_readiness_schedule_integration_test.go:16 +0x2c
+testing.tRunner(0x140006448c0, 0x1039addd0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1220 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400089a700)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400089a700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x1400089a700, {0x103caa3b0, 0x8e})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x1400089a700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestLocalStorageOverlapCaptureSignalTrapLeavesNoChild(0x1400089a700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/local_storage_overlap_script_integration_test.go:88 +0x28
+testing.tRunner(0x1400089a700, 0x1039adf38)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1346 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037c540)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.TestReviewAgentSchemas(0x1400037c540)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/review_agent_schema_test.go:311 +0x28
+testing.tRunner(0x1400037c540, 0x1039ae0d0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1140 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037bc00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037bc00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails(0x1400037bc00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/dynamic_node_readiness_gate_script_integration_test.go:14 +0x28
+testing.tRunner(0x1400037bc00, 0x1039addb8)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1142 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x14000644380)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x14000644380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x14000644380, {0x103caa130, 0x83})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x14000644380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestEasySDKReadinessDetectsExitedServer(0x14000644380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/easysdk_readiness_integration_test.go:78 +0x30
+testing.tRunner(0x14000644380, 0x1039addd8)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1135 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037b500)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.TestIssueAgentSchemas(0x1400037b500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/issue_agent_schema_test.go:17 +0x28
+testing.tRunner(0x1400037b500, 0x1039adef0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1214 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140005f3340)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140005f3340)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x140005f3340, {0x103caa646, 0x90})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x140005f3340)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestMigrationRehearsalPinsUnifiedBinaryAcrossPhases(0x140005f3340)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/migration_rehearsal_phase_loop_integration_test.go:72 +0x70
+testing.tRunner(0x140005f3340, 0x1039adfd8)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1469 [syscall]:
+syscall.syscall6(0x10155aa70?, 0x12b6d0350?, 0x104478a78?, 0x90?, 0x14000300008?, 0x140006133b0?, 0x1400051d998?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/sys_darwin.go:60 +0x40
+syscall.wait4(0x1400051d9c8?, 0x1023b56bc?, 0x90?, 0x103959960?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/syscall/zsyscall_darwin_arm64.go:44 +0x4c
+syscall.Wait4(0x140002de620?, 0x1400051da04, 0x1400155aa70?, 0x140002de5b0?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/syscall/syscall_bsd.go:144 +0x28
+os.(*Process).pidWait.func1(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec_unix.go:64
+os.ignoringEINTR2[...](...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file_posix.go:266
+os.(*Process).pidWait(0x140006f2600)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec_unix.go:63 +0x9c
+os.(*Process).wait(0x104478a78?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec_unix.go:28 +0x24
+os.(*Process).Wait(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec.go:340
+os/exec.(*Cmd).Wait(0x1400071e900)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:922 +0x38
+os/exec.(*Cmd).Run(0x1400071e900)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:626 +0x38
+os/exec.(*Cmd).CombinedOutput(0x1400071e900)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:1039 +0x7c
+github.com/WuKongIM/WuKongIM/scripts_test.runFakeSingleNodeSealedBaselineWithConfigEnv(0x140004d1c68?, 0xf4?, {0x103110c78?, 0x10381af80?}, {0x0?, 0x140004d1c28?, 0x140004d1ca8?})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:671 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.runFakeSingleNodeSealedBaselineWithConfig(0x103974fc0?, 0x80?, {0x103110c78?, 0x1043bb220?})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:666 +0x2c
+github.com/WuKongIM/WuKongIM/scripts_test.runFakeSingleNodeSealedBaselineWithBinaries(0x1400047b880?, 0x21?)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:662 +0x28
+github.com/WuKongIM/WuKongIM/scripts_test.runFakeSingleNodeSealedBaseline(...)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:657
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering(0x1400047b880)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:151 +0x38
+testing.tRunner(0x1400047b880, 0x1039ae218)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1468 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047b6c0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047b6c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations(0x1400047b6c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:86 +0x28
+testing.tRunner(0x1400047b6c0, 0x1039ae170)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1365 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037d500)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037d500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x1400037d500, {0x103caacf9, 0x84})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x1400037d500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestCloudSimulationAnalyzeExitTrapCompletesCleanupAndPreservesStatus(0x1400037d500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/shell_trap_cleanup_integration_test.go:21 +0x28
+testing.tRunner(0x1400037d500, 0x1039ada30)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1434 [IO wait, 6 minutes]:
+internal/poll.runtime_pollWait(0x12b0d0e00, 0x72)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0x140003c8280?, 0x1030c9110?, 0x0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:84 +0x28
+internal/poll.(*pollDesc).waitRead(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0x140003c8280)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_unix.go:613 +0x21c
+net.(*netFD).accept(0x140003c8280)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/fd_unix.go:161 +0x28
+net.(*TCPListener).accept(0x1400029eb00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock_posix.go:159 +0x24
+net.(*TCPListener).Accept(0x1400029eb00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock.go:380 +0x2c
+net/http.(*Server).Serve(0x14000496e00, {0x1039cc6d0, 0x1400029eb00})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/http/server.go:3463 +0x24c
+net/http/httptest.(*Server).goServe.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/http/httptest/server.go:311 +0x54
+created by net/http/httptest.(*Server).goServe in goroutine 1433
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/http/httptest/server.go:309 +0x6c
+
+goroutine 1467 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047b500)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047b500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineRestartsOneProductGenerationPerRateAndPreservesData(0x1400047b500)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:48 +0x28
+testing.tRunner(0x1400047b500, 0x1039ae1f0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1466 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047b340)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047b340)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineNoStartShortRunCannotAuthorize(0x1400047b340)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:21 +0x28
+testing.tRunner(0x1400047b340, 0x1039ae190)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1433 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x14000031880)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x14000031880)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x14000031880, {0x103cab10d, 0x97})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x14000031880)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestLocalThresholdPprofDiscardsOversizedMetrics(0x14000031880)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_local_threshold_pprof_script_integration_test.go:602 +0x484
+testing.tRunner(0x14000031880, 0x1039adf68)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1398 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047a8c0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047a8c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWKDBExportRoundTripSmokeScript(0x1400047a8c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkdb_import_smoke_script_integration_test.go:52 +0x28
+testing.tRunner(0x1400047a8c0, 0x1039ae308)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1368 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037c380)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037c380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(0x1400037c380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:15 +0x28
+testing.tRunner(0x1400037c380, 0x1039ae388)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1397 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047a700)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047a700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWKDBImportSmokeScriptValidatesAndImportsBundle(0x1400047a700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkdb_import_smoke_script_integration_test.go:15 +0x28
+testing.tRunner(0x1400047a700, 0x1039ae310)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1369 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037c700)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037c700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(0x1400037c700)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:127 +0x28
+testing.tRunner(0x1400037c700, 0x1039ae378)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1370 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037ca80)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037ca80)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptKillsConfiguredNodeDuringSimulation(0x1400037ca80)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:218 +0x28
+testing.tRunner(0x1400037ca80, 0x1039ae370)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1371 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037d180)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037d180)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(0x1400037d180)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:311 +0x28
+testing.tRunner(0x1400037d180, 0x1039ae328)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1372 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037d880)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037d880)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptWaitsForSimOutputBeforeVerification(0x1400037d880)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:361 +0x28
+testing.tRunner(0x1400037d880, 0x1039ae398)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1373 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400037dc00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400037dc00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptFailsOnConversationDirectoryMetricGate(0x1400037dc00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:395 +0x28
+testing.tRunner(0x1400037dc00, 0x1039ae368)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1374 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140005dae00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140005dae00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptCapturesFailureMetricsWhenSimReportsSendErrors(0x140005dae00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:431 +0x28
+testing.tRunner(0x140005dae00, 0x1039ae330)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1375 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140005db180)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140005db180)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors(0x140005db180)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:482 +0x28
+testing.tRunner(0x140005db180, 0x1039ae320)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1376 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400022e000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runTimingSensitiveShellScriptTestExclusively(0x1400022e000)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:37 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(0x1400022e000)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:528 +0x28
+testing.tRunner(0x1400022e000, 0x1039ae390)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1377 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400022fc00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400022fc00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliSimThreeNodeSmokeScriptReportsSimFailureBeforeDelayedAutoJoin(0x1400022fc00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_sim_smoke_script_integration_test.go:592 +0x28
+testing.tRunner(0x1400022fc00, 0x1039ae380)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1395 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047a380)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047a380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliTopThreeNodesScriptCollectsTopAndBenchEvidence(0x1400047a380)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_top_three_nodes_script_integration_test.go:14 +0x28
+testing.tRunner(0x1400047a380, 0x1039ae3a0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1396 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047a540)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047a540)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestWkcliTopThreeNodesScriptFailsOnGatewaySessionErrorAlert(0x1400047a540)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wkcli_top_three_nodes_script_integration_test.go:94 +0x28
+testing.tRunner(0x1400047a540, 0x1039ae3a8)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1431 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140000316c0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140000316c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x140000316c0, {0x103cab10d, 0x97})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x140000316c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestLocalThresholdPprofRejectsExistingContextSymlink(0x140000316c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_local_threshold_pprof_script_integration_test.go:574 +0x544
+testing.tRunner(0x140000316c0, 0x1039adf90)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1432 [IO wait, 6 minutes]:
+internal/poll.runtime_pollWait(0x12b0d0600, 0x72)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0x140003c8200?, 0x1030c9110?, 0x0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:84 +0x28
+internal/poll.(*pollDesc).waitRead(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0x140003c8200)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/internal/poll/fd_unix.go:613 +0x21c
+net.(*netFD).accept(0x140003c8200)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/fd_unix.go:161 +0x28
+net.(*TCPListener).accept(0x1400029eac0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock_posix.go:159 +0x24
+net.(*TCPListener).Accept(0x1400029eac0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/tcpsock.go:380 +0x2c
+net/http.(*Server).Serve(0x14000496d00, {0x1039cc6d0, 0x1400029eac0})
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/http/server.go:3463 +0x24c
+net/http/httptest.(*Server).goServe.func1()
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/http/httptest/server.go:311 +0x54
+created by net/http/httptest.(*Server).goServe in goroutine 1431
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/net/http/httptest/server.go:309 +0x6c
+
+goroutine 1470 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047ba40)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047ba40)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange(0x1400047ba40)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:225 +0x28
+testing.tRunner(0x1400047ba40, 0x1039ae150)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1471 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x1400047bdc0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x1400047bdc0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineExternalBinariesStayBinaryIdentityOnlyForCleanSource(0x1400047bdc0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:250 +0x28
+testing.tRunner(0x1400047bdc0, 0x1039ae158)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1472 [syscall]:
+syscall.syscall6(0x101070080?, 0x12b6d0350?, 0x1044785c0?, 0x90?, 0x14000300808?, 0x14000613710?, 0x14000521bd8?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/sys_darwin.go:60 +0x40
+syscall.wait4(0x14000521c08?, 0x1023b56bc?, 0x90?, 0x103959960?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/syscall/zsyscall_darwin_arm64.go:44 +0x4c
+syscall.Wait4(0x140002da070?, 0x14000521c44, 0x14001070080?, 0x140002da000?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/syscall/syscall_bsd.go:144 +0x28
+os.(*Process).pidWait.func1(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec_unix.go:64
+os.ignoringEINTR2[...](...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/file_posix.go:266
+os.(*Process).pidWait(0x14000ff6080)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec_unix.go:63 +0x9c
+os.(*Process).wait(0x1044785c0?)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec_unix.go:28 +0x24
+os.(*Process).Wait(...)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec.go:340
+os/exec.(*Cmd).Wait(0x1400024a000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:922 +0x38
+os/exec.(*Cmd).Run(0x1400024a000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:626 +0x38
+os/exec.(*Cmd).CombinedOutput(0x1400024a000)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/os/exec/exec.go:1039 +0x7c
+github.com/WuKongIM/WuKongIM/scripts_test.runFakeSingleNodeSealedBaselineWithConfigEnv(0x140005baef8?, 0xbf?, {0x103110c78?, 0x14000612240?}, {0x140005baf48?, 0x10235ebe8?, 0x140005baed8?})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:671 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineGitObservationFailureFailsSourceIdentityClosed(0x1400037d6c0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:282 +0xa4
+testing.tRunner(0x1400037d6c0, 0x1039ae178)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1478 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140003aae00)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140003aae00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.gateScriptTestSource(0x140003aae00, {0x103cab231, 0x98})
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:60 +0x74
+github.com/WuKongIM/WuKongIM/scripts_test.repoRoot(0x140003aae00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_test.go:45 +0x90
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineStoragePreflightResultIsSealedWithoutStartingProcesses(0x140003aae00)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:324 +0x28
+testing.tRunner(0x140003aae00, 0x1039ae220)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+
+goroutine 1479 [chan receive, 3 minutes]:
+testing.(*testState).waitParallel(0x1400034f810)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:2116 +0x158
+testing.(*T).Parallel(0x140003aafc0)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1709 +0x19c
+github.com/WuKongIM/WuKongIM/scripts_test.runHeavyShellScriptTestInParallel(0x140003aafc0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/script_test_helpers_integration_test.go:24 +0xa8
+github.com/WuKongIM/WuKongIM/scripts_test.TestSingleNodeBaselineOwnedWorkerBuildDoesNotReuseOrOverwriteExistingBinary(0x140003aafc0)
+	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/wukongim_single_node_baseline_artifact_integration_test.go:358 +0x28
+testing.tRunner(0x140003aafc0, 0x1039ae198)
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0xc8
+created by testing.(*T).Run in goroutine 1
+	/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x364
+FAIL	github.com/WuKongIM/WuKongIM/scripts	540.658s
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	1.864s
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	0.303s
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	0.459s
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	0.546s
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	0.645s
+FAIL

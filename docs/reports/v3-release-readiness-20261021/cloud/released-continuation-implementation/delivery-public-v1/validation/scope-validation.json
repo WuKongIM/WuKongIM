@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-10-21T12:01:17.044515+00:00",
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "changed_files": 24,
+  "source_freeze_mismatches": [],
+  "root_go_freeze_mismatches": [],
+  "protected_or_provider_prefix_changes": [],
+  "runtime_boundaries": {
+    "cloud_calls": false,
+    "workflow_dispatch": false,
+    "commit_push": false,
+    "actual_invoice_verified": false,
+    "live_authority_validated": false
+  },
+  "limits": [
+    "Synthetic complete GitHub response fixture validates helper behaviour, not current live authority.",
+    "Current source/API authority must be revalidated by protected workflow before any new procurement.",
+    "Old unknown pre-clock cause and original failure remain unchanged.",
+    "Original Acquire/Release 7-day artifacts must remain accessible; sidecar retention does not extend authority."
+  ]
+}

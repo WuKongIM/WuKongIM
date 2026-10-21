@@ -1,0 +1,99 @@
+{
+  "source_base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "checks": {
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    },
+    "flow-doc-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    },
+    "workflow-contracts": {
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/...",
+        "-run",
+        "Workflow|ReviewAgent",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
+    },
+    "go-unit": {
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-vet": {
+      "arguments": [
+        "go",
+        "vet",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/..."
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-mod-tidy": {
+      "arguments": [
+        "review-agent-check",
+        "go-mod-tidy"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
+    },
+    "scripts-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    }
+  },
+  "composite_resolution": "review-agent-check NAME => go run ./cmd/wkreviewcheck NAME",
+  "environment": {
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2",
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/gocache",
+    "LC_ALL": "C"
+  }
+}

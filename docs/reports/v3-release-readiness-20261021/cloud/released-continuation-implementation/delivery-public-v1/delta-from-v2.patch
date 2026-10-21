@@ -1,0 +1,115 @@
+--- freeze-v2/scripts/chat-lifecycle/authenticate-released-preclock.py
++++ freeze-v3/scripts/chat-lifecycle/authenticate-released-preclock.py
+@@ -171,7 +171,8 @@
+ 
+ def first_start_guard(env, artifacts):
+     # Only retained, complete GitHub inventory is claimed. Deleted history cannot
+-    # be reconstructed here; this is not a durable request ledger.
++    # be reconstructed here; this is not a durable request ledger. A trusted
++    # finalizer can publish cleanup before it finishes, so status cannot reset prior.
+     names = {f'chat-lifecycle-{stage}-{kind}-{env["WK_CHAT_REQUEST_ID"]}'
+              for stage in ['rehearsal', 'formal'] for kind in ['cleanup', 'complete']}
+     for artifact in artifacts:
+@@ -188,7 +189,7 @@
+                 and run.get('head_repository', {}).get('full_name') == env['GITHUB_REPOSITORY']
+                 and run.get('head_branch') == 'main' and run.get('event') in ['workflow_dispatch', 'schedule']
+                 and run.get('path', '').split('@')[0] in paths
+-                and run.get('status') == 'completed' and SHA.fullmatch(run.get('head_sha', ''))):
++                and SHA.fullmatch(run.get('head_sha', ''))):
+             raise Rejected('request_already_spent')
+ 
+ 
+@@ -251,9 +252,9 @@
+                         not item.flag_bits & 1, 'artifact_integrity')
+                 names.add(item.filename)
+                 if not item.is_dir():
+-                    # Merely seeing accepted-run or continuation evidence rejects
++                    # Merely seeing terminal, accepted-run or continuation evidence rejects
+                     # this original, unmeasured predecessor, regardless of contents.
+-                    require(path.name not in ['handoff.json', 'run-start.json', 'transition.json', 'final.json'] and
++                    require(path.name not in ['pre-clock-terminal.json', 'handoff.json', 'run-start.json', 'transition.json', 'final.json'] and
+                             'continuation' not in path.parts and not any(p.startswith('attempt-') and p != 'attempt-1' for p in path.parts),
+                             'measured_or_runtime_predecessor')
+                     # Never persist arbitrary artifact content, encrypted access,
+--- freeze-v2/scripts/chat_lifecycle_released_preclock_integration_test.go
++++ freeze-v3/scripts/chat_lifecycle_released_preclock_integration_test.go
+@@ -141,6 +141,79 @@
+ 			}
+ 			if strings.Contains(calls, "/zip") || strings.Contains(calls, "dispatch") {
+ 				t.Fatalf("history guard reached side effects: %s", calls)
++			}
++		})
++	}
++}
++
++func TestChatLifecycleReleasedPreclockFirstStartTrustDoesNotDependOnTerminalStatus(t *testing.T) {
++	for _, tc := range []struct {
++		name, status string
++		untrusted    string
++	}{
++		{"completed", "completed", ""},
++		{"in_progress", "in_progress", ""},
++		{"queued", "queued", ""},
++		{"unrelated_workflow", "in_progress", "path"},
++		{"fork", "in_progress", "head_repository"},
++		{"different_repository", "in_progress", "repository"},
++		{"non_main", "in_progress", "head_branch"},
++		{"untrusted_event", "in_progress", "event"},
++		{"invalid_head", "in_progress", "head_sha"},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			f := newReleasedPreclockFixture(t)
++			f.env = append(f.env, "WK_CHAT_RELEASED_PRECLOCK_RUN_ID=")
++			run := f.api["/repos/WuKongIM/WuKongIM/actions/runs/100"].(map[string]any)
++			run["path"] = ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
++			run["event"] = "schedule"
++			run["status"] = tc.status
++			if tc.untrusted != "" {
++				switch tc.untrusted {
++				case "repository", "head_repository":
++					run[tc.untrusted] = map[string]any{"id": 99, "full_name": "unrelated/fork"}
++				default:
++					run[tc.untrusted] = "unrelated"
++				}
++			}
++			inventory := `{"complete":true,"artifacts":[{"id":200,"name":"chat-lifecycle-rehearsal-cleanup-request-1","expired":false,"workflow_run":{"id":100}}]}`
++			if err := os.WriteFile(filepath.Join(f.directory, "inventory.json"), []byte(inventory), 0600); err != nil {
++				t.Fatal(err)
++			}
++			r, calls, err := f.run(t)
++			if tc.untrusted == "" {
++				if err == nil || r["status"] != "rejected" || r["reason"] != "request_already_spent" {
++					t.Fatalf("trusted retained cleanup must block prior reset regardless of producer status: %v %v", err, r)
++				}
++			} else if err != nil || r["status"] != "first_start" || r["committed_micros"] != float64(0) {
++				t.Fatalf("untrusted same-name artifact changed default path: %v %v", err, r)
++			}
++			if strings.Contains(calls, "/zip") || strings.Contains(calls, "dispatch") {
++				t.Fatalf("spent guard must stop before artifact download or side effects: %s", calls)
++			}
++			if _, err := os.Stat(filepath.Join(f.directory, "output")); !os.IsNotExist(err) {
++				t.Fatal("first-start guard unexpectedly wrote continuation evidence")
++			}
++		})
++	}
++}
++
++func TestChatLifecycleReleasedPreclockRejectsTypedTerminalBeforeFiltering(t *testing.T) {
++	for _, code := range []string{"runtime", "grant"} {
++		t.Run(code, func(t *testing.T) {
++			f := newReleasedPreclockFixture(t)
++			f.fullEvidence(t, func(documents map[string]any) {
++				documents["pre-clock-terminal.json"] = map[string]any{
++					"schema": "wukongim.chat_lifecycle.pre_clock_terminal/v1", "request_id": "request-1",
++					"stage": "rehearsal", "coordinator_code": code,
++				}
++			})
++			r, _, err := f.run(t)
++			if err == nil || r["status"] != "rejected" || r["reason"] != "measured_or_runtime_predecessor" {
++				t.Fatalf("typed terminal must not be discarded or relabeled unknown: %v %v", err, r)
++			}
++			if _, err := os.Stat(filepath.Join(f.directory, "output")); !os.IsNotExist(err) {
++				t.Fatal("known terminal predecessor wrote a continuation sidecar")
+ 			}
+ 		})
+ 	}

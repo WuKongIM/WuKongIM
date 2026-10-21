@@ -1,0 +1,37 @@
+{
+  "run_id": 39601918104,
+  "job_id": 119229681917,
+  "job_name": "Verify the direct GitHub Pages origin",
+  "conclusion": "success",
+  "raw_bytes": 15476,
+  "raw_sha256": "4362fee96ca17027816525eed358a32607717b67244844a45c39cd6aacd0dd18",
+  "public_sha256": "c9d93838545a2c7011b15a771c6336d85b05d38d6b3c4ce825e39cffbfe482f9",
+  "exact_merge_sha_present": true,
+  "redacted_lines": [
+    {
+      "line": 22,
+      "bytes": 63,
+      "sha256": "6be8c12c1d0277f0426881ca421e7099fddadeeec5e22a286d2f2526a26dfce2"
+    },
+    {
+      "line": 27,
+      "bytes": 52,
+      "sha256": "6671a61e2ef5d93c4253af2395cd17136087bf10437ecf9ca2a492166b64ac19"
+    },
+    {
+      "line": 39,
+      "bytes": 42,
+      "sha256": "629b41af56e220f3a664a0af455ea610e9b081a1da1442b1ba47d8fed6e69eaf"
+    },
+    {
+      "line": 94,
+      "bytes": 211,
+      "sha256": "ac3aa53b1d40c692f78bc18aba9dd9d28b23693dbcd3b10b4619558a6e7c5fc5"
+    },
+    {
+      "line": 152,
+      "bytes": 45,
+      "sha256": "a8c6007b956b2211ee54548b1ca787800bea8e5e6ce45fbd1fd7e99591b5c0e1"
+    }
+  ]
+}

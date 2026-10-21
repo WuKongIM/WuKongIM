@@ -1,0 +1,17 @@
+=== RUN   TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire
+=== PAUSE TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire
+=== RUN   TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt
+    chat_lifecycle_released_preclock_test.go:7: missing workflow boundary "released_preclock_run_id:"
+--- FAIL: TestChatLifecycleReleasedPreclockRehearsalWiringIsExplicitAndSingleAttempt (0.00s)
+=== RUN   TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedContinuation
+    chat_lifecycle_workflows_test.go:42: operator inputs = map[string]struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{"codex_diagnostic_pubkey":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}, "operator":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}, "request_id":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}, "source_sha":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}}, want map[string]struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{"codex_diagnostic_pubkey":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}, "operator":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}, "released_preclock_run_id":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:false, Type:"string"}, "request_id":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}, "source_sha":struct { Required bool "yaml:\"required\""; Type string "yaml:\"type\"" }{Required:true, Type:"string"}}
+--- FAIL: TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedContinuation (0.00s)
+=== RUN   TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrder
+    chat_lifecycle_workflows_test.go:91: same-Lease deployment repair is missing "for attempt in \"$stage_attempt\"; do"
+--- FAIL: TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrder (0.00s)
+=== CONT  TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire
+    chat_lifecycle_released_preclock_integration_test.go:211: missing exact procurement rejection receipt: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuot3405324034/001/stage-output/continuation-authentication.json: no such file or directory; exit=exit status 127 output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation/scripts/chat-lifecycle/stage-orchestrate.sh: line 126: scripts/chat-lifecycle/operator-stop-requested.sh: No such file or directory
+--- FAIL: TestChatLifecycleReleasedPreclockStageRejectsBeforeBundleKeyQuoteOrAcquire (0.27s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	0.831s
+FAIL

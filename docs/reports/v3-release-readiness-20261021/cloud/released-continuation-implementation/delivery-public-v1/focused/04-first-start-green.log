@@ -1,0 +1,26 @@
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity
+=== RUN   TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable
+--- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead (1.09s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/gap (0.17s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/current_rerun (0.16s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/predecessor_rerun (0.22s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/different_workflow (0.18s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/environment_identity (0.16s)
+    --- PASS: TestChatLifecycleReleasedPreclockRejectsSequenceBeforeArtifactRead/api_unavailable (0.19s)
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup
+=== RUN   TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete
+--- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest (0.38s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/fresh (0.04s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/partial (0.03s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_cleanup (0.16s)
+    --- PASS: TestChatLifecycleReleasedPreclockFirstStartDoesNotResetSpentRequest/spent_complete (0.15s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	1.833s

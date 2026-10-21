@@ -1,0 +1,70 @@
+[
+  {
+    "id": 12345765063,
+    "name": "native-bootstrap-preparation-test-only",
+    "api_digest": "sha256:7011525c0636a97cd6ac5267018cc9a56566c1e685a8cdc9c78acebfa6603143",
+    "download_exit": 0,
+    "zip_sha256": "7011525c0636a97cd6ac5267018cc9a56566c1e685a8cdc9c78acebfa6603143",
+    "zip_bytes": 7151,
+    "api_digest_matches": true,
+    "members": [
+      {
+        "name": "native-bootstrap-preparation.json",
+        "bytes": 44122,
+        "sha256": "b792e2dd3c4f593812d12ecb297a0f6792840a7a04dddc3ad60caf31220727bd",
+        "crc32": 3398271338
+      }
+    ]
+  },
+  {
+    "id": 12345490467,
+    "name": "native-stable-candidate-test-only",
+    "api_digest": "sha256:e7411e4e943427b2fba67b79b11b1f43ac811ceb59aa69107f9f9fb2785607f1",
+    "download_exit": 0,
+    "zip_sha256": "e7411e4e943427b2fba67b79b11b1f43ac811ceb59aa69107f9f9fb2785607f1",
+    "zip_bytes": 4200,
+    "api_digest_matches": true,
+    "members": [
+      {
+        "name": "native-stable-candidate.json",
+        "bytes": 28830,
+        "sha256": "1ca57f163da814003bccc9afae7c652ef2c6138456f14afbe31060585cea1f2d",
+        "crc32": 440693468
+      }
+    ]
+  },
+  {
+    "id": 12345365552,
+    "name": "native-local-signing-test-only",
+    "api_digest": "sha256:40079e36126f56a87dfa8ad601390a6714b2c4786f7b19ec22f44b29b1e54baf",
+    "download_exit": 0,
+    "zip_sha256": "40079e36126f56a87dfa8ad601390a6714b2c4786f7b19ec22f44b29b1e54baf",
+    "zip_bytes": 2796,
+    "api_digest_matches": true,
+    "members": [
+      {
+        "name": "native-local-signing.json",
+        "bytes": 12973,
+        "sha256": "bb52d9c3201360e406fdfb3c5ae91d65e8f98c58867e45b3aa3353f482b26bd3",
+        "crc32": 4176519745
+      }
+    ]
+  },
+  {
+    "id": 12345175813,
+    "name": "native-source-metadata-test-only",
+    "api_digest": "sha256:e3fffe3b650d40264119f138f7301e5e70867dd53cf57bbbfba00c2ae077f980",
+    "download_exit": 0,
+    "zip_sha256": "e3fffe3b650d40264119f138f7301e5e70867dd53cf57bbbfba00c2ae077f980",
+    "zip_bytes": 1270,
+    "api_digest_matches": true,
+    "members": [
+      {
+        "name": "native-source-metadata.json",
+        "bytes": 4464,
+        "sha256": "b4745ea352d065a174b2d68f3e58478068b0c5fe8b3179b43bc67014618cddcc",
+        "crc32": 726838518
+      }
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+test_export_rejects_wrong_source_before_commands_or_output (__main__.FixtureBoundaryTests.test_export_rejects_wrong_source_before_commands_or_output) ... ok
+test_invalid_payloads_fail_before_native_commands (__main__.FixtureBoundaryTests.test_invalid_payloads_fail_before_native_commands) ... ok
+test_real_payloads_are_inputs_to_both_native_package_commands (__main__.FixtureBoundaryTests.test_real_payloads_are_inputs_to_both_native_package_commands) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.020s
+
+OK

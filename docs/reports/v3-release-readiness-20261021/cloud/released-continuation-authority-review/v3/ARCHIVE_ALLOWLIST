@@ -1,0 +1,10 @@
+ARCHIVE_ALLOWLIST
+delta-from-v2.patch
+fixture/source/scripts/chat-lifecycle/authenticate-released-preclock.py
+fixture/source/scripts/testdata/chat-lifecycle-released-preclock/original.json
+input-freeze.json
+probe-results.json
+probe.py
+review.md
+summary.json
+validation-evidence.json

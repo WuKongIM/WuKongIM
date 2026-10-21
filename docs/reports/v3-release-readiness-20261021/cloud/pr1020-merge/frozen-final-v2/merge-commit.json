@@ -1,0 +1,40 @@
+{
+  "sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "node_id": "C_kwDOJgfwydoAKGUzMDI5OWZhNTllYTY2NjllYTcxMDI0ZWFiZTIwOTg0MGYyNDFmMTk",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/e30299fa59ea6669ea71024eabe209840f241f19",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/e30299fa59ea6669ea71024eabe209840f241f19",
+  "author": {
+    "name": "WuKongIM",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T12:43:39Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-21T12:43:39Z"
+  },
+  "tree": {
+    "sha": "36f96357c967418517a00444e52ae03f77c3ff90",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/36f96357c967418517a00444e52ae03f77c3ff90"
+  },
+  "message": "Merge pull request #1020 from WuKongIM/codex/v3-rc-released-continuation\n\nfix: preserve cumulative cost for an explicit released RC continuation",
+  "parents": [
+    {
+      "sha": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/ce3c4d9110f17bb71dc99a89dc3c09758fabf980"
+    },
+    {
+      "sha": "0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/0cdfaa37b00c58819895dee54029c27c83c9caa9",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/0cdfaa37b00c58819895dee54029c27c83c9caa9"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq2LN7CRC1aQ7uu5UhlAAAzC0QAJb2r/jkGMRrt0WuEgUTRKdT\n7i3KiO+8g2pgBCemM91jghO/TrX+lWIkEOKitnFuJ7b/q4MtY43wEg18Fi5Sc+3/\nEwWHnMuiDVVZaO6YV5lq/QKhYzz9C3tl/+6Cc9FY4q2IKSQLRW6fx0ncqnSDp+jP\n1caFvGeU0LGeTr+c8xlL5Jr1QmalNwezfWZcIL4Q8UV+L9e9gsu4oOemLZV9Za6Z\nkTdJPH1EsZEcQ9f2+Xdo8spcUTYJcV59s/VLgWswXPcvL8xlw0zZ/i1jT64xGhqF\n24qyw7ZEDEFe8FEsTzj/cXVVU8rSikK/icXM8+jG26jZjP9yWshwKn9XXICFwxV+\nXj+mlE+9t8T606i1P7lMxGUz65MxS0YhZn+Lt+3VSHug28Rtg8C1hVRU9/USmOI1\nLLGo8LxYy2nFU5H3oyXQvmMV49SGl+dr27sDqY8wGa2xzlXUHyUH/W4Zjm/pmrCy\n8SpUCSeGvUAMeaCvM3JuiknMsmojYkpJ58DZPOWymal4RwQGFF6zHd1XEdwfjNZy\nWfm2iIaas0NriYsojQHFXoGvwE8mDl3bPwHj8FgQV+9CT/etyOT6v0ArrLvqJKia\nsSp/g1IHnjJALgpcFIKLxCyM53ilw0sjDZdL1CkXHuMHBYz1ELvCoHN1ht/oWxR1\nSWT8KWizk0fF7dNNH3He\n=RQxp\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree 36f96357c967418517a00444e52ae03f77c3ff90\nparent ce3c4d9110f17bb71dc99a89dc3c09758fabf980\nparent 0cdfaa37b00c58819895dee54029c27c83c9caa9\nauthor WuKongIM <tangtaoit@githubim.com> 1792586619 +0800\ncommitter GitHub <noreply@github.com> 1792586619 +0800\n\nMerge pull request #1020 from WuKongIM/codex/v3-rc-released-continuation\n\nfix: preserve cumulative cost for an explicit released RC continuation",
+    "verified_at": "2026-10-21T12:43:39Z"
+  }
+}

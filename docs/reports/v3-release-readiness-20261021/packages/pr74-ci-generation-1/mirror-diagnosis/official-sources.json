@@ -1,0 +1,10 @@
+{
+  "rocky_registry_authority": "https://docs.rockylinux.org/links/",
+  "rocky_maintainer_image": "https://hub.docker.com/r/rockylinux/rockylinux",
+  "rocky_init_recipe": {
+    "url": "https://raw.githubusercontent.com/rocky-linux/sig-cloud-instance-images/main/Containerfile-init",
+    "sha256": "bcc1454e7522eaf68313a0fc8e275837f748a5ba33610091cf37a07afa4316f1"
+  },
+  "alma_authority": "https://wiki.almalinux.org/containers/docker-images",
+  "alma_maintainer": "https://hub.docker.com/_/almalinux"
+}
