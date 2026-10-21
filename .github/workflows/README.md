@@ -1028,10 +1028,11 @@ Both startup workflows attempt to retain that single receipt for eight days in
 an independent preflight Artifact. A missing receipt creates no Artifact; an
 upload failure is visible but cannot change the original orchestration outcome.
 Preflight Artifacts never establish a handoff or authorize further procurement.
-The complete operator surface is exactly `source_sha`, fixed operator `tangtaoit`, one request-scoped Codex
-diagnostic Ed25519 public key, and `request_id`; infrastructure, budget,
-duration, workload, and retry values come only from the reviewed repository Run
-Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
+The required operator inputs remain `source_sha`, fixed operator `tangtaoit`, one
+request-scoped Codex diagnostic Ed25519 public key, and `request_id`. The optional
+`released_preclock_run_id` is an explicit start decision for one already released
+pre-clock failure, not an automatic retry. Infrastructure, budget, duration,
+workload, and retry values come only from the reviewed repository Run Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
 12-hour AutoRelease Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
 unit. The runner exits after the remote `run-start.json` proves 10,000 full
 syncs and acceptance of the first full 2,000 SEND/s grant. The remote rehearsal
@@ -1040,6 +1041,54 @@ as formal execution, with a two-hour active-duration admission requirement.
 Before paid Acquire, it seals the generated Deployment/monitor private key with
 the Lease ID, Plan digest, source SHA, and expiry already fixed by the Run Plan.
 The acquired Receipt must equal that identity before Deployment dispatch.
+
+A released pre-clock continuation uses the same request, source and diagnostic
+public key. Before bundle/key generation or Quote, the read-only helper requires
+the predecessor and current GitHub API runs to share the same numeric Workflow,
+protected `main` producer, repository and attempt 1, with current run number
+exactly predecessor plus one. The predecessor must be an original rehearsal-1
+with zero prior commitment, no continuation sidecar, and no accepted run-start,
+measured result or known runtime/correctness terminal. An unknown historical
+readiness cause remains unknown. A missing, nonadjacent or rerun producer is not
+repairable by changing the run number or starting another request.
+
+The helper authenticates exact original cleanup, Acquire and Release Artifact
+IDs, ZIP sizes/digests, immutable control ancestry, public Plan/Receipt/Quote,
+both bootstrap identities, and all twelve account/selector-bound zero scopes.
+Zero must follow Lease creation and the actual Release step start. GitHub step
+completion timestamps have second precision, so their upper bound includes only
+that final second; this does not relax the start bound. Unsafe ZIP members,
+incomplete authority, missing bytes or unexplained cost coverage reject startup.
+It supports only the fixed four-host 12-hour rehearsal shape. The full admitted
+Quote is reserved after verifying that its host, disk, bandwidth/traffic and EIP
+retention envelope covers the interval from Quote to observed zero. The reserve
+is not an invoice or a claim that actual charges are known. The CNY 1,500 hard
+limit and CNY 1,350 stop remain cumulative; callers cannot supply a reserve value.
+
+Admission materializes exactly one rehearsal-2 Lease with the authenticated
+reserve; it never loops over paid attempts. An existing authenticated same-request
+cleanup/complete producer rejects an omitted predecessor before procurement. This
+guard reuses the complete bounded Artifact inventory; it cannot recover expired
+or deleted history and is not a durable cross-request ledger. Stop markers and the
+existing paid concurrency and cleanup guards remain effective. Admission receipts
+are independently retained for eight days without becoming handoff evidence.
+
+`continuation/proof.json`, its digest-bound manifest and selected public evidence
+travel through the remote handoff and the rehearsal/formal terminal artifacts.
+Consumers reauthenticate the original rehearsal producer and exact source bytes,
+even when the consumer is a later scheduled run and the producer has completed.
+The zero-prior first-start path remains valid without a sidecar. Formal advancement
+adds the new rehearsal cost to the inherited reserve. Validation failure blocks
+qualification/new procurement only: already-owned Leases are still released and
+the zero proof is published first. Public evidence retention for 90 days does not
+extend the original child Artifact authority (currently seven days); expired or
+missing Acquire/Release authority rejects continuation or qualification.
+
+The helper reads one API response/JSON document up to 2 MiB, one Artifact ZIP up
+to 16 MiB, at most 128 members/64 MiB expanded per ZIP, and the reused inventory
+up to 20,000 entries/64 MiB. Only an allowlist of typed public JSON is persisted;
+no private identity, decrypted credential, raw journal or arbitrary archive entry
+is copied into the sidecar. Each exact GET has a 60-second bound and no retry.
 
 Deployment/readiness failure retains the exact acquired Lease rather than
 buying replacement hosts. The orchestrator publishes typed repair state on the

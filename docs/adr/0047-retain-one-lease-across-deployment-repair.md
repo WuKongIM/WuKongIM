@@ -38,3 +38,15 @@ no cursor of its own. Post-cursor reads remain unit-scoped, and the bounded
 terminal summary carries the closed observer reason when observer failure caused
 termination. This preserves immediate terminal classification without widening
 the log window or exposing raw observations.
+
+An explicit new start after authenticated Release may use the narrow released
+pre-clock continuation. It is restricted to the immediately adjacent run of the
+same numeric protected Workflow, both attempt 1, and an original rehearsal-1 with
+zero prior commitment and no earlier continuation. The full original admitted
+Quote becomes a conservative cumulative reserve only after authenticating child
+Acquire/Release, exact zero scopes and the pricing coverage interval. A caller
+cannot lower that reserve, reset the same retained request to first-start, chain
+another continuation, or use this path to retry a runtime/correctness failure.
+Unknown readiness failures remain unknown. The proof follows rehearsal and formal
+evidence and is reauthenticated before qualification or further procurement;
+a proof failure never prevents Release of resources already owned by the run.

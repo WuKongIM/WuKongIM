@@ -20,6 +20,11 @@ on:
         description: Exact request correlation identifier
         required: true
         type: string
+      released_preclock_run_id:
+        description: Explicit one-time continuation of the immediately preceding released pre-clock run; empty for first start
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -43,6 +48,8 @@ jobs:
       WK_CHAT_OPERATOR: ${{ inputs.operator }}
       WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
       WK_CHAT_REQUEST_ID: ${{ inputs.request_id }}
+      WK_CHAT_RELEASED_PRECLOCK_RUN_ID: ${{ inputs.released_preclock_run_id }}
+      WK_CHAT_ARTIFACT_INVENTORY: /tmp/wukongim-chat-lifecycle-inventory-${{ github.run_id }}.json
       WK_CHAT_WRAPPING_PUBLIC_KEY: ${{ vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY }}
       WK_CHAT_TEMPLATE: configs/cloud/chat-lifecycle/rehearsal-v1.json
       WK_CHAT_OUTPUT_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/handoff
@@ -58,13 +65,14 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
-      - name: Validate the four-input boundary and trusted source
+      - name: Validate fixed operator inputs, optional continuation, and trusted source
         shell: bash
         run: |
           set -euo pipefail
           [[ "$WK_CHAT_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$WK_CHAT_OPERATOR" == tangtaoit ]]
           [[ "$WK_CHAT_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
+          [[ -z "$WK_CHAT_RELEASED_PRECLOCK_RUN_ID" || "$WK_CHAT_RELEASED_PRECLOCK_RUN_ID" =~ ^[1-9][0-9]*$ ]]
           test -n "$WK_CHAT_WRAPPING_PUBLIC_KEY"
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$WK_CHAT_SOURCE_SHA" origin/main
@@ -81,7 +89,11 @@ jobs:
         run: |
           set -euo pipefail
           for stage in rehearsal formal; do
-            WK_CHAT_STAGE="$stage" scripts/chat-lifecycle/discover-active-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json"
+            inventory_args=()
+            if [[ "$stage" == rehearsal ]]; then
+              inventory_args+=("$WK_CHAT_ARTIFACT_INVENTORY")
+            fi
+            WK_CHAT_STAGE="$stage" scripts/chat-lifecycle/discover-active-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json" "${inventory_args[@]}"
             jq -e '.include | length == 0' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json" >/dev/null || {
               echo "Another Chat Lifecycle ${stage} handoff or cleanup-pending Lease has no authenticated zero-inventory proof." >&2
               exit 1
@@ -104,6 +116,15 @@ jobs:
         with:
           name: chat-lifecycle-rehearsal-preflight-${{ inputs.request_id }}
           path: ${{ env.WK_CHAT_OUTPUT_DIR }}/issue-preflight.json
+          if-no-files-found: ignore
+          retention-days: 8
+      - name: Retain read-only continuation admission receipt
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-continuation-admission-${{ inputs.request_id }}
+          path: ${{ env.WK_CHAT_OUTPUT_DIR }}/continuation-authentication.json
           if-no-files-found: ignore
           retention-days: 8
       - name: Detect publishable handoff or cleanup continuation
@@ -197,6 +218,7 @@ jobs:
             state=rehearsal_running
           fi
           export WK_CHAT_ISSUE_STATE="$state"
+          export WK_CHAT_ISSUE_DEDUPE_KEY="${state}_run_${GITHUB_RUN_ID}"
           export WK_CHAT_ISSUE_BODY="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           scripts/chat-lifecycle/comment-request-issue.sh
       - name: Remove plaintext runner identities

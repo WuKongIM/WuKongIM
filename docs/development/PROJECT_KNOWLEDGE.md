@@ -1221,6 +1221,15 @@ specification, runbook, report, or module documentation; link to them when neede
   terminal unit state, SSH failure and deadline expiry must remain distinguishable,
   with diagnostic evidence captured before terminating the unit. Missing evidence
   leaves the original cause unknown.
+- Released pre-clock continuation is an explicit single new start, not a runtime
+  retry. Its original first rehearsal must be the immediately preceding run of
+  the same numeric protected Workflow, both attempt 1, with exact authenticated
+  Acquire/Release/zero evidence. Carry the full admitted Quote as a conservative
+  request reserve; it is not an actual bill. Missing historical authority blocks
+  new procurement/qualification, never cleanup of an already-owned Lease. A
+  retained same-request cleanup/complete producer cannot reset its budget to zero
+  by omitting the predecessor input. Retention-limited Artifact discovery is not
+  a permanent cross-request ledger.
 - Paid cloud creation requires exact start authorization and a bounded cost envelope.
   Deployment, diagnosis, status, or cleanup does not authorize buying resources.
   Preserve immutable Lease expiry and exact resource identity. A run is released

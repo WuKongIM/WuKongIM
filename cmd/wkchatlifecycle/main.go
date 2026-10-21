@@ -192,7 +192,7 @@ func writePrivateAtomic(path string, body []byte) error {
 type materializeOptions struct {
 	templatePath, sourceSHA, operator, codexPubKey, requestID string
 	repository, bundleDigest, deploymentPubKey, nowValue      string
-	transitionPath                                            string
+	transitionPath, releasedPreclockProofPath                 string
 	attempt, committedMicros, authorizedRepairBudgetCNY       int64
 }
 
@@ -215,6 +215,7 @@ func addMaterializeCommand(root *cobra.Command) {
 	flags.StringVar(&options.deploymentPubKey, "deployment-pubkey", "", "derived deployment Ed25519 public key")
 	flags.StringVar(&options.nowValue, "now", "", "trusted RFC3339 UTC materialization time")
 	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
+	flags.StringVar(&options.releasedPreclockProofPath, "released-preclock-proof", "", "authenticated released rehearsal history from the protected read-only helper")
 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
 	flags.Int64Var(&options.authorizedRepairBudgetCNY, "authorized-repair-budget-cny", 0, "independently authorized whole-CNY direct repair budget")
@@ -252,6 +253,18 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
 			return err
 		}
 		trusted.Transition = &transition
+	}
+	if options.releasedPreclockProofPath != "" {
+		proofFile, err := os.Open(options.releasedPreclockProofPath)
+		if err != nil {
+			return err
+		}
+		defer proofFile.Close()
+		proof, err := chatlifecyclerun.DecodeReleasedPreclockProof(proofFile)
+		if err != nil {
+			return err
+		}
+		trusted.ReleasedPreclockProof = &proof
 	}
 	plan, err := chatlifecyclerun.Materialize(template, chatlifecyclerun.OperatorInput{
 		SourceSHA: options.sourceSHA, Operator: options.operator,
