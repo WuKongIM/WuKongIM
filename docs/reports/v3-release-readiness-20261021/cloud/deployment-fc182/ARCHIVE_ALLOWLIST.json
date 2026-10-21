@@ -1,0 +1,65 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 304,
+      "sha256": "161ef29cc88e7bff7e9c467ea7a55325cb749d962c1e793793f41157f7fdced0"
+    },
+    {
+      "path": "analysis-endpoint.json",
+      "bytes": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+    },
+    {
+      "path": "artifact-metadata.json",
+      "bytes": 769,
+      "sha256": "293665b3e47730a121ffe3adc5f9b9adbbc4b57bbd60b3da4618f4d2a0ec2c7d"
+    },
+    {
+      "path": "deployment-outcome.json",
+      "bytes": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+    },
+    {
+      "path": "deployment-plan.json",
+      "bytes": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "path": "download-receipt.json",
+      "bytes": 352,
+      "sha256": "dd70075b6164d0e0cea28f4056605955c8e4b20a3cbdb2b561dbb1eb10935e1b"
+    },
+    {
+      "path": "encrypted-access.json",
+      "bytes": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+    },
+    {
+      "path": "encrypted-deployment-identity.json",
+      "bytes": 2316,
+      "sha256": "852b50bede82dc2400a4746aafe2e18fd36eb56cf7eb2ea53e826638ca7e3726"
+    },
+    {
+      "path": "identity-verification.json",
+      "bytes": 382,
+      "sha256": "cacaf8f7dacaee52af09528ca3d64e7035da7d4b5928eba1440dfdd92bd5381d"
+    },
+    {
+      "path": "jobs.json",
+      "bytes": 5632,
+      "sha256": "e22d6d780effd0b5dd367a5928c48dffff25e62bdc2314dde7a6997804ccaf63"
+    },
+    {
+      "path": "readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 1542,
+      "sha256": "a3d9069d4131e0cec1fe26ef08fde318458826ef1cb3a13aaa176c5e0f8d80b8"
+    }
+  ],
+  "excluded": "No binary/bundle ZIP/plaintext credential/private key/decrypted identity or raw unsanitized logs. SSH config excluded; public JSON and opaque ciphertext only."
+}

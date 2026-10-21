@@ -1,0 +1,20 @@
+{
+  "id": 12339131183,
+  "node_id": "MDg6QXJ0aWZhY3QxMjMzOTEzMTE4Mw==",
+  "name": "chat-lifecycle-rehearsal-handoff-chat-20261021T095421Z-cf11d65c",
+  "size_in_bytes": 22845,
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12339131183",
+  "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12339131183/zip",
+  "expired": false,
+  "digest": "sha256:a4f1012d6453985bf7a22a51f49369a69d1ef56861f3471091f051c5f32c6ab2",
+  "created_at": "2026-10-21T10:19:33Z",
+  "updated_at": "2026-10-21T10:19:33Z",
+  "expires_at": "2026-10-29T10:19:31Z",
+  "workflow_run": {
+    "id": 39581355444,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+  }
+}

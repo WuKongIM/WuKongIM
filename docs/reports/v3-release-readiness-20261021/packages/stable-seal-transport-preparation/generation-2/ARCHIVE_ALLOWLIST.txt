@@ -1,0 +1,5 @@
+scope-amendment.md
+source-freeze.json
+summary.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

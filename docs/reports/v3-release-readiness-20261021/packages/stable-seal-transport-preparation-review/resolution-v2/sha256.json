@@ -1,0 +1,17 @@
+[
+  {
+    "path": "resolution.md",
+    "size": 4996,
+    "sha256": "d8b08ffcf497d906819b56881cbe9ef4e066a7d21d0d1d3ae6f6eb467a425873"
+  },
+  {
+    "path": "resolution.json",
+    "size": 567,
+    "sha256": "2c8866123e010962853825bffd2a1db31f2d15a6eabc1317c8f03cb7fbd288a5"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 30,
+    "sha256": "8323e555ec68182f5178ef96a5dc0919b557f97a892dd8594a9767516633037f"
+  }
+]

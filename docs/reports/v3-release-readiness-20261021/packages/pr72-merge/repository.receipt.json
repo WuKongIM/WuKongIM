@@ -1,0 +1,9 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages"
+  ],
+  "exit_code": 0,
+  "at": "2026-10-21T10:13:06.089125+00:00"
+}

@@ -1,0 +1,193 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 119159489432,
+      "run_id": 39581355444,
+      "workflow_name": "Chat Lifecycle Rehearsal chat-20261021T095421Z-cf11d65c",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39581355444",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbvnWDmA",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119159489432",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39581355444/job/119159489432",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-21T10:00:38Z",
+      "started_at": "2026-10-21T10:00:41Z",
+      "completed_at": "2026-10-21T10:19:38Z",
+      "name": "Build, quote, deploy, and hand off the remote rehearsal",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T10:00:42Z",
+          "completed_at": "2026-10-21T10:00:43Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T10:00:43Z",
+          "completed_at": "2026-10-21T10:00:54Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T10:00:54Z",
+          "completed_at": "2026-10-21T10:01:04Z"
+        },
+        {
+          "name": "Validate the four-input boundary and trusted source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T10:01:04Z",
+          "completed_at": "2026-10-21T10:01:04Z"
+        },
+        {
+          "name": "Build trusted Run Plan control tool",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T10:01:04Z",
+          "completed_at": "2026-10-21T10:01:09Z"
+        },
+        {
+          "name": "Refuse a second paid scenario while any prior Lease lacks zero proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T10:01:09Z",
+          "completed_at": "2026-10-21T10:01:24Z"
+        },
+        {
+          "name": "Enable rehearsal finalizer safety schedule before paid orchestration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T10:01:24Z",
+          "completed_at": "2026-10-21T10:01:24Z"
+        },
+        {
+          "name": "Orchestrate until remote systemd owns the measured run",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 8,
+          "started_at": "2026-10-21T10:01:24Z",
+          "completed_at": "2026-10-21T10:19:31Z"
+        },
+        {
+          "name": "Detect publishable handoff or cleanup continuation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T10:19:31Z",
+          "completed_at": "2026-10-21T10:19:31Z"
+        },
+        {
+          "name": "Upload non-secret remote handoff or cleanup evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T10:19:31Z",
+          "completed_at": "2026-10-21T10:19:33Z"
+        },
+        {
+          "name": "Detect immediate zero-inventory proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T10:19:33Z",
+          "completed_at": "2026-10-21T10:19:33Z"
+        },
+        {
+          "name": "Upload immediate zero-inventory proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T10:19:33Z",
+          "completed_at": "2026-10-21T10:19:34Z"
+        },
+        {
+          "name": "Release handed-off Lease if handoff publication failed",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-10-21T10:19:34Z",
+          "completed_at": "2026-10-21T10:19:34Z"
+        },
+        {
+          "name": "Upload fallback zero-inventory proof",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-10-21T10:19:34Z",
+          "completed_at": "2026-10-21T10:19:34Z"
+        },
+        {
+          "name": "Retry publication of cleanup-pending continuation evidence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-10-21T10:19:34Z",
+          "completed_at": "2026-10-21T10:19:34Z"
+        },
+        {
+          "name": "Advance the exact tracking Issue",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 16,
+          "started_at": "2026-10-21T10:19:34Z",
+          "completed_at": "2026-10-21T10:19:34Z"
+        },
+        {
+          "name": "Remove plaintext runner identities",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T10:19:34Z",
+          "completed_at": "2026-10-21T10:19:34Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 33,
+          "started_at": "2026-10-21T10:19:35Z",
+          "completed_at": "2026-10-21T10:19:35Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 34,
+          "started_at": "2026-10-21T10:19:35Z",
+          "completed_at": "2026-10-21T10:19:35Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35,
+          "started_at": "2026-10-21T10:19:35Z",
+          "completed_at": "2026-10-21T10:19:35Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119159489432",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024246,
+      "runner_name": "GitHub Actions 1000024246",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

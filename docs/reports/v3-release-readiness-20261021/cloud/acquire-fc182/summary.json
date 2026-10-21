@@ -1,0 +1,41 @@
+{
+  "run_id": 39582604546,
+  "attempt": 1,
+  "control_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+  "plan_digest": "e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47",
+  "bundle_digest": "sha256:73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88",
+  "status": "acquire_receipt_active_identity_and_resource_shape_verified",
+  "created_at": "2026-10-21T10:11:00.703367749Z",
+  "expires_at": "2026-10-21T22:02:56Z",
+  "resource_kind_counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "service_nodes": 3,
+  "load_nodes": 1,
+  "disk_contract_matches": true,
+  "resource_tag_identity_matches": true,
+  "sole_public_eip_on_load": true,
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1500000000,
+    "committed_micros": 0,
+    "operational_stop_micros": 1350000000
+  },
+  "admitted_quote_byte_equal": true,
+  "actual_billing_pending": true,
+  "deployment_run": 39582829931,
+  "deployment_verified": false,
+  "live_provider_reinspection_here": false
+}

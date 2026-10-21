@@ -1,0 +1,1 @@
+Deployment stage passed at 2026-10-21T10:17:40Z for the exact acquired Lease and frozen source/control. This does not prove rehearsal run-start. Both encrypted JSON files are opaque original ciphertext; no private identity was decrypted. Full source identity and artifact byte verification are retained.

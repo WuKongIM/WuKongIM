@@ -1,0 +1,126 @@
+{
+  "observed_window_utc": {
+    "start": "2026-10-21T10:19:00Z",
+    "end": "2026-10-21T10:24:37Z"
+  },
+  "evidence_method": "Normalized transcription of rendered official Alibaba Cloud console DOM/AX through CUA in the existing Chrome authenticated session; no hidden API calls, credentials, private certificate contents, or resource changes.",
+  "login": "existing session authenticated; no login submission",
+  "oss": {
+    "url": "https://oss.console.aliyun.com/bucket",
+    "filter": "全部 Bucket; empty search",
+    "pagination": "第1页，共1页; 10/page; previous/next disabled",
+    "visible_count": 4,
+    "dedicated_distribution_bucket_observed": false,
+    "buckets": [
+      {
+        "name": "test-backup-wk-01",
+        "region": "cn-beijing",
+        "storage_class": "Standard",
+        "redundancy": "LRS",
+        "versioning_enabled_as_rendered": false,
+        "transfer_acceleration_enabled": false
+      },
+      {
+        "name": "wukongim-backup-integration-50175678-20260729",
+        "region": "cn-beijing",
+        "storage_class": "Standard",
+        "redundancy": "LRS",
+        "versioning_enabled_as_rendered": false,
+        "transfer_acceleration_enabled": false
+      },
+      {
+        "name": "wukongim-backup-qualification-50175678-bj",
+        "region": "cn-beijing",
+        "storage_class": "Standard",
+        "redundancy": "LRS",
+        "versioning_enabled_as_rendered": true,
+        "transfer_acceleration_enabled": false
+      },
+      {
+        "name": "wukongim-backup-qualification-50175678-hz",
+        "region": "cn-hangzhou",
+        "storage_class": "Standard",
+        "redundancy": "LRS",
+        "versioning_enabled_as_rendered": true,
+        "transfer_acceleration_enabled": false
+      }
+    ],
+    "not_inspected": [
+      "object contents",
+      "bucket ACL/policy",
+      "IAM roles",
+      "lifecycle"
+    ]
+  },
+  "cdn": {
+    "url": "https://cdn.console.aliyun.com/domain",
+    "filters": "全部业务类型; 全部加速区域; empty search",
+    "total_count": 2,
+    "running_count": 1,
+    "packages_domain_present": false,
+    "running_relevant_domain": {
+      "domain": "docs.githubim.com",
+      "status": "正常运行",
+      "business_type": "图片小文件",
+      "cname_status": "已配置",
+      "primary_cname": "docs.githubim.com.w.kunlunaq.com",
+      "backup_cname": "docs.githubim.com.queniumy.com",
+      "https_enabled": true,
+      "created_at_ui": "2025-08-09 12:44:10",
+      "acceleration_scope": "全球",
+      "origin_type": "域名",
+      "origin_address": "origin-docs.githubim.com",
+      "origin_priority": "主",
+      "origin_weight": 10,
+      "origin_port": 80,
+      "detail_url": "https://cdn.console.aliyun.com/domain/detail/docs.githubim.com"
+    },
+    "other_domain": "one stopped unrelated domain; identity and origin intentionally omitted",
+    "packages_cname_scope_origin_certificate_config_ids": null
+  },
+  "certificates": {
+    "cdn_url": "https://cdn.console.aliyun.com/safety/https",
+    "cdn_rows": 1,
+    "available_uploaded_certificate": {
+      "name": "wukongim-docs-le-20261201-519f66c0f6a8",
+      "resource_id": "cas-upload-oe45bd",
+      "cert_identifier": "27000373-cn-hangzhou",
+      "region_from_identifier": "cn-hangzhou",
+      "brand": "Let's Encrypt",
+      "algorithm": "RSA_2048",
+      "status": "上传成功 / CDN 正常",
+      "bound_domains_as_listed": [
+        "docs.githubim.com"
+      ],
+      "valid_from_ui": "2026-09-02 22:00:57",
+      "valid_until_ui": "2026-12-01 22:00:56",
+      "time_zone_ui": "not displayed; not converted",
+      "source_as_rendered": "自定义上传（证书+私钥）",
+      "private_contents_accessed": false
+    },
+    "cas_scope": "cn-hangzhou as routed by official UI; no other regions/accounts enumerated",
+    "cas_v2": {
+      "formal_count": 0,
+      "personal_test_count": 0,
+      "uploaded_count": 1,
+      "uploaded_url": "https://yundun.console.aliyun.com/?p=cas#/instance/upload/cn-hangzhou"
+    },
+    "cas_v1": {
+      "formal_count": 0,
+      "personal_test_count": 11,
+      "pages_seen": 2,
+      "all_personal_test_rows_expired": true,
+      "packages_or_wildcard_match": false,
+      "url": "https://yundun.console.aliyun.com/?p=cas#/certExtend/free/cn-hangzhou"
+    },
+    "usable_packages_certificate_in_inspected_console_scope": false,
+    "limitation": "Public GitHub-hosted packages certificate is not evidence of an Alibaba deployable certificate or possession of its private key; certificate files/private key and full SAN were not opened."
+  },
+  "browser_notes": [
+    "Existing user OSS tab was already owned by parent session; one fresh ephemeral tab used same login instead.",
+    "One V2 menu action stayed on overview; visible certificate-management navigation then opened the list.",
+    "One ambiguous locator was rejected before action; a unique observed menu label was used.",
+    "Async empty tables were not treated as final results; loaded rows/no-records/pagination were observed."
+  ],
+  "prohibited_actions_performed": false
+}

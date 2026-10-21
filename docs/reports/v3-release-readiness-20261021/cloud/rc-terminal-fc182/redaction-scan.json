@@ -1,0 +1,10 @@
+{
+  "scope": "archive plaintext excluding source code and opaque ciphertext values",
+  "full_redacted_log_preserved": true,
+  "raw_log_stored": false,
+  "private_key_marker_found": false,
+  "unredacted_github_token_pattern_found": false,
+  "signed_url_query_removed": true,
+  "decrypted_credentials_obtained": false,
+  "limitations": "Pattern/structure scan; encrypted payloads were not opened and their contents are not inspected."
+}

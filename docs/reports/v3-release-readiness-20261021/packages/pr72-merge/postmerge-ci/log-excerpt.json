@@ -1,0 +1,70 @@
+[
+  {
+    "line": 104,
+    "text": "2026-10-21T10:13:17.7736738Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3fe04138403a7c9443e4ede457dccfa16dff2b00:refs/remotes/origin/main"
+  },
+  {
+    "line": 106,
+    "text": "2026-10-21T10:13:18.2873935Z  * [new ref]         3fe04138403a7c9443e4ede457dccfa16dff2b00 -> origin/main"
+  },
+  {
+    "line": 110,
+    "text": "2026-10-21T10:13:18.2935623Z 3fe04138403a7c9443e4ede457dccfa16dff2b00"
+  },
+  {
+    "line": 122,
+    "text": "2026-10-21T10:13:18.3274279Z 3fe04138403a7c9443e4ede457dccfa16dff2b00"
+  },
+  {
+    "line": 155,
+    "text": "2026-10-21T10:13:18.4312676Z \u001b[36;1m  echo 'deploy_bootstrap=true' >> \"$GITHUB_OUTPUT\"\u001b[0m"
+  },
+  {
+    "line": 157,
+    "text": "2026-10-21T10:13:18.4314005Z \u001b[36;1m  echo 'deploy_bootstrap=false' >> \"$GITHUB_OUTPUT\"\u001b[0m"
+  },
+  {
+    "line": 161,
+    "text": "2026-10-21T10:13:18.6005129Z publication control validation passed"
+  },
+  {
+    "line": 164,
+    "text": "2026-10-21T10:13:18.6865549Z Ran 4 tests in 0.001s"
+  },
+  {
+    "line": 166,
+    "text": "2026-10-21T10:13:18.6866073Z OK"
+  },
+  {
+    "line": 167,
+    "text": "2026-10-21T10:13:19.0690038Z package repository contracts passed"
+  },
+  {
+    "line": 170,
+    "text": "2026-10-21T10:14:54.6101923Z Ran 449 tests in 95.284s"
+  },
+  {
+    "line": 172,
+    "text": "2026-10-21T10:14:54.6102128Z OK"
+  },
+  {
+    "line": 173,
+    "text": "2026-10-21T10:14:54.6102643Z {\"passed\": false, \"cases\": 0, \"failure\": \"required native tool unavailable: gpg\", \"scratch_removed\": true}"
+  },
+  {
+    "line": 174,
+    "text": "2026-10-21T10:14:54.6105546Z {\"cases\": [], \"control_files\": {\"manifests/signing-toolchain.json\": {\"sha256\": \"b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99\", \"size\": 295}, \"scripts/sign-package-family.py\": {\"sha256\": \"c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0\", \"size\": 38244}, \"scripts/validate-signing-material.py\": {\"sha256\": \"2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4\", \"size\": 34568}, \"tests/native_local_signing_drill.py\": {\"sha256\": \"1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578\", \"size\": 22961}, \"tests/native_source_metadata_drill.py\": {\"sha256\": \"2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1\", \"size\": 9821}, \"tests/test_validate_signing_material.py\": {\"sha256\": \"ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe\", \"size\": 24911}}, \"failure\": {\"case\": \"rpm-files\", \"exit_code\": 1, \"family\": \"rpm\", \"input_mode\": \"files\", \"message\": \"no recognized signer diagnostic\"}, \"passed\": false, \"payloads_executed\": false, \"production_keys_used\": false, \"published\": false, \"schema\": \"wukongim/test-only-native-local-signing/v1\", \"source_provenance_verified\": false, \"test_only\": true, \"tool_versions\": {\"createrepo_c\": \"TEST ONLY version\", \"dpkg-deb\": \"TEST ONLY version\", \"gpg\": \"TEST ONLY version\", \"rpm\": \"TEST ONLY version\"}}"
+  },
+  {
+    "line": 175,
+    "text": "2026-10-21T10:14:54.6109154Z {\"passed\": false, \"cases\": 0, \"failure\": {\"type\": \"RuntimeError\", \"stage\": \"preflight\"}}"
+  },
+  {
+    "line": 176,
+    "text": "2026-10-21T10:14:54.6109568Z {\"passed\": false, \"cases\": 0, \"failure\": {\"type\": \"RuntimeError\", \"stage\": \"preflight\"}}"
+  },
+  {
+    "line": 193,
+    "text": "2026-10-21T10:14:54.7886234Z Set output 'deploy_bootstrap'"
+  }
+]

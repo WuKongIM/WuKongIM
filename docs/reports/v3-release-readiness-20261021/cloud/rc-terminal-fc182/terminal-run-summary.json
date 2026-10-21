@@ -1,0 +1,278 @@
+{
+  "observed_at": "2026-10-21T10:21:48.848267+00:00",
+  "top": {
+    "id": 39581355444,
+    "run_attempt": 1,
+    "status": "completed",
+    "conclusion": "failure",
+    "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "head_branch": "main",
+    "display_title": "Chat Lifecycle Rehearsal chat-20261021T095421Z-cf11d65c",
+    "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "created_at": "2026-10-21T10:00:35Z",
+    "updated_at": "2026-10-21T10:19:39Z",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39581355444",
+    "event": "workflow_dispatch"
+  },
+  "top_steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Validate the four-input boundary and trusted source",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build trusted Run Plan control tool",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Refuse a second paid scenario while any prior Lease lacks zero proof",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Enable rehearsal finalizer safety schedule before paid orchestration",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Orchestrate until remote systemd owns the measured run",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "Detect publishable handoff or cleanup continuation",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Upload non-secret remote handoff or cleanup evidence",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Detect immediate zero-inventory proof",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Upload immediate zero-inventory proof",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Release handed-off Lease if handoff publication failed",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Upload fallback zero-inventory proof",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Retry publication of cleanup-pending continuation evidence",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Advance the exact tracking Issue",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "Remove plaintext runner identities",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "children": [
+    {
+      "id": 39583589120,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "head_branch": "main",
+      "display_title": "Cloud Lease Release chat-20261021T095421Z-cf11d65c",
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "created_at": "2026-10-21T10:18:12Z",
+      "updated_at": "2026-10-21T10:19:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39583589120",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12338506487,
+          "name": "cloud-lease-release-chat-20261021T095421Z-cf11d65c",
+          "size_in_bytes": 557,
+          "digest": "sha256:2adcf95fa99f445907727aece3a2acddae0fbadd96065dd57a3d7af896b6b055"
+        }
+      ]
+    },
+    {
+      "id": 39582829931,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "head_branch": "main",
+      "display_title": "Cloud Deployment cloud-lease-provision-chat-20261021T095421Z-cf11d65c immutable generation 1",
+      "path": ".github/workflows/cloud-deployment-activate.yml",
+      "created_at": "2026-10-21T10:12:08Z",
+      "updated_at": "2026-10-21T10:17:46Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39582829931",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12338731180,
+          "name": "cloud-deployment-39582829931",
+          "size_in_bytes": 6660,
+          "digest": "sha256:5c27f565ef6adad8d8887c8b9bbc36373d077eccf4089d49558dadeede17634e"
+        }
+      ]
+    },
+    {
+      "id": 39582604546,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "head_branch": "main",
+      "display_title": "Cloud Lease Provision chat-20261021T095421Z-cf11d65c",
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "created_at": "2026-10-21T10:10:20Z",
+      "updated_at": "2026-10-21T10:11:59Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39582604546",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12336503577,
+          "name": "cloud-lease-provision-chat-20261021T095421Z-cf11d65c",
+          "size_in_bytes": 3613,
+          "digest": "sha256:d9f29affe4a48481c646b702bbc28b32359e67ee2b8f7469142f616815d24813"
+        }
+      ]
+    },
+    {
+      "id": 39581671217,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "head_branch": "main",
+      "display_title": "Cloud Lease Provision chat-20261021T095421Z-cf11d65c",
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "created_at": "2026-10-21T10:03:00Z",
+      "updated_at": "2026-10-21T10:10:12Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39581671217",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12337531186,
+          "name": "cloud-lease-provision-chat-20261021T095421Z-cf11d65c",
+          "size_in_bytes": 974,
+          "digest": "sha256:97fd694606dfe8a0a1b0ee65f6c9a36b4bf44c9432be6b96a430463a863e2416"
+        }
+      ]
+    },
+    {
+      "id": 39581475829,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "head_branch": "main",
+      "display_title": "Cloud Deployment Bundle fc18221282f289088ec9b4282fda8e0bfc67a3b8 chat-20261021T095421Z-cf11d65c",
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "created_at": "2026-10-21T10:01:28Z",
+      "updated_at": "2026-10-21T10:02:48Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39581475829",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12336417107,
+          "name": "cloud-deployment-bundle-73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88",
+          "size_in_bytes": 141108866,
+          "digest": "sha256:e695b84f0fc5012f4eb85eaa04c72ea1cd0b78300ac7bc949220593bef42cbf0"
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12339131183,
+      "node_id": "MDg6QXJ0aWZhY3QxMjMzOTEzMTE4Mw==",
+      "name": "chat-lifecycle-rehearsal-handoff-chat-20261021T095421Z-cf11d65c",
+      "size_in_bytes": 22845,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12339131183",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12339131183/zip",
+      "expired": false,
+      "digest": "sha256:a4f1012d6453985bf7a22a51f49369a69d1ef56861f3471091f051c5f32c6ab2",
+      "created_at": "2026-10-21T10:19:33Z",
+      "updated_at": "2026-10-21T10:19:33Z",
+      "expires_at": "2026-10-29T10:19:31Z",
+      "workflow_run": {
+        "id": 39581355444,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "main",
+        "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+      }
+    },
+    {
+      "id": 12338781445,
+      "node_id": "MDg6QXJ0aWZhY3QxMjMzODc4MTQ0NQ==",
+      "name": "chat-lifecycle-rehearsal-cleanup-chat-20261021T095421Z-cf11d65c",
+      "size_in_bytes": 22845,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12338781445",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12338781445/zip",
+      "expired": false,
+      "digest": "sha256:9415fe341edd26397def4bb07c907799cace7a0758ac256cb8cf401aae18d14f",
+      "created_at": "2026-10-21T10:19:34Z",
+      "updated_at": "2026-10-21T10:19:34Z",
+      "expires_at": "2027-01-19T10:00:38Z",
+      "workflow_run": {
+        "id": 39581355444,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "main",
+        "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+      }
+    }
+  ]
+}

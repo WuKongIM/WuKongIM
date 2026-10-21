@@ -1,0 +1,13 @@
+README.md
+artifact-metadata.json
+artifact.zip
+download-receipt.json
+expected-selector.json
+jobs-final.json
+quote.json
+receipt.json
+request-runs.json
+summary.json
+verification.json
+verify-public-json-artifact.py
+ARCHIVE_ALLOWLIST

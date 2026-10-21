@@ -1,0 +1,85 @@
+{
+  "schema": "wukongim.rc_observation_summary/v1",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "top_run_id": 39581355444,
+  "attempt": 1,
+  "top_conclusion": "failure",
+  "bundle_run_id": 39581475829,
+  "quote_run_id": 39581671217,
+  "acquire_run_id": 39582604546,
+  "deployment_run_id": 39582829931,
+  "release_run_id": 39583589120,
+  "paid_acquire_executed": true,
+  "deployment_passed": true,
+  "rehearsal_measured_start_proven": false,
+  "formal_lease_acquired": false,
+  "zero_inventory": {
+    "exact_selector_match": true,
+    "account_matches_acquire": true,
+    "complete_frozen_provider_scopes": true,
+    "observed_at": "2026-10-21T10:19:19.689029905Z",
+    "selector": {
+      "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+      "request_id": "chat-20261021T095421Z-cf11d65c",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "plan_digest": "e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47"
+    },
+    "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+    "scopes": [
+      "disk_attachments",
+      "disks",
+      "eip_associations",
+      "eips",
+      "enis",
+      "instances",
+      "nat_gateways",
+      "route_entries",
+      "security_group_rules",
+      "security_groups",
+      "vpcs",
+      "vswitches"
+    ]
+  },
+  "failure": {
+    "visible_orchestration_exit": 1,
+    "visible_message": "pre-clock readiness repair state could not be published; exact Lease was released",
+    "typed_readiness_code": "stage_readiness_timeout",
+    "typed_code_is_preassigned_not_evidence_of_elapsed_timeout": true,
+    "configured_readiness_timeout_seconds": 7200,
+    "last_successful_gate": "deployment_receipt",
+    "initial_readiness_root_cause": "unknown: no service state, journal or coordinator summary retained",
+    "benign_reset_failure_is_explicitly_tolerated_by_source": true,
+    "tracking_issue_step_exit": 4,
+    "tracking_issue_stderr": "none",
+    "current_exact_issue_search_total_count": 0,
+    "current_exact_issue_search_incomplete": false,
+    "offline_original_jq_replay_exit": 4,
+    "historical_search_response_unavailable": true
+  },
+  "budget": {
+    "whole_request_authorized_limit_cny": 1500,
+    "operational_stop_cny": 1350,
+    "admitted_rehearsal_quote_cny": 74.4776,
+    "quote_is_not_actual_bill": true,
+    "actual_provider_billing": "not retrieved / pending"
+  },
+  "safety": {
+    "no_manual_retry_or_new_dispatch": true,
+    "no_source_change_or_repair_trailer": true,
+    "no_private_decryption": true,
+    "no_provider_api_called_by_observer": true,
+    "no_cloud_or_repo_mutations_by_observer": true,
+    "plaintext_runner_identity_removal_step": "success"
+  },
+  "limitations": [
+    "Artifact named handoff contains the same 26 files as cleanup and has no handoff.json/run-start.json: its name does not prove handoff.",
+    "Source can classify terminal-without-parseable-code or unreachable as stage_readiness_timeout before actual deadline.",
+    "The current zero-match Issue query reproduces jq exit 4, but historical runtime search response was not retained.",
+    "No runtime product regression, resource shortage or specific systemd failure root cause is established.",
+    "Exact provider zero inventory is a point-in-time receipt for this Lease, not an account-wide billing or inventory audit."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "deployment_run_id": 39582829931,
+  "deployment_passed": true,
+  "acquire_lease_plan_and_hosts_bound": true,
+  "source_control_bundle_exact": true,
+  "readiness_and_outcome_same_plan": true,
+  "activated_at": "2026-10-21T10:17:40Z",
+  "run_start_not_proved_by_deployment": true,
+  "ciphertext_never_decrypted": true
+}

@@ -1,0 +1,102 @@
+{
+  "schema": "wukongim.cloud_deployment.plan/v2",
+  "plan_digest": "sha256:cc541cab530fdc11655863b5ffc114512cbd044490fe74c7ec56c834e3da5f0e",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "repository": "WuKongIM/WuKongIM",
+  "provider": "alibaba",
+  "region": "cn-hangzhou",
+  "zone": "cn-hangzhou-b",
+  "lease_plan_digest": "sha256:e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47",
+  "purpose": "immutable",
+  "generation": 1,
+  "lease_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "lease_bundle_digest": "sha256:73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "bundle_digest": "sha256:73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88",
+  "lease_created_at": "2026-10-21T10:11:00.703367749Z",
+  "expires_at": "2026-10-21T22:02:56Z",
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1500000000,
+    "operational_stop_micros": 1350000000,
+    "committed_micros": 0,
+    "estimated_cost_micros": 74477600,
+    "line_items": [
+      {
+        "kind": "postpaid_host_hour",
+        "role": "service",
+        "quantity": 36,
+        "cost_micros": 40093200
+      },
+      {
+        "kind": "postpaid_host_hour",
+        "role": "load",
+        "quantity": 12,
+        "cost_micros": 9584400
+      },
+      {
+        "kind": "eip_public_egress_gib",
+        "role": "load",
+        "quantity": 11,
+        "cost_micros": 8800000
+      },
+      {
+        "kind": "eip_retention_policy_risk_hour",
+        "role": "load",
+        "quantity": 16,
+        "cost_micros": 16000000
+      }
+    ]
+  },
+  "operating_system": "ubuntu",
+  "operating_system_version": "24.04",
+  "architecture": "amd64",
+  "topology": {
+    "service_nodes": 3,
+    "load_nodes": 1,
+    "physical_hash_slots": 256,
+    "logical_slot_groups": 12,
+    "slot_replicas": 3,
+    "channel_replicas": 3
+  },
+  "hosts": [
+    {
+      "role": "service-1",
+      "lease_role": "service",
+      "node_id": 1,
+      "instance_id": "i-bp12gijjd0k8pqh64axr",
+      "private_address": "10.42.0.32",
+      "data_disk_id": "d-bp12gijjd0k8pqhcgovu",
+      "minimum_data_filesystem_bytes": 500000000000
+    },
+    {
+      "role": "service-2",
+      "lease_role": "service",
+      "node_id": 2,
+      "instance_id": "i-bp1431so4840vqsv8c3r",
+      "private_address": "10.42.0.33",
+      "data_disk_id": "d-bp1431so4840vqszqzfl",
+      "minimum_data_filesystem_bytes": 500000000000
+    },
+    {
+      "role": "service-3",
+      "lease_role": "service",
+      "node_id": 3,
+      "instance_id": "i-bp1fum8lr6486ecapnur",
+      "private_address": "10.42.0.34",
+      "data_disk_id": "d-bp1fum8lr6486ec7gq9g",
+      "minimum_data_filesystem_bytes": 500000000000
+    },
+    {
+      "role": "load",
+      "lease_role": "load",
+      "instance_id": "i-bp1fpc8jhnxvncufy71l",
+      "private_address": "10.42.0.35",
+      "public_address": "47.99.113.135",
+      "data_disk_id": "d-bp1fpc8jhnxvncu9cavl",
+      "minimum_data_filesystem_bytes": 200000000000
+    }
+  ]
+}

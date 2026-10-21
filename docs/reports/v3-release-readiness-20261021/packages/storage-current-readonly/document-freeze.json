@@ -1,0 +1,23 @@
+{
+  "files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/storage-design/design.md",
+      "sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311",
+      "bytes": 21154
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-post-candidate-plan/dependency-matrix.md",
+      "sha256": "c162cddf52324bfa837a413e88a4d11e277ea4de5663d3f8e7e4dd5d0667817c",
+      "bytes": 9737
+    }
+  ],
+  "governing_constraints": [
+    "Dedicated private Standard distribution OSS bucket; do not reuse backup/test buckets or docs CDN.",
+    "Plan actual bucket name/region, packages CDN scope, origin host/TLS, certificate and CNAME before mutations.",
+    "Keep preview canonical bytes and /repo default; verify same Host/TLS and signed clients before DNS cutover.",
+    "Uploader limited Put/Get prefixes; origin read-only dedicated bucket; activator only packages CDN. No Delete, broad RAM, DNS/cert authority in routine roles.",
+    "First design relies on forbid-overwrite and thus does not enable or suspend versioning.",
+    "No multi-object or global CDN atomicity claim.",
+    "Historical offline/hardware custody/key-missing text is superseded by the dependency matrix; no private key access needed for this inventory."
+  ]
+}

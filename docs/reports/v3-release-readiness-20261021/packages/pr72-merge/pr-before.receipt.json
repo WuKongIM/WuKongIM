@@ -1,0 +1,14 @@
+{
+  "command": [
+    "gh",
+    "pr",
+    "view",
+    "72",
+    "--repo",
+    "WuKongIM/packages",
+    "--json",
+    "number,title,state,isDraft,headRefOid,baseRefOid,headRefName,baseRefName,mergeStateStatus,mergeable,statusCheckRollup,reviewDecision,reviews,url"
+  ],
+  "exit_code": 0,
+  "at": "2026-10-21T10:13:05.040518+00:00"
+}

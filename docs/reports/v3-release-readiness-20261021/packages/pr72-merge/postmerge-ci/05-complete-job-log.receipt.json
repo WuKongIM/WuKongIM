@@ -1,0 +1,10 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/jobs/119164796516/logs"
+  ],
+  "observed_at": "2026-10-21T10:15:57.857575+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 18951
+}

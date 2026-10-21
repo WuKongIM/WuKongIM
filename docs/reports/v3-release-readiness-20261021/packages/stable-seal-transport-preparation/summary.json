@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim.stable_seal_transport_preparation/v1",
+  "source_sha": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "status": "proposal_awaiting_root_scope_review",
+  "recommendation": "one coherent offline-tested slice extending four existing helpers: bind/seal/resolve + composite planner",
+  "new_remote_asset_type": false,
+  "candidate_archive_modified": false,
+  "production_workflow_or_manifest_changes": false,
+  "production_api_calls": false,
+  "tests_or_prototypes_run": false,
+  "planned_schemas": [
+    "stable audit resolution v2",
+    "stable audit seal v2",
+    "composite transport input v2",
+    "composite transport output v2"
+  ],
+  "no_extra_signing_exchange_protocol": true,
+  "core_producer_scripts_should_remain_unchanged": true,
+  "offline_trust_limit": "Local seal JSON is evidence, not authenticated GitHub truth; production activation must fresh-resolve exact audit/source identities.",
+  "public_routing": "preview owns shared root paths; stable snapshot originals remain immutable; one derived no-store mirrorlist; no automatic repo-stable installer in this slice",
+  "approval_dependency": "Root requested scope review before implementation worktree; no user question or new resource approval request sent",
+  "reports": [
+    "scope-proposal.md",
+    "failure-matrix.md"
+  ]
+}

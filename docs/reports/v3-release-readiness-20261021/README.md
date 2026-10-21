@@ -237,7 +237,7 @@ immutable publication and signed native-package public-client acceptance.
   initial run state. This does not claim procurement or remote workload success.
 - `packages/pr72-delivery/`: final c8aae37 public allowlist, all 449+4 checks,
   31 real candidate cases and complete signed-repository drill success; initial
-  failure remains preserved. PR ready, separate merge approval pending.
+  failure remains preserved. The separately approved merge is recorded below.
 - `packages/stable-post-candidate-plan/`: follow-on seal/transport preparation,
   with no production activation or external writes.
 - `cloud-authorization-and-candidate-followup-archive.json`: original paths,
@@ -246,3 +246,23 @@ immutable publication and signed native-package public-client acceptance.
 - `cloud/bundle-fc182/`: complete exact-source bundle verification, all payload
   member digests and reproducible verifier; first read-only download failure
   retained. Large binary ZIP and private material are excluded.
+
+- `packages/pr72-merge/`: exact user-approved rebase merge, Git tree proof and
+  retained clean worktree decision; failed read-only GETs remain preserved.
+- `cloud/quote-fc182/`, `cloud/acquire-fc182/`: exact accepted quote and acquired
+  four-host Lease, with full artifact/receipt identity checks. Actual billing and
+  remote workload qualification remain separate.
+- `packages/stable-seal-transport-preparation/`,
+  `packages/stable-seal-transport-preparation-review/`: original scope, review
+  findings and adopted five-helper production pre-write checks. Implementation
+  is in progress; no actual stable seal or channel activation is claimed.
+- `merge-and-cloud-acquire-archive.json`: byte-preserving allowlist copy receipts
+  for these new merge, cloud-stage and scope-review records.
+
+- `cloud/deployment-fc182/`, `cloud/rc-terminal-fc182/`: successful typed deployment,
+  subsequent pre-clock failure, complete redacted log and exact zero-inventory
+  proof. No measured run-start or successful rehearsal is claimed.
+- `packages/storage-current-readonly/`: current official-console observations
+  and public DNS/TLS, with scope limits and no resource mutation.
+- `rc-terminal-and-storage-readonly-archive.json`: byte/hash allowlist copy
+  receipts for the terminal cloud evidence and distribution resource inventory.

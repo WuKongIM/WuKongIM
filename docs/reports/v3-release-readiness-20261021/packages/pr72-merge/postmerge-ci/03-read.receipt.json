@@ -1,0 +1,9 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/runs/39582962603"
+  ],
+  "observed_at": "2026-10-21T10:15:45.004745+00:00",
+  "exit_code": 0
+}

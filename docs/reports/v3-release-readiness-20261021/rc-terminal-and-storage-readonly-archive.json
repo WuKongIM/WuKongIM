@@ -1,0 +1,496 @@
+{
+  "entries": [
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/ARCHIVE_ALLOWLIST.json",
+      "path": "cloud/deployment-fc182/ARCHIVE_ALLOWLIST.json",
+      "size_bytes": 2058,
+      "sha256": "a00c74bc7f5973fef8b204c194313e7cc54eb5bb11f81474e18eaca0959df626"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/README.md",
+      "path": "cloud/deployment-fc182/README.md",
+      "size_bytes": 304,
+      "sha256": "161ef29cc88e7bff7e9c467ea7a55325cb749d962c1e793793f41157f7fdced0"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/analysis-endpoint.json",
+      "path": "cloud/deployment-fc182/analysis-endpoint.json",
+      "size_bytes": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/artifact-metadata.json",
+      "path": "cloud/deployment-fc182/artifact-metadata.json",
+      "size_bytes": 769,
+      "sha256": "293665b3e47730a121ffe3adc5f9b9adbbc4b57bbd60b3da4618f4d2a0ec2c7d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/deployment-outcome.json",
+      "path": "cloud/deployment-fc182/deployment-outcome.json",
+      "size_bytes": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/deployment-plan.json",
+      "path": "cloud/deployment-fc182/deployment-plan.json",
+      "size_bytes": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/download-receipt.json",
+      "path": "cloud/deployment-fc182/download-receipt.json",
+      "size_bytes": 352,
+      "sha256": "dd70075b6164d0e0cea28f4056605955c8e4b20a3cbdb2b561dbb1eb10935e1b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/encrypted-access.json",
+      "path": "cloud/deployment-fc182/encrypted-access.json",
+      "size_bytes": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/encrypted-deployment-identity.json",
+      "path": "cloud/deployment-fc182/encrypted-deployment-identity.json",
+      "size_bytes": 2316,
+      "sha256": "852b50bede82dc2400a4746aafe2e18fd36eb56cf7eb2ea53e826638ca7e3726"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/identity-verification.json",
+      "path": "cloud/deployment-fc182/identity-verification.json",
+      "size_bytes": 382,
+      "sha256": "cacaf8f7dacaee52af09528ca3d64e7035da7d4b5928eba1440dfdd92bd5381d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/jobs.json",
+      "path": "cloud/deployment-fc182/jobs.json",
+      "size_bytes": 5632,
+      "sha256": "e22d6d780effd0b5dd367a5928c48dffff25e62bdc2314dde7a6997804ccaf63"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/readiness-snapshot.json",
+      "path": "cloud/deployment-fc182/readiness-snapshot.json",
+      "size_bytes": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/verification.json",
+      "path": "cloud/deployment-fc182/verification.json",
+      "size_bytes": 1542,
+      "sha256": "a3d9069d4131e0cec1fe26ef08fde318458826ef1cb3a13aaa176c5e0f8d80b8"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/deployment-public-frozen/SHA256SUMS",
+      "path": "cloud/deployment-fc182/SHA256SUMS",
+      "size_bytes": 1140,
+      "sha256": "fbd11ad8d9c558d4538a01e58d4d9282ca9b1e518eacda12751584ee0c187d75"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/ARCHIVE_ALLOWLIST.json",
+      "path": "cloud/rc-terminal-fc182/ARCHIVE_ALLOWLIST.json",
+      "size_bytes": 10105,
+      "sha256": "4b01915239810272272bd227f2f664417bf5485abbc6d6e9c7c6783a6c46fe1b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/README.md",
+      "path": "cloud/rc-terminal-fc182/README.md",
+      "size_bytes": 3080,
+      "sha256": "748c98b359332c4e7cbe3557ab44f4d27d2cea2f5d7ca4acfc8a262c6ccc8ed8"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/artifact-12338781445.json",
+      "path": "cloud/rc-terminal-fc182/artifact-12338781445.json",
+      "size_bytes": 805,
+      "sha256": "23e1a6feb9b9ce8ff5b2b59127e1fb232878105aba8b91d43505a3ace71892ce"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/artifact-12339131183.json",
+      "path": "cloud/rc-terminal-fc182/artifact-12339131183.json",
+      "size_bytes": 805,
+      "sha256": "a5674a00880108d3a637339bfc8313d343d18aa8499ab96300ef79408041a059"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/cleanup-download.json",
+      "path": "cloud/rc-terminal-fc182/cleanup-download.json",
+      "size_bytes": 353,
+      "sha256": "8b130b85e38b011fa6d6c8cc225b953c3baf23e42a3a765fe8fe5f2b6061c4c2"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/collect-redacted-log.py",
+      "path": "cloud/rc-terminal-fc182/collect-redacted-log.py",
+      "size_bytes": 1883,
+      "sha256": "dc94a49dd547d8ebb006551c929097da7fa5151eae6ad85fc73febe0f90e3af9"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "size_bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/receipt.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/receipt.json",
+      "size_bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/attempted-deployment-control-shas",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/attempted-deployment-control-shas",
+      "size_bytes": 41,
+      "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/attempted-repair-source-shas",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/attempted-repair-source-shas",
+      "size_bytes": 41,
+      "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/bootstrap-access.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/bootstrap-access.json",
+      "size_bytes": 251,
+      "sha256": "67aad04ec4219eb3e52b24dddcdb9a5714bd39eaf36a75fdd5f18faed2b1539b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/analysis-endpoint.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/analysis-endpoint.json",
+      "size_bytes": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-outcome.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-outcome.json",
+      "size_bytes": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-plan.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-plan.json",
+      "size_bytes": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/encrypted-access.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/encrypted-access.json",
+      "size_bytes": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/readiness-snapshot.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/readiness-snapshot.json",
+      "size_bytes": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/deployment-plan.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/deployment-plan.json",
+      "size_bytes": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/lease-plan.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/lease-plan.json",
+      "size_bytes": 1892,
+      "sha256": "35b85d7a5b807a7d90697535a56d2f4fcd3245bdfa3a5b19ff0dd7a21ce0d9bf"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/preflight-quote.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/preflight-quote.json",
+      "size_bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "size_bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/quote.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/quote.json",
+      "size_bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/receipt-selector.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/receipt-selector.json",
+      "size_bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/receipt.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/receipt.json",
+      "size_bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/release-selector.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/release-selector.json",
+      "size_bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/run-plan.json",
+      "path": "cloud/rc-terminal-fc182/evidence/attempt-1/run-plan.json",
+      "size_bytes": 2361,
+      "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/cleanup.json",
+      "path": "cloud/rc-terminal-fc182/evidence/cleanup.json",
+      "size_bytes": 172,
+      "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/deployment-repair-pending.json",
+      "path": "cloud/rc-terminal-fc182/evidence/deployment-repair-pending.json",
+      "size_bytes": 624,
+      "sha256": "1bf3a22914a29dbe8c1fcfb3065dde5ccece7f7d15dde7425e500cd57018d846"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/release-1-1/cloud-lease-release-chat-20261021T095421Z-cf11d65c/release.json",
+      "path": "cloud/rc-terminal-fc182/evidence/release-1-1/cloud-lease-release-chat-20261021T095421Z-cf11d65c/release.json",
+      "size_bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/release-selector.json",
+      "path": "cloud/rc-terminal-fc182/evidence/release-selector.json",
+      "size_bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/verification.json",
+      "path": "cloud/rc-terminal-fc182/evidence/verification.json",
+      "size_bytes": 11764,
+      "sha256": "2d51e1c0573d2e349b7d80888e9d5394178f599fcd2691b9e438cb3f228a859c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/zero-inventory.json",
+      "path": "cloud/rc-terminal-fc182/evidence/zero-inventory.json",
+      "size_bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/failure-excerpt.txt",
+      "path": "cloud/rc-terminal-fc182/failure-excerpt.txt",
+      "size_bytes": 1044,
+      "sha256": "eb7cd8b2671474b19c65dab1ccc3855a800df9a38a649d966997bdf68273d319"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/handoff-named-download.json",
+      "path": "cloud/rc-terminal-fc182/handoff-named-download.json",
+      "size_bytes": 353,
+      "sha256": "63ed689907c860bc590cda4a22524cceee385ac03c1b5829f890bb993fbabb21"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/issue-search-jq-replay.json",
+      "path": "cloud/rc-terminal-fc182/issue-search-jq-replay.json",
+      "size_bytes": 688,
+      "sha256": "ffa8885b7c8dfa348e20bd1ea371d8e9aa202def4fd7d261030f8a94852b05fb"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/issue-search.json",
+      "path": "cloud/rc-terminal-fc182/issue-search.json",
+      "size_bytes": 79,
+      "sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/redaction-scan.json",
+      "path": "cloud/rc-terminal-fc182/redaction-scan.json",
+      "size_bytes": 435,
+      "sha256": "3e78440400aa900be9f539afcae151fa849950766e579cd6d8538c22370b73dc"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/release/artifact-metadata.json",
+      "path": "cloud/rc-terminal-fc182/release/artifact-metadata.json",
+      "size_bytes": 790,
+      "sha256": "0086ba9ada43c58893516c12d18a743df7e0dc21dc81e159e1d44e88018a6e6d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/release/download-receipt.json",
+      "path": "cloud/rc-terminal-fc182/release/download-receipt.json",
+      "size_bytes": 351,
+      "sha256": "175a1fe86a498f40b1a7e91bd039a2465e1452eb52b0b6bd1932dbed365a4144"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/release/jobs.json",
+      "path": "cloud/rc-terminal-fc182/release/jobs.json",
+      "size_bytes": 5626,
+      "sha256": "dd9c28159f6a3a79a5b6a1e640923cd3eb334157d10df2b0a38a957bc7385542"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/release/release.json",
+      "path": "cloud/rc-terminal-fc182/release/release.json",
+      "size_bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/release/verification.json",
+      "path": "cloud/rc-terminal-fc182/release/verification.json",
+      "size_bytes": 346,
+      "sha256": "e51537d6a3b9360d993f95051d63841eb335012759012134b37eea43eb641da3"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/.github/workflows/chat-lifecycle-rehearsal.yml",
+      "path": "cloud/rc-terminal-fc182/source/.github/workflows/chat-lifecycle-rehearsal.yml",
+      "size_bytes": 8607,
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/.github/workflows/cloud-lease-release.yml",
+      "path": "cloud/rc-terminal-fc182/source/.github/workflows/cloud-lease-release.yml",
+      "size_bytes": 5948,
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/internal/infra/cloudlease/alibaba/lifecycle.go",
+      "path": "cloud/rc-terminal-fc182/source/internal/infra/cloudlease/alibaba/lifecycle.go",
+      "size_bytes": 34180,
+      "sha256": "ed6f46c1dc1d513facd3ea2b0b6bca2422bf2d0216095f46a5eb0713c130f1ee"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/internal/usecase/cloudlease/types.go",
+      "path": "cloud/rc-terminal-fc182/source/internal/usecase/cloudlease/types.go",
+      "size_bytes": 21965,
+      "sha256": "97df17c075a0f9813ff8b449294a12be41da5bb3d7c1f84656863af70239fc3d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/scripts/chat-lifecycle/capture-stage-journal-cursor.sh",
+      "path": "cloud/rc-terminal-fc182/source/scripts/chat-lifecycle/capture-stage-journal-cursor.sh",
+      "size_bytes": 717,
+      "sha256": "9cd6cc329d07a7aea08797cf1f358c6c177d258ccf7292ce1bed68252eb1a4b6"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/scripts/chat-lifecycle/classify-pre-clock-summary.sh",
+      "path": "cloud/rc-terminal-fc182/source/scripts/chat-lifecycle/classify-pre-clock-summary.sh",
+      "size_bytes": 1817,
+      "sha256": "1a832333429bb7bfbd5ec58db1fbe304b79fad874565323cb700973d9ca1238d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/scripts/chat-lifecycle/classify-stage-service-state.sh",
+      "path": "cloud/rc-terminal-fc182/source/scripts/chat-lifecycle/classify-stage-service-state.sh",
+      "size_bytes": 711,
+      "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/scripts/chat-lifecycle/comment-request-issue.sh",
+      "path": "cloud/rc-terminal-fc182/source/scripts/chat-lifecycle/comment-request-issue.sh",
+      "size_bytes": 2654,
+      "sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source/scripts/chat-lifecycle/stage-orchestrate.sh",
+      "path": "cloud/rc-terminal-fc182/source/scripts/chat-lifecycle/stage-orchestrate.sh",
+      "size_bytes": 40784,
+      "sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/source-identity.json",
+      "path": "cloud/rc-terminal-fc182/source-identity.json",
+      "size_bytes": 1706,
+      "sha256": "0c1cf2cc7c7d3f7b5f49fa07e226d10d50bea82126b453522f32d59c3ef8af80"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/summary.json",
+      "path": "cloud/rc-terminal-fc182/summary.json",
+      "size_bytes": 3523,
+      "sha256": "c942af0f0c3c4ec8c4faec3814704d7ab92de27d642147a1a15de8f2af2d5218"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/terminal-run-summary.json",
+      "path": "cloud/rc-terminal-fc182/terminal-run-summary.json",
+      "size_bytes": 9604,
+      "sha256": "d5d0d47791d1f29a70cbc48d58d2ebf7f0262f7d9f86f7ff86a5e2e82c34a50c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/top-jobs.json",
+      "path": "cloud/rc-terminal-fc182/top-jobs.json",
+      "size_bytes": 6796,
+      "sha256": "693057588cabdb16cb6348a236be1fffbbf8cb0e8b3fba388799f0705cd0fd59"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/top-log-retrieval.json",
+      "path": "cloud/rc-terminal-fc182/top-log-retrieval.json",
+      "size_bytes": 457,
+      "sha256": "9d661df2e0804912c70847f9151ed16d14bbb3860de25c7a049eadec7a987b83"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/top-log.redacted.txt.gz",
+      "path": "cloud/rc-terminal-fc182/top-log.redacted.txt.gz",
+      "size_bytes": 18905,
+      "sha256": "f4eb6f0c419c78f344e15c27d3dffd0ea4883b3204a14621265e6d0e44282f2f"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/verify-terminal.py",
+      "path": "cloud/rc-terminal-fc182/verify-terminal.py",
+      "size_bytes": 4697,
+      "sha256": "deb5cefaf6e27ae73fd40230cc41d21b48e493ff45995e6545b4c212fd6cff5d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/SHA256SUMS",
+      "path": "cloud/rc-terminal-fc182/SHA256SUMS",
+      "size_bytes": 6196,
+      "sha256": "dd3f6ee38bd2c4cb618990a01d965cfae9631edbb0f98597131d49cb7b745cbd"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/README.md",
+      "path": "packages/storage-current-readonly/README.md",
+      "size_bytes": 3720,
+      "sha256": "704cdba4ca5aafda964b62487485b0d791204c36ac5a457b33db1474db2d4305"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/console-observations.json",
+      "path": "packages/storage-current-readonly/console-observations.json",
+      "size_bytes": 5061,
+      "sha256": "098659770c396de2810ce5c301d606a72277bb019a2d0da8eb6f6ded01af3e61"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/dns-address.json",
+      "path": "packages/storage-current-readonly/dns-address.json",
+      "size_bytes": 282,
+      "sha256": "3111644a5ce56df3a673ce064e31a7623afd97be26529cb69c018e9217f4cf7d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/dns-cname.json",
+      "path": "packages/storage-current-readonly/dns-cname.json",
+      "size_bytes": 299,
+      "sha256": "233a5f5ddaa86e0e1665b6901fd85661df110ecfc325b08f82a4ce5ac5c2d35a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/document-freeze.json",
+      "path": "packages/storage-current-readonly/document-freeze.json",
+      "size_bytes": 1284,
+      "sha256": "890f18a8761319f26f780a37d28ee26a39871f1aab49f833c86f94f974a6681d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/public-head.json",
+      "path": "packages/storage-current-readonly/public-head.json",
+      "size_bytes": 1001,
+      "sha256": "85bba26713940867f7075ede515f5e674457f83afb591f9ed21332997c2db1a3"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/public-tls-certificate.pem",
+      "path": "packages/storage-current-readonly/public-tls-certificate.pem",
+      "size_bytes": 1797,
+      "sha256": "915bee9cdc82d9b83682fc62e11093a1c39c3d54ad97aea6762379317b522edf"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/public-tls.json",
+      "path": "packages/storage-current-readonly/public-tls.json",
+      "size_bytes": 1184,
+      "sha256": "da14d2a03614fee55448af966b7861d044e19dda72439f64f25294c48d3f19cc"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/resource-diff-inputs.json",
+      "path": "packages/storage-current-readonly/resource-diff-inputs.json",
+      "size_bytes": 1826,
+      "sha256": "d86f5441fe04981dabac8ac714f81acd734d5bb3a61c13d068681133f9d896c0"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/storage-current-readonly/archive-sha256.json",
+      "path": "packages/storage-current-readonly/archive-sha256.json",
+      "size_bytes": 1437,
+      "sha256": "bb15d3fb51d8165eaa8e45392a74543986387d655842b3538d2f33dcd2dce590"
+    }
+  ]
+}

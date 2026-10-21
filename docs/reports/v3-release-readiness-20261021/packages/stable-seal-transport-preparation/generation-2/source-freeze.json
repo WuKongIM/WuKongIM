@@ -1,0 +1,15 @@
+{
+  "source_sha": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "files": {
+    "scripts/resolve-source-release.py": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+    "scripts/verify-source-attestations.py": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+    "scripts/verify-source-package-metadata.py": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+    "scripts/compose-package-site.py": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+    "scripts/package-audit-receipt.py": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475",
+    "scripts/resolve-audit-release.py": "af6920b22067dc57ff6f72a231af6a2a620308da2bb4b9064eb1d145767337c7",
+    "scripts/bind-audit-release.py": "58c2894babc0050fc643a0c65b7deaf05fb3e7e7fd66aff7ee564489deeddbe8",
+    "scripts/seal-audit-release.py": "457864ca8f690eeacdefaa05a36f6e2f2789457f065b0fed2f1e98d78cdf8f3a",
+    ".github/workflows/native-package-publish.yml": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+    "docs/release-contract.md": "2e41e1abffda7de0499ef8cf483ccb357089bcfd2fdb7bd3ff4a7260a5b44c0d"
+  }
+}

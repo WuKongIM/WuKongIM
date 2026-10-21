@@ -1,0 +1,15 @@
+{
+  "baseline": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "status": "root_accepted_scope_pending_implementation_and_review",
+  "existing_helpers": [
+    "scripts/bind-audit-release.py",
+    "scripts/seal-audit-release.py",
+    "scripts/resolve-audit-release.py",
+    "scripts/plan-object-storage-publication.py"
+  ],
+  "additional_helper": "one narrow read-only production preflight helper; final name not fixed",
+  "generation_1_review_preserved": true,
+  "repository_code_changed_by_review": false,
+  "tests_run_by_review": false,
+  "external_actions": false
+}

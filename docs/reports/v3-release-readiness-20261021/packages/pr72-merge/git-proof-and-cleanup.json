@@ -1,0 +1,13 @@
+{
+  "merge_sha": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "parents": [
+    "c739321df75ec4200940480e7ad4108c7d59651d"
+  ],
+  "main": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "reviewed_tip": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "target_contains_tip": false,
+  "worktree_clean": true,
+  "retained_due_to_rebase_nonancestor": true,
+  "forced_delete": false
+}

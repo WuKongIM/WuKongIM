@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 10:05Z（北京时间18:05）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 10:27Z（北京时间18:27）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016/#1017、packages #67/#68/#69/#70/#71 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 和 stable 安装引导准备 #71 经批准已合并；#71 合并后精确源码的410+4项检查通过，未触发部署。Linux scripts 的255已定位到测试辅助进程wait，修复候选 `ab75c226` 的四项CI均首次通过，完整scripts门禁602项通过、6项既有跳过、零失败；#1017于09:39:17Z经批准正常合并，完整tree与验收候选相同。packages #72的更新候选c8aae37已通过449项测试、31项真实候选用例和完整签名仓库演练，现为ready待独立合并批准。用户已授权精确fc182云RC：当天三角色及wrapping密钥对验证通过，付费顶层请求已启动并完成部署包校验，进入Quote；该时间点尚无Acquire或远端负载通过证据。既定云RC验收和stable公网签名包交付仍未完成，没有创建正式tag或启动正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016/#1017、packages #67/#68/#69/#70/#71/#72 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 和 stable 安装引导准备 #71 经批准已合并；#71 合并后精确源码的410+4项检查通过，未触发部署。Linux scripts 的255已定位到测试辅助进程wait，修复候选 `ab75c226` 的四项CI均首次通过，完整scripts门禁602项通过、6项既有跳过、零失败；#1017于09:39:17Z经批准正常合并，完整tree与验收候选相同。packages #72的更新候选c8aae37已通过449项测试、31项真实候选用例和完整签名仓库演练，已获批准并于10:13:10Z正常rebase合并为3fe04138，完整tree与验收候选相同；合并后449+4检查再次通过，Pages部署跳过。用户已授权精确fc182云RC：当天三角色及wrapping密钥对验证通过，付费顶层请求已启动并完成部署包校验，Quote、Acquire、部署均首次成功，但计时前准备检查退出，随后Issue状态发布失败导致提前释放；10:19:19Z已取得精确零库存，未完成两小时预演。既定云RC验收和stable公网签名包交付仍未完成，没有创建正式tag或启动正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -32,8 +32,8 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 原100 SEND/s预检提前失败并保留；500 SEND/s修复后的单次本地helper已完成operator-stop和清理，实际测量1,753.104秒且保留日志警告。Linux trace确认255发生在测试辅助signaler的wait、生产join已成功；Go精确信号握手修复后，ab75c226的完整Linux门禁及其余三项CI首次全绿，#1017已批准合并为fc182212。用户已批准fc182的四主机杭州云RC及¥1,500累计上限/¥1,350停止线；当天现有身份验证通过，顶层39581355444首次启动，已构建并校验完整bundle、进入Quote，尚未取得云预演或长稳结果。不能将该RC计划描述成RELEASING对所有发行的通用机械门禁 |
-| stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。安装引导准备#71也已合并，通过真实preview/stable共存及重复安装；仍是未签发准备包。离线stable组装/审计及独立验签实现#72已在TEST ONLY Linux通过，待合并批准；实际生产候选封存、OSS/CDN发布与精确版本四客户端公网验收未完成 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 原100 SEND/s预检提前失败并保留；500 SEND/s修复后的单次本地helper已完成operator-stop和清理，实际测量1,753.104秒且保留日志警告。Linux trace确认255发生在测试辅助signaler的wait、生产join已成功；Go精确信号握手修复后，ab75c226的完整Linux门禁及其余三项CI首次全绿，#1017已批准合并为fc182212。用户已批准fc182的四主机杭州云RC及¥1,500累计上限/¥1,350停止线；当天现有身份验证通过，顶层39581355444首次启动，已构建并校验完整bundle，Quote、四主机Acquire及部署成功；负载未形成run-start，Issue状态发布失败后提前释放，exact零库存已核验。初始准备检查原因因证据缺口未知，正补启动前Issue检查及有界诊断。未完成预演或长稳。不能将该RC计划描述成RELEASING对所有发行的通用机械门禁 |
+| stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。安装引导准备#71也已合并，通过真实preview/stable共存及重复安装；仍是未签发准备包。离线stable组装/审计及独立验签实现#72已在TEST ONLY Linux通过并获批准合并；实际生产候选封存、OSS/CDN发布与精确版本四客户端公网验收未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
 初次审计 main 的三节点 nightly 已连续五次首次通过，最近为 [39475335838](https://github.com/WuKongIM/WuKongIM/actions/runs/39475335838)。[SDK 39367425765](https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765) 已于 10 月 20 日验证 Android 1.0.5、iOS 1.1.1、Flutter 1.1.0。它们绑定旧 main，不能直接认证包含恢复修复的候选。本轮新增 CI 已独立核验实际 head/tree 和执行步骤。
@@ -73,7 +73,7 @@ packages PR #67 按线性历史要求正常 rebase 合并为 `782c14602a6b243d89
 
 已完成[云入口只读审计](v3-release-readiness-20261021/cloud/readiness-audit.md)：七个身份变量、wrapping 公钥、OIDC subject 及正式工作流配置存在；27 份历史清理 payload 结构相符，三个缺清理回执的早期请求均在报价失败、采购被跳过。该早期审计快照未见活动GitHub请求，但没有调用云API，不能证明当日云侧库存、角色权限或公私钥匹配。后续当天live身份验证见下方，原快照不被覆盖。Environment 没有人审符合既定 unattended 设计，不新增 reviewer 要求。
 
-产品source已合并。用户随后明确授权fc182的既定付费范围；冻结source/control，验证当天现有身份并启用自动清理后，正式工作流已构建本次bundle并进入Quote。库存、报价和累计预算仍由Quote/Acquire前置门禁校验，启动不等于验收通过。最初静态检查时本机工作树文件系统仅余 9,214,992,384 bytes（0.926%），低于既有 5% 保留线，当时未运行 30 分钟 shakeout。见[历史静态前置检查](v3-release-readiness-20261021/cloud/local-shakeout-preconditions.json)，该记录不是 coordinator preflight 或 workload 结果。既定计划的¥1,500上限、¥1,350停止线现已获明确授权，涵盖两次租约累计支出；它们不是实际账单或今日报价。本次没有修改IAM角色/权限，也不包含包分发OSS/CDN/DNS操作。
+产品source已合并。用户随后明确授权fc182的既定付费范围；冻结source/control，验证当天现有身份并启用自动清理后，正式工作流已构建本次bundle，Quote、Acquire和部署通过；后续计时前失败及清零见下方。库存、报价和累计预算仍由Quote/Acquire前置门禁校验，启动不等于验收通过。最初静态检查时本机工作树文件系统仅余 9,214,992,384 bytes（0.926%），低于既有 5% 保留线，当时未运行 30 分钟 shakeout。见[历史静态前置检查](v3-release-readiness-20261021/cloud/local-shakeout-preconditions.json)，该记录不是 coordinator preflight 或 workload 结果。既定计划的¥1,500上限、¥1,350停止线现已获明确授权，涵盖两次租约累计支出；它们不是实际账单或今日报价。本次没有修改IAM角色/权限，也不包含包分发OSS/CDN/DNS操作。
 
 合并后 06:06Z [磁盘只读复核](v3-release-readiness-20261021/cloud/disk-followup/README.md)记录可用 8.743 GB（0.879%），距 5% 仍缺 40.990 GB，未含运行余量。本任务独立缓存及有校验 ZIP 副本的展开目录仅 3.297 GB；六个已知任务输出根目录全部也仅 3.833 GB。该范围内清理不能解除阻塞，未删除文件、扩大扫描或用 NAS 承载实时数据库；原证据保留。
 
@@ -113,7 +113,19 @@ JSON日志另揭示实际Bash5清理缺陷：成功分支的裸return在失败tr
 
 [当天身份验证39580872225](https://github.com/WuKongIM/WuKongIM/actions/runs/39580872225)首次通过：实际runtime的七个configured字段完整，选择现有绑定路径而未调用IAM reconciler；Provisioner/Observer/Releaser均实际验证OIDC、sole policy和trust，wrapping公私钥匹配验证也通过。`apply + force_reconcile=false`仅在完整配置时走此路径，不能泛称该workflow对缺失配置也只读。见[完整日志与收据](v3-release-readiness-20261021/cloud/rc-oidc-existing-verification/README.md)及[独立边界复核](v3-release-readiness-20261021/cloud/rc-start-fc182/identity-boundary-review/review.md)。
 
-唯一顶层[39581355444](https://github.com/WuKongIM/WuKongIM/actions/runs/39581355444)attempt1已通过输入/source门禁、旧租约缺零证据拒绝门禁并启用清理调度。自己的bundle子运行[39581475829](https://github.com/WuKongIM/WuKongIM/actions/runs/39581475829)首次成功，[完整bundle字节验证](v3-release-readiness-20261021/cloud/bundle-fc182/README.md)的141,108,866-byte ZIP/API摘要一致；110常规成员逐项hash、109项manifest闭包和9个Linux amd64 ELF通过，source/control均fc182，bundle digest `73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88`。一次只读artifact下载失败保留，随后同一artifact重新取证成功，未重跑构建。Quote子运行[39581671217](https://github.com/WuKongIM/WuKongIM/actions/runs/39581671217)已进入库存/报价检查；截至本节时间尚无Acquire/远端handoff证据。正式2h→新Lease72h→容量→恢复结果仍待完成。
+唯一顶层[39581355444](https://github.com/WuKongIM/WuKongIM/actions/runs/39581355444)attempt1已通过输入/source门禁、旧租约缺零证据拒绝门禁并启用清理调度。自己的bundle子运行[39581475829](https://github.com/WuKongIM/WuKongIM/actions/runs/39581475829)首次成功，[完整bundle字节验证](v3-release-readiness-20261021/cloud/bundle-fc182/README.md)的141,108,866-byte ZIP/API摘要一致；110常规成员逐项hash、109项manifest闭包和9个Linux amd64 ELF通过，source/control均fc182，bundle digest `73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88`。一次只读artifact下载失败保留，随后同一artifact重新取证成功，未重跑构建。Quote子运行[39581671217](https://github.com/WuKongIM/WuKongIM/actions/runs/39581671217)已进入库存/报价检查；这条Quote随后首次成功，下一唯一Acquire也已完成，详情见下方；后续提前释放，未形成远端run-start/handoff；正式2h→新Lease72h→容量→恢复结果均未完成。
+
+[Quote完整原件](v3-release-readiness-20261021/cloud/quote-fc182/README.md)核对杭州B区、四台`ecs.u2a-c1m2.xlarge`（4核8G）、Ubuntu24.04；service三份500GiB、load200GiB数据盘，各40GiB系统盘及20Mbps按流量EIP。预演的12h保守报价为CNY74.4776，包含11GiB公网估算和EIP保留风险；它不是实际账单或整个正式链报价。报价有效至10:13:22.76555Z，唯一[Acquire39582604546](https://github.com/WuKongIM/WuKongIM/actions/runs/39582604546)于10:11:00进入采购，10:11:59Z首次成功。
+
+[采购收据](v3-release-readiness-20261021/cloud/acquire-fc182/README.md)验证四实例、八盘、一个EIP及网络依赖，所有request/Lease/plan/source/bundle与资源tag相符，admitted Quote逐字相同；预算仍1500/1350。Lease创建于10:11:00.703367749Z、到期22:02:56Z，TTL从较早计划时刻计算，不能写成采购后整12小时。该收据的committed0是预算账本字段，不证明实际费用为零。部署[39582829931](https://github.com/WuKongIM/WuKongIM/actions/runs/39582829931)已开始，10:14:50Z仍在native service readiness；这不是两小时测量已经开始或验收通过。
+
+### 云首次计时前失败及清理
+
+[Deployment完整原件](v3-release-readiness-20261021/cloud/deployment-fc182/README.md)证明10:17:40Z三节点、256 healthy leaders/replica sets、12 logical groups、零pending Controller tasks、三个worker及七监控目标均ready。随后reset-failed提示unit尚未加载，该命令被源码显式`|| true`容忍，不能当致命根因。预赋`stage_readiness_timeout`覆盖terminal/unreachable/deadline三个退出路径；实际配置7200秒，约18秒后已dispatch Release，不能写成耗尽两小时。原artifact缺少当时systemd状态、journal和可解析pre-clock summary，因此初始准备检查退出原因仍未知。
+
+[首失败与完整脱敏日志](v3-release-readiness-20261021/cloud/rc-terminal-fc182/README.md)记录已证致命边界：`pre-clock readiness repair state could not be published; exact Lease was released`，orchestration exit1，最后tracking Issue步骤exit4。启动准备确实遗漏创建`[chat-lifecycle] chat-20261021T095421Z-cf11d65c` Issue；当前只读exact搜索为零，原jq表达式在该响应上的离线重放同样exit4。这关闭了缺失跟踪Issue这一准备缺陷的证据链，但不把当前查询当作运行时历史响应，也不能用它解释更早的负载准备退出。正在独立fc182 worktree内先写失败用例，再补付费前只读Issue门禁与终止前结构化诊断；不调整计时/阈值、不自动重跑云资源。
+
+唯一[Release39583589120](https://github.com/WuKongIM/WuKongIM/actions/runs/39583589120)成功，typed zero_inventory观察时间为10:19:19.689029905Z，六字段selector、account hash与Acquire完全一致，12类资源scope完整。top [39581355444](https://github.com/WuKongIM/WuKongIM/actions/runs/39581355444)于10:19:39Z结束为failure；handoff名称与cleanup名称的两artifact各自API SHA/size/CRC已核，26成员逐字相同，均无run-start或handoff.json。不能从artifact名称声称测量已开始。付费采购确实发生，实际账单仍未读取；没有第二次采购、source变更或正式长稳租约。
 
 ## stable 公网复核和外部边界
 
@@ -121,7 +133,7 @@ JSON日志另揭示实际Bash5清理缺陷：成功分支的裸return在失败tr
 
 preview 的 beta.21–24 四个 active 版本已达数量上限 4；若先发 RC，需原有两阶段退休及至少 30 分钟缓存窗口，不能直接追加第五版。当前总量低于容量警戒，公开签名子钥尚约 70 天有效；二者不是当前新增阻塞。
 
-用户已明确使用阿里云账号，Chrome 只读核对确认现有文档 CDN 正常运行；未见包域名的 CDN 配置，四个 OSS Bucket 均为备份测试/验收用途，没有已指定的包源站。服务商已落实，本地签名输入与保管工具已推进；生产对象存储/CDN资源、发布接入、权限及安装入口仍待实施。
+用户已明确使用阿里云账号。[10:19–10:24Z当前只读清点](v3-release-readiness-20261021/packages/storage-current-readonly/README.md)确认`packages.githubim.com`仍CNAME到GitHub Pages，公网TLS有效至2026-11-30；此证书不证明可直接部署到阿里云。官方控制台仍只有四个backup/test Bucket，CDN无packages域名；已检查的杭州证书目录仅有docs有效上传证书，未见可用packages证书。docs CDN独立正常、全球加速；未修改它或其他资源。生产专用Bucket、域名/CDN、独立TLS接入、权限及公网安装入口仍需具体化和实施；本次ECS付费授权不包含这些分发资源变更。
 
 前期核对时，用户既有目录确实只有preview备份，README六个公开指纹与preview相同；“已另有stable密钥”的早期陈述被纠正，原[公开核对](v3-release-readiness-20261021/packages/public-signing-observation.json)和[备份分类](v3-release-readiness-20261021/packages/local-backup-classification.json)保留。该事实属于当时状态，已被随后新建的独立stable身份更新，没有复用或改名preview密钥。
 
@@ -137,7 +149,9 @@ stable安装引导准备[PR #71](https://github.com/WuKongIM/packages/pull/71)�
 
 stable第一代离线候选计划已冻结，复用plan→prepare→现有家族signer→compose→canonical archive→audit→独立verify，保持频道禁用。候选使用独立schema、外部plan/control/source/producer字节锚，未封存的audit Release身份为null；TEST ONLY来源与生产预检来源明确区分。见[实施计划](v3-release-readiness-20261021/packages/stable-local-repository-plan/plan.md)。早期实现完成446项本地Python测试（1项真实RPM环境条件跳过）与4项合同检查，[完整核心独审](v3-release-readiness-20261021/packages/stable-offline-candidate-core-review/review.md)及原生演练脚本复核已完成，当时31项真实Linux候选演练尚未通过；不得将本地结构测试或准备包共存测试称为stable公网安装通过。早期[独立复核](v3-release-readiness-20261021/packages/stable-offline-candidate-identity-review/review.md)提出的preview布尔变量覆盖及输出祖先符号链接问题已按先红后绿修复，原发现保留。 [PR #72](https://github.com/WuKongIM/packages/pull/72)以 `d79bff5219f5a69872bb1720cbbaa224b1c7b3eb` 创建为draft，[首轮真实Linux演练](v3-release-readiness-20261021/packages/pr72-ci-generation-1/README.md)在新增candidate的测试密钥准备阶段失败，0个candidate用例执行；metadata7项、本地签名10项、bootstrap6项通过，后续完整仓库演练跳过，Pages的446+4全部通过。Mac同工具/参数只缩短路径后由失败变成功，agent明确报告Unix socket路径过长；这支持测试路径缺陷，不独立证明Linux原始异常的完整原因。仅两个测试文件的路径/非敏感phase修复经独审后已推送为 `c8aae37d13787a0aceceac751d6d35bbc1d89c35`，新版两项自动CI均首次通过，未重跑原失败。见[本地冻结证据](v3-release-readiness-20261021/packages/stable-offline-candidate-local-reviewed/README.md)。
 
-最终[Pages检查39579343465](https://github.com/WuKongIM/packages/actions/runs/39579343465)通过449项Python测试（零跳过）及4项合同检查，部署步骤跳过；[原生演练39579343148](https://github.com/WuKongIM/packages/actions/runs/39579343148)于09:50:31Z首次成功，新增31项候选用例为10正例和21个精确拒绝负例，既有metadata7、本地签名10、bootstrap6及完整APT/RPM仓库签验安装均通过。验证前移除测试秘密，producer/control保护范围未改变，生产密钥未使用、未发布。实际checkout `6526671784e1c0e0252fcec0709832302ee0df29`的完整tree与head c8aae37相同。#72已转ready并发出独立合并确认，尚未收到批准，不能复用#71授权；完整[交付allowlist](v3-release-readiness-20261021/packages/pr72-delivery/delivery-README.md)保留两代CI及首失败。后续[外部封存与运输准备](v3-release-readiness-20261021/packages/stable-post-candidate-plan/dependency-matrix.md)仍只形成方案，未创建实际audit Release或云资源。
+最终[Pages检查39579343465](https://github.com/WuKongIM/packages/actions/runs/39579343465)通过449项Python测试（零跳过）及4项合同检查，部署步骤跳过；[原生演练39579343148](https://github.com/WuKongIM/packages/actions/runs/39579343148)于09:50:31Z首次成功，新增31项候选用例为10正例和21个精确拒绝负例，既有metadata7、本地签名10、bootstrap6及完整APT/RPM仓库签验安装均通过。验证前移除测试秘密，producer/control保护范围未改变，生产密钥未使用、未发布。实际checkout `6526671784e1c0e0252fcec0709832302ee0df29`的完整tree与head c8aae37相同。#72转ready后取得用户“同意合并#72”的单独批准；于10:13:10Z正常rebase合并为`3fe04138403a7c9443e4ede457dccfa16dff2b00`，Git对象证明完整tree与c8相同。required linear history及其他保护保持不变，原tip非main祖先，保留干净worktree/branch、不强删。合并后[39582962603](https://github.com/WuKongIM/packages/actions/runs/39582962603)于10:14:57Z首次成功，实际checkout为3fe0413，449项Python（零跳过）及4项合同检查通过；Pages配置/上传/部署全跳过，artifact为零。这不是原生演练重新执行，PR中完整原生验收仍对应同一tree。见[合并后完整日志与收据](v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/README.md)。见[合并收据](v3-release-readiness-20261021/packages/pr72-merge/README.md)；完整[交付allowlist](v3-release-readiness-20261021/packages/pr72-delivery/delivery-README.md)保留两代CI及首失败。后续[外部封存与运输准备](v3-release-readiness-20261021/packages/stable-post-candidate-plan/dependency-matrix.md)已推进至独立分支实现，未创建实际audit Release或分发云资源。
+
+[封存/运输补充方案](v3-release-readiness-20261021/packages/stable-seal-transport-preparation/generation-2/scope-amendment.md)经[独立范围复核](v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/resolution-v2/resolution.md)后进入实现：四个现有helper加一个窄只读preflight，真实seal写前必须重新验证来源七资产、attestation和metadata，以及历史candidate control真实Git字节/祖先关系；TEST ONLY双loopback且拒绝所有redirect。candidate原archive/receipt/null IDs保持不变，离线plan不声称证明GitHub身份。该范围决议不是代码已验收，也不启用stable或改变生产workflow/ruleset/OSS/CDN。
 
 [渠道实施计划](2026-10-20-v3-stable-channel-plan.md)保留 preview 兼容及独立签名边界；PR #67（head `0ce7184bbf69472f607159f74a096e9160852843`）的两个新版 PR CI 均首次通过，且现已合并，见[证据](v3-release-readiness-20261021/packages/preflight-ci/README.md)；Pages配置、上传和部署均skipped。七个真实原生元数据场景及既有完整TEST ONLY演练不代表stable生产签名或公网发布。
 

@@ -1,0 +1,61 @@
+{
+  "run_id": 39582962603,
+  "run_url": "https://github.com/WuKongIM/packages/actions/runs/39582962603",
+  "event": "push",
+  "run_attempt": 1,
+  "head_sha": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "actual_checkout_sha": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "conclusion": "success",
+  "created_at": "2026-10-21T10:13:13Z",
+  "completed_at": "2026-10-21T10:14:57Z",
+  "validation_job_id": 119164796516,
+  "validation_started_at": "2026-10-21T10:13:15Z",
+  "validation_completed_at": "2026-10-21T10:14:56Z",
+  "python_tests": {
+    "count": 449,
+    "duration_seconds": 95.284,
+    "status": "OK",
+    "skipped": 0
+  },
+  "contract_tests": {
+    "count": 4,
+    "duration_seconds": 0.001,
+    "status": "OK"
+  },
+  "configure_pages": "skipped",
+  "upload_pages_artifact": "skipped",
+  "deployment_job": "skipped",
+  "artifact_count": 0,
+  "native_drill_executed_as_full_native_suite": false,
+  "logged_negative_receipts": "Expected unittest failure-path fixtures; they are asserted by tests and do not represent a CI failure or a full native rerun.",
+  "read_transport_errors_during_this_audit": 0,
+  "source_files": [
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "size": 3104
+    },
+    {
+      "path": "tests/contract.sh",
+      "sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+      "size": 54998
+    },
+    {
+      "path": "tests/test_native_bootstrap_preparation_drill.py",
+      "sha256": "3b309f37b45cf0cbd7b2a6705aa690eac29ab20437ed4b143a836810a34d8196",
+      "size": 2566
+    },
+    {
+      "path": "tests/test_native_local_signing_drill.py",
+      "sha256": "eb30cc500ad7dc19207370e08cb3f893c0bc2e95a1e797e1b72b858997f9c7f0",
+      "size": 7166
+    },
+    {
+      "path": "tests/test_native_stable_candidate_drill.py",
+      "sha256": "ef8c1a912bfd339140819c37d072c06025304f63d9212b48c69fa66f76a378d4",
+      "size": 12530
+    }
+  ],
+  "no_dispatch_rerun_or_external_write": true
+}

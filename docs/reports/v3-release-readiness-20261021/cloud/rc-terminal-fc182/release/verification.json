@@ -1,0 +1,14 @@
+{
+  "artifact_id": 12338506487,
+  "api_size_digest_and_zip_crc_pass": true,
+  "members": [
+    {
+      "name": "release.json",
+      "size": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21",
+      "schema": "wukongim.cloud_lease.release/v1",
+      "empty": false
+    }
+  ],
+  "no_payload_execution": true
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "wukongim.cloud_lease.selector/v1",
+  "selector": {
+    "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+    "request_id": "chat-20261021T095421Z-cf11d65c",
+    "provider": "alibaba",
+    "region": "cn-hangzhou",
+    "repository": "WuKongIM/WuKongIM",
+    "plan_digest": "e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47"
+  }
+}

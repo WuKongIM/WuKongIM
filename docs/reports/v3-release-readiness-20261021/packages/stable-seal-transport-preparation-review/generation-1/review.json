@@ -1,0 +1,95 @@
+{
+  "source_sha": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "repo": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate",
+  "source_files": [
+    {
+      "path": "scripts/bind-audit-release.py",
+      "sha256": "58c2894babc0050fc643a0c65b7deaf05fb3e7e7fd66aff7ee564489deeddbe8",
+      "size": 15994,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/seal-audit-release.py",
+      "sha256": "457864ca8f690eeacdefaa05a36f6e2f2789457f065b0fed2f1e98d78cdf8f3a",
+      "size": 23367,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/resolve-audit-release.py",
+      "sha256": "af6920b22067dc57ff6f72a231af6a2a620308da2bb4b9064eb1d145767337c7",
+      "size": 22674,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+      "size": 19863,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475",
+      "size": 71340,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+      "size": 125707,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+      "size": 76893,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "size": 22527,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "2e41e1abffda7de0499ef8cf483ccb357089bcfd2fdb7bd3ff4a7260a5b44c0d",
+      "size": 45055,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "docs/object-storage-planning.md",
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+      "size": 7359,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "README.md",
+      "sha256": "db2995f20044c63606a371e83e528b008b684b2e00076e7857da9b2b08fb014b",
+      "size": 9913,
+      "matches_frozen_git_source": true
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "size": 2579,
+      "matches_frozen_git_source": true
+    }
+  ],
+  "inherited_rules": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "status": "requires_scope_resolution",
+      "topic": "pre-write production provenance"
+    },
+    {
+      "id": "R2",
+      "status": "requires_explicit_test_mode_transport_guard",
+      "topic": "asset redirect leaves loopback"
+    }
+  ],
+  "scope": "Read-only source and proposal review; no tests, local HTTP server, secrets, API calls, repo modifications or workflows."
+}

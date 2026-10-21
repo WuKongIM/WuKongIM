@@ -1,0 +1,17 @@
+{
+  "command": [
+    "curl",
+    "--silent",
+    "--show-error",
+    "--head",
+    "--connect-timeout",
+    "10",
+    "--max-time",
+    "20",
+    "https://packages.githubim.com/status.json"
+  ],
+  "exit_code": 0,
+  "stdout": "HTTP/2 200 \r\nserver: GitHub.com\r\ncontent-type: application/json; charset=utf-8\r\nlast-modified: Sat, 03 Oct 2026 06:16:43 GMT\r\naccess-control-allow-origin: *\r\netag: \"6ac09dcb-147\"\r\nexpires: Wed, 21 Oct 2026 10:29:54 GMT\r\ncache-control: max-age=600\r\nx-proxy-cache: MISS\r\nx-github-request-id: F1DE:D035D:A4331:D1FD5:6AD891CA\r\nx-github-edge-region: iad\r\naccept-ranges: bytes\r\nage: 0\r\ndate: Wed, 21 Oct 2026 10:19:54 GMT\r\nvia: 1.1 varnish\r\nx-served-by: cache-lga-kjfk8660040-LGA\r\nx-cache: MISS\r\nx-cache-hits: 0\r\nx-timer: S1792577995.945244,VS0,VE35\r\nvary: Accept-Encoding\r\nx-fastly-request-id: 18048ced16fffcec7c2c56bab5ddafd5bf3aed92\r\ncontent-length: 327\r\n\r\n",
+  "stderr": "",
+  "observed_at": "2026-10-21T10:19:55.031128+00:00"
+}

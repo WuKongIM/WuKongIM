@@ -1,0 +1,12 @@
+{
+  "observed_at": "2026-10-21T10:22:39.305492+00:00",
+  "run_id": 39581355444,
+  "exit_code": 0,
+  "raw_bytes": 213058,
+  "raw_sha256": "4bb8dee4cceabb19e532977d49af1d6f732fde50781afa69a0466e0aeed7ab3c",
+  "raw_not_stored": true,
+  "redacted_bytes": 210235,
+  "redacted_sha256": "769c748fb33f75233eede142f74a99b0b4bb1aece76d33c5310839c43bf07ebc",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,62 @@
+{
+  "observed_at": "2026-10-21T10:19:55.773155+00:00",
+  "hostname": "packages.githubim.com",
+  "hostname_and_chain_verified": true,
+  "tls_protocol": "TLSv1.3",
+  "cipher": [
+    "TLS_AES_128_GCM_SHA256",
+    "TLSv1.3",
+    128
+  ],
+  "peer": [
+    "198.18.3.216",
+    443
+  ],
+  "certificate_sha256": "cbf9504c6d4ba397ca025e5c51bea47f77e1355ae393a7213739f4de88ddb0ce",
+  "public_certificate": {
+    "subject": [
+      [
+        [
+          "commonName",
+          "packages.githubim.com"
+        ]
+      ]
+    ],
+    "issuer": [
+      [
+        [
+          "countryName",
+          "US"
+        ]
+      ],
+      [
+        [
+          "organizationName",
+          "Let's Encrypt"
+        ]
+      ],
+      [
+        [
+          "commonName",
+          "YR2"
+        ]
+      ]
+    ],
+    "version": 3,
+    "serialNumber": "055152E69896E4A4A169A4956FCE9E741E32",
+    "notBefore": "Sep  1 02:19:17 2026 GMT",
+    "notAfter": "Nov 30 02:19:16 2026 GMT",
+    "subjectAltName": [
+      [
+        "DNS",
+        "packages.githubim.com"
+      ]
+    ],
+    "caIssuers": [
+      "http://yr2.i.lencr.org/"
+    ],
+    "crlDistributionPoints": [
+      "http://yr2.c.lencr.org/51.crl"
+    ]
+  }
+}

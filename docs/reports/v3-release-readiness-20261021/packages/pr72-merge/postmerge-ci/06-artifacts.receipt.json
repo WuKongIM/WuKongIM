@@ -1,0 +1,9 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/runs/39582962603/artifacts?per_page=100"
+  ],
+  "observed_at": "2026-10-21T10:16:08.543341+00:00",
+  "exit_code": 0
+}

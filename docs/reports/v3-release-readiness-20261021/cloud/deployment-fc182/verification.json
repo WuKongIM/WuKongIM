@@ -1,0 +1,49 @@
+{
+  "artifact_id": 12338731180,
+  "api_size_digest_and_zip_crc_pass": true,
+  "members": [
+    {
+      "name": "deployment-plan.json",
+      "size": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db",
+      "schema": "wukongim.cloud_deployment.plan/v2",
+      "empty": false
+    },
+    {
+      "name": "readiness-snapshot.json",
+      "size": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3",
+      "schema": "wukongim.cloud_deployment.readiness/v1",
+      "empty": false
+    },
+    {
+      "name": "deployment-outcome.json",
+      "size": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19",
+      "schema": null,
+      "empty": false
+    },
+    {
+      "name": "analysis-endpoint.json",
+      "size": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51",
+      "schema": "wukongim.chat_lifecycle.analysis_endpoint/v1",
+      "empty": false
+    },
+    {
+      "name": "encrypted-access.json",
+      "size": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce",
+      "schema": "wukongim.chat_lifecycle.encrypted_access/v1",
+      "empty": false
+    },
+    {
+      "name": "encrypted-deployment-identity.json",
+      "size": 2316,
+      "sha256": "852b50bede82dc2400a4746aafe2e18fd36eb56cf7eb2ea53e826638ca7e3726",
+      "schema": "wukongim.chat_lifecycle.encrypted_deployment_identity/v1",
+      "empty": false
+    }
+  ],
+  "no_payload_execution": true
+}

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "dig",
+    "+time=3",
+    "+tries=1",
+    "+noall",
+    "+answer",
+    "packages.githubim.com",
+    "A"
+  ],
+  "exit_code": 0,
+  "stdout": "packages.githubim.com.\t1\tIN\tA\t198.18.3.216\n",
+  "stderr": "",
+  "observed_at": "2026-10-21T10:19:53.136330+00:00"
+}

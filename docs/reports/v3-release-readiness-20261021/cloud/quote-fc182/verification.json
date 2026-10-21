@@ -1,0 +1,14 @@
+{
+  "artifact_id": 12337531186,
+  "api_size_digest_and_zip_crc_pass": true,
+  "members": [
+    {
+      "name": "quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac",
+      "schema": "wukongim.cloud_lease.quote/v1",
+      "empty": false
+    }
+  ],
+  "no_payload_execution": true
+}

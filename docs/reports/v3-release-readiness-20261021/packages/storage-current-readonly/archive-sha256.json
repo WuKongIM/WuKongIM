@@ -1,0 +1,51 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3720,
+      "sha256": "704cdba4ca5aafda964b62487485b0d791204c36ac5a457b33db1474db2d4305"
+    },
+    {
+      "path": "console-observations.json",
+      "bytes": 5061,
+      "sha256": "098659770c396de2810ce5c301d606a72277bb019a2d0da8eb6f6ded01af3e61"
+    },
+    {
+      "path": "dns-address.json",
+      "bytes": 282,
+      "sha256": "3111644a5ce56df3a673ce064e31a7623afd97be26529cb69c018e9217f4cf7d"
+    },
+    {
+      "path": "dns-cname.json",
+      "bytes": 299,
+      "sha256": "233a5f5ddaa86e0e1665b6901fd85661df110ecfc325b08f82a4ce5ac5c2d35a"
+    },
+    {
+      "path": "document-freeze.json",
+      "bytes": 1284,
+      "sha256": "890f18a8761319f26f780a37d28ee26a39871f1aab49f833c86f94f974a6681d"
+    },
+    {
+      "path": "public-head.json",
+      "bytes": 1001,
+      "sha256": "85bba26713940867f7075ede515f5e674457f83afb591f9ed21332997c2db1a3"
+    },
+    {
+      "path": "public-tls-certificate.pem",
+      "bytes": 1797,
+      "sha256": "915bee9cdc82d9b83682fc62e11093a1c39c3d54ad97aea6762379317b522edf"
+    },
+    {
+      "path": "public-tls.json",
+      "bytes": 1184,
+      "sha256": "da14d2a03614fee55448af966b7861d044e19dda72439f64f25294c48d3f19cc"
+    },
+    {
+      "path": "resource-diff-inputs.json",
+      "bytes": 1826,
+      "sha256": "d86f5441fe04981dabac8ac714f81acd734d5bb3a61c13d068681133f9d896c0"
+    }
+  ],
+  "count": 9,
+  "total_bytes": 16454
+}

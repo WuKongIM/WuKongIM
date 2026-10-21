@@ -1,0 +1,298 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": 12338781445,
+      "bytes": 22845,
+      "zip_sha256": "9415fe341edd26397def4bb07c907799cace7a0758ac256cb8cf401aae18d14f",
+      "zip_crc_pass": true,
+      "members": [
+        {
+          "path": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/receipt.json",
+          "bytes": 41123,
+          "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+        },
+        {
+          "path": "attempt-1/attempted-deployment-control-shas",
+          "bytes": 41,
+          "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+        },
+        {
+          "path": "attempt-1/attempted-repair-source-shas",
+          "bytes": 41,
+          "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+        },
+        {
+          "path": "attempt-1/bootstrap-access.json",
+          "bytes": 251,
+          "sha256": "67aad04ec4219eb3e52b24dddcdb9a5714bd39eaf36a75fdd5f18faed2b1539b"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/analysis-endpoint.json",
+          "bytes": 577,
+          "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-outcome.json",
+          "bytes": 2496,
+          "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-plan.json",
+          "bytes": 3169,
+          "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/encrypted-access.json",
+          "bytes": 1316,
+          "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/readiness-snapshot.json",
+          "bytes": 4129,
+          "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+        },
+        {
+          "path": "attempt-1/deployment-plan.json",
+          "bytes": 3169,
+          "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+        },
+        {
+          "path": "attempt-1/deployment-ssh-config",
+          "bytes": 869,
+          "sha256": "2222bbddf690029293e09816941ea1b9bec54da5e8845af08507190d821ee3c8"
+        },
+        {
+          "path": "attempt-1/deployment-ssh-config.known_hosts",
+          "bytes": 95,
+          "sha256": "d7546ac27d300f08b78610511ebf89abaa1d194deac22180c94a2effbc4e3d59"
+        },
+        {
+          "path": "attempt-1/lease-plan.json",
+          "bytes": 1892,
+          "sha256": "35b85d7a5b807a7d90697535a56d2f4fcd3245bdfa3a5b19ff0dd7a21ce0d9bf"
+        },
+        {
+          "path": "attempt-1/preflight-quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/receipt-selector.json",
+          "bytes": 319,
+          "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+        },
+        {
+          "path": "attempt-1/receipt.json",
+          "bytes": 41123,
+          "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+        },
+        {
+          "path": "attempt-1/release-selector.json",
+          "bytes": 319,
+          "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+        },
+        {
+          "path": "attempt-1/run-plan.json",
+          "bytes": 2361,
+          "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+        },
+        {
+          "path": "cleanup.json",
+          "bytes": 172,
+          "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+        },
+        {
+          "path": "deployment-repair-pending.json",
+          "bytes": 624,
+          "sha256": "1bf3a22914a29dbe8c1fcfb3065dde5ccece7f7d15dde7425e500cd57018d846"
+        },
+        {
+          "path": "release-1-1/cloud-lease-release-chat-20261021T095421Z-cf11d65c/release.json",
+          "bytes": 661,
+          "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+        },
+        {
+          "path": "release-selector.json",
+          "bytes": 319,
+          "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+        },
+        {
+          "path": "zero-inventory.json",
+          "bytes": 661,
+          "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+        }
+      ]
+    },
+    {
+      "artifact_id": 12339131183,
+      "bytes": 22845,
+      "zip_sha256": "a4f1012d6453985bf7a22a51f49369a69d1ef56861f3471091f051c5f32c6ab2",
+      "zip_crc_pass": true,
+      "members": [
+        {
+          "path": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/receipt.json",
+          "bytes": 41123,
+          "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+        },
+        {
+          "path": "attempt-1/attempted-deployment-control-shas",
+          "bytes": 41,
+          "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+        },
+        {
+          "path": "attempt-1/attempted-repair-source-shas",
+          "bytes": 41,
+          "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+        },
+        {
+          "path": "attempt-1/bootstrap-access.json",
+          "bytes": 251,
+          "sha256": "67aad04ec4219eb3e52b24dddcdb9a5714bd39eaf36a75fdd5f18faed2b1539b"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/analysis-endpoint.json",
+          "bytes": 577,
+          "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-outcome.json",
+          "bytes": 2496,
+          "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-plan.json",
+          "bytes": 3169,
+          "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/encrypted-access.json",
+          "bytes": 1316,
+          "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+        },
+        {
+          "path": "attempt-1/deployment-1-artifact/cloud-deployment-39582829931/readiness-snapshot.json",
+          "bytes": 4129,
+          "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+        },
+        {
+          "path": "attempt-1/deployment-plan.json",
+          "bytes": 3169,
+          "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+        },
+        {
+          "path": "attempt-1/deployment-ssh-config",
+          "bytes": 869,
+          "sha256": "2222bbddf690029293e09816941ea1b9bec54da5e8845af08507190d821ee3c8"
+        },
+        {
+          "path": "attempt-1/deployment-ssh-config.known_hosts",
+          "bytes": 95,
+          "sha256": "d7546ac27d300f08b78610511ebf89abaa1d194deac22180c94a2effbc4e3d59"
+        },
+        {
+          "path": "attempt-1/lease-plan.json",
+          "bytes": 1892,
+          "sha256": "35b85d7a5b807a7d90697535a56d2f4fcd3245bdfa3a5b19ff0dd7a21ce0d9bf"
+        },
+        {
+          "path": "attempt-1/preflight-quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/quote.json",
+          "bytes": 1842,
+          "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+        },
+        {
+          "path": "attempt-1/receipt-selector.json",
+          "bytes": 319,
+          "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+        },
+        {
+          "path": "attempt-1/receipt.json",
+          "bytes": 41123,
+          "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+        },
+        {
+          "path": "attempt-1/release-selector.json",
+          "bytes": 319,
+          "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+        },
+        {
+          "path": "attempt-1/run-plan.json",
+          "bytes": 2361,
+          "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+        },
+        {
+          "path": "cleanup.json",
+          "bytes": 172,
+          "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+        },
+        {
+          "path": "deployment-repair-pending.json",
+          "bytes": 624,
+          "sha256": "1bf3a22914a29dbe8c1fcfb3065dde5ccece7f7d15dde7425e500cd57018d846"
+        },
+        {
+          "path": "release-1-1/cloud-lease-release-chat-20261021T095421Z-cf11d65c/release.json",
+          "bytes": 661,
+          "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+        },
+        {
+          "path": "release-selector.json",
+          "bytes": 319,
+          "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+        },
+        {
+          "path": "zero-inventory.json",
+          "bytes": 661,
+          "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+        }
+      ]
+    }
+  ],
+  "two_artifact_members_byte_identical": true,
+  "exact_acquire_receipt_and_release_bytes": true,
+  "zero_selector_and_account_match": true,
+  "zero_scopes_match_frozen_provider_12_scopes": true,
+  "zero_observed_after_acquire": true,
+  "only_source_and_control_fc182": true,
+  "no_measured_run_start_or_handoff_receipt": true,
+  "coverage_gap": [
+    "no pre-clock service state",
+    "no pre-clock journal or terminal summary",
+    "no historical Issue search response"
+  ],
+  "not_archived_members": [
+    "attempt-1/deployment-ssh-config",
+    "attempt-1/deployment-ssh-config.known_hosts"
+  ],
+  "not_archived_reason": "SSH configuration contains only runner key paths/host trust, unnecessary for public failure diagnosis; metadata hash retained.",
+  "no_private_decryption_or_payload_execution": true
+}

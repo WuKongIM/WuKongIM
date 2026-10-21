@@ -1,0 +1,15 @@
+{
+  "command": [
+    "dig",
+    "+time=3",
+    "+tries=1",
+    "+noall",
+    "+answer",
+    "packages.githubim.com",
+    "CNAME"
+  ],
+  "exit_code": 0,
+  "stdout": "packages.githubim.com.\t600\tIN\tCNAME\twukongim.github.io.\n",
+  "stderr": "",
+  "observed_at": "2026-10-21T10:19:53.591097+00:00"
+}

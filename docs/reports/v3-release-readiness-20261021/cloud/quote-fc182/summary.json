@@ -1,0 +1,29 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "run_id": 39581671217,
+  "attempt": 1,
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+  "quote_success": true,
+  "quote_run_acquire_step_skipped": true,
+  "plan_digest": "e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47",
+  "zone": "cn-hangzhou-b",
+  "instance_type": "ecs.u2a-c1m2.xlarge",
+  "account_binding_matches": true,
+  "estimated_cost_cny": "74.477600",
+  "whole_request_budget_cny": 1500,
+  "whole_request_operational_stop_cny": 1350,
+  "line_items_sum_matches": true,
+  "quote_is_actual_billing": false,
+  "formal_quote_yet_available": false,
+  "acquire_run": 39582604546,
+  "acquire_started_at": "2026-10-21T10:11:00Z",
+  "acquire_step_started_before_quote_expiry": true,
+  "acquire_receipt_yet_verified": false,
+  "limitations": [
+    "Start timestamp check is not proof every later provider operation occurred before quote expiry. The trusted Acquire tool enforces the admitted quote contract.",
+    "Quote success/available capacity does not prove procurement, deployment or runtime acceptance.",
+    "This is the conservative 12-hour rehearsal quote, not actual spend or a final formal-stage quote."
+  ]
+}

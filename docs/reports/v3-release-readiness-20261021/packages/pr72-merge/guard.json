@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "at": "2026-10-21T10:13:07.138709+00:00",
+  "expected_head": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "expected_base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "checks": "two required task CIs succeeded; deploy skipped",
+  "admin_bypass": false
+}

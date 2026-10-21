@@ -1,0 +1,18 @@
+{
+  "schema": "wukongim.stable-seal-transport-scope-amendment/v1",
+  "source_sha": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "status": "joint_scope_recommendation_awaiting_root_review",
+  "recommendation": "4 existing helpers + 1 narrow read-only stable input preflight",
+  "production_prewrite_source_gate": "fresh source resolver + actual attestation and native metadata + candidate signature verification + historical commit raw control and producer bytes",
+  "bind_scope": "control-only fresh identity for empty draft; no source-verified claim",
+  "test_only_network": "explicit opt-in, loopback only, every redirect rejected",
+  "stable_production_origins": "fixed GitHub.com API and download initial origin",
+  "writes_performed": false,
+  "tests_run": false,
+  "implementation_worktree_created": false,
+  "production_workflow_or_control_changes": false,
+  "v1_superseded_parts": [
+    "source authentication cannot be deferred to future activator",
+    "loopback origins alone do not prevent external redirects"
+  ]
+}

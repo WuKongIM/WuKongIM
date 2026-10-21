@@ -1,0 +1,13 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "--method",
+    "PUT",
+    "repos/WuKongIM/packages/pulls/72/merge",
+    "--input",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr72-merge/merge-input.json"
+  ],
+  "exit_code": 0,
+  "at": "2026-10-21T10:13:11.498624+00:00"
+}

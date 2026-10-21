@@ -1,0 +1,164 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 119160512499,
+      "run_id": 39581671217,
+      "workflow_name": "Cloud Lease Provision chat-20261021T095421Z-cf11d65c",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39581671217",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbvoUf8w",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119160512499",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39581671217/job/119160512499",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T10:03:01Z",
+      "started_at": "2026-10-21T10:03:04Z",
+      "completed_at": "2026-10-21T10:10:11Z",
+      "name": "Quote and optionally acquire one exact Lease",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T10:03:04Z",
+          "completed_at": "2026-10-21T10:03:05Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T10:03:05Z",
+          "completed_at": "2026-10-21T10:03:09Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T10:03:09Z",
+          "completed_at": "2026-10-21T10:03:19Z"
+        },
+        {
+          "name": "Validate explicit request boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T10:03:19Z",
+          "completed_at": "2026-10-21T10:03:19Z"
+        },
+        {
+          "name": "Build trusted Cloud Lease tool",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T10:03:19Z",
+          "completed_at": "2026-10-21T10:03:21Z"
+        },
+        {
+          "name": "Exchange exact Provisioner OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T10:03:21Z",
+          "completed_at": "2026-10-21T10:03:22Z"
+        },
+        {
+          "name": "Quote exact capacity and budget",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T10:03:22Z",
+          "completed_at": "2026-10-21T10:10:08Z"
+        },
+        {
+          "name": "Acquire explicitly authorized paid Lease",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-21T10:10:08Z",
+          "completed_at": "2026-10-21T10:10:08Z"
+        },
+        {
+          "name": "Upload non-secret Quote and Receipt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T10:10:08Z",
+          "completed_at": "2026-10-21T10:10:08Z"
+        },
+        {
+          "name": "Post Exchange exact Provisioner OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T10:10:08Z",
+          "completed_at": "2026-10-21T10:10:08Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T10:10:08Z",
+          "completed_at": "2026-10-21T10:10:09Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-21T10:10:09Z",
+          "completed_at": "2026-10-21T10:10:09Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-21T10:10:09Z",
+          "completed_at": "2026-10-21T10:10:09Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119160512499",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024248,
+      "runner_name": "GitHub Actions 1000024248",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 119160549867,
+      "run_id": 39581671217,
+      "workflow_name": "Cloud Lease Provision chat-20261021T095421Z-cf11d65c",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39581671217",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbvoWx6w",
+      "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119160549867",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39581671217/job/119160549867",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-21T10:03:07Z",
+      "started_at": "2026-10-21T10:03:07Z",
+      "completed_at": "2026-10-21T10:03:01Z",
+      "name": "Arm generic cleanup before paid Acquire",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119160549867",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    }
+  ]
+}

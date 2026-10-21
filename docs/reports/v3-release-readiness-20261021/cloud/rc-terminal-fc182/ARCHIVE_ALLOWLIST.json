@@ -1,0 +1,291 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3080,
+      "sha256": "748c98b359332c4e7cbe3557ab44f4d27d2cea2f5d7ca4acfc8a262c6ccc8ed8"
+    },
+    {
+      "path": "artifact-12338781445.json",
+      "bytes": 805,
+      "sha256": "23e1a6feb9b9ce8ff5b2b59127e1fb232878105aba8b91d43505a3ace71892ce"
+    },
+    {
+      "path": "artifact-12339131183.json",
+      "bytes": 805,
+      "sha256": "a5674a00880108d3a637339bfc8313d343d18aa8499ab96300ef79408041a059"
+    },
+    {
+      "path": "cleanup-download.json",
+      "bytes": 353,
+      "sha256": "8b130b85e38b011fa6d6c8cc225b953c3baf23e42a3a765fe8fe5f2b6061c4c2"
+    },
+    {
+      "path": "collect-redacted-log.py",
+      "bytes": 1883,
+      "sha256": "dc94a49dd547d8ebb006551c929097da7fa5151eae6ad85fc73febe0f90e3af9"
+    },
+    {
+      "path": "evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/receipt.json",
+      "bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "evidence/attempt-1/attempted-deployment-control-shas",
+      "bytes": 41,
+      "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+    },
+    {
+      "path": "evidence/attempt-1/attempted-repair-source-shas",
+      "bytes": 41,
+      "sha256": "27e259cfc4a5e567094d3196e417248269f15d27c431df21dd85a38671255918"
+    },
+    {
+      "path": "evidence/attempt-1/bootstrap-access.json",
+      "bytes": 251,
+      "sha256": "67aad04ec4219eb3e52b24dddcdb9a5714bd39eaf36a75fdd5f18faed2b1539b"
+    },
+    {
+      "path": "evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/analysis-endpoint.json",
+      "bytes": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+    },
+    {
+      "path": "evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-outcome.json",
+      "bytes": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+    },
+    {
+      "path": "evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-plan.json",
+      "bytes": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "path": "evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/encrypted-access.json",
+      "bytes": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+    },
+    {
+      "path": "evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+    },
+    {
+      "path": "evidence/attempt-1/deployment-plan.json",
+      "bytes": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "path": "evidence/attempt-1/lease-plan.json",
+      "bytes": 1892,
+      "sha256": "35b85d7a5b807a7d90697535a56d2f4fcd3245bdfa3a5b19ff0dd7a21ce0d9bf"
+    },
+    {
+      "path": "evidence/attempt-1/preflight-quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "evidence/attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "evidence/attempt-1/quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "evidence/attempt-1/receipt-selector.json",
+      "bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "evidence/attempt-1/receipt.json",
+      "bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "evidence/attempt-1/release-selector.json",
+      "bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "evidence/attempt-1/run-plan.json",
+      "bytes": 2361,
+      "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+    },
+    {
+      "path": "evidence/cleanup.json",
+      "bytes": 172,
+      "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+    },
+    {
+      "path": "evidence/deployment-repair-pending.json",
+      "bytes": 624,
+      "sha256": "1bf3a22914a29dbe8c1fcfb3065dde5ccece7f7d15dde7425e500cd57018d846"
+    },
+    {
+      "path": "evidence/release-1-1/cloud-lease-release-chat-20261021T095421Z-cf11d65c/release.json",
+      "bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "evidence/release-selector.json",
+      "bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "evidence/verification.json",
+      "bytes": 11764,
+      "sha256": "2d51e1c0573d2e349b7d80888e9d5394178f599fcd2691b9e438cb3f228a859c"
+    },
+    {
+      "path": "evidence/zero-inventory.json",
+      "bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "failure-excerpt.txt",
+      "bytes": 1044,
+      "sha256": "eb7cd8b2671474b19c65dab1ccc3855a800df9a38a649d966997bdf68273d319"
+    },
+    {
+      "path": "handoff-named-download.json",
+      "bytes": 353,
+      "sha256": "63ed689907c860bc590cda4a22524cceee385ac03c1b5829f890bb993fbabb21"
+    },
+    {
+      "path": "issue-search-jq-replay.json",
+      "bytes": 688,
+      "sha256": "ffa8885b7c8dfa348e20bd1ea371d8e9aa202def4fd7d261030f8a94852b05fb"
+    },
+    {
+      "path": "issue-search.json",
+      "bytes": 79,
+      "sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0"
+    },
+    {
+      "path": "redaction-scan.json",
+      "bytes": 435,
+      "sha256": "3e78440400aa900be9f539afcae151fa849950766e579cd6d8538c22370b73dc"
+    },
+    {
+      "path": "release/artifact-metadata.json",
+      "bytes": 790,
+      "sha256": "0086ba9ada43c58893516c12d18a743df7e0dc21dc81e159e1d44e88018a6e6d"
+    },
+    {
+      "path": "release/download-receipt.json",
+      "bytes": 351,
+      "sha256": "175a1fe86a498f40b1a7e91bd039a2465e1452eb52b0b6bd1932dbed365a4144"
+    },
+    {
+      "path": "release/jobs.json",
+      "bytes": 5626,
+      "sha256": "dd9c28159f6a3a79a5b6a1e640923cd3eb334157d10df2b0a38a957bc7385542"
+    },
+    {
+      "path": "release/release.json",
+      "bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "release/verification.json",
+      "bytes": 346,
+      "sha256": "e51537d6a3b9360d993f95051d63841eb335012759012134b37eea43eb641da3"
+    },
+    {
+      "path": "source/.github/workflows/chat-lifecycle-rehearsal.yml",
+      "bytes": 8607,
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "path": "source/.github/workflows/cloud-lease-release.yml",
+      "bytes": 5948,
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "path": "source/internal/infra/cloudlease/alibaba/lifecycle.go",
+      "bytes": 34180,
+      "sha256": "ed6f46c1dc1d513facd3ea2b0b6bca2422bf2d0216095f46a5eb0713c130f1ee"
+    },
+    {
+      "path": "source/internal/usecase/cloudlease/types.go",
+      "bytes": 21965,
+      "sha256": "97df17c075a0f9813ff8b449294a12be41da5bb3d7c1f84656863af70239fc3d"
+    },
+    {
+      "path": "source/scripts/chat-lifecycle/capture-stage-journal-cursor.sh",
+      "bytes": 717,
+      "sha256": "9cd6cc329d07a7aea08797cf1f358c6c177d258ccf7292ce1bed68252eb1a4b6"
+    },
+    {
+      "path": "source/scripts/chat-lifecycle/classify-pre-clock-summary.sh",
+      "bytes": 1817,
+      "sha256": "1a832333429bb7bfbd5ec58db1fbe304b79fad874565323cb700973d9ca1238d"
+    },
+    {
+      "path": "source/scripts/chat-lifecycle/classify-stage-service-state.sh",
+      "bytes": 711,
+      "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+    },
+    {
+      "path": "source/scripts/chat-lifecycle/comment-request-issue.sh",
+      "bytes": 2654,
+      "sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7"
+    },
+    {
+      "path": "source/scripts/chat-lifecycle/stage-orchestrate.sh",
+      "bytes": 40784,
+      "sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a"
+    },
+    {
+      "path": "source-identity.json",
+      "bytes": 1706,
+      "sha256": "0c1cf2cc7c7d3f7b5f49fa07e226d10d50bea82126b453522f32d59c3ef8af80"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 3523,
+      "sha256": "c942af0f0c3c4ec8c4faec3814704d7ab92de27d642147a1a15de8f2af2d5218"
+    },
+    {
+      "path": "terminal-run-summary.json",
+      "bytes": 9604,
+      "sha256": "d5d0d47791d1f29a70cbc48d58d2ebf7f0262f7d9f86f7ff86a5e2e82c34a50c"
+    },
+    {
+      "path": "top-jobs.json",
+      "bytes": 6796,
+      "sha256": "693057588cabdb16cb6348a236be1fffbbf8cb0e8b3fba388799f0705cd0fd59"
+    },
+    {
+      "path": "top-log-retrieval.json",
+      "bytes": 457,
+      "sha256": "9d661df2e0804912c70847f9151ed16d14bbb3860de25c7a049eadec7a987b83"
+    },
+    {
+      "path": "top-log.redacted.txt.gz",
+      "bytes": 18905,
+      "sha256": "f4eb6f0c419c78f344e15c27d3dffd0ea4883b3204a14621265e6d0e44282f2f"
+    },
+    {
+      "path": "verify-terminal.py",
+      "bytes": 4697,
+      "sha256": "deb5cefaf6e27ae73fd40230cc41d21b48e493ff45995e6545b4c212fd6cff5d"
+    }
+  ],
+  "excluded": [
+    "large bundle ZIP/binaries",
+    "all private keys",
+    "decrypted credentials",
+    "raw unsanitized logs",
+    "SSH configuration and known_hosts (hash retained)"
+  ]
+}

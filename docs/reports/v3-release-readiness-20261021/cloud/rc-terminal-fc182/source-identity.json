@@ -1,0 +1,50 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "files": [
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "size": 40784,
+      "sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a"
+    },
+    {
+      "path": "scripts/chat-lifecycle/comment-request-issue.sh",
+      "size": 2654,
+      "sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7"
+    },
+    {
+      "path": "scripts/chat-lifecycle/classify-stage-service-state.sh",
+      "size": 711,
+      "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+    },
+    {
+      "path": "scripts/chat-lifecycle/classify-pre-clock-summary.sh",
+      "size": 1817,
+      "sha256": "1a832333429bb7bfbd5ec58db1fbe304b79fad874565323cb700973d9ca1238d"
+    },
+    {
+      "path": "scripts/chat-lifecycle/capture-stage-journal-cursor.sh",
+      "size": 717,
+      "sha256": "9cd6cc329d07a7aea08797cf1f358c6c177d258ccf7292ce1bed68252eb1a4b6"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "size": 8607,
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "size": 5948,
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "path": "internal/usecase/cloudlease/types.go",
+      "size": 21965,
+      "sha256": "97df17c075a0f9813ff8b449294a12be41da5bb3d7c1f84656863af70239fc3d"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle.go",
+      "size": 34180,
+      "sha256": "ed6f46c1dc1d513facd3ea2b0b6bca2422bf2d0216095f46a5eb0713c130f1ee"
+    }
+  ]
+}

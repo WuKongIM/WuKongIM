@@ -1,0 +1,2 @@
+resolution.md
+resolution.json

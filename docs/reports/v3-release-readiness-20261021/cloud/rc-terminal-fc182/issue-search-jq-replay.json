@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-21T10:23:49.785378+00:00",
+  "input": "issue-search.json",
+  "input_sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0",
+  "command_argv": [
+    "jq",
+    "-cer",
+    "--arg",
+    "title",
+    "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+    "[.items[] | select(.title == $title and (.pull_request | not))] | select(length == 1) | .[0]"
+  ],
+  "exit_code": 4,
+  "stdout": "",
+  "stderr": "",
+  "historical_runtime_input_unavailable": true,
+  "interpretation": "Current exact zero-match Issue search reproduces exit 4 of the frozen exact-one jq expression; does not prove the historical workflow received identical search data."
+}

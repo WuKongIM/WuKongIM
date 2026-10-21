@@ -1,0 +1,7 @@
+{
+  "human_response": "同意合并 #72",
+  "scope": "normal merge of exact reviewed c8aae37; no stable activation, release or cloud changes",
+  "source_sha": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "method": "rebase",
+  "reason": "required linear history enabled"
+}

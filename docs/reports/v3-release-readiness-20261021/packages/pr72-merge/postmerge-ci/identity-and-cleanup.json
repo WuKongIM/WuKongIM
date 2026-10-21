@@ -1,0 +1,11 @@
+{
+  "merged_source_sha": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "approved_source_sha": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "same_tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "approved_tip_is_ancestor": false,
+  "ancestor_command_exit": 1,
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate",
+  "worktree_clean": true,
+  "cleanup_performed": false,
+  "cleanup_reason": "Rebase merge preserves tree but does not contain original tip; original clean worktree/branch retained."
+}

@@ -1,0 +1,5 @@
+828: Build, quote, deploy, and hand off the remote rehearsal	Orchestrate until remote systemd owns the measured run	2026-10-21T10:17:54.3834063Z Failed to reset failed state of unit wkbench-rehearsal.service: Unit wkbench-rehearsal.service not loaded.
+829: Build, quote, deploy, and hand off the remote rehearsal	Orchestrate until remote systemd owns the measured run	2026-10-21T10:18:12.5764636Z https://github.com/WuKongIM/WuKongIM/actions/runs/39583589120
+830: Build, quote, deploy, and hand off the remote rehearsal	Orchestrate until remote systemd owns the measured run	2026-10-21T10:19:31.6939646Z pre-clock readiness repair state could not be published; exact Lease was released
+831: Build, quote, deploy, and hand off the remote rehearsal	Orchestrate until remote systemd owns the measured run	2026-10-21T10:19:31.6958177Z ##[error]Process completed with exit code 1.
+971: Build, quote, deploy, and hand off the remote rehearsal	Advance the exact tracking Issue	2026-10-21T10:19:34.9798911Z ##[error]Process completed with exit code 4.
