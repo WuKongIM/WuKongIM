@@ -1,0 +1,226 @@
+{
+  "schema": "wukongim/pr-final-composition-review/v1",
+  "created_at": "2026-10-21T09:21:06.075311+00:00",
+  "base": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "head": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+  "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+  "working_tree_clean": true,
+  "diff_sha256": "27d0cfee5fe6c8b2f1ab13b94bf2c48da0748de3dbc1aa028bc55165e0ebc2f3",
+  "changed_file_count": 19,
+  "changed_files": [
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1",
+      "bytes": 79014
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+      "bytes": 13951
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "0ad830856542c91f7df7be8ed5985264715a1f497b9345a0cfe8f56689561670",
+      "bytes": 188323
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/README.md",
+      "sha256": "3a167780fb4f9897bd353d7555af688f6b2927b9d2c237c150e6aec3e02edc39",
+      "bytes": 4559
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+      "sha256": "1a9e81e18c8afaaa62fa2b1edad6dc03ea34eda7163e501c26b341cd2dc7a2a2",
+      "bytes": 4340
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "69f64bc7ae7a6128dffaafc96e8676b32d5025562486db03d79e4e2879493856",
+      "bytes": 140938
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf",
+      "bytes": 14038
+    },
+    {
+      "path": "internal/bench/chatlifecycle/config_examples_test.go",
+      "sha256": "fc628a454b724aca86d13a9020ace81ba19ca6863978db367b65cf6802c2adff",
+      "bytes": 3389
+    },
+    {
+      "path": "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+      "sha256": "e89a98aa7412d2a17de36ede1301f9e1db7c4dae776436103ac7b834c37c09d1",
+      "bytes": 7555
+    },
+    {
+      "path": "pkg/transport/internal/buffer/retained_test.go",
+      "sha256": "732390cf710b7199b0917aef02866de87e7d940687f259c587f84b84f00b0d16",
+      "bytes": 793
+    },
+    {
+      "path": "scripts/cloud-sim/analyze.sh",
+      "sha256": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8",
+      "bytes": 40137
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh",
+      "sha256": "68512d0add0a80b6b364400388720cd0acc301897ef8b4a5e6facffed16880a5",
+      "bytes": 28347
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+      "bytes": 79740
+    },
+    {
+      "path": "scripts/shell_trap_cleanup_integration_test.go",
+      "sha256": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6",
+      "bytes": 3631
+    },
+    {
+      "path": "scripts/v3_candidate_workflow_contract_test.py",
+      "sha256": "d4c691b6dc49364c66fccb95ede050256d0980f0e83282270e3b0bb7ab2a4ed2",
+      "bytes": 8655
+    },
+    {
+      "path": "scripts/wukongim_single_node_terminal_cut_integration_test.go",
+      "sha256": "675a01755185bbe33d12cb6260cb3d5fc0e5917ad9ea4013857dfd28415a0efd",
+      "bytes": 11124
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "sha256": "0f665c92e3b99eeaf23a57e65fca4f91d16bf7b7e53a1d9d34462f49e820ccfa",
+      "bytes": 49504
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_test.go",
+      "sha256": "2589f7247b3fac027146b4261a721ddda552eca20893c630ebf8ec462c780e55",
+      "bytes": 23762
+    },
+    {
+      "path": "scripts/wukongim_three_nodes_build_integration_test.go",
+      "sha256": "1fbab2bd77824ce611d1e6353ce941bcdfad96c2ece70ece30e2814af30a65cb",
+      "bytes": 3780
+    }
+  ],
+  "rules": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "unchanged_from_base": true
+    }
+  ],
+  "protected_unchanged": [
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "scripts/run-v3-candidate-check.py",
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "scripts/bench-wukongim-single-node-1000ch.sh",
+      "sha256": "2660f796d3441fe221d12b7bd570259e406595208f77f4cb99527afb845fbae5",
+      "unchanged_from_base": true
+    }
+  ],
+  "prior_cleanup_exact_match": [
+    {
+      "path": "scripts/cloud-sim/analyze.sh",
+      "matches_prior_freeze": true
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh",
+      "matches_prior_freeze": true
+    },
+    {
+      "path": "scripts/shell_trap_cleanup_integration_test.go",
+      "matches_prior_freeze": true
+    }
+  ],
+  "prior_fixture_exact_match": [
+    {
+      "path": "scripts/wukongim_single_node_terminal_cut_integration_test.go",
+      "matches_prior_freeze": true
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "matches_prior_freeze": true
+    }
+  ],
+  "non_test_runtime_go_changes": [],
+  "standards_findings": [],
+  "spec_findings": [],
+  "blocking_findings": [],
+  "reviewer_ran_tests": false,
+  "evidence_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-independent/implementation-review.md",
+      "sha256": "0246bda08bdde46f6795ef6505aa2251fd00b40c4390b7e38266315579af2c7e",
+      "bytes": 3641
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-independent/vet-increment-review.md",
+      "sha256": "063ce915c5abcc449e96fc9c12a40733bfd2b9cc095b3fe5e827e7c698a75825",
+      "bytes": 1632
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/delivery-summary.json",
+      "sha256": "77cd059e84ac41e0f52c8dceec0fee9092a402dcdf0e7b6c8097a44dd05dde6f",
+      "bytes": 2883
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-shell-cleanup-review/review.json",
+      "sha256": "707e8838208a82831d8cd7f1ed0c5d2324edc89de8042294a0b8c510d7042e44",
+      "bytes": 3618
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-timeout-readonly/profile-fixture-portability/focused.json",
+      "sha256": "7e326951f9a69d54c64c96cc6c062c5ec2b4f6f68589c7a578a85f3f1581129d",
+      "bytes": 332
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-timeout-readonly/vcs-build-repair/summary.json",
+      "sha256": "b0647107cd296d5c25334a378faba0c3327b3e37991b05bacc80dd022087067f",
+      "bytes": 1269
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair-review/review.json",
+      "sha256": "125a82597291b8d7c1563026a1d1b22f6c699d6c69ef9e9da1e23e159beca76e",
+      "bytes": 5578
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/validation-summary-final.json",
+      "sha256": "de3e9a2a24a3f763ea9f5ccf23fcdc87e7199389ce8b0004454ed2a80ab047a3",
+      "bytes": 884
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/pr-api.json",
+      "sha256": "1b3e2a619e11d33104ea600b84f187a3b71f88ce1e02b4f31d50eb0c5b27f92f",
+      "bytes": 22467
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/pr-body.md",
+      "sha256": "9369c25dc0ccd24be11557fd583d294062b860849d48978f33a7851a71fcad8e",
+      "bytes": 6743
+    }
+  ],
+  "pr_body_exact_match": true,
+  "pr_body_updated_at": "2026-10-21T09:12:46Z",
+  "pending": "Exact head first Linux scripts full gate per root; no claim of pass until receipt verified",
+  "release_qualification_claimed": false
+}

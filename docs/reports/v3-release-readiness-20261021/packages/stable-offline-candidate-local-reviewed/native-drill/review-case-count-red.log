@@ -1,0 +1,15 @@
+...........F
+======================================================================
+FAIL: test_workflow_preserves_isolation_pins_and_public_only_upload (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_workflow_preserves_isolation_pins_and_public_only_upload)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 157, in test_workflow_preserves_isolation_pins_and_public_only_upload
+    self.assertIn(f'(.cases | length) == {len(self.load().CASES)}', step)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '(.cases | length) == 31' not found in '      - name: Compose and independently verify TEST ONLY stable offline candidate\n        shell: bash\n        run: |\n          set -euo pipefail\n          jq -e \'.enabled == true\' manifests/signing-toolchain.json >/dev/null\n          image="$(jq -r \'.image + "@" + .digest\' manifests/signing-toolchain.json)"\n          candidate_output="$RUNNER_TEMP/stable-candidate-native"\n          mkdir "$candidate_output"\n          chmod 0777 "$candidate_output"\n          container="wk-stable-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"\n          trap \'docker rm --force "$container" >/dev/null 2>&1 || true\' EXIT\n          trap \'exit 130\' INT\n          trap \'exit 143\' TERM\n          timeout --signal=TERM --kill-after=10s 10m docker run --rm --name "$container" \\\n            --platform linux/amd64 --network none --read-only --cap-drop ALL \\\n            --security-opt no-new-privileges --user 65532:65532 \\\n            --cpus 1 --memory 512m --pids-limit 128 \\\n            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \\\n            --volume "$GITHUB_WORKSPACE:/control:ro" \\\n            --volume "$candidate_output:/evidence" \\\n            --workdir /tmp "$image" \\\n            python3 -B /control/tests/native_stable_candidate_drill.py \\\n            --output-dir /evidence --source-sha "$GITHUB_SHA" \\\n            --trusted-root /control/.trusted/wukongim\n          jq -e \'.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and .scratch_removed == true and .checked_in_control_unchanged == true and (.cases | length) == 29 and all(.cases[]; .passed == true)\' \\\n            "$candidate_output/native-stable-candidate.json" >/dev/null\n\n      - name: Preserve TEST ONLY native stable candidate evidence\n        if: always()\n        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1\n        with:\n          name: native-stable-candidate-test-only\n          path: ${{ runner.temp }}/stable-candidate-native/native-stable-candidate.json\n          if-no-files-found: warn\n          retention-days: 30\n\n'
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.069s
+
+FAILED (failures=1)
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

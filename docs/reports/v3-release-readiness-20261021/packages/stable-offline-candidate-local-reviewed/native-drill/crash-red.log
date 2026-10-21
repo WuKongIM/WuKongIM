@@ -1,0 +1,15 @@
+.F.....
+======================================================================
+FAIL: test_expected_rejection_cannot_accept_a_crashed_child (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_expected_rejection_cannot_accept_a_crashed_child)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 86, in test_expected_rejection_cannot_accept_a_crashed_child
+    with self.assertRaises(RuntimeError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.051s
+
+FAILED (failures=1)
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

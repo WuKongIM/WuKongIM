@@ -8,6 +8,10 @@
     {
       "path": "packages/pr70-merge/merged-pr.json",
       "reason": "preserved empty stdout from failed GitHub GET; see companion stderr and merge receipts"
+    },
+    {
+      "path": "ci/scripts-wait255-fixture-repair/runs-initial.json",
+      "reason": "preserved empty stdout from failed read-only GitHub request; see companion stderr and local delivery README"
     }
   ],
   "diff_check": "authored assessment, preparation report and evidence index passed; byte-exact imported logs, patches and upstream documents retain original whitespace",

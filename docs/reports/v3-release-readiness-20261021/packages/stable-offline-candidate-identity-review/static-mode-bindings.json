@@ -1,0 +1,19 @@
+[
+  {
+    "kind": "assign",
+    "line": 644,
+    "source": "candidate = C.candidate_mode(args)"
+  },
+  {
+    "kind": "for",
+    "line": 716,
+    "target": "candidate",
+    "iter": "(inventory_absolute, bootstrap_inventory_absolute)"
+  },
+  {
+    "kind": "for",
+    "line": 747,
+    "target": "candidate",
+    "iter": "(inventory_output, bootstrap_inventory_output)"
+  }
+]

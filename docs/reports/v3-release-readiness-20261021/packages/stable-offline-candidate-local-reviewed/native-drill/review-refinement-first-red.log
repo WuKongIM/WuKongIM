@@ -1,0 +1,78 @@
+.EE....E.FFFFE.
+======================================================================
+ERROR: test_controlled_rejection_records_only_declared_category (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_controlled_rejection_records_only_declared_category)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 115, in test_controlled_rejection_records_only_declared_category
+    self.assertEqual(evidence['cases'][-1]['rejection_category'], 'apt-signature-receipt-integrity')
+                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'rejection_category'
+
+======================================================================
+ERROR: test_declared_negative_cases_have_bounded_reason_and_layer (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_declared_negative_cases_have_bounded_reason_and_layer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 143, in test_declared_negative_cases_have_bounded_reason_and_layer
+    self.assertEqual(set(drill.REJECTIONS), {name for name in drill.CASES if name.startswith('reject-')})
+                         ^^^^^^^^^^^^^^^^
+AttributeError: module 'stable_candidate_drill_test' has no attribute 'REJECTIONS'
+
+======================================================================
+ERROR: test_json_anchor_mutation_preserves_json_and_changes_only_requested_leaf (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_json_anchor_mutation_preserves_json_and_changes_only_requested_leaf)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 122, in test_json_anchor_mutation_preserves_json_and_changes_only_requested_leaf
+    changed = drill.mutate_json_anchor(raw, ('assets', 0, 'sha256'), 'b' * 64)
+              ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'stable_candidate_drill_test' has no attribute 'mutate_json_anchor'
+
+======================================================================
+ERROR: test_signature_receipt_rebinding_changes_only_signature_facts (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_signature_receipt_rebinding_changes_only_signature_facts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 133, in test_signature_receipt_rebinding_changes_only_signature_facts
+    changed = json.loads(drill.rebind_apt_signature_receipt(raw, b'actual public signature'))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'stable_candidate_drill_test' has no attribute 'rebind_apt_signature_receipt'
+
+======================================================================
+FAIL: test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure) (code=2, diagnostic=b'usage: verifier --required INPUT\nproduction package-site verification failed: APT release_gpg identity differs from its signing receipt: dists/stable/Release.gpg\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 103, in test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure
+    with self.assertRaises(RuntimeError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure) (code=1, diagnostic=b'Traceback (most recent call last):\nproduction package-site verification failed: APT release_gpg identity differs from its signing receipt: dists/stable/Release.gpg\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 103, in test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure
+    with self.assertRaises(RuntimeError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure) (code=1, diagnostic=b'production package-site verification failed: cannot inspect snapshot\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 103, in test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure
+    with self.assertRaises(RuntimeError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure) (code=1, diagnostic=b'production package-site verification failed: APT Packages.gz differs from Packages\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 103, in test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure
+    with self.assertRaises(RuntimeError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.039s
+
+FAILED (failures=4, errors=4)
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

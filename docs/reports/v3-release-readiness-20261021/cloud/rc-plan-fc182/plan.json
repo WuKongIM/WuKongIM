@@ -1,0 +1,437 @@
+{
+  "schema": "wukongim.rc_cloud_execution_draft/v1",
+  "status": "draft_not_dispatchable",
+  "created_at": "2026-10-21T09:41:41.513437+00:00",
+  "scope": {
+    "offline_only": true,
+    "network_called": false,
+    "provider_called": false,
+    "quote_called": false,
+    "workflow_dispatched_or_enabled": false,
+    "repo_modified": false,
+    "private_keys_generated_or_read": false
+  },
+  "identity": {
+    "repository": "WuKongIM/WuKongIM",
+    "reviewed_pr": 1017,
+    "reviewed_head_sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+    "reviewed_head_tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+    "ci_actual_checkout": "7204d1ba4a5fe101397c85545e84df15e28e0082",
+    "ci_tree_binding_from_parent_receipt": true,
+    "ci_synthetic_object_independently_rehashed_here": false,
+    "remote_base_ed705_reported_by_parent": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "merged_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "top_level_control_sha": null,
+    "bundle_control_sha": null,
+    "activation_control_shas": [],
+    "bundle_run_id": null,
+    "bundle_digest": null,
+    "note": "Final source must be resolved from remote merged main and bound to verified tree; local main is not the remote authority.",
+    "merged_source_tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+    "merged_source_parents": [
+      "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "ab75c226f4b3c246797aee4f876f23af602d07ce"
+    ],
+    "merge_authorized_completed_by_parent": true,
+    "remote_main_equals_merged_source_reported_by_parent": true
+  },
+  "source_files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "size": 13284
+    },
+    ".github/workflows/README.md": {
+      "sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1",
+      "size": 79014
+    },
+    ".agents/skills/wukongim-chat-lifecycle/SKILL.md": {
+      "sha256": "adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7",
+      "size": 6962
+    },
+    ".agents/skills/wukongim-chat-lifecycle/references/operator-workflow.md": {
+      "sha256": "b675f2d97577be7ff38da3d08c7a21f7c1484158568fa65af77a8aa6d5a30e4a",
+      "size": 8366
+    },
+    "scripts/cloud-deployment/FLOW.md": {
+      "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80",
+      "size": 2788
+    },
+    "cmd/wkcloudbundle/FLOW.md": {
+      "sha256": "516c8e00b02e1f0ccac34b5297a7eea607f5a228c9b9aeda17ab56e30eb39f75",
+      "size": 1759
+    },
+    "cmd/wkcloudlease/FLOW.md": {
+      "sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1",
+      "size": 1998
+    },
+    "internal/bench/FLOW.md": {
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "size": 6617
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "size": 6514
+    },
+    "internal/usecase/chatlifecyclerun/FLOW.md": {
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f",
+      "size": 2691
+    },
+    "internal/usecase/clouddeploy/FLOW.md": {
+      "sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "size": 4567
+    },
+    "internal/usecase/cloudlease/FLOW.md": {
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "size": 2327
+    },
+    "configs/cloud/chat-lifecycle/rehearsal-v1.json": {
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b",
+      "size": 1021
+    },
+    "configs/cloud/chat-lifecycle/formal-v1.json": {
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0",
+      "size": 1021
+    },
+    "configs/wkbench/chat-lifecycle/rehearsal.yaml": {
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542",
+      "size": 4367
+    },
+    "configs/wkbench/chat-lifecycle/formal.yaml": {
+      "sha256": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573",
+      "size": 4361
+    },
+    "internal/usecase/chatlifecyclerun/run.go": {
+      "sha256": "db0e076554cc78b2203df272c4aca26024eb2e1b448a1d8d3abf1bb11ed0fb51",
+      "size": 17330
+    },
+    "cmd/wkcli/internal/benchmark/formal_chain_command.go": {
+      "sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+      "size": 17342
+    },
+    "scripts/chat-lifecycle/stage-orchestrate.sh": {
+      "sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a",
+      "size": 40784
+    },
+    "scripts/chat-lifecycle/release-until-zero.sh": {
+      "sha256": "bc8167ac9db7ab632caa372f5e19c1f4bba9872678c6843351c379604feb8b64",
+      "size": 3554
+    },
+    "scripts/chat-lifecycle/formal-finalize.sh": {
+      "sha256": "4d491b6586e5bea66959364820db98e548c36fbd25d6b412083c3456fa504014",
+      "size": 13502
+    },
+    "docs/adr/0041-use-four-postpaid-hosts-for-automated-chat-lifecycle.md": {
+      "sha256": "e9d765f06bb624793e3bdcd5e7382ee2ac3ea6f64146bd0044e5b3374628c7f1",
+      "size": 900
+    },
+    "docs/adr/0042-expose-the-load-node-for-the-bounded-lease.md": {
+      "sha256": "bc924f8df7040a1503383718ba31035a731387ba478976982733b4a9afcd4481",
+      "size": 643
+    },
+    "docs/adr/0047-retain-one-lease-across-deployment-repair.md": {
+      "sha256": "fbd72cff0f2d7345693882321a4ff9156475390b2411837befbaa30a7f4b6b38",
+      "size": 2322
+    },
+    "docs/superpowers/runbooks/cloud-deployment-bundle.md": {
+      "sha256": "91e5d501e038c112cd71836fdcc4f31ede7a036d9e626ac311a754794f63444b",
+      "size": 3074
+    },
+    "docs/superpowers/runbooks/cloud-lease-identity.md": {
+      "sha256": "2f8e06ef6b5e400f1a8c56d9bd224589a743ec21ce6c25c8c1e67c1c9daf407a",
+      "size": 4407
+    },
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": {
+      "sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf",
+      "size": 14038
+    },
+    ".github/workflows/cloud-deployment-bundle.yml": {
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4",
+      "size": 8145
+    },
+    ".github/workflows/chat-lifecycle-rehearsal.yml": {
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c",
+      "size": 8607
+    },
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml": {
+      "sha256": "2181d008be6273e6d8b6c2bf30f77c5934de2bdf515bddf0f24659cbe3c0bb1c",
+      "size": 32176
+    },
+    ".github/workflows/chat-lifecycle-formal.yml": {
+      "sha256": "57443e3ee23799bf691ab580808bfca6dfdb0c8f5ce2b00b996e83a7e2904703",
+      "size": 15195
+    },
+    ".github/workflows/chat-lifecycle-formal-finalize.yml": {
+      "sha256": "3b4bcdffd747ba0839b52557849bdc4c9bfc530ad4381f79fffeda3999e5448f",
+      "size": 28906
+    },
+    ".github/workflows/chat-lifecycle-stop.yml": {
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62",
+      "size": 3747
+    },
+    ".github/workflows/cloud-lease-provision.yml": {
+      "sha256": "f67e53fb8490108bcac5bdfdf59c94f08a41904d0fa1f124732021fab7ee4110",
+      "size": 7038
+    },
+    ".github/workflows/cloud-lease-release.yml": {
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea",
+      "size": 5948
+    },
+    ".github/workflows/cloud-lease-oidc-setup.yml": {
+      "sha256": "7af130a5cc0d8cb7917088d7daac2126ca4da7bed292d12b75732bb3bb8338fe",
+      "size": 15064
+    }
+  },
+  "source_rule": "source is an exact 40-hex merged/accepted commit reachable from origin/main; never use a moving ref or an unrelated local main commit",
+  "control_rule": "Each actual protected-main workflow run records its own head SHA; bundle control SHA must equal its authenticated producer run. Formal continuation reuses original source and bundle; later trusted control repair is separately recorded and may not replace them.",
+  "authorizations": {
+    "current_task": "read-only offline planning only",
+    "paid_authorization_received": false,
+    "paid_phrase_template": "授权对 fc18221282f289088ec9b4282fda8e0bfc67a3b8 开始聊天生命周期全流程压测：按仓库正式 GitHub OIDC 方案在阿里云购买临时资源，执行预演、72 小时长稳、容量及恢复，创建跟踪 Issue 并完成清理。整个请求累计预算上限人民币 1,500 元，估算累计达到 1,350 元停止。",
+    "direct_lab_is_diagnostic_only": true,
+    "direct_lab_budget_cannot_authorize_this_chain": true,
+    "permission_changes_authorized": false
+  },
+  "top_level_inputs": {
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "operator": "tangtaoit",
+    "codex_diagnostic_pubkey": null,
+    "request_id": null
+  },
+  "input_rules": {
+    "source_sha": "^[0-9a-f]{40}$",
+    "operator": "tangtaoit",
+    "request_id": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$",
+    "codex_diagnostic_pubkey": "one newly generated request-scoped Ed25519 public key; private key outside repositories in owner-only storage; no key generation in this plan"
+  },
+  "budget": {
+    "currency": "CNY",
+    "hard_limit_micros": 1500000000,
+    "operational_stop_micros": 1350000000,
+    "remaining_cleanup_reserve_micros": 150000000,
+    "scope": "one aggregate request across rehearsal/formal, host/disk/network/retention, readiness/diagnosis/report-rescue/cleanup; not per stage",
+    "quote_available": false,
+    "actual_provider_bill_status": "unavailable_not_queried"
+  },
+  "run_plan_templates": {
+    "rehearsal": {
+      "schema": "wukongim.chat_lifecycle.run_plan_template/v1",
+      "stage": "rehearsal",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "lease_duration_seconds": 43200,
+      "workload_duration_seconds": 7200,
+      "readiness_timeout_seconds": 7200,
+      "budget": {
+        "currency": "CNY",
+        "hard_limit_micros": 1500000000,
+        "operational_stop_micros": 1350000000
+      },
+      "network": {
+        "conservative_public_egress_bytes": 10737418241,
+        "peak_bandwidth_mbps": 20
+      },
+      "compute": {
+        "vcpus": 4,
+        "memory_bytes": 8589934592,
+        "architecture": "x86_64",
+        "billing_model": "postpaid",
+        "allow_burstable": false
+      },
+      "host_groups": [
+        {
+          "role": "service",
+          "count": 3,
+          "system_disk_bytes": 42949672960,
+          "data_disk_bytes": 536870912000,
+          "public_ipv4": false
+        },
+        {
+          "role": "load",
+          "count": 1,
+          "system_disk_bytes": 42949672960,
+          "data_disk_bytes": 214748364800,
+          "public_ipv4": true
+        }
+      ],
+      "retry": {
+        "deployment_retries": 0
+      }
+    },
+    "formal": {
+      "schema": "wukongim.chat_lifecycle.run_plan_template/v1",
+      "stage": "formal",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "lease_duration_seconds": 345600,
+      "workload_duration_seconds": 259200,
+      "readiness_timeout_seconds": 7200,
+      "budget": {
+        "currency": "CNY",
+        "hard_limit_micros": 1500000000,
+        "operational_stop_micros": 1350000000
+      },
+      "network": {
+        "conservative_public_egress_bytes": 10737418241,
+        "peak_bandwidth_mbps": 20
+      },
+      "compute": {
+        "vcpus": 4,
+        "memory_bytes": 8589934592,
+        "architecture": "x86_64",
+        "billing_model": "postpaid",
+        "allow_burstable": false
+      },
+      "host_groups": [
+        {
+          "role": "service",
+          "count": 3,
+          "system_disk_bytes": 42949672960,
+          "data_disk_bytes": 536870912000,
+          "public_ipv4": false
+        },
+        {
+          "role": "load",
+          "count": 1,
+          "system_disk_bytes": 42949672960,
+          "data_disk_bytes": 214748364800,
+          "public_ipv4": true
+        }
+      ],
+      "retry": {
+        "deployment_retries": 0
+      }
+    }
+  },
+  "stages": [
+    {
+      "name": "rehearsal",
+      "lease_hours": 12,
+      "measured_seconds": 7200,
+      "admission_minimum_remaining_seconds": 10800,
+      "starts_after": "10000 CONNECT plus new version-zero full syncs plus first complete 2000 SEND/s grant",
+      "required_result": "rehearsal_pass",
+      "must_release_to_exact_zero_before_next": true
+    },
+    {
+      "name": "formal_soak",
+      "new_lease_hours": 96,
+      "measured_seconds": 259200,
+      "qualification_seconds": 86400,
+      "admission_minimum_remaining_seconds": 293400,
+      "required_result": "pass",
+      "reuse_original_source_bundle": true
+    },
+    {
+      "name": "aged_capacity",
+      "maximum_seconds": 28800,
+      "start_send_per_second": 2000,
+      "step_percent": 25,
+      "refine_percent": 10,
+      "stabilize_seconds": 600,
+      "measure_seconds": 1200,
+      "same_process_workers_fence_observer_data": true
+    },
+    {
+      "name": "recovery",
+      "send_per_second": 2000,
+      "seconds": 1800,
+      "same_process_workers_fence_observer_data": true,
+      "required_result": "capacity.recovery_passed=true"
+    }
+  ],
+  "guard": {
+    "cadence_seconds": 5,
+    "expiry_cleanup_reserve_seconds": 3600,
+    "runtime_or_correctness_retry": false,
+    "fresh_procurement_attempts_per_stage": 1,
+    "readiness_repair": "same Lease/source/bundle/key; distinct trusted-main exact request trailer; each control revision once",
+    "product_change_during_run": "terminal exact cleanup, then separately authorized new request"
+  },
+  "prior_bundle": {
+    "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "control_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "run_id": 39555917411,
+    "artifact_id": 12325112901,
+    "bundle_digest": "sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a",
+    "valid_for_new_candidate": false,
+    "why": "Different source and bundle identity; top-level rehearsal has no external-bundle input and builds its own."
+  },
+  "ci_reference": {
+    "receipt": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair-ci/frozen-final/gate-results-summary.json",
+      "sha256": "2a54c9aa4a189aabb9c10abccff951a7a94e74a7bbcd7d21932204b49a934b85",
+      "size": 8485
+    },
+    "commit_receipt": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair-ci/frozen-final/commit.json",
+      "sha256": "2ff108154c9d39f1e35080b3bf93796e86a14c1872c72a4c02ae89114e1d189f",
+      "size": 176
+    },
+    "candidate_run": 39575183132,
+    "scripts_root_pass": 602,
+    "scripts_root_skip": 6,
+    "scripts_elapsed_seconds": 545.528,
+    "four_workflows_first_attempt_success_reported_by_parent": true
+  },
+  "local_shakeout_reference": {
+    "receipt": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/summary.json",
+      "sha256": "70c49a7668b7bc885ce8530bf558f7f09d9ba7039058a4e1524ef1a9ccd88f1b",
+      "size": 36081
+    },
+    "source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+    "status": "completed_local_operator_stop_with_logged_warnings",
+    "helper_stop_after_seconds": 1800,
+    "measured_duration_seconds": 1753.104288875,
+    "verdict": "operator_stop",
+    "formal_qualification": false,
+    "cleanup_pass": true,
+    "credential_scan_pass": true,
+    "runtime_paths_diff_to_ab75": [],
+    "warning_evidence": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/warning-classification.md",
+      "sha256": "82607953d69b692eaf3c5b137ecce6a34b9688fed4146524c3c42a7c71065c86",
+      "size": 5578
+    },
+    "limits": "Mac single-host local check; warnings retained, not 72h or cloud formal pass."
+  },
+  "runtime_information_still_missing": [
+    "record final remote merge identity receipt with exact tree mapping (merged SHA/tree now fixed; no new runtime product difference)",
+    "actual trusted-main control revisions for top-level, bundle, activation and finalizers",
+    "explicit paid authorization naming final source and aggregate CNY1500/CNY1350 budget",
+    "unique request_id and request-scoped diagnostic public key/private custody path",
+    "current live OIDC exchange/exact role policy+trust+one-hour session and wrapping key match; static variables and old setup success are insufficient",
+    "fresh complete retained-handoff/active-producer/stop-marker audit and exact prior-request zero proofs; provider inventory is not proven by historic GitHub receipts",
+    "successful finalizer and generic release arm before each Acquire",
+    "current admitted Quote with exact selection, zone, image, capacity, quota, remaining aggregate budget and pre-Acquire persisted exact release selector",
+    "new bundle producer/Artifact/run attempt/digest/file inventory/binaries/YAML and source/control identity verification"
+  ],
+  "runtime_audit_history": {
+    "observed_at": "2026-10-21T04:56–05:02Z",
+    "receipt": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/readiness-audit-summary.json",
+      "sha256": "04b4c24ae88a2e0fc4fd807744d5ce2535a341d0247c3d8eea7aa9fa28a87cf6",
+      "size": 27559
+    },
+    "state": "historical_only_not_refreshed",
+    "secret_values_read": false,
+    "note": "Seven public variables + wrapping public key exist, historical role setup success, 27 historical cleanup payloads inspected; none proves current role usability or account zero."
+  },
+  "final_evidence": {
+    "retention_days": 90,
+    "must_include": [
+      "rehearsal result and JSON/Markdown evidence",
+      "formal 24h qualification JSON/Markdown",
+      "formal 72h final JSON/Markdown",
+      "same-generation aged capacity and recovery JSON/Markdown",
+      "actual source/control/bundle and all configuration identities",
+      "four-host bounded systemd/journal/Prometheus/profile terminal evidence complete",
+      "two-stage aggregate conservative costs with provider billing pending until actually available",
+      "two exact selector-bound authenticated zero-inventory proofs"
+    ],
+    "required_validator": "wkchatlifecycle validate-formal-chain",
+    "warning_policy": "passed_with_capacity_warning is separate; never upgrade workflow success, missing report, or capacity lower bound to complete RC pass",
+    "cleanup": "failed release retains cleanup-pending + exact selector for next finalizer and independent 15-minute sweep; no API-delete acceptance as zero",
+    "manual_stop": "chat-lifecycle-stop.yml: request_id plus stop_authorization=operator-stop-chat-lifecycle; never hard-cancel cleanup owner"
+  }
+}

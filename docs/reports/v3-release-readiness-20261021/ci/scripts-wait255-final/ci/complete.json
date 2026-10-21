@@ -1,0 +1,29 @@
+{
+  "head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "runs": [
+    {
+      "databaseId": 39572139536,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39572139536"
+    },
+    {
+      "databaseId": 39572139549,
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39572139549"
+    },
+    {
+      "databaseId": 39572139560,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39572139560"
+    },
+    {
+      "databaseId": 39572139455,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39572139455"
+    }
+  ]
+}

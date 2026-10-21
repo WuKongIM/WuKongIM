@@ -1,0 +1,7 @@
+{
+  "returncode": 2,
+  "home_length": 91,
+  "stderr": "gpg: keybox '/tmp/wk-stable-candidate-TEST-ONLY-rghlhhr6/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/pubring.kbx' created\ngpg: error running '/opt/homebrew/Cellar/gnupg/2.4.8/bin/gpg-agent': exit status 2\ngpg: failed to start gpg-agent '/opt/homebrew/Cellar/gnupg/2.4.8/bin/gpg-agent': General error\ngpg: can't connect to the gpg-agent: General error\ngpg: agent_genkey failed: No agent running\ngpg: key generation failed: No agent running\n",
+  "test_only": true,
+  "generated_key_success": false
+}

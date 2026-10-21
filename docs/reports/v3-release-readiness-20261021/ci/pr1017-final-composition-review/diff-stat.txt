@@ -1,0 +1,20 @@
+ .github/workflows/README.md                        |  36 ++-
+ .github/workflows/v3-candidate-regression.yml      |  90 +++++++
+ CHANGELOG.md                                       |  11 +
+ configs/wkbench/chat-lifecycle/README.md           |  11 +-
+ configs/wkbench/chat-lifecycle/local-shakeout.yaml |   4 +-
+ docs/development/PROJECT_KNOWLEDGE.md              |   7 +
+ .../runbooks/2026-08-04-chat-lifecycle-soak.md     |   8 +
+ .../bench/chatlifecycle/config_examples_test.go    |   3 +-
+ .../chatlifecycle/local_shakeout_budget_test.go    | 184 ++++++++++++++
+ pkg/transport/internal/buffer/retained_test.go     |   3 +-
+ scripts/cloud-sim/analyze.sh                       |  10 +-
+ ...gim-three-node-chat-lifecycle-local-baseline.sh |   3 +-
+ ...-wukongim-three-node-chat-lifecycle-shakeout.sh |   8 +-
+ scripts/shell_trap_cleanup_integration_test.go     |  87 +++++++
+ scripts/v3_candidate_workflow_contract_test.py     |  54 +++-
+ ...im_single_node_terminal_cut_integration_test.go |  85 ++++---
+ ..._node_chat_lifecycle_script_integration_test.go | 274 +++++++++++++++++++--
+ ...kongim_three_node_chat_lifecycle_script_test.go |  15 ++
+ .../wukongim_three_nodes_build_integration_test.go |  23 +-
+ 19 files changed, 825 insertions(+), 91 deletions(-)

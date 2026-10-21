@@ -1,0 +1,10 @@
+{
+  "returncode": 0,
+  "home_length": 67,
+  "stderr": "gpg: keybox '/tmp/wk-sc-lorkcdgx/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/pubring.kbx' created\ngpg: /tmp/wk-sc-lorkcdgx/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/trustdb.gpg: trustdb created\ngpg: directory '/tmp/wk-sc-lorkcdgx/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/openpgp-revocs.d' created\ngpg: revocation certificate stored as '/tmp/wk-sc-lorkcdgx/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/openpgp-revocs.d/01B33D4B33A23B1A3C3994B6C873E5B9A44B2D5A.rev'\n",
+  "test_only": true,
+  "only_difference_from_long_probe": "temporary prefix",
+  "generated_key_success": true,
+  "gpgconf_cleanup_exit": 0,
+  "scratch_removed": true
+}

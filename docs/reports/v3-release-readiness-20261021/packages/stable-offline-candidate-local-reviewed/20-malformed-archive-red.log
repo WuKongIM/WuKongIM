@@ -1,0 +1,39 @@
+.E..
+======================================================================
+ERROR: test_malformed_candidate_archive_has_controlled_audit_error (test_stable_candidate_audit.StableCandidateAuditContracts.test_malformed_candidate_archive_has_controlled_audit_error)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_stable_candidate_audit.py", line 34, in test_malformed_candidate_archive_has_controlled_audit_error
+    A.build_audit_receipt(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        channels_path=fixture.control/'manifests/channels.json',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        archive_path=archive,channel='stable',offline_candidate=True,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        control_root=fixture.control,candidate_source_root=fixture.source,test_only=True)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/package-audit-receipt.py", line 1151, in build_audit_receipt
+    return build_candidate_audit_receipt(candidate_args, archive_path)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/package-audit-receipt.py", line 1097, in build_candidate_audit_receipt
+    snapshot_archive.extract_snapshot(archive_path=archive_path, output_dir=extracted,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        max_members=snapshot_archive.DEFAULT_MAX_MEMBERS, max_total_size=ARCHIVE_MAX_TOTAL_BYTES)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/archive-package-snapshot.py", line 584, in extract_snapshot
+    summary, members, scanned_stat = _scan_snapshot(
+                                     ~~~~~~~~~~~~~~^
+        archive_path, max_members, max_total_size
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/archive-package-snapshot.py", line 424, in _scan_snapshot
+    block = _read_exact(stream, BLOCK_SIZE, "member header")
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/archive-package-snapshot.py", line 336, in _read_exact
+    raise ArchiveError(f"archive is truncated while reading {label}")
+wukongim_archive_package_snapshot.ArchiveError: archive is truncated while reading member header
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.014s
+
+FAILED (errors=1)

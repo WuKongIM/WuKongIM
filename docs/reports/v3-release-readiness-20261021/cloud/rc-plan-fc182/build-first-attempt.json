@@ -1,0 +1,6 @@
+{
+  "exit_code": 1,
+  "cause": "CI synthetic merge object 7204d1ba4a5fe101397c85545e84df15e28e0082 is absent in local Git; no network fetch allowed by this offline plan.",
+  "correction": "Use exact parent-frozen CI commit identity receipt for checkout mapping and compare its recorded reviewed tree with local ab75 tree. Explicitly record no independent local synthetic object rehash.",
+  "files_written_before_failure": []
+}

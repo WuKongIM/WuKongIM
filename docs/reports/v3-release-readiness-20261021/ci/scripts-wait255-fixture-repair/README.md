@@ -1,0 +1,11 @@
+# Signal/join fixture delivery — local validation and first CI identity
+
+Commit ab75c226f4b3c246797aee4f876f23af602d07ce, tree 3254faa77819a1dc7c4b7230b567ec1115be5a7a, PR #1017. Only two integration test files changed. Production shell functions, policy limits and workflows remain byte-identical to parent76a3. The exact synthetic merge7204d1ba4a5fe101397c85545e84df15e28e0082 has the same tree. Worktree was clean after commit. Push and PR description update succeeded.
+
+The prior Linux observation identified fixture-only final wait(-1)/255 after a successful production join; that immutable raw trace lives separately in scripts-wait255-diagnosis/generation-1-observed-failure. No original failure was replaced. The repair uses a Go external operator after a PID-bound ready handshake and preserves the real joins, target-alive-at-TERM assertion, original status and final child-dead assertions. Every started shell owns a new PGID; malformed/missing readiness, early exit and cancellation clean the group and join the shell. Original17/255 remain visible errors. Seven process controls first failed, then passed. Zombie checks in negative controls mean no live surviving child; they do not claim the orphan PID instantly disappears before host reaping.
+
+Initial Bash5 and Bash3 each passed3 roots/13 subcases. Additional bounded Bash5 count5 passed15 roots/65 subcases. Following independent review, only negative-control startup allowance increased250ms→1s (not the real fixture5s or operator50ms); final Bash3 and5 each passed3 roots/13 subcases. Named go-format and diff-check passed. Separate trace never appeared in normal stdout. Independent review found no blocking finding.
+
+This archive is not a complete Linux gate pass. New first-attempt runs: Candidate39575183132, Chat39575183129, Native39575183181, SDK39575183191. All were in progress when recorded; root owns monitoring. No manual workflow retry, merge, cloud action or product load was performed. The historical observer255 was not independently localized to the final wait; Ubuntu Bash exact source/backports are not established by a macOS Bash version match.
+
+The empty initial run-list file and EOF error receipt record a GitHub read failure only; the following successful read supplied actual run IDs. No workflow was retried.

@@ -1,0 +1,19 @@
+{
+  "head": {
+    "sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+    "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+    "parents": [
+      "76a3ba23303e288345dbd37bc354b41d81b6f070"
+    ]
+  },
+  "merge": {
+    "sha": "7204d1ba4a5fe101397c85545e84df15e28e0082",
+    "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+    "parents": [
+      "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "ab75c226f4b3c246797aee4f876f23af602d07ce"
+    ]
+  },
+  "tree_equal": true,
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e"
+}

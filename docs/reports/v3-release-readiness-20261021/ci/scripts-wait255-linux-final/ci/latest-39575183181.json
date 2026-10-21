@@ -1,0 +1,524 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-21T09:12:42Z",
+  "databaseId": 39575183181,
+  "event": "pull_request",
+  "headSha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+  "jobs": [
+    {
+      "completedAt": "2026-10-21T09:18:44Z",
+      "conclusion": "success",
+      "databaseId": 119138830157,
+      "name": "Build and install deb/rpm preview",
+      "startedAt": "2026-10-21T09:12:45Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:12:47Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:12:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:12:56Z",
+          "conclusion": "success",
+          "name": "Check out exact source",
+          "number": 2,
+          "startedAt": "2026-10-21T09:12:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:09Z",
+          "conclusion": "success",
+          "name": "Set up repository Go toolchain",
+          "number": 3,
+          "startedAt": "2026-10-21T09:12:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:10Z",
+          "conclusion": "success",
+          "name": "Run package and CLI contracts",
+          "number": 4,
+          "startedAt": "2026-10-21T09:13:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:22Z",
+          "conclusion": "success",
+          "name": "Run single-node cluster SEND integration",
+          "number": 5,
+          "startedAt": "2026-10-21T09:14:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:45Z",
+          "conclusion": "success",
+          "name": "Build deb and rpm preview",
+          "number": 6,
+          "startedAt": "2026-10-21T09:14:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:17:29Z",
+          "conclusion": "success",
+          "name": "Validate signed repository metadata closure",
+          "number": 7,
+          "startedAt": "2026-10-21T09:16:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:17:34Z",
+          "conclusion": "success",
+          "name": "Inspect package metadata",
+          "number": 8,
+          "startedAt": "2026-10-21T09:17:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:17:52Z",
+          "conclusion": "success",
+          "name": "Install on Ubuntu 24.04",
+          "number": 9,
+          "startedAt": "2026-10-21T09:17:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:02Z",
+          "conclusion": "success",
+          "name": "Install on Debian 12",
+          "number": 10,
+          "startedAt": "2026-10-21T09:17:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:20Z",
+          "conclusion": "success",
+          "name": "Install on Rocky Linux 9",
+          "number": 11,
+          "startedAt": "2026-10-21T09:18:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:38Z",
+          "conclusion": "success",
+          "name": "Install on AlmaLinux 9",
+          "number": 12,
+          "startedAt": "2026-10-21T09:18:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:41Z",
+          "conclusion": "success",
+          "name": "Upload preview packages",
+          "number": 13,
+          "startedAt": "2026-10-21T09:18:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:41Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 14,
+          "startedAt": "2026-10-21T09:18:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:42Z",
+          "conclusion": "success",
+          "name": "Post Set up repository Go toolchain",
+          "number": 27,
+          "startedAt": "2026-10-21T09:18:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:42Z",
+          "conclusion": "success",
+          "name": "Post Check out exact source",
+          "number": 28,
+          "startedAt": "2026-10-21T09:18:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:42Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 29,
+          "startedAt": "2026-10-21T09:18:42Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183181/job/119138830157"
+    },
+    {
+      "completedAt": "2026-10-21T09:21:05Z",
+      "conclusion": "success",
+      "databaseId": 119141413793,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "startedAt": "2026-10-21T09:18:46Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:18:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:18:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:57Z",
+          "conclusion": "success",
+          "name": "Check out exact source",
+          "number": 2,
+          "startedAt": "2026-10-21T09:18:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:13Z",
+          "conclusion": "success",
+          "name": "Set up repository Go toolchain",
+          "number": 3,
+          "startedAt": "2026-10-21T09:18:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:16Z",
+          "conclusion": "success",
+          "name": "Download the exact preview packages",
+          "number": 4,
+          "startedAt": "2026-10-21T09:19:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:16Z",
+          "conclusion": "success",
+          "name": "Verify the downloaded package set",
+          "number": 5,
+          "startedAt": "2026-10-21T09:19:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:01Z",
+          "conclusion": "success",
+          "name": "Exercise the operator-owned lifecycle",
+          "number": 6,
+          "startedAt": "2026-10-21T09:19:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:01Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 7,
+          "startedAt": "2026-10-21T09:21:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:01Z",
+          "conclusion": "success",
+          "name": "Post Set up repository Go toolchain",
+          "number": 13,
+          "startedAt": "2026-10-21T09:21:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:01Z",
+          "conclusion": "success",
+          "name": "Post Check out exact source",
+          "number": 14,
+          "startedAt": "2026-10-21T09:21:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-21T09:21:01Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183181/job/119141413793"
+    },
+    {
+      "completedAt": "2026-10-21T09:20:20Z",
+      "conclusion": "success",
+      "databaseId": 119141413844,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "startedAt": "2026-10-21T09:18:46Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:18:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:18:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:57Z",
+          "conclusion": "success",
+          "name": "Check out exact source",
+          "number": 2,
+          "startedAt": "2026-10-21T09:18:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:13Z",
+          "conclusion": "success",
+          "name": "Set up repository Go toolchain",
+          "number": 3,
+          "startedAt": "2026-10-21T09:18:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:15Z",
+          "conclusion": "success",
+          "name": "Download the exact preview packages",
+          "number": 4,
+          "startedAt": "2026-10-21T09:19:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:15Z",
+          "conclusion": "success",
+          "name": "Verify the downloaded package set",
+          "number": 5,
+          "startedAt": "2026-10-21T09:19:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:17Z",
+          "conclusion": "success",
+          "name": "Exercise the operator-owned lifecycle",
+          "number": 6,
+          "startedAt": "2026-10-21T09:19:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:17Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 7,
+          "startedAt": "2026-10-21T09:20:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:17Z",
+          "conclusion": "success",
+          "name": "Post Set up repository Go toolchain",
+          "number": 13,
+          "startedAt": "2026-10-21T09:20:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:18Z",
+          "conclusion": "success",
+          "name": "Post Check out exact source",
+          "number": 14,
+          "startedAt": "2026-10-21T09:20:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:18Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-21T09:20:18Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183181/job/119141413844"
+    },
+    {
+      "completedAt": "2026-10-21T09:20:59Z",
+      "conclusion": "success",
+      "databaseId": 119141413936,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "startedAt": "2026-10-21T09:18:46Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:18:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:18:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:03Z",
+          "conclusion": "success",
+          "name": "Check out exact source",
+          "number": 2,
+          "startedAt": "2026-10-21T09:18:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:19Z",
+          "conclusion": "success",
+          "name": "Set up repository Go toolchain",
+          "number": 3,
+          "startedAt": "2026-10-21T09:19:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:24Z",
+          "conclusion": "success",
+          "name": "Download the exact preview packages",
+          "number": 4,
+          "startedAt": "2026-10-21T09:19:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:24Z",
+          "conclusion": "success",
+          "name": "Verify the downloaded package set",
+          "number": 5,
+          "startedAt": "2026-10-21T09:19:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:54Z",
+          "conclusion": "success",
+          "name": "Exercise the operator-owned lifecycle",
+          "number": 6,
+          "startedAt": "2026-10-21T09:19:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:54Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 7,
+          "startedAt": "2026-10-21T09:20:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:54Z",
+          "conclusion": "success",
+          "name": "Post Set up repository Go toolchain",
+          "number": 13,
+          "startedAt": "2026-10-21T09:20:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:55Z",
+          "conclusion": "success",
+          "name": "Post Check out exact source",
+          "number": 14,
+          "startedAt": "2026-10-21T09:20:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:55Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-21T09:20:55Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183181/job/119141413936"
+    },
+    {
+      "completedAt": "2026-10-21T09:20:34Z",
+      "conclusion": "success",
+      "databaseId": 119141413952,
+      "name": "Exercise Debian 12 package lifecycle",
+      "startedAt": "2026-10-21T09:18:46Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:18:47Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:18:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:58Z",
+          "conclusion": "success",
+          "name": "Check out exact source",
+          "number": 2,
+          "startedAt": "2026-10-21T09:18:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:11Z",
+          "conclusion": "success",
+          "name": "Set up repository Go toolchain",
+          "number": 3,
+          "startedAt": "2026-10-21T09:18:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:13Z",
+          "conclusion": "success",
+          "name": "Download the exact preview packages",
+          "number": 4,
+          "startedAt": "2026-10-21T09:19:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:13Z",
+          "conclusion": "success",
+          "name": "Verify the downloaded package set",
+          "number": 5,
+          "startedAt": "2026-10-21T09:19:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:32Z",
+          "conclusion": "success",
+          "name": "Exercise the operator-owned lifecycle",
+          "number": 6,
+          "startedAt": "2026-10-21T09:19:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:32Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 7,
+          "startedAt": "2026-10-21T09:20:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:32Z",
+          "conclusion": "success",
+          "name": "Post Set up repository Go toolchain",
+          "number": 13,
+          "startedAt": "2026-10-21T09:20:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:33Z",
+          "conclusion": "success",
+          "name": "Post Check out exact source",
+          "number": 14,
+          "startedAt": "2026-10-21T09:20:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:20:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-21T09:20:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183181/job/119141413952"
+    }
+  ],
+  "name": "Safety Automation - Validate Native Package Preview",
+  "status": "completed",
+  "updatedAt": "2026-10-21T09:21:06Z",
+  "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183181"
+}

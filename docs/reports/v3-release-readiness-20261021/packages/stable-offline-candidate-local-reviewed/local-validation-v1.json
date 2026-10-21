@@ -1,0 +1,73 @@
+{
+  "base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s tests",
+      "exit_code": 0,
+      "log": "22-full-python.log",
+      "seconds": 103.844,
+      "skip": "existing real RPM reproducibility test; rpmbuild/rpm unavailable on this Mac",
+      "skipped": 1,
+      "tests": 446
+    },
+    {
+      "command": "bash tests/contract.sh",
+      "exit_code": 0,
+      "log": "23-contract.log",
+      "nested_tests": 4
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "first_failures_preserved": true,
+  "freeze_manifest_sha256": "d2e1453165748d98fa3029f9926b1213f1f9489063ea3c9f39e51d3b28dee18e",
+  "frozen_files_still_match": true,
+  "logs": {
+    "13-full-python.log": {
+      "sha256": "32cb8f335f3eb9cd28d11bee2d545758c64c30428686effae4a93b8003c622e0",
+      "size": 19250
+    },
+    "15-output-alias-red-isolated.log": {
+      "sha256": "772ac8e69a9443162f8dea6202b39cf2ef7cdab9091ef8bf840f05871bfbf489",
+      "size": 1848
+    },
+    "16-output-alias-green.log": {
+      "sha256": "9cdbec613313ffc96bb20a5275ff1c8f76091e6b964a22df1d6ea967dc1358c0",
+      "size": 102
+    },
+    "17-preview-prepare-green.log": {
+      "sha256": "09c92f0f169791a8a29a81ad1a7a6f857aee0018e08c5d1a7c1274ceecb58c55",
+      "size": 111
+    },
+    "18-preview-verifier-green.log": {
+      "sha256": "9b7619c0759b0840c54d4b1ce25975e391e8257feb472d14267843e9e9d49d71",
+      "size": 128
+    },
+    "20-malformed-archive-red.log": {
+      "sha256": "eba0f428c48a960a74d690dff81da15c6d568653ac9345c7862d4c987931af11",
+      "size": 2949
+    },
+    "21-malformed-archive-green.log": {
+      "sha256": "d52cbb1058abf83e3acb402d1c2b8ee089749613d6075f5d973dd66c8ef09200",
+      "size": 102
+    },
+    "22-full-python.log": {
+      "sha256": "4d56839230b80608e627f36d63cb295d139382be5d83bdcab431a51c98208087",
+      "size": 2078
+    },
+    "23-contract.log": {
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6",
+      "size": 176
+    }
+  },
+  "native": {
+    "cases": 31,
+    "negative": 21,
+    "positive": 10,
+    "requires": "pinned Linux container in first CI; no local Docker daemon started",
+    "status": "not_run"
+  },
+  "time_utc": "2026-10-21T09:36:09.847384+00:00"
+}

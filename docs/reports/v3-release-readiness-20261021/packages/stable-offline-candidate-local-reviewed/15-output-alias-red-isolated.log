@@ -1,0 +1,27 @@
+FF...
+======================================================================
+FAIL: test_ancestor_alias_into_inputs_rejected_before_any_builder (test_stable_candidate_prepare.StablePrepareContracts.test_ancestor_alias_into_inputs_rejected_before_any_builder) (root='control')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_stable_candidate_prepare.py", line 87, in test_ancestor_alias_into_inputs_rejected_before_any_builder
+    with self.assertRaisesRegex(ValueError,"overlap|linked|parent"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_ancestor_alias_into_inputs_rejected_before_any_builder (test_stable_candidate_prepare.StablePrepareContracts.test_ancestor_alias_into_inputs_rejected_before_any_builder) (root='source')
+----------------------------------------------------------------------
+_prepare_composer.CompositionError: candidate source file closure differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_stable_candidate_prepare.py", line 87, in test_ancestor_alias_into_inputs_rejected_before_any_builder
+    with self.assertRaisesRegex(ValueError,"overlap|linked|parent"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "overlap|linked|parent" does not match "candidate source file closure differs"
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.066s
+
+FAILED (failures=2)

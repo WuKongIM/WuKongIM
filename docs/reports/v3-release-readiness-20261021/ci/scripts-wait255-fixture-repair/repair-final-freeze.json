@@ -1,0 +1,10 @@
+{
+  "head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "patch_sha256": "a9f82b05e0aedd40e0fce3e1ae0aeaf93cd92cbfbb16e653654b2c4ca8a07f58",
+  "files": {
+    "scripts/wukongim_single_node_terminal_cut_integration_test.go": "675a01755185bbe33d12cb6260cb3d5fc0e5917ad9ea4013857dfd28415a0efd",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "0f665c92e3b99eeaf23a57e65fca4f91d16bf7b7e53a1d9d34462f49e820ccfa"
+  },
+  "production_changed": false,
+  "final_delta": "Only negative-control contexts 250ms -> 1s and explanatory comment; real fixture contexts remain 5s, operator delay 50ms, scripts gate unchanged."
+}

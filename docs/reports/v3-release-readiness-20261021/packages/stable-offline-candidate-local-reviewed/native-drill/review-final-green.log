@@ -1,0 +1,6 @@
+............
+----------------------------------------------------------------------
+Ran 12 tests in 0.064s
+
+OK
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

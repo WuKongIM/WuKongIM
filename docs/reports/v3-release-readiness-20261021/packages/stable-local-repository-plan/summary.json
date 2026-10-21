@@ -1,0 +1,37 @@
+{
+  "schema": "wukongim/stable-local-repository-plan/v1",
+  "status": "proposal_only",
+  "source_commit": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "merged_main_reported_by_root": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "recommended_slice": "complete_first_stable_offline_candidate_plan_prepare_compose_audit_independent_verify",
+  "implementation_performed": false,
+  "tests_run": false,
+  "production_keys_accessed": false,
+  "cloud_accessed": false,
+  "production_publication": false,
+  "channel_control_changed": false,
+  "audit_release_id": null,
+  "future_production_consumer_must_reject_unsealed": true,
+  "protected_scope": [
+    "existing preview outputs/defaults",
+    "channels stable disabled",
+    "production workflows/permissions",
+    "private keys and cloud"
+  ],
+  "primary_implementation_files": [
+    "scripts/plan-package-publication.py",
+    "scripts/prepare-package-site.py",
+    "scripts/compose-package-site.py",
+    "scripts/package-audit-receipt.py",
+    "scripts/verify-production-package-site.py"
+  ],
+  "risk_boundaries": [
+    "source-preflight receipt hashing does not independently authenticate GitHub provenance",
+    "local archive receipt does not establish immutable GitHub audit release",
+    "mirrorlist activation belongs to future object-storage publication",
+    "TEST ONLY fixture identities must not claim real GitHub ids/commit/attestation",
+    "first generation only; no base rotation or retirement"
+  ],
+  "read_only_plan_sha256": "2ffed2d0b8219e7e20b4de7fdec1b99d1d821b8f79ed94ab96fcb4e292dbaa65",
+  "summary_generation": 2
+}

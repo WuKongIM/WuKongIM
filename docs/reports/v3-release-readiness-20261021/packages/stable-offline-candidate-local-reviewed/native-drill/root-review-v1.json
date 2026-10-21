@@ -1,0 +1,31 @@
+{
+  "observed_at": "2026-10-21T09:24:54.091011+00:00",
+  "patch_sha256": "3d4a62cbf500dc7b9337c4c2b6745173e4baad4462046ba8c7becbf46935a707",
+  "scope": [
+    "tests/native_stable_candidate_drill.py",
+    "tests/test_native_stable_candidate_drill.py",
+    ".github/workflows/native-package-repository-drill.yml"
+  ],
+  "reviewer": "root independent of native slice author",
+  "status": "changes_required",
+  "findings": [
+    {
+      "priority": 2,
+      "function": "invoke",
+      "finding": "Expected rejections accept any normal exit 1 or 2, including argparse usage and unhandled Python errors, without verifying a validation rejection. Mutation coverage can be overstated.",
+      "requested": "Predeclare controlled validator error categories, require target rejection with no usage or traceback, keep source/control/embedded-plan mutation syntactically valid."
+    },
+    {
+      "priority": 2,
+      "function": "pipeline signature mutation cases",
+      "finding": "Full candidate wrong/next-key mutations may be rejected by earlier inventory hashes, which does not demonstrate actual current-signer enforcement.",
+      "requested": "Label integrity rejection accurately and exercise the existing shared native signature verifier against the actual wrong/next signatures as distinct evidence."
+    }
+  ],
+  "other_observations": [
+    "Pinned non-root network-none container and existing production boundaries preserved.",
+    "No source package payload execution or private key output observed.",
+    "Native positive/negative commands have not run; local contract checks do not establish native acceptance."
+  ],
+  "tests_executed_by_reviewer": []
+}

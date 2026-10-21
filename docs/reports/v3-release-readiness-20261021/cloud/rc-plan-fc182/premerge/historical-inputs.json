@@ -1,0 +1,17 @@
+{
+  "previous_formal_plan": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/2026-10-20-v3-rc-formal-plan.md",
+    "sha256": "25032c7f569bc6e8e984ec41c4d43c4a1fd9dfbf0e3978b3f12e7b1b9a9b5c9d",
+    "size": 15001
+  },
+  "old_bundle": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/summary.json",
+    "sha256": "8cd080107eb1c7dfdf41710222c380b56c38dd552bf619b0a4109f9cb352bc8d",
+    "size": 3226
+  },
+  "readiness": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/readiness-audit.md",
+    "sha256": "3aa225380303a1481ad17e56a1168f1e3b15f7d97f8481b603a5fdb75e4a1372",
+    "size": 13719
+  }
+}

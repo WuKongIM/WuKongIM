@@ -1,0 +1,12 @@
+{
+  "base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "patch_sha256": "3d4a62cbf500dc7b9337c4c2b6745173e4baad4462046ba8c7becbf46935a707",
+  "files": {
+    "tests/native_stable_candidate_drill.py": "bca5b0e7284e6e0f82eade7776053bf54d76bef7b2780c289a80414bf66d2688",
+    "tests/test_native_stable_candidate_drill.py": "1855ffab60ba76555b43b8cc8b30721672547ce4383a584f4381ef94e94d1abf",
+    ".github/workflows/native-package-repository-drill.yml": "73facdf688cf137b078630afe8e66f8fa2d5d8660b6b60e80511a4b2f33faab2"
+  },
+  "native_executed": false,
+  "local_contracts_passed": 7,
+  "source_contract": "../native-contract.md"
+}

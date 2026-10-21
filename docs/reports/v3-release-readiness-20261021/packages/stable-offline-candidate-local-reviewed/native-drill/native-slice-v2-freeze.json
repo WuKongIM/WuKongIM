@@ -1,0 +1,39 @@
+{
+  "schema": "wukongim/native-drill-slice-freeze/v1",
+  "base_sha": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "files": {
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "8b569f29cf78ac7b283369ee3451efc739d94c32b75886365c276f7691de61c3",
+      "size": 31489
+    },
+    "tests/test_native_stable_candidate_drill.py": {
+      "sha256": "dded9145e5cc2d130c45aaf539758623519cccf63072939db6113e61c64ef847",
+      "size": 9930
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "8bf1ade11f7ff5a7d008152a501fc509fa40a4ae4f286f3038e6a91ab35bc5c7",
+      "size": 11181
+    }
+  },
+  "patch_sha256": "921e7d3068e8446aac0b1f2b0be6fe94ee2171c20a494744aad71fbeda4998bc",
+  "focused_tests": {
+    "command": "python3 -B -m unittest discover -s tests -p test_native_stable_candidate_drill.py",
+    "count": 12,
+    "exit_code": 0,
+    "log": "review-final-green.log"
+  },
+  "native_cases_declared": 31,
+  "native_executed": false,
+  "first_red_preserved": [
+    "first-red.log",
+    "crash-red.log",
+    "review-refinement-first-red.log",
+    "review-case-count-red.log"
+  ],
+  "limitations": [
+    "Native Linux remains unexecuted pending first automatic PR CI.",
+    "Signed repomd mutation proves receipt integrity, not native open-checksum semantic coverage.",
+    "TEST ONLY source/release/control GitHub IDs remain null; no production provenance claim.",
+    "Positive native chain must complete before any negative; two extra full-verifier cases rebind only archived signature facts to reach actual crypto."
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "summary": {
+    "schema": "wukongim/stable-local-repository-plan/v1",
+    "status": "proposal_only",
+    "source_commit": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+    "merged_main_reported_by_root": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+    "recommended_slice": "complete_first_stable_offline_candidate_plan_prepare_compose_audit_independent_verify",
+    "implementation_performed": false,
+    "tests_run": false,
+    "production_keys_accessed": false,
+    "cloud_accessed": false,
+    "production_publication": false,
+    "channel_control_changed": false,
+    "audit_release_id": null,
+    "future_production_consumer_must_reject_unsealed": true,
+    "protected_scope": [
+      "existing preview outputs/defaults",
+      "channels stable disabled",
+      "production workflows/permissions",
+      "private keys and cloud"
+    ],
+    "primary_implementation_files": [
+      "scripts/plan-package-publication.py",
+      "scripts/prepare-package-site.py",
+      "scripts/compose-package-site.py",
+      "scripts/sign-package-family.py",
+      "scripts/verify-production-package-site.py"
+    ],
+    "risk_boundaries": [
+      "source-preflight receipt hashing does not independently authenticate GitHub provenance",
+      "local archive receipt does not establish immutable GitHub audit release",
+      "mirrorlist activation belongs to future object-storage publication",
+      "TEST ONLY fixture identities must not claim real GitHub ids/commit/attestation",
+      "first generation only; no base rotation or retirement"
+    ],
+    "read_only_plan_sha256": "2ffed2d0b8219e7e20b4de7fdec1b99d1d821b8f79ed94ab96fcb4e292dbaa65"
+  },
+  "manifest_text": "2ffed2d0b8219e7e20b4de7fdec1b99d1d821b8f79ed94ab96fcb4e292dbaa65  plan.md\nd6a602ada3658571c3010b1e6e0506cf66467fe46bf916d264034ade2d93a51e  source-freeze.json\n9fe4f402f5afb68fcd3afaf89b990d20aac896d9dd98b8066063f787da161c82  summary.json\n290df73fd45d65793561b1ce7378b5a6b47d162661c36a7334a9d707f1348fca  ARCHIVE_ALLOWLIST.txt\n",
+  "manifest_sha256": "0a7748b58fe260b35a207b97060621184344a610d60f34948fea4ac9d0d40b6a",
+  "correction": "The original summary array selected sign-package-family.py and omitted package-audit-receipt.py by indexing typo; plan.md was correct and remains unchanged."
+}

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "gh",
+    "run",
+    "view",
+    "39578632969",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--log"
+  ],
+  "exit_code": 1,
+  "stderr_retained": false,
+  "effect": "read-only fetch failed; no workflow retry, cancellation or mutation"
+}

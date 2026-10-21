@@ -1,0 +1,18 @@
+{
+  "head": "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb",
+  "head_tree": "8354de1fceb6b9cead1840931e021d58da15ce2c",
+  "inputs": {
+    "head-commit.json": "3258fc3170e6267f769de4b5a51c54327f0e94034add399e51c07fa1a0ca782f",
+    "pr-created.json": "b10b100911a681c56a101e4b2f3cdaf233e3f7fd76fe2350c383000e1bbe496c",
+    "synthetic-merge-commit.json": "92fd79f3f1b96734be33fb4cb2ffcde8645c0d865a6242ef255816158487f910"
+  },
+  "merge_parents": [
+    "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+    "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb"
+  ],
+  "merge_tree": "8354de1fceb6b9cead1840931e021d58da15ce2c",
+  "pr_base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "same_tree": true,
+  "status": "API identity verified; actual checkout log pending",
+  "synthetic_merge": "5eb8adb7af1a944684b83a481166aa266daaa746"
+}

@@ -1,0 +1,4 @@
+{
+  "status": "local_assertion_failed_before_mutation",
+  "reason": "Guard expected exactly three matching workflow names but inventory also includes disabled userns diagnostic. Required signal/controller/worker are disabled. No merge attempted by original guard."
+}

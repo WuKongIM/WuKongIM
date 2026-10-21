@@ -1,0 +1,9 @@
+{
+  "head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "patch_sha256": "820acb7ac3f70b2d28874b420da01a4e7f28df85c2011a5e908cc654ff992b88",
+  "files": {
+    "scripts/wukongim_single_node_terminal_cut_integration_test.go": "675a01755185bbe33d12cb6260cb3d5fc0e5917ad9ea4013857dfd28415a0efd",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "a051477aa69dd15bb9c78b05cd8ae8215948c88b46f2606cf07851ab65819613"
+  },
+  "production_changed": false
+}

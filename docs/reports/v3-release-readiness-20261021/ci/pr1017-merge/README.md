@@ -1,0 +1,5 @@
+# Product #1017 authorized merge delivery
+
+User explicitly approved #1017. Ordinary exact-head merge completed at 2026-10-21 09:39:17Z as fc18221282f289088ec9b4282fda8e0bfc67a3b8, parents ed705c0f + ab75c226, tree3254faa77819a1dc7c4b7230b567ec1115be5a7a identical to the reviewed first-attempt CI candidate. No admin bypass or Review Agent enablement. The initial read-only guard encountered an extra disabled diagnostic workflow; its assertion failure is retained and no merge was attempted until the exact required workflows were revalidated.
+
+Remote main contained the exact branch tip; the clean worktree (including no ignored files) and local task branch were removed without force. The separate user local main a804f4a57 was preserved. Automatic Documentation Pages run39578632969 succeeded on attempt1 with exact fc182 checkout; see summary for actual publication steps. This is documentation publication, not a formal v3 tag, binary/image/native-package release or cloud RC start. One failed read-only log download was retried, not the workflow. The complete successful log is deterministically gzip-compressed.

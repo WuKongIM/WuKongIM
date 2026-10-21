@@ -1,0 +1,26 @@
+{
+  "scope": "five core producers/consumers, docs and five focused structural tests; native three-file review owned by root",
+  "result": "no_new_blocking_static_findings",
+  "closed_prior_findings": [
+    "R1: preview mode boolean no longer shadowed; prior red and 12 prepare / 29 verifier green read",
+    "R2: linked existing output ancestors rejected before mkdir/staging; canonical input/output containment checked both ways; source/control alias red and four-test green read"
+  ],
+  "validation_read_not_executed": {
+    "full_python": {
+      "tests_run": 446,
+      "skipped": 1,
+      "seconds": 103.844,
+      "result": "OK"
+    },
+    "contract": "publication control validation + four tests passed",
+    "malformed_archive": "first red ArchiveError escapes -> four-test green controlled AuditReceiptError",
+    "diff_check": "author local-validation-v1 records success"
+  },
+  "own_execution": "hash/size, Git blob comparisons and AST inspection only; no tests/builds/GPG/native operations",
+  "unverified": [
+    "31-case real Linux native drill at this frozen revision; no native success inferred from mocked Python tests",
+    "Production source/Git control identity and current immutable GitHub release remain caller/preflight inputs requiring future sealing revalidation",
+    "Stable publication/sealing, object storage activation and public exact-version APT/DNF acceptance are not implemented or claimed"
+  ],
+  "findings": []
+}

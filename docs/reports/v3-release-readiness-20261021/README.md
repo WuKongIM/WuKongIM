@@ -166,13 +166,51 @@ regression attempts; it is not a published release or a long-run qualification.
   E2E/SDK/native/chat passed, with the original scripts failure still retained.
 - `ci/scripts-wait255-observed-failure/`: bounded Linux trace proves the current
   shakeout join succeeded before the fixture's auxiliary signaler wait returned
-  internal -1/external 255. Fixture repair and a new complete gate remain pending.
+  internal -1/external 255. This was the diagnosis-stage state; final repair and
+  complete first-attempt Linux acceptance are recorded separately below.
   `ci/scripts-wait255-upstream-research/` retains supporting upstream clues, not
   an independently confirmed identity for the Ubuntu shell bug.
 - `public-release-recheck/`: fresh public release list still headed by beta.24;
   the GitHub latest endpoint excludes prereleases and is not the v3 version list.
 - `bootstrap-and-wait-diagnosis-archive.json`: bounded copied-file identities for
   this continuation, preserving original receipts rather than overwriting failures.
+
+- `ci/scripts-wait255-final/`: remaining terminal outcomes from the trace-only
+  generation; these do not erase its failed scripts gate.
+- `ci/scripts-wait255-fixture-repair/`, `ci/pr1017-final-composition-review/`:
+  test-first exact-process Go signal fixture, original-status and cleanup
+  controls, Bash 3/5 validation and complete final diff review. One empty failed
+  GitHub read stdout remains explicitly listed in `archive-validation.json`.
+- `ci/scripts-wait255-linux-final/`, `ci/pr1017-ready/`: ab75c226's four first
+  successful workflows, full downloaded candidate artifacts, 602 scripts passes
+  and six skips, five migration topologies, cross-node/self-chat regressions;
+  the preserved ready/open state before separately approved merge. Final reports distinguish
+  recomputed artifact hashes from a declared binary digest without binary bytes.
+- `packages/stable-local-repository-plan/`,
+  `packages/stable-offline-candidate-native-contract-review/`,
+  `packages/stable-offline-candidate-identity-review/`: bounded unpublished
+  candidate design, corrected existing RPM signer allowlist contract, and
+  original accepted preview/symlink findings. These are planning/partial-review
+  evidence, not final native Linux or public-client qualification.
+- `packages/stable-offline-candidate-local-reviewed/`,
+  `packages/stable-offline-candidate-core-review/`: frozen 16-file local
+  implementation, original red/green records, complete core and native-slice
+  reviews. Local 446 tests (one environment skip) and four contracts passed;
+  this generation explicitly does not claim that the first native CI passed.
+- `ci/pr1017-merge/`: explicit user authorization, exact-head ordinary merge
+  fc182212, matching reviewed tree, preserved unrelated local main, clean task
+  worktree/branch removal and successful automatic documentation publication/CDN
+  refresh. A failed read-only guard/download is retained separately from CI.
+- `cloud/rc-plan-fc182/`: exact merged-source offline RC plan and input templates,
+  frozen source digests, aggregate budget and authorization/runtime boundaries;
+  no Quote/Acquire/dispatch was performed. Premerge draft history remains intact.
+- `packages/pr72-ci-generation-1/`: first candidate-key fixture failure before
+  any native candidate case ran; preceding metadata/signing/bootstrap passes
+  and later skipped repository drill are explicit. Pages446+4 passed. Mac
+  long/short GPG path probes support a concrete path defect without asserting
+  the original Linux exception had independently proved the same cause.
+- `signal-repair-and-stable-plan-archive.json`: original source paths, sizes and
+  hashes for this continuation's public allowlist copies.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.

@@ -1,0 +1,116 @@
+{
+  "head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "identity": {
+    "source_sha": "974545635cc9be14a6b5f00413eb4bdb56ae0b7b",
+    "policy_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "run_id": "39572139549",
+    "run_attempt": "1"
+  },
+  "artifact_id": 12332359754,
+  "declared_binary_sha256": "f944a754910b743eda283e6fc5452fef374d0a87b5954d62d1102db3b7de4872",
+  "actual_binary_bytes_present": false,
+  "cases": {
+    "build": {
+      "elapsed_seconds": 86.718,
+      "result": "passed",
+      "cleanup_complete": true,
+      "terminal_tests": []
+    },
+    "ordinary_history": {
+      "elapsed_seconds": 97.925,
+      "result": "passed",
+      "cleanup_complete": true,
+      "terminal_tests": [
+        {
+          "Action": "pass",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "Elapsed": 19.98
+        },
+        {
+          "Action": "pass",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "Elapsed": 14.68
+        },
+        {
+          "Action": "pass",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "Elapsed": 12.43
+        },
+        {
+          "Action": "pass",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "Elapsed": 14.01
+        },
+        {
+          "Action": "pass",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "Elapsed": 18.31
+        },
+        {
+          "Action": "pass",
+          "Test": "TestOriginalOrdinaryHistoryTopology",
+          "Elapsed": 79.41
+        }
+      ]
+    },
+    "cross_node_delivery": {
+      "elapsed_seconds": 45.571,
+      "result": "passed",
+      "cleanup_complete": true,
+      "terminal_tests": [
+        {
+          "Action": "pass",
+          "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+          "Elapsed": 12.03
+        },
+        {
+          "Action": "pass",
+          "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+          "Elapsed": 9.7
+        },
+        {
+          "Action": "pass",
+          "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+          "Elapsed": 9.41
+        },
+        {
+          "Action": "pass",
+          "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+          "Elapsed": 12.84
+        },
+        {
+          "Action": "skip",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "self_chat": {
+      "elapsed_seconds": 37.656,
+      "result": "passed",
+      "cleanup_complete": true,
+      "terminal_tests": [
+        {
+          "Action": "pass",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+          "Elapsed": 13.79
+        },
+        {
+          "Action": "pass",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+          "Elapsed": 22.49
+        },
+        {
+          "Action": "pass",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart",
+          "Elapsed": 36.28
+        }
+      ]
+    }
+  },
+  "all_workflows_completed": true,
+  "candidate_overall": "failure",
+  "only_failed_job": "scripts integration",
+  "only_failed_test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03",
+  "old_failure_preserved": "../generation-1-observed-failure"
+}

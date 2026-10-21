@@ -1,0 +1,53 @@
+{
+  "reviewed_at": "2026-10-21T09:25:17.332891+00:00",
+  "kind": "partial_static_review",
+  "baseline": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "freeze_directory": "/tmp/wukongim-v3-readiness-20261021/packages/stable-offline-candidate/identity-freeze",
+  "frozen_sha256": {
+    "plan-package-publication.py": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff",
+    "prepare-package-site.py": "450e305e0f582ae8e108e28c1a99b7211c6bbe94b0ead5d3ecc94623d9e60bfa",
+    "compose-package-site.py": "4f4ce886fdeabd5cdd2c0d57d07282631e2ee062e85aa155d417f7dd963cde35"
+  },
+  "rules": {
+    "AGENTS.md": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "package_flow_files": [],
+    "package_agents_files": []
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "priority": 1,
+      "file": "prepare-package-site.py",
+      "line": 716,
+      "issue": "candidate mode bool is overwritten by existing Path loop variables; preview takes candidate branches",
+      "status": "author acknowledged; separate full Python run also reported preview red; fix pending review"
+    },
+    {
+      "id": "R2",
+      "priority": 2,
+      "file": "prepare-package-site.py",
+      "line": 650,
+      "issue": "lexical overlap guard misses ancestor symlink aliases; resolved output paths are not rechecked against input roots",
+      "status": "author acknowledged; source/control alias tests and shared output guard planned"
+    }
+  ],
+  "identity_note": "production control_sha is caller-declared, not cryptographically or Git-tree verified; author will document. Actual offline equality anchors are supplied external plan, exact control/source bytes and local producer hashes. Future sealing must independently verify claimed Git identity.",
+  "verified_statically": [
+    "Explicit stable plus offline_candidate flags; default preview branch cannot infer mode from candidate schemas",
+    "TEST ONLY source IDs and control commit null, distinct fixture schema rejected by non-test source branch",
+    "Production source requires seven exact assets and eight attestation evidence files plus exact metadata, original byte digests and pre/post inventories",
+    "External input roots reject linked parents; leaf inputs must be regular single-link bounded files",
+    "First candidate has no base, prior versions, retirement, rotation, package/audit Release IDs",
+    "Local Python dependencies come from producer checkout, not control/source data roots"
+  ],
+  "not_verified": [
+    "Final compose/verify/audit implementations are still being edited and were excluded",
+    "No GPG/native signatures, builder execution, installation or cloud operation performed",
+    "No online GitHub provenance or exact control-commit reachability verified",
+    "No claim that existing publisher accepts candidate or that stable is enabled"
+  ],
+  "executed_tests": []
+}

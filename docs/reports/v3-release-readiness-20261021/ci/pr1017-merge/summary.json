@@ -1,0 +1,45 @@
+{
+  "merged_at": "2026-10-21T09:39:17Z",
+  "merge_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "parents": [
+    "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "ab75c226f4b3c246797aee4f876f23af602d07ce"
+  ],
+  "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+  "exact_reviewed_tree_matches": true,
+  "normal_merge": true,
+  "admin_bypass": false,
+  "postmerge_docs_run": 39578632969,
+  "attempt": 1,
+  "conclusion": "success",
+  "finished_at": "2026-10-21T09:42:23Z",
+  "publication_steps": [
+    {
+      "job": "Deploy the verified artifact",
+      "step": "Deploy to GitHub Pages",
+      "conclusion": "success"
+    },
+    {
+      "job": "Refresh bounded Alibaba CDN URLs",
+      "step": "Validate the exact CDN refresh binding without credentials",
+      "conclusion": "success"
+    },
+    {
+      "job": "Refresh bounded Alibaba CDN URLs",
+      "step": "Exchange the exact CDN refresh OIDC identity",
+      "conclusion": "success"
+    },
+    {
+      "job": "Refresh bounded Alibaba CDN URLs",
+      "step": "Refresh only the bounded stable public URLs",
+      "conclusion": "success"
+    },
+    {
+      "job": "Refresh bounded Alibaba CDN URLs",
+      "step": "Post Exchange the exact CDN refresh OIDC identity",
+      "conclusion": "success"
+    }
+  ],
+  "worktree_and_local_branch_removed": true,
+  "user_local_main_preserved": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83"
+}

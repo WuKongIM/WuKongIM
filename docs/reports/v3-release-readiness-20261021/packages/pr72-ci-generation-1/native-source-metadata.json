@@ -1,0 +1,143 @@
+{
+  "cases": [
+    {
+      "case": "stable",
+      "exit_code": 0,
+      "expected_error": null,
+      "metadata": {
+        "assets_revalidated_after_metadata": true,
+        "channel": "stable",
+        "deb": {
+          "architecture": "amd64",
+          "asset": {
+            "id": 4,
+            "name": "wukongim_3.1.0_linux_amd64.deb",
+            "sha256": "683719fdb936ca5217b2bd1640f4d47b8f286772c0fa8169bad15fc9c2f67da8",
+            "size": 592
+          },
+          "version": "3.1.0"
+        },
+        "package": "wukongim",
+        "rpm": {
+          "architecture": "x86_64",
+          "asset": {
+            "id": 5,
+            "name": "wukongim_3.1.0_linux_amd64.rpm",
+            "sha256": "fa8fa69f0c2fa5686d5b0fa9c2325f37a1fa68c04e8aa7f10d5971605609c339",
+            "size": 6211
+          },
+          "epoch": "0",
+          "release": "1",
+          "signed": false,
+          "version": "3.1.0"
+        },
+        "schema": "wukongim/source-package-metadata/v2",
+        "source": {
+          "release_id": 4242,
+          "repository": "WuKongIM/WuKongIM",
+          "source_sha": "1111111111111111111111111111111111111111",
+          "tag": "v3.1.0"
+        },
+        "version": "3.1.0"
+      },
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "case": "wrong-channel",
+      "exit_code": 1,
+      "expected_error": "preview source tag",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: preview source tag must be strict pre-release SemVer\n"
+    },
+    {
+      "case": "wrong-deb-version",
+      "exit_code": 1,
+      "expected_error": "DEB Version mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: DEB Version mismatch: expected '3.1.1', got '3.1.0'\n"
+    },
+    {
+      "case": "preview",
+      "exit_code": 0,
+      "expected_error": null,
+      "metadata": {
+        "assets_revalidated_after_metadata": true,
+        "channel": "preview",
+        "deb": {
+          "architecture": "amd64",
+          "asset": {
+            "id": 4,
+            "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.deb",
+            "sha256": "3751d54abacd37cb0e916cbe111b902ab92b270a6df82e9ed88c007bf4bd56d8",
+            "size": 598
+          },
+          "version": "3.1.0~rc.1-hotfix"
+        },
+        "package": "wukongim",
+        "rpm": {
+          "architecture": "x86_64",
+          "asset": {
+            "id": 5,
+            "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.rpm",
+            "sha256": "70eceb1c3ff0166c61e5bea3174599d54895578624361d461cc588bd7a556073",
+            "size": 6299
+          },
+          "epoch": "0",
+          "release": "1",
+          "signed": false,
+          "version": "3.1.0~rc.1_hotfix"
+        },
+        "schema": "wukongim/source-package-metadata/v2",
+        "source": {
+          "release_id": 4242,
+          "repository": "WuKongIM/WuKongIM",
+          "source_sha": "1111111111111111111111111111111111111111",
+          "tag": "v3.1.0-rc.1-hotfix"
+        },
+        "version": "3.1.0-rc.1-hotfix"
+      },
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "case": "wrong-rpm-version",
+      "exit_code": 1,
+      "expected_error": "RPM VERSION mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: RPM VERSION mismatch: expected '3.1.0', got '3.1.0~rc.1_hotfix'\n"
+    },
+    {
+      "case": "wrong-rpm-epoch",
+      "exit_code": 1,
+      "expected_error": "RPM EPOCHNUM mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: RPM EPOCHNUM mismatch: expected '0', got '9'\n"
+    },
+    {
+      "case": "signed-rpm",
+      "exit_code": 1,
+      "expected_error": "mismatch",
+      "metadata": null,
+      "passed": true,
+      "stderr": "source package metadata verification failed: RPM RSAHEADER:pgpsig mismatch: expected '(none)', got 'RSA/SHA256, Wed Oct 21 09:38:28 2026, Key ID 30c77ce4771473bf'\n"
+    }
+  ],
+  "native_signature_tags": [
+    "RSAHEADER"
+  ],
+  "passed": true,
+  "payloads_executed": false,
+  "schema": "wukongim/test-only-native-source-metadata/v1",
+  "synthetic_source_provenance": true,
+  "test_only": true,
+  "tool_versions": {
+    "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).",
+    "gpg": "gpg (GnuPG) 2.4.4",
+    "rpm": "RPM version 4.18.2"
+  }
+}

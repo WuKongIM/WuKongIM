@@ -1,0 +1,69 @@
+FFFFFE
+======================================================================
+ERROR: test_workflow_preserves_isolation_pins_and_public_only_upload (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_workflow_preserves_isolation_pins_and_public_only_upload)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 83, in test_workflow_preserves_isolation_pins_and_public_only_upload
+    start = workflow.index('      - name: Compose and independently verify TEST ONLY stable offline candidate')
+ValueError: substring not found
+
+======================================================================
+FAIL: test_actual_child_exit_is_retained_without_secret_stderr (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_actual_child_exit_is_retained_without_secret_stderr)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 62, in test_actual_child_exit_is_retained_without_secret_stderr
+    drill = self.load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native stable candidate drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native stable candidate drill
+
+======================================================================
+FAIL: test_expected_rejection_cannot_accept_success (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_expected_rejection_cannot_accept_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 73, in test_expected_rejection_cannot_accept_success
+    drill = self.load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native stable candidate drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native stable candidate drill
+
+======================================================================
+FAIL: test_first_failure_cannot_be_overwritten (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_first_failure_cannot_be_overwritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 53, in test_first_failure_cannot_be_overwritten
+    drill = self.load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native stable candidate drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native stable candidate drill
+
+======================================================================
+FAIL: test_help_never_builds_signs_or_installs (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_help_never_builds_signs_or_installs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 25, in test_help_never_builds_signs_or_installs
+    self.load()
+    ~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native stable candidate drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native stable candidate drill
+
+======================================================================
+FAIL: test_missing_tool_preserves_public_failure_receipt (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_missing_tool_preserves_public_failure_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 33, in test_missing_tool_preserves_public_failure_receipt
+    drill = self.load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native stable candidate drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native stable candidate drill
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.001s
+
+FAILED (failures=5, errors=1)

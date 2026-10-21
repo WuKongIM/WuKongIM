@@ -1,0 +1,189 @@
+{
+  "schema": "wukongim/independent-static-review/v1",
+  "created_at": "2026-10-21T09:12:13.156190+00:00",
+  "base_commit": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "patch_sha256": "a9f82b05e0aedd40e0fce3e1ae0aeaf93cd92cbfbb16e653654b2c4ca8a07f58",
+  "standards_findings": [],
+  "spec_findings": [],
+  "blocking_findings": [],
+  "reviewer_tests_executed": false,
+  "linux_full_gate_status": "pending_new_head",
+  "files": [
+    {
+      "path": "scripts/wukongim_single_node_terminal_cut_integration_test.go",
+      "sha256": "675a01755185bbe33d12cb6260cb3d5fc0e5917ad9ea4013857dfd28415a0efd",
+      "size": 11124
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "sha256": "0f665c92e3b99eeaf23a57e65fca4f91d16bf7b7e53a1d9d34462f49e820ccfa",
+      "size": 49504
+    }
+  ],
+  "protected_inputs": [
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/bench-wukongim-single-node-1000ch.sh",
+      "sha256": "2660f796d3441fe221d12b7bd570259e406595208f77f4cb99527afb845fbae5",
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+      "unchanged": true
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "unchanged": true
+    }
+  ],
+  "author_test_evidence_independently_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/operator-red.jsonl",
+      "sha256": "ba853f252a1d4e563daf7484c7c316ca76bbefcb90254a19d50db072c4b6ba51",
+      "roots": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "subcases": {
+        "pass": 0,
+        "fail": 7,
+        "skip": 0
+      },
+      "package_terminal": [
+        {
+          "Time": "2026-10-21T17:06:45.308256+08:00",
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 8.732
+        }
+      ]
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/focused-bash3.jsonl",
+      "sha256": "e9e8e4396230e05231905284b1418f1af305f0748afab436bcc23141502fefe8",
+      "roots": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "subcases": {
+        "pass": 13,
+        "fail": 0,
+        "skip": 0
+      },
+      "package_terminal": [
+        {
+          "Time": "2026-10-21T17:08:26.164733+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 2.2
+        }
+      ]
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/focused-bash5.jsonl",
+      "sha256": "a9921ef5318da6408d96acfe37fe879424c65a7599438aca3ad059c515629b92",
+      "roots": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "subcases": {
+        "pass": 13,
+        "fail": 0,
+        "skip": 0
+      },
+      "package_terminal": [
+        {
+          "Time": "2026-10-21T17:07:53.327287+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 2.555
+        }
+      ]
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/repeat-bash5.jsonl",
+      "sha256": "0dd08948b1538f62672b5ae139e0bbe787d5fda2f63d59d249487dfae528d5b1",
+      "roots": {
+        "pass": 15,
+        "fail": 0,
+        "skip": 0
+      },
+      "subcases": {
+        "pass": 65,
+        "fail": 0,
+        "skip": 0
+      },
+      "package_terminal": [
+        {
+          "Time": "2026-10-21T17:08:37.183142+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 9.791
+        }
+      ]
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/final-bash3.jsonl",
+      "sha256": "5b78c9e71ac2913a166bf3a02f5b0aad298178b8e7f107645d3cfb1d5525943b",
+      "roots": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "subcases": {
+        "pass": 13,
+        "fail": 0,
+        "skip": 0
+      },
+      "package_terminal": [
+        {
+          "Time": "2026-10-21T17:10:49.229812+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 4.084
+        }
+      ]
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/scripts-wait255-fixture-repair/final-bash5.jsonl",
+      "sha256": "f22e579c05a7d14e59db036d25776de9426e981a85bd13a7846abf3b9c375df8",
+      "roots": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "subcases": {
+        "pass": 13,
+        "fail": 0,
+        "skip": 0
+      },
+      "package_terminal": [
+        {
+          "Time": "2026-10-21T17:10:54.16486+08:00",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Elapsed": 3.699
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Linux full gate not yet run for repair",
+    "historical observer 255 not localized to same call",
+    "GNU source branch/Ubuntu downstream implementation not independently proven root cause"
+  ]
+}

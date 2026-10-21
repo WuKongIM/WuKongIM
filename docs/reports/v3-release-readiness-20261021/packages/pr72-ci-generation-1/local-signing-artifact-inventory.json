@@ -1,0 +1,11 @@
+{
+  "id": 12334659071,
+  "zip_size": 2800,
+  "full_zip_sha256": "e4688741e870e9240e9ab0ea7e77eeae0dff2a037d3e54268e8e8a9e2ca8afa8",
+  "member": {
+    "name": "native-local-signing.json",
+    "size": 12972,
+    "crc32": 3385471589,
+    "sha256": "70c4e4707ed48215430b6d30549e027d9e13864657c03c2aa0f02f8361385885"
+  }
+}

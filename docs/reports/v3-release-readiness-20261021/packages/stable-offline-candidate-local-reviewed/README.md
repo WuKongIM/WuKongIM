@@ -1,0 +1,3 @@
+# Stable offline candidate local reviewed generation
+
+This freezes the 16-file implementation reviewed before PR #72 (d79bff5219f5a69872bb1720cbbaa224b1c7b3eb). Root reviewed the three native-drill files; the independent core reviewer covered the other thirteen. Original local failures and review findings are retained, with their repairs and green focused/full local tests. Full Python: 446 run, one existing environment skip; four contract tests passed. The native 31-case TEST ONLY drill was not executed locally. This local evidence does not imply first Linux CI success or stable publication. Production controls/keys/workflows remain unchanged except the TEST ONLY drill workflow.

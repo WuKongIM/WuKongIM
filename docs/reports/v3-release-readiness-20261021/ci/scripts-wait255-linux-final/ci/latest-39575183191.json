@@ -1,0 +1,438 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-21T09:12:42Z",
+  "databaseId": 39575183191,
+  "event": "pull_request",
+  "headSha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+  "jobs": [
+    {
+      "completedAt": "2026-10-21T09:19:23Z",
+      "conclusion": "success",
+      "databaseId": 119138831107,
+      "name": "iOS CocoaPods 1.1.1",
+      "startedAt": "2026-10-21T09:12:48Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:12:51Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:12:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:12:58Z",
+          "conclusion": "success",
+          "name": "Check out WuKongIM",
+          "number": 2,
+          "startedAt": "2026-10-21T09:12:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:33Z",
+          "conclusion": "success",
+          "name": "Set up Go",
+          "number": 3,
+          "startedAt": "2026-10-21T09:12:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:40Z",
+          "conclusion": "success",
+          "name": "Set up Node.js",
+          "number": 4,
+          "startedAt": "2026-10-21T09:13:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:40Z",
+          "conclusion": "success",
+          "name": "Set up Ruby",
+          "number": 5,
+          "startedAt": "2026-10-21T09:13:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:42Z",
+          "conclusion": "success",
+          "name": "Install CocoaPods",
+          "number": 6,
+          "startedAt": "2026-10-21T09:13:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:50Z",
+          "conclusion": "success",
+          "name": "Resolve the exact CocoaPods package",
+          "number": 7,
+          "startedAt": "2026-10-21T09:13:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:38Z",
+          "conclusion": "success",
+          "name": "Start WuKongIM and released Web peer",
+          "number": 8,
+          "startedAt": "2026-10-21T09:13:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:19Z",
+          "conclusion": "success",
+          "name": "Boot iOS Simulator",
+          "number": 9,
+          "startedAt": "2026-10-21T09:14:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:58Z",
+          "conclusion": "success",
+          "name": "Build and run the CocoaPods app",
+          "number": 10,
+          "startedAt": "2026-10-21T09:16:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:18:59Z",
+          "conclusion": "success",
+          "name": "Clean up runtime",
+          "number": 11,
+          "startedAt": "2026-10-21T09:18:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:00Z",
+          "conclusion": "success",
+          "name": "Post Set up Node.js",
+          "number": 20,
+          "startedAt": "2026-10-21T09:18:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:00Z",
+          "conclusion": "success",
+          "name": "Post Set up Go",
+          "number": 21,
+          "startedAt": "2026-10-21T09:19:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:01Z",
+          "conclusion": "success",
+          "name": "Post Check out WuKongIM",
+          "number": 22,
+          "startedAt": "2026-10-21T09:19:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:19:15Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T09:19:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183191/job/119138831107"
+    },
+    {
+      "completedAt": "2026-10-21T09:16:10Z",
+      "conclusion": "success",
+      "databaseId": 119138831208,
+      "name": "Android Maven Central 1.0.5",
+      "startedAt": "2026-10-21T09:12:45Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:12:47Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:12:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:12:52Z",
+          "conclusion": "success",
+          "name": "Check out WuKongIM",
+          "number": 2,
+          "startedAt": "2026-10-21T09:12:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:03Z",
+          "conclusion": "success",
+          "name": "Set up Go",
+          "number": 3,
+          "startedAt": "2026-10-21T09:12:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:09Z",
+          "conclusion": "success",
+          "name": "Set up Node.js",
+          "number": 4,
+          "startedAt": "2026-10-21T09:13:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:09Z",
+          "conclusion": "success",
+          "name": "Set up Java",
+          "number": 5,
+          "startedAt": "2026-10-21T09:13:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:10Z",
+          "conclusion": "success",
+          "name": "Check out Android release source",
+          "number": 6,
+          "startedAt": "2026-10-21T09:13:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:42Z",
+          "conclusion": "success",
+          "name": "Point the official example at Maven Central",
+          "number": 7,
+          "startedAt": "2026-10-21T09:13:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:07Z",
+          "conclusion": "success",
+          "name": "Start WuKongIM and released Web peer",
+          "number": 8,
+          "startedAt": "2026-10-21T09:13:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:07Z",
+          "conclusion": "success",
+          "name": "Enable KVM",
+          "number": 9,
+          "startedAt": "2026-10-21T09:14:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:06Z",
+          "conclusion": "success",
+          "name": "Run released Android package on API 34",
+          "number": 10,
+          "startedAt": "2026-10-21T09:14:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:06Z",
+          "conclusion": "success",
+          "name": "Clean up runtime",
+          "number": 11,
+          "startedAt": "2026-10-21T09:16:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:06Z",
+          "conclusion": "success",
+          "name": "Post Check out Android release source",
+          "number": 18,
+          "startedAt": "2026-10-21T09:16:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:06Z",
+          "conclusion": "success",
+          "name": "Post Set up Java",
+          "number": 19,
+          "startedAt": "2026-10-21T09:16:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:06Z",
+          "conclusion": "success",
+          "name": "Post Set up Node.js",
+          "number": 20,
+          "startedAt": "2026-10-21T09:16:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:06Z",
+          "conclusion": "success",
+          "name": "Post Set up Go",
+          "number": 21,
+          "startedAt": "2026-10-21T09:16:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:07Z",
+          "conclusion": "success",
+          "name": "Post Check out WuKongIM",
+          "number": 22,
+          "startedAt": "2026-10-21T09:16:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:16:07Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T09:16:07Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183191/job/119138831208"
+    },
+    {
+      "completedAt": "2026-10-21T09:22:06Z",
+      "conclusion": "success",
+      "databaseId": 119138831387,
+      "name": "Flutter pub.dev 1.1.0 on iOS",
+      "startedAt": "2026-10-21T09:12:46Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T09:12:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T09:12:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:12:55Z",
+          "conclusion": "success",
+          "name": "Check out WuKongIM",
+          "number": 2,
+          "startedAt": "2026-10-21T09:12:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:31Z",
+          "conclusion": "success",
+          "name": "Set up Go",
+          "number": 3,
+          "startedAt": "2026-10-21T09:12:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:13:39Z",
+          "conclusion": "success",
+          "name": "Set up Node.js",
+          "number": 4,
+          "startedAt": "2026-10-21T09:13:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:54Z",
+          "conclusion": "success",
+          "name": "Set up Flutter",
+          "number": 5,
+          "startedAt": "2026-10-21T09:13:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:56Z",
+          "conclusion": "success",
+          "name": "Check out Flutter release source",
+          "number": 6,
+          "startedAt": "2026-10-21T09:14:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:14:57Z",
+          "conclusion": "success",
+          "name": "Point the official example at pub.dev",
+          "number": 7,
+          "startedAt": "2026-10-21T09:14:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:15:29Z",
+          "conclusion": "success",
+          "name": "Start WuKongIM and released Web peer",
+          "number": 8,
+          "startedAt": "2026-10-21T09:14:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:17:05Z",
+          "conclusion": "success",
+          "name": "Boot iOS Simulator",
+          "number": 9,
+          "startedAt": "2026-10-21T09:15:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:34Z",
+          "conclusion": "success",
+          "name": "Run released Flutter package on iOS",
+          "number": 10,
+          "startedAt": "2026-10-21T09:17:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:34Z",
+          "conclusion": "success",
+          "name": "Clean up runtime",
+          "number": 11,
+          "startedAt": "2026-10-21T09:21:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:36Z",
+          "conclusion": "success",
+          "name": "Post Check out Flutter release source",
+          "number": 18,
+          "startedAt": "2026-10-21T09:21:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:37Z",
+          "conclusion": "success",
+          "name": "Post Set up Flutter",
+          "number": 19,
+          "startedAt": "2026-10-21T09:21:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:38Z",
+          "conclusion": "success",
+          "name": "Post Set up Node.js",
+          "number": 20,
+          "startedAt": "2026-10-21T09:21:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:38Z",
+          "conclusion": "success",
+          "name": "Post Set up Go",
+          "number": 21,
+          "startedAt": "2026-10-21T09:21:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:21:39Z",
+          "conclusion": "success",
+          "name": "Post Check out WuKongIM",
+          "number": 22,
+          "startedAt": "2026-10-21T09:21:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T09:22:01Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T09:21:39Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183191/job/119138831387"
+    }
+  ],
+  "name": "Safety Automation - EasySDK Released Package Acceptance",
+  "status": "completed",
+  "updatedAt": "2026-10-21T09:22:06Z",
+  "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39575183191"
+}

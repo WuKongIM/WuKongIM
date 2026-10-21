@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "reason": "The clean merged v3-shakeout-grant-repair worktree was concurrently removed by the authorized delivery owner before offline verification; no cloud/network/dispatch occurred.",
+  "next_readonly_repo": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM"
+}

@@ -1,0 +1,11 @@
+# ab75 first complete Linux qualification
+
+PR #1017 head ab75c226f4b3c246797aee4f876f23af602d07ce, actual test checkout 7204d1ba4a5fe101397c85545e84df15e28e0082, identical tree 3254faa77819a1dc7c4b7230b567ec1115be5a7a. All four workflows completed successfully on attempt 1; no workflow rerun or cancellation. A transient read-only GitHub EOF remains a separate error receipt.
+
+Candidate run39575183132: go-unit passed in282.164s (219 packages passed,15 no-test). Full scripts-integration passed in545.528s under the original600-second outer limit:602 root tests passed,6 explicit skips,1008 total pass events including subcases,zero failures/unfinished tests. Both signal fixtures passed3 attempts and the7 operator failure controls passed. No stdout truncation; owned sessions verified/complete with no remaining processes. Original failing runs remain separately archived.
+
+E2E: build111.116s; five ordinary-history migration topologies120.993s; cross-node four functional cases53.783s, existing opt-in2000QPS case skipped; single-node/three-node self-chat40.151s,6 ACK each and12 history checks total, two full-cluster restarts. Expected duplicate live frames remain explicit. All four commands exit0 and have complete cleanup. Declared binary c1612f70cd1cc286b93d90ce2f48a4dadcdec0a3b5db221f6f7578b00b817724 matches both self-chat reports and clean VCS build info; artifact intentionally excludes the binary, so its digest was not independently recomputed here.
+
+Other first-success workflows:39575183129 three500QPS profiles, three-node correctness and messaging unit/race;39575183181 native build/install plus Ubuntu24.04/Debian12/Rocky9/Alma9 lifecycle;39575183191 Android/iOS/Flutter released SDK checks. These statuses and exact steps were read from GitHub; their full artifacts were not redownloaded in this archive. The three candidate ZIPs were downloaded in full, matched GitHub SHA256/size, passed every member CRC and bounded safe extraction.
+
+This closes the current scripts/Linux candidate regression blocker, not the cloud RC plan or formal release. Product PR was still open/draft at the preserved final-state read; subsequent ready/merge approval and delivery are recorded separately. Review Agent signal/controller/worker remained manually disabled; no policy or workflow enablement changed.

@@ -1,0 +1,288 @@
+{
+  "scripts": {
+    "artifact_id": 12334511550,
+    "identity": {
+      "source_sha": "7204d1ba4a5fe101397c85545e84df15e28e0082",
+      "policy_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "event": "pull_request",
+      "run_id": "39575183132",
+      "run_attempt": "1"
+    },
+    "results": {
+      "scripts": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2502,
+          "output_bytes": 1179997,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2502,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 545.528
+        },
+        "root_test_outcomes": {
+          "pass": 602,
+          "skip": 6
+        },
+        "all_test_outcomes": {
+          "pass": 1008,
+          "skip": 6
+        },
+        "unfinished": [],
+        "skipped": [
+          "TestDockerImageRuntimeContract",
+          "TestDockerImageEmbeddedPrometheus",
+          "TestEasySDKReadinessSerialDelayFixture",
+          "TestNativePackageLifecycle",
+          "TestNativePackageSignedRepository",
+          "TestNativePackageRepositoryDeadlineFixture"
+        ],
+        "non_json_log_lines": 96,
+        "signal_fixture_outcomes": [
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/early_successful_exit",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/original_exit_17",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/original_exit_255",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/missing_ready",
+            "Action": "pass",
+            "Elapsed": 1.01
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/malformed_ready",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/wrong_parent_ready",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren/deadline_after_ready",
+            "Action": "pass",
+            "Elapsed": 1
+          },
+          {
+            "Test": "TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren",
+            "Action": "pass",
+            "Elapsed": 2.1
+          },
+          {
+            "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_01",
+            "Action": "pass",
+            "Elapsed": 0.41
+          },
+          {
+            "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_02",
+            "Action": "pass",
+            "Elapsed": 0.41
+          },
+          {
+            "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03",
+            "Action": "pass",
+            "Elapsed": 0.4
+          },
+          {
+            "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal",
+            "Action": "pass",
+            "Elapsed": 1.22
+          },
+          {
+            "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_01",
+            "Action": "pass",
+            "Elapsed": 0.4
+          },
+          {
+            "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_02",
+            "Action": "pass",
+            "Elapsed": 0.4
+          },
+          {
+            "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_03",
+            "Action": "pass",
+            "Elapsed": 0.4
+          },
+          {
+            "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal",
+            "Action": "pass",
+            "Elapsed": 1.2
+          }
+        ]
+      }
+    }
+  },
+  "e2e": {
+    "artifact_id": 12334551512,
+    "identity": {
+      "source_sha": "7204d1ba4a5fe101397c85545e84df15e28e0082",
+      "policy_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "run_id": "39575183132",
+      "run_attempt": "1"
+    },
+    "results": {
+      "build": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2521,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2521,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 111.116
+        },
+        "root_test_outcomes": {},
+        "all_test_outcomes": {},
+        "unfinished": [],
+        "skipped": [],
+        "non_json_log_lines": 0
+      },
+      "ordinary_history": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 7974,
+          "output_bytes": 27565,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 7974,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 120.993
+        },
+        "root_test_outcomes": {
+          "pass": 1
+        },
+        "all_test_outcomes": {
+          "pass": 6
+        },
+        "unfinished": [],
+        "skipped": [],
+        "non_json_log_lines": 0
+      },
+      "cross_node_delivery": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 13851,
+          "output_bytes": 8446,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 13851,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 53.783
+        },
+        "root_test_outcomes": {
+          "pass": 4,
+          "skip": 1
+        },
+        "all_test_outcomes": {
+          "pass": 4,
+          "skip": 1
+        },
+        "unfinished": [],
+        "skipped": [
+          "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS"
+        ],
+        "non_json_log_lines": 0
+      },
+      "self_chat": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 14196,
+          "output_bytes": 3699,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 14196,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 40.151
+        },
+        "root_test_outcomes": {
+          "pass": 1
+        },
+        "all_test_outcomes": {
+          "pass": 3
+        },
+        "unfinished": [],
+        "skipped": [],
+        "non_json_log_lines": 0
+      }
+    },
+    "declared_binary_sha256": "c1612f70cd1cc286b93d90ce2f48a4dadcdec0a3b5db221f6f7578b00b817724",
+    "binary_in_archive": false,
+    "self_chat_summary": {
+      "passed": true,
+      "hash_slots": 256,
+      "cases": [
+        {
+          "nodes": 1,
+          "passed": true,
+          "whole_cluster_restarts": 1,
+          "acknowledged": 6,
+          "history_checks": 3,
+          "duplicate_live_frames": 8
+        },
+        {
+          "nodes": 3,
+          "passed": true,
+          "whole_cluster_restarts": 1,
+          "acknowledged": 6,
+          "history_checks": 9,
+          "duplicate_live_frames": 8
+        }
+      ],
+      "binary_digest_matches_declared": true,
+      "binary_digest_independently_rehashed": false
+    }
+  }
+}

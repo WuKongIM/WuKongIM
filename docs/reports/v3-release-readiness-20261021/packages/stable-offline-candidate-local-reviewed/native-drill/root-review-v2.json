@@ -1,0 +1,32 @@
+{
+  "observed_at": "2026-10-21T09:35:03.976558+00:00",
+  "reviewer": "root independent of native slice author",
+  "scope": [
+    "tests/native_stable_candidate_drill.py",
+    "tests/test_native_stable_candidate_drill.py",
+    ".github/workflows/native-package-repository-drill.yml"
+  ],
+  "patch_sha256": "921e7d3068e8446aac0b1f2b0be6fe94ee2171c20a494744aad71fbeda4998bc",
+  "status": "no_blocking_findings",
+  "findings": [],
+  "closed_findings": [
+    {
+      "id": "R1",
+      "evidence": "invoke requires normal exit 1, no stdout and a full exact validator prefix/reason; usage, traceback, another validation layer, crashes and timeout cannot count. JSON anchor mutations preserve syntax and unrelated fields."
+    },
+    {
+      "id": "R2",
+      "evidence": "Existing next/wrong-family hash failures are separately named receipt-integrity. Two additional complete-candidate verifier calls rebind only archived Release.gpg facts to reach existing OpenPGP and exact-current-subkey validation; declared diagnostic must prove that layer. The current signing key identity remains anchored. No new crypto verifier."
+    }
+  ],
+  "additional_observations": [
+    "31-case inventory (10 positive / 21 negative) is explicit and workflow count agrees.",
+    "Signed repomd mutation is accurately described as receipt-integrity, not open-checksum semantics.",
+    "Existing pinned non-root network-none container boundaries and public-only upload are preserved.",
+    "Archive repeat compares bytes for identical signed inputs; it does not claim independent signatures are reproducible."
+  ],
+  "tests_executed_by_reviewer": [],
+  "remaining_validation": [
+    "12 author local contract tests are frozen; all 31 actual native Linux cases remain unexecuted pending first PR CI. Static review is not native acceptance."
+  ]
+}

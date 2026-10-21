@@ -1,0 +1,44 @@
+{
+  "attempt": 1,
+  "classification": "harness/preflight failure; exact Linux exception detail unavailable",
+  "diagnosis": {
+    "linux_same_cause_proven": false,
+    "mac_agent_error": "socket name is too long",
+    "mac_prefix_only_control_exit": 0,
+    "mac_same_layout_gpg_exit": 2
+  },
+  "head": "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb",
+  "native": {
+    "candidate_cases_executed": 0,
+    "conclusion": "failure",
+    "failed_at": "2026-10-21T09:38:54Z",
+    "failed_step": "Compose and independently verify TEST ONLY stable offline candidate",
+    "job": 119149845220,
+    "prior_actual_passes": {
+      "bootstrap_preparation": 6,
+      "local_signing": 10,
+      "source_metadata": 7
+    },
+    "receipt_failure": {
+      "stage": "preflight",
+      "type": "AssertionError"
+    },
+    "run": 39578472435,
+    "scratch_removed": true,
+    "subsequent_full_repository_drill": "skipped"
+  },
+  "old_run_rerun": false,
+  "pages": {
+    "conclusion": "success",
+    "contract_tests": 4,
+    "deployment": "skipped",
+    "job": 119149846612,
+    "run": 39578472569,
+    "seconds": 106.223,
+    "skipped": 0,
+    "tests": 446
+  },
+  "published": false,
+  "stable_enabled": false,
+  "tree": "8354de1fceb6b9cead1840931e021d58da15ce2c"
+}

@@ -1,0 +1,34 @@
+{
+  "operator-red": {
+    "pass": 0,
+    "fail": 8,
+    "skip": 0,
+    "top_pass": 0,
+    "sub_pass": 0,
+    "success_trace_in_stdout": false
+  },
+  "focused-bash5": {
+    "pass": 16,
+    "fail": 0,
+    "skip": 0,
+    "top_pass": 3,
+    "sub_pass": 13,
+    "success_trace_in_stdout": false
+  },
+  "focused-bash3": {
+    "pass": 16,
+    "fail": 0,
+    "skip": 0,
+    "top_pass": 3,
+    "sub_pass": 13,
+    "success_trace_in_stdout": false
+  },
+  "repeat-bash5": {
+    "pass": 80,
+    "fail": 0,
+    "skip": 0,
+    "top_pass": 15,
+    "sub_pass": 65,
+    "success_trace_in_stdout": false
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim/read-only-native-contract-review/v1",
+  "reviewed_at": "2026-10-21T09:17:44.704844+00:00",
+  "baseline_commit": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "original_contract_sha256": "28abcb995c66dec047163966e6f7f4827c3724666ed098dd2007b32a155c3469",
+  "corrected_contract_sha256": "98b109794f3c180fb9a68126acce7b3157ed826593006acf81901920a0d58efe",
+  "finding": {
+    "id": "R1",
+    "status": "resolved_in_contract",
+    "description": "RPM allowlists must use unchanged signer v1 packages and paths objects including native package sizes; shorthand map or empty object is rejected.",
+    "source": "scripts/sign-package-family.py:219,249"
+  },
+  "remaining_blocking_findings": [],
+  "implementation_reviewed": false,
+  "tests_run": false,
+  "production_sealing_assessment": "An external future record may bind the exact candidate archive digest to real immutable audit Release and OSS activation; signed APT/RPM bytes need not change. Null ids/stage remain immutable inside candidate.",
+  "candidate_markers": "stage/channel/test_only; no duplicate published/sealed booleans required",
+  "default_consumers": "Existing production schemas/preview/positive-id constraints reject candidate; final implementation must preserve explicit-mode-only routing without schema-driven fallback.",
+  "source_files_read_from_fixed_git_revision": [
+    "scripts/sign-package-family.py",
+    "scripts/compose-package-site.py",
+    "scripts/package-audit-receipt.py",
+    "scripts/verify-production-package-site.py",
+    "scripts/plan-object-storage-publication.py",
+    "scripts/plan-package-publication.py"
+  ],
+  "limitations": [
+    "Design contract review only; current unfinished implementation was not reviewed",
+    "Does not establish a real sealed audit Release, OSS routing or public deployment"
+  ]
+}

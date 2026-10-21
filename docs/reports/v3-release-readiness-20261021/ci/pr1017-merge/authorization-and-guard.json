@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-21T09:39:14.911662+00:00",
+  "user_authorization": "同意合并 #1017",
+  "head": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+  "base": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "method": "merge",
+  "administrator_bypass": false,
+  "review_agent_enablement": false,
+  "cloud_or_release_authorized": false,
+  "guard": "passed",
+  "review_agent_workflows": {
+    ".github/workflows/review-agent-pr-signal.yml": "disabled_manually",
+    ".github/workflows/review-agent-run.yml": "disabled_manually",
+    ".github/workflows/review-agent.yml": "disabled_manually",
+    ".github/workflows/review-agent-userns-diagnostic.yaml": "disabled_manually"
+  }
+}

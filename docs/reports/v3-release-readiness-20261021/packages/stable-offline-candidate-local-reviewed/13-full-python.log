@@ -1,0 +1,228 @@
+......................................s.....................................................................................................................................E.EFFF....F...............................................................................................................................................................................................................EE................................................
+======================================================================
+ERROR: test_accepts_a_composed_v3_base_snapshot (test_prepare_package_site.PreparePackageSiteTests.test_accepts_a_composed_v3_base_snapshot)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 119, in checked_file
+    metadata = path.lstat()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py", line 437, in lstat
+    return self.stat(follow_symlinks=False)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 515, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpom2og07z/source/wukongim_3.1.0-rc.2_linux_amd64.deb'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_prepare_package_site.py", line 454, in test_accepts_a_composed_v3_base_snapshot
+    inventory = MODULE.prepare(self.args(base))
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 797, in prepare
+    copy_payload(source, destination, published, f"{family} payload {version}")
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 473, in copy_payload
+    checked_file(source, label, expected)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 121, in checked_file
+    raise PreparationError(f"cannot inspect {label}") from error
+prepare_package_site.PreparationError: cannot inspect apt payload 3.1.0-rc.2
+
+======================================================================
+ERROR: test_first_release_prepares_exact_payloads (test_prepare_package_site.PreparePackageSiteTests.test_first_release_prepares_exact_payloads)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 119, in checked_file
+    metadata = path.lstat()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py", line 437, in lstat
+    return self.stat(follow_symlinks=False)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 515, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmp3c9ko2bk/source/wukongim_3.1.0-rc.1_linux_amd64.deb'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_prepare_package_site.py", line 243, in test_first_release_prepares_exact_payloads
+    inventory = MODULE.prepare(self.args())
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 797, in prepare
+    copy_payload(source, destination, published, f"{family} payload {version}")
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 473, in copy_payload
+    checked_file(source, label, expected)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 121, in checked_file
+    raise PreparationError(f"cannot inspect {label}") from error
+prepare_package_site.PreparationError: cannot inspect apt payload 3.1.0-rc.1
+
+======================================================================
+ERROR: test_bootstrap_static_content_inspection_is_mandatory (test_verify_production_package_site.VerifyProductionPackageSiteTest.test_bootstrap_static_content_inspection_is_mandatory) (family='apt')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_verify_production_package_site.py", line 412, in test_bootstrap_static_content_inspection_is_mandatory
+    self.verify(fixture, **arguments)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_verify_production_package_site.py", line 309, in verify
+    return verifier.verify(self.args(fixture))
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/verify-production-package-site.py", line 1477, in verify
+    apt_expected = validate_apt(args, context, site_files, bootstrap_manifest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/verify-production-package-site.py", line 1160, in validate_apt
+    inspect_apt_bootstrap_package(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        args.site_root / path, bootstrap["version"], args.apt_public_cert, channel=channel
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+TypeError: VerifyProductionPackageSiteTest.test_bootstrap_static_content_inspection_is_mandatory.<locals>.reject() got an unexpected keyword argument 'channel'
+
+======================================================================
+ERROR: test_bootstrap_static_content_inspection_is_mandatory (test_verify_production_package_site.VerifyProductionPackageSiteTest.test_bootstrap_static_content_inspection_is_mandatory) (family='rpm')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_verify_production_package_site.py", line 412, in test_bootstrap_static_content_inspection_is_mandatory
+    self.verify(fixture, **arguments)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_verify_production_package_site.py", line 309, in verify
+    return verifier.verify(self.args(fixture))
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/verify-production-package-site.py", line 1478, in verify
+    rpm_expected = validate_rpm(args, context, site_files, bootstrap_manifest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/verify-production-package-site.py", line 1377, in validate_rpm
+    inspect_rpm_bootstrap_package(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        args.site_root / path, bootstrap["version"], args.rpm_public_cert, channel=channel
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1234, in _execute_mock_call
+    result = effect(*args, **kwargs)
+TypeError: VerifyProductionPackageSiteTest.test_bootstrap_static_content_inspection_is_mandatory.<locals>.reject() got an unexpected keyword argument 'channel'
+
+======================================================================
+FAIL: test_inventory_race_cannot_redirect_write_and_rolls_back_repository (test_prepare_package_site.PreparePackageSiteTests.test_inventory_race_cannot_redirect_write_and_rolls_back_repository)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 119, in checked_file
+    metadata = path.lstat()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py", line 437, in lstat
+    return self.stat(follow_symlinks=False)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 515, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpm2gt0yd9/source/wukongim_3.1.0-rc.1_linux_amd64.deb'
+
+The above exception was the direct cause of the following exception:
+
+prepare_package_site.PreparationError: cannot inspect apt payload 3.1.0-rc.1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_prepare_package_site.py", line 308, in test_inventory_race_cannot_redirect_write_and_rolls_back_repository
+    with self.assertRaisesRegex(MODULE.PreparationError, "inventory output"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "inventory output" does not match "cannot inspect apt payload 3.1.0-rc.1"
+
+======================================================================
+FAIL: test_inventory_write_failure_rolls_back_both_outputs (test_prepare_package_site.PreparePackageSiteTests.test_inventory_write_failure_rolls_back_both_outputs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 119, in checked_file
+    metadata = path.lstat()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py", line 437, in lstat
+    return self.stat(follow_symlinks=False)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 515, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpd_5mwwdr/source/wukongim_3.1.0-rc.1_linux_amd64.deb'
+
+The above exception was the direct cause of the following exception:
+
+prepare_package_site.PreparationError: cannot inspect apt payload 3.1.0-rc.1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_prepare_package_site.py", line 334, in test_inventory_write_failure_rolls_back_both_outputs
+    with self.assertRaisesRegex(MODULE.PreparationError, "write inventory output"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "write inventory output" does not match "cannot inspect apt payload 3.1.0-rc.1"
+
+======================================================================
+FAIL: test_output_race_rolls_back_the_created_inventory (test_prepare_package_site.PreparePackageSiteTests.test_output_race_rolls_back_the_created_inventory)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 119, in checked_file
+    metadata = path.lstat()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py", line 437, in lstat
+    return self.stat(follow_symlinks=False)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 515, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmpzoiwk4gl/source/wukongim_3.1.0-rc.1_linux_amd64.deb'
+
+The above exception was the direct cause of the following exception:
+
+prepare_package_site.PreparationError: cannot inspect apt payload 3.1.0-rc.1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_prepare_package_site.py", line 322, in test_output_race_rolls_back_the_created_inventory
+    with self.assertRaisesRegex(MODULE.PreparationError, "output"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "output" does not match "cannot inspect apt payload 3.1.0-rc.1"
+
+======================================================================
+FAIL: test_rejects_source_digest_mismatch (test_prepare_package_site.PreparePackageSiteTests.test_rejects_source_digest_mismatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/prepare-package-site.py", line 119, in checked_file
+    metadata = path.lstat()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py", line 437, in lstat
+    return self.stat(follow_symlinks=False)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 515, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/tmple8473oz/source/wukongim_3.1.0-rc.1_linux_amd64.deb'
+
+The above exception was the direct cause of the following exception:
+
+prepare_package_site.PreparationError: cannot inspect apt payload 3.1.0-rc.1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_prepare_package_site.py", line 266, in test_rejects_source_digest_mismatch
+    with self.assertRaisesRegex(MODULE.PreparationError, "SHA-256"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "SHA-256" does not match "cannot inspect apt payload 3.1.0-rc.1"
+
+----------------------------------------------------------------------
+Ran 439 tests in 102.619s
+
+FAILED (failures=4, errors=4, skipped=1)
+{"passed": false, "cases": 0, "failure": "required native tool unavailable: gpg", "scratch_removed": true}
+{"cases": [], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1", "size": 9821}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "failure": {"case": "rpm-files", "exit_code": 1, "family": "rpm", "input_mode": "files", "message": "no recognized signer diagnostic"}, "passed": false, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "TEST ONLY version", "dpkg-deb": "TEST ONLY version", "gpg": "TEST ONLY version", "rpm": "TEST ONLY version"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

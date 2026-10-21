@@ -1,0 +1,51 @@
+[
+  {
+    "api_digest": "sha256:84bafb7c9a3aa0b3f66ec70de319a384df03914eeb7960b5c0853e096ff52705",
+    "full_zip_sha256": "84bafb7c9a3aa0b3f66ec70de319a384df03914eeb7960b5c0853e096ff52705",
+    "id": 12336030135,
+    "members": [
+      {
+        "crc32": 3385820622,
+        "name": "native-bootstrap-preparation.json",
+        "sha256": "97b03393ed2a83908a055073efd81379717f3eace370e10e42b98ea14f3fe2bc",
+        "size": 44122
+      }
+    ],
+    "name": "native-bootstrap-preparation-test-only",
+    "zip_size": 7151
+  },
+  {
+    "api_digest": "sha256:f506c8cd20537b534b03a4160f11dded10de30d22ea61fcea6bfc3c975e4ee54",
+    "full_zip_sha256": "f506c8cd20537b534b03a4160f11dded10de30d22ea61fcea6bfc3c975e4ee54",
+    "id": 12335696290,
+    "members": [
+      {
+        "crc32": 4050508467,
+        "name": "native-source-metadata.json",
+        "sha256": "b42bb4b4211710b95418fef9b2bf8128a3e1f2f38236240021ba20d5839babc8",
+        "size": 4464
+      }
+    ],
+    "name": "native-source-metadata-test-only",
+    "zip_size": 1270
+  },
+  {
+    "download_exit": 1,
+    "id": 12334659071
+  },
+  {
+    "api_digest": "sha256:83ef2a22a21bc2c0b2b2daf4a78938ca48990a26b8fc183375f3290576c39bea",
+    "full_zip_sha256": "83ef2a22a21bc2c0b2b2daf4a78938ca48990a26b8fc183375f3290576c39bea",
+    "id": 12334289859,
+    "members": [
+      {
+        "crc32": 2881338921,
+        "name": "native-stable-candidate.json",
+        "sha256": "ae737c45bd3da672e62451d0b11a6cf1552d2d4fc44b659e1085eec5ae964d55",
+        "size": 2495
+      }
+    ],
+    "name": "native-stable-candidate-test-only",
+    "zip_size": 1248
+  }
+]

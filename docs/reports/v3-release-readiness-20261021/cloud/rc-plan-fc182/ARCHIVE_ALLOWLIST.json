@@ -1,0 +1,80 @@
+{
+  "schema": "wukongim.readonly_rc_plan_allowlist/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 11674,
+      "sha256": "7241787f97e220c4a4b578108236f0a484cc5fc441af90bb219426754b5bd86a"
+    },
+    {
+      "path": "build-first-attempt.json",
+      "size": 427,
+      "sha256": "7505c82c19d7ac3f20e348815fc8d1b8c5078efc7582e868e87bd3e047254fb5"
+    },
+    {
+      "path": "build-plan.py",
+      "size": 12931,
+      "sha256": "c85c27c9a992e5db09baa733db880cf3e3ae677a7b1071dccd5b4e30f3b022a7"
+    },
+    {
+      "path": "bundle-dispatch.template.json",
+      "size": 124,
+      "sha256": "c3dd56bc34b8062acff0dc05f12461e41deeb1f0e4d88075fe06587da244a65e"
+    },
+    {
+      "path": "historical-inputs.json",
+      "size": 677,
+      "sha256": "9522efa3639a9d42f59f60ed24fc7826a3da40d6939d8c2b7373883a549893b5"
+    },
+    {
+      "path": "plan.json",
+      "size": 18473,
+      "sha256": "54e49ea227ebdefb58a6b7dd2f3d1ff857ec70241aa80502d7885a32a88ec930"
+    },
+    {
+      "path": "premerge/bundle-dispatch.template.json",
+      "size": 86,
+      "sha256": "7e1f3f302024898477b9e143221f00be6996ba5512d36bc675e6954c5d19d773"
+    },
+    {
+      "path": "premerge/historical-inputs.json",
+      "size": 677,
+      "sha256": "9522efa3639a9d42f59f60ed24fc7826a3da40d6939d8c2b7373883a549893b5"
+    },
+    {
+      "path": "premerge/plan.json",
+      "size": 18012,
+      "sha256": "a0438d62a1a71724702e5e4def15cc19503d576266dea100ca135d85e308b616"
+    },
+    {
+      "path": "premerge/rehearsal-dispatch.template.json",
+      "size": 152,
+      "sha256": "6c6edbf8e194030894867a9b8577989e3af230301e177607e0114a817f9181d2"
+    },
+    {
+      "path": "rehearsal-dispatch.template.json",
+      "size": 190,
+      "sha256": "2629016838e434f4ae48bbcc790f1c13a36dee33025722a53393dbd36d9ec754"
+    },
+    {
+      "path": "verification-worktree-cleanup.json",
+      "size": 284,
+      "sha256": "4469a390c813649eb6af86c2d6c247a8beb908eb2999e023b76d060e78a759c2"
+    },
+    {
+      "path": "verification.json",
+      "size": 388,
+      "sha256": "d1472aec94f04b6cc3ed6123d32aadde45cac4c5439d227cb4577c5af321e047"
+    },
+    {
+      "path": "verify-plan.py",
+      "size": 3237,
+      "sha256": "7dcf025328733e39086139a076cc420b69e146ebe4d17a039183e0bae415d4ae"
+    }
+  ],
+  "contains_private_keys_or_credentials": false,
+  "repo_modified": false,
+  "native_drill_files_modified": false,
+  "provider_or_network_called": false,
+  "dispatch_or_enable_performed": false
+}

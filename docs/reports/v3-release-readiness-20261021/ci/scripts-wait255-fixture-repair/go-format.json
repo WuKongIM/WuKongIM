@@ -1,0 +1,21 @@
+{
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "named_check": "go-format",
+  "contract": {
+    "arguments": [
+      "review-agent-check",
+      "go-format"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 300,
+    "max_output_bytes": 1048576
+  },
+  "resolved_command": [
+    "go",
+    "run",
+    "./cmd/wkreviewcheck",
+    "go-format"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.48429370898520574
+}

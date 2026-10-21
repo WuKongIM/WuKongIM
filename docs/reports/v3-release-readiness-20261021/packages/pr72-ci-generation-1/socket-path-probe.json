@@ -1,0 +1,22 @@
+{
+  "platform": "macOS",
+  "tool": "GnuPG 2.4.8",
+  "test_only": true,
+  "keys_generated": false,
+  "records": [
+    {
+      "prefix": "wk-stable-candidate-TEST-ONLY-",
+      "home_length": 91,
+      "browser_socket_length": 111,
+      "returncode": 2,
+      "stderr": "gpg-agent[72525]: directory '/tmp/wk-stable-candidate-TEST-ONLY-ax3cpru2/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/private-keys-v1.d' created\n2026-10-21 17:42:16 gpg-agent[72525] socket name '/tmp/wk-stable-candidate-TEST-ONLY-ax3cpru2/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/S.gpg-agent' is too long\n"
+    },
+    {
+      "prefix": "wk-sc-",
+      "home_length": 67,
+      "browser_socket_length": 87,
+      "bounded_timeout_after_ready": true,
+      "stderr": "gpg-agent[72531]: directory '/tmp/wk-sc-5n7zghvk/private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/private-keys-v1.d' created\n2026-10-21 17:42:16 gpg-agent[72532] gpg-agent (GnuPG) 2.4.8 started\n"
+    }
+  ]
+}

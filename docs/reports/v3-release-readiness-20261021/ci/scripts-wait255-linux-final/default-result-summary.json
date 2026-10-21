@@ -1,0 +1,33 @@
+{
+  "artifact_id": 12334027136,
+  "identity": {
+    "source_sha": "7204d1ba4a5fe101397c85545e84df15e28e0082",
+    "policy_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "event": "pull_request",
+    "run_id": "39575183132",
+    "run_attempt": "1"
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2302,
+    "output_bytes": 22028,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2302,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 282.164
+  },
+  "packages_passed": 219,
+  "packages_no_tests": 15,
+  "gate": "go-unit",
+  "status": "passed"
+}

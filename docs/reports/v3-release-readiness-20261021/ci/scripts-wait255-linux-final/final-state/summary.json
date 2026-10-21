@@ -1,0 +1,64 @@
+{
+  "observed_at": "2026-10-21T09:26:24.204539+00:00",
+  "reads": {
+    "run-39575183132": {
+      "id": 39575183132,
+      "head_sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "updated_at": "2026-10-21T09:23:43Z"
+    },
+    "run-39575183129": {
+      "id": 39575183129,
+      "head_sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "updated_at": "2026-10-21T09:18:31Z"
+    },
+    "run-39575183181": {
+      "id": 39575183181,
+      "head_sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "updated_at": "2026-10-21T09:21:06Z"
+    },
+    "run-39575183191": {
+      "id": 39575183191,
+      "head_sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "updated_at": "2026-10-21T09:22:06Z"
+    },
+    "pr-1017": {
+      "head": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+      "base": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "mergeable_state": "clean"
+    },
+    "main-ref": {
+      "sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e"
+    },
+    "review-signal": {
+      "name": "Safety Automation - Review Agent PR Signal",
+      "state": "disabled_manually",
+      "path": ".github/workflows/review-agent-pr-signal.yml"
+    },
+    "review-controller": {
+      "name": "Safety Automation - Review Agent Controller",
+      "state": "disabled_manually",
+      "path": ".github/workflows/review-agent.yml"
+    },
+    "review-worker": {
+      "name": "Agent Tool - Review Pull Request",
+      "state": "disabled_manually",
+      "path": ".github/workflows/review-agent-run.yml"
+    }
+  }
+}

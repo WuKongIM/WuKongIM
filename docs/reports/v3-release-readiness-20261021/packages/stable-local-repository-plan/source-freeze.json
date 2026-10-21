@@ -1,0 +1,143 @@
+{
+  "schema": "wukongim/read-only-plan-source-freeze/v1",
+  "source_repository": "WuKongIM/packages",
+  "source_commit": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "source_tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "ad341bb7e2134784433e42b344ebc799c4454703847b29e42293be1d439a106d",
+      "bytes": 8853
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "0f36062f570600998b5b9d8853c7ea11ef3ff548d534140d8e046dbdcd9824b9",
+      "bytes": 36877
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "bytes": 5439
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "bytes": 1110
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "bytes": 651
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "bytes": 96
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "bytes": 295
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "bytes": 898
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "bytes": 44355
+    },
+    {
+      "path": "scripts/build-repository-bootstrap-packages.py",
+      "sha256": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c",
+      "bytes": 33191
+    },
+    {
+      "path": "scripts/plan-package-publication.py",
+      "sha256": "9fb416a831c24ad0d67bb3807b7c32c38c41135b306661fc528e42e5f2575245",
+      "bytes": 23672
+    },
+    {
+      "path": "scripts/prepare-package-site.py",
+      "sha256": "cd2be85e77cba38e6abece92d011aa2f21e5e4e000be379952d2599a243ae5ad",
+      "bytes": 43495
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+      "bytes": 105274
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "bytes": 38244
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "bytes": 34568
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+      "bytes": 30568
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+      "bytes": 65760
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+      "bytes": 71062
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+      "bytes": 19863
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "bytes": 22527
+    },
+    {
+      "path": "scripts/verify-source-package-metadata.py",
+      "sha256": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+      "bytes": 6185
+    },
+    {
+      "path": "tests/native_local_signing_drill.py",
+      "sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578",
+      "bytes": 22961
+    },
+    {
+      "path": "tests/native_source_metadata_drill.py",
+      "sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1",
+      "bytes": 9821
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "14c08d31c9d91d83bab4eb0a8001980da215dc4f63bfb4a6761e66b634af6970",
+      "bytes": 9115
+    }
+  ],
+  "applicable_rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "package_local_agents_flow": [],
+  "workflow_readme_present": false,
+  "execution": "read_only_no_tests_no_private_access_no_cloud",
+  "observed_at": "2026-10-21T09:09:03.263729+00:00"
+}
