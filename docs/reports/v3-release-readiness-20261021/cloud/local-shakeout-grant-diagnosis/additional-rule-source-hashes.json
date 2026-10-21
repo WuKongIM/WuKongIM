@@ -1,0 +1,7 @@
+{
+  ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  ".github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+  ".github/workflows/three-node-chat-lifecycle-regression.yml": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+  "docs/superpowers/specs/2026-08-04-chat-lifecycle-soak-design.md": "9de60e6f8701bb63370dd820703dec826c155b2ceef0c48d7982c03a08576dc3",
+  "docs/superpowers/specs/2026-08-13-chat-lifecycle-local-performance-diagnostics-design.md": "305adc91809a4491ba049e5177467146bb0ada59947183516e60f3466abd4b5e"
+}

@@ -1,0 +1,57 @@
+{
+  "schema": "independent-readonly-evidence-references/v1",
+  "captured_at_utc": "2026-10-21T06:50:45.425413+00:00",
+  "files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/README.md",
+      "bytes": 2482,
+      "sha256": "2d230d0c7742995c9693cc6337256fb96d00b049b33d8d01383678792ec31357"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705/summary.json",
+      "bytes": 4579,
+      "sha256": "c3e77f66b35c4d72eb92107ff14f26124b2a2516696cc95a130d2261e722a1de"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/evidence-excerpt.json",
+      "bytes": 65607,
+      "sha256": "53f53340a2513315ea610f5fa09367227b1c10ffaa73eb0ed20ec3d4d985d967"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v1_test.go.txt",
+      "bytes": 5356,
+      "sha256": "a7afee6ed1049dd7a74dc474f5c58afcd4fd994c945d8fa7e16a03f085035259"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v1.log",
+      "bytes": 4769,
+      "sha256": "859a9abedf38ab1faa74cfce046a4b2cb0bcb3b9953fcd094a69ed0c9aa9739d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v1-receipt.json",
+      "bytes": 687,
+      "sha256": "d0eef1bfa78e075cc50f02b4290ce6dbdd2d52b17c2f04e065b14a35cf9326f8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v1-repeat.log",
+      "bytes": 14198,
+      "sha256": "803492c79d74aac277a9eebf235debbfd414c071f6cfe540a29aea51f3fae6cc"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v2_test.go.txt",
+      "bytes": 6065,
+      "sha256": "33192c95814cb5d7411ac5b9122bbbb2d23664b773333c327f56fed9bed63787"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v2.log",
+      "bytes": 9349,
+      "sha256": "c8afdf7b3732e9ac471ae99806b6f6f8c423e3aa69401735918ed676b5490077"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v2-receipt.json",
+      "bytes": 481,
+      "sha256": "5f3a912a356703e335c3ad941541895d8cadce1c6c41fece7a13811ae4141509"
+    }
+  ],
+  "note": "Reference inventory only; original failure and diagnostic files remain in their owning directories. No repository code was modified and no tests/high-load run were executed by this reviewer."
+}

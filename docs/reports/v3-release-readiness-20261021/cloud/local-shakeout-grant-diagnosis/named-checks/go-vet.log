@@ -1,0 +1,3 @@
+# github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer
+# [github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer]
+pkg/transport/internal/buffer/retained_test.go:7:10: range var class copies lock: github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer.slabClass contains sync.Pool contains sync.noCopy

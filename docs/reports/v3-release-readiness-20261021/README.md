@@ -72,6 +72,17 @@ regression attempts; it is not a published release or a long-run qualification.
 - `packages/stable-environment-options/`: exact contract and official platform
   evidence. A second computer is not required; the existing Mac may support an
   isolated external system, subject to an implemented and verified ceremony.
+- `packages/stable-local-custody-decision.json`: the user's subsequent explicit
+  choice of Mac/NAS custody supersedes the offline/hardware-only requirement
+  for this work. Contract/tooling changes are pending; no production keys,
+  repository enablement or release are implied by the choice.
+- `packages/stable-signing-protocol-plan/`: proposed Mac-local public-key and
+  request preparation, then two-stage native signing/receipt verification.
+  This protocol proposal is historical and is no longer the implementation
+  plan: the existing family signer already performs the needed local sequence.
+- `packages/stable-local-signer-route/`: source-backed scope reduction to a
+  small local-file CLI adapter, reused native TEST ONLY signing, and Mac key
+  preparation. No new exchange protocol or session ledger is required.
 - `packages/object-storage-plan/`, `packages/transport-plan-review/`:
   failure-first implementation, independent resource-limit finding and fix,
   then ordinary-name RPM metadata support with complete closure validation.
@@ -94,6 +105,14 @@ regression attempts; it is not a published release or a long-run qualification.
   disk recovery. It failed early with grant `offered_load_under_delivery` and
   produced no final report. Running cuts do not establish full correctness;
   all 12 owned processes and 64 reserved ports were independently cleaned.
+- `cloud/local-shakeout-grant-diagnosis/`: real-factory fixed-clock diagnosis,
+  default-budget red/green regression, and unchanged-threshold repair. Five
+  named checks passed; both full macOS scripts-integration attempts hit the
+  original nine-minute package limit. A Linux check and fresh 30-minute run
+  remain pending. The nested `runner-repair/` contains failure-preservation and
+  owned-session cleanup probes for the external local runner, not product load.
+- `cloud/local-shakeout-repair-review/`: independent mechanism and implementation
+  review, including the pre-existing test-only lock-copy vet correction.
 - `postmerge-preparation-archive.json`,
   `planner-merge-and-shakeout-archive.json`: verified allowlist copies and
   original-file hashes for these new bounded receipts.

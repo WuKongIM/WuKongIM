@@ -1,0 +1,32 @@
+{
+  "observed_at": "2026-10-21T07:15:25.875371+00:00",
+  "classification": "incomplete_named_check_timeout",
+  "command_receipt": "named-checks-remaining/scripts-integration.json",
+  "first_log_sha256": "76340af08f88256d96dab2d0ba643e77ac5e18bb9fb39b134e8881ff5f6e8906",
+  "timeout_seconds": 540,
+  "exit_code": 1,
+  "running_tests_at_timeout": [
+    {
+      "name": "TestChatLifecycleDiagnosisCollectorUsesCurrentWorkerPorts",
+      "running_seconds": 1
+    },
+    {
+      "name": "TestCloudSimulationAnalyzeRefusesLiveRunWithoutClientMaterialTools",
+      "running_seconds": 1
+    }
+  ],
+  "observed_waiting": "Many tests in t.Parallel queue, approximately four minutes; no assertion failure line before timeout. Cannot identify a single hung test from terminal stack.",
+  "existing_serial_stage": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go:397 puts real 90-second operator-stop test in serial phase; its context timeout is 8m.",
+  "process_cleanup": {
+    "at": "2026-10-21T07:13:37.884638+00:00",
+    "session_id": 40338,
+    "processes": []
+  },
+  "retried": false,
+  "threshold_or_timeout_changed": false,
+  "unproven": [
+    "Individual completion/skip status of buffered passing tests",
+    "Whether macOS scheduling, suite total duration, or another issue caused overall budget exhaustion",
+    "Any product capacity or correctness regression"
+  ]
+}

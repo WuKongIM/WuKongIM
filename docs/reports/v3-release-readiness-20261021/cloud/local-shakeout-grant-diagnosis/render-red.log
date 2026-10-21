@@ -1,0 +1,19 @@
+=== RUN   TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts
+=== RUN   TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_0
+=== RUN   TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_400
+    wukongim_three_node_chat_lifecycle_script_integration_test.go:320: rendered grant budget missing "workload: {send_rate_per_second: 400, max_global_burst: 800}": run_id: local-chat-lifecycle-shakeout
+        timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
+        workload: {send_rate_per_second: 500, max_global_burst: 1000}
+        thresholds:
+          latency:
+            hot_sendack: {p99: 1000ms, p999: 1s}
+        observation:
+          api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]
+          gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]
+          metrics_addrs: ["http://127.0.0.1:15101/metrics", "http://127.0.0.1:15102/metrics", "http://127.0.0.1:15103/metrics"]
+--- FAIL: TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts (3.35s)
+    --- PASS: TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_0 (1.83s)
+    --- FAIL: TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_400 (1.52s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	3.726s
+FAIL

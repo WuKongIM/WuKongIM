@@ -1,0 +1,80 @@
+{
+  "schema": "independent-implementation-evidence-references/v1",
+  "files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v3_test.go.txt",
+      "bytes": 6115,
+      "sha256": "59edc31c2657c9eded52707275fe24f4e0dea8ec028b5ae68f63b8b2607c4648"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v3-500.log",
+      "bytes": 7857,
+      "sha256": "db7cf5aa3d6a7bb9dd70c048b41ad0f84f88c0aaa03ddbda24f42e3d798e3583"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/probe-v3-500-receipt.json",
+      "bytes": 516,
+      "sha256": "c8317f0b789d9a5ed718f2615993e34917e1782dfd61d2c54d7909e49eb732ec"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/default-tests-first.patch",
+      "bytes": 4717,
+      "sha256": "e06368b0bb354596b15d20d95c0749a90f3ca8ab7593cfd94749740f27f55650"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/local-shakeout-budget-red_test.go.txt",
+      "bytes": 7167,
+      "sha256": "72761d8951bbaf3d7261701fd93f10ce2b080454224592bf1257e501e23318e0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/default-red.log",
+      "bytes": 12452,
+      "sha256": "ea9f8f8dc9310887bc4b17f408481444bf86b323e383997836149c1c19a49000"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/default-red-receipt.json",
+      "bytes": 496,
+      "sha256": "ec52a7047b8f1c6f1def2c9a5e7599b332c4480de862e78c4260d30a11461369"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/config-example-red.log",
+      "bytes": 4026,
+      "sha256": "e4e99cf3a0f222fb64401dc1643d9288caccaa3a4768254274a9040dd878de76"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/config-example-red-receipt.json",
+      "bytes": 347,
+      "sha256": "2e0bdc5fc87194f1a09a05e1afb860b56503735c9ca5276d1625417a46477700"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/render-red.log",
+      "bytes": 1369,
+      "sha256": "045d6eef8a2f158684085e211e8c8e33595b3458f5d655aea060baca0eceb96b"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/render-red-receipt.json",
+      "bytes": 439,
+      "sha256": "c70536db14eeb13a4bc6afd2209f943f519bf2efff16d8ce12e9860fc342fd5f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/focused-green.log",
+      "bytes": 12588,
+      "sha256": "166e0f4b60c9acdc1fad03a68ae6016c8e13ecc603eeb13e34e483bea27c83b3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/focused-green-receipt.json",
+      "bytes": 553,
+      "sha256": "f08ff94f601d16255a8f91a74ee29fda2b9566c4e0707dee3c3a6cbb54b53f53"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/render-green.log",
+      "bytes": 606,
+      "sha256": "63292bf6c589d9d5b53b07378ca9a0f5ad851a64db756a2e7cf862767e3a2e82"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/render-green-receipt.json",
+      "bytes": 439,
+      "sha256": "2a1f3fa6e1733acc0fc77858f23cd3bfb2d82ff95e41532d375dbc40c53bcbc4"
+    }
+  ]
+}

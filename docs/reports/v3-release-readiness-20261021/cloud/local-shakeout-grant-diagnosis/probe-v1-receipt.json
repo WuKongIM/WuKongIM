@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-10-21T06:42:38.502099+00:00",
+  "command": [
+    "go",
+    "test",
+    "-p=2",
+    "./internal/bench/chatlifecycle",
+    "-run",
+    "^TestShakeoutGrantDiagnosis$",
+    "-count=1",
+    "-timeout=2m",
+    "-v"
+  ],
+  "source_sha256": "a7afee6ed1049dd7a74dc474f5c58afcd4fd994c945d8fa7e16a03f085035259",
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "GOCACHE": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+  "GOWORK": "off",
+  "exit_code": 1,
+  "finished_at": "2026-10-21T06:43:07.877773+00:00",
+  "log_sha256": "859a9abedf38ab1faa74cfce046a4b2cb0bcb3b9953fcd094a69ed0c9aa9739d"
+}

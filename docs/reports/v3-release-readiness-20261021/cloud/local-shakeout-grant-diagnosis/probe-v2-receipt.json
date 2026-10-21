@@ -1,0 +1,18 @@
+{
+  "started_at": "2026-10-21T06:45:41.424601+00:00",
+  "command": [
+    "go",
+    "test",
+    "-p=2",
+    "./internal/bench/chatlifecycle",
+    "-run",
+    "^TestShakeoutGrantDiagnosis$",
+    "-count=1",
+    "-timeout=2m",
+    "-v"
+  ],
+  "source_sha256": "33192c95814cb5d7411ac5b9122bbbb2d23664b773333c327f56fed9bed63787",
+  "exit_code": 1,
+  "finished_at": "2026-10-21T06:45:48.034204+00:00",
+  "log_sha256": "c8afdf7b3732e9ac471ae99806b6f6f8c423e3aa69401735918ed676b5490077"
+}

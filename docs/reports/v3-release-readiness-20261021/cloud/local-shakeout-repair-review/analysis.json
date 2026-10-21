@@ -1,0 +1,27 @@
+{
+  "schema": "independent-shakeout-analysis/v1",
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "classification": "harness_invalid_scenario_budget",
+  "exact_original_error_branch_proven": false,
+  "diagnostic_mechanism": "mandatory_initial_activity_expiry_during_nonfirst_grant_admission",
+  "original_source_unchanged_by_reviewer": true,
+  "tests_run_by_reviewer": [],
+  "reviewed_probe_owner": "rc_cloud_plan",
+  "probe_repeat_failed_arms": 6,
+  "probe_repeat_virtual_failure_seconds": [
+    317,
+    318
+  ],
+  "bootstrap_worker2_activities": 16746,
+  "post_barrier_max_deadline_seconds": 341.850406029,
+  "worker_person_rate_approx": 30,
+  "minimum_drain_seconds_at_person_rate": 558.2,
+  "generous_all_grants_budget": {
+    "grant_buckets": 343,
+    "max_grants_per_bucket": 34,
+    "max_total": 11662
+  },
+  "selected_repair_scope": "fixed local YAML and helper defaults 500, burst1000; docs and regression; runtime and generic Validate unchanged",
+  "general_static_guard": "not included; upper-demand vs lower-service test is sufficient support condition, not necessary feasibility condition",
+  "implementation_review_status": "pending"
+}

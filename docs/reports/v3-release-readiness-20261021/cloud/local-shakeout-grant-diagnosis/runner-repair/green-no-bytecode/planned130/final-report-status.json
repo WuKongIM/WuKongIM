@@ -1,0 +1,9 @@
+{
+  "present": true,
+  "readable": true,
+  "sha256": "cc672a3e52b0cb2c05257e6b296a1f1a14d875306497fe737ae52ac5b204e9fa",
+  "final": true,
+  "verdict": {
+    "outcome": "operator_stop"
+  }
+}

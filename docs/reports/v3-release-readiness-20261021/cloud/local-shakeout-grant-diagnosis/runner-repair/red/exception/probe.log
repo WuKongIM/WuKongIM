@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/probe.py", line 118, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/probe.py", line 75, in main
+    worker(*sys.argv[2:]);return
+    ~~~~~~^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/probe.py", line 71, in worker
+    exec(compile(tail,str(runner),'exec'),ns)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/run-shakeout-once.before.py", line 147, in <module>
+    receipt['helper_pid']=child.pid;write('command.json',receipt)
+                                    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/probe.py", line 69, in write
+    raise RuntimeError('injected post-spawn receipt failure')
+RuntimeError: injected post-spawn receipt failure

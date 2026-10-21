@@ -1,6 +1,6 @@
 # v3 正式版发布复核（2026-10-21）
 
-结论：**产品修复、包来源预检和离线发布计划器已验收并合入 main；当前仍不能发布正式 v3。** 原迁移修复候选已通过迁移重启读取和完整 Linux 性能验收；本轮完整默认测试又发现 MQTT 取消边界与复制测试夹具问题，已修复并冻结更新候选。更新候选 `7e9da7df1` 的七项 Linux CI 均首次通过，包含默认测试、迁移/消息 E2E、完整性能、SDK、Manager 和四发行版原生包。用户批准后，产品 #1016 合入 `ed705c0fb`、packages #67 合入 `782c14602`、#68 合入 `45619df14`，源码树分别与已验收 head 相同。随后 ed705 本地 30 分钟预检在约第六分钟因生成器 `offered_load_under_delivery` 提前退出，尚未完成，正在诊断。剩余条件是该预检与既定 RC 长稳验收、stable 签名原生包渠道，以及最终版本的发布交付。没有创建版本 tag、采购云资源或启动正式发布。
+结论：**产品修复、包来源预检和离线发布计划器已验收并合入 main；当前仍不能发布正式 v3。** 原迁移修复候选已通过迁移重启读取和完整 Linux 性能验收；本轮完整默认测试又发现 MQTT 取消边界与复制测试夹具问题，已修复并冻结更新候选。更新候选 `7e9da7df1` 的七项 Linux CI 均首次通过，包含默认测试、迁移/消息 E2E、完整性能、SDK、Manager 和四发行版原生包。用户批准后，产品 #1016 合入 `ed705c0fb`、packages #67 合入 `782c14602`、#68 合入 `45619df14`，源码树分别与已验收 head 相同。随后 ed705 本地 30 分钟预检在约第六分钟因生成器 `offered_load_under_delivery` 提前退出，已定位为本地负载配置的启动义务供给不足；默认修复及回归已完成，新一轮实机验收待执行。剩余条件是该预检与既定 RC 长稳验收、stable 签名原生包渠道，以及最终版本的发布交付。没有创建版本 tag、采购云资源或启动正式发布。
 
 ## 固定身份和已关闭事项
 
@@ -27,7 +27,7 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 本地预检在 ed705 上提前失败，生成器 grant 返回 under-delivery，诊断中；云阶段尚未执行，采购前需明确累计预算授权及精确候选。不能将其描述成 RELEASING 对所有发行的通用机械门禁 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 本地预检在 ed705 上提前失败；已定位默认 grant 预算不足并完成修复与聚焦回归，Linux scripts 门禁及新一轮 30m 实测待执行；云阶段尚未执行，采购前需明确累计预算授权及精确候选。不能将其描述成 RELEASING 对所有发行的通用机械门禁 |
 | stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产 stable 仍 disabled/object_storage_required；只读正式版来源/provenance/native metadata 的 [PR #67](https://github.com/WuKongIM/packages/pull/67) 已合并为 `782c14602`，52 项相关测试、独立审查及新版两项 CI 首次通过；快照检查342项测试、真实native元数据7场景和既有TEST ONLY签名仓库演练通过。合并后 main 的342项测试再次通过，部署跳过；公网生产链路仍未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
@@ -76,6 +76,10 @@ packages PR #67 按线性历史要求正常 rebase 合并为 `782c14602a6b243d89
 
 最后完整 cut 的 sent=31,005、ACK=31,000，其差包含在途请求；当时各消息失败、重试、丢失、重复、损坏和序号回退计数均为零。不能将最后一次快照扩大成全程正确性通过。现有资源证据没有 pprof 或失败时连续 CPU/IO 采样，不能归因共享主机竞争。12 个所属进程均已退出，64 个预留端口无 TCP listener，源树保持干净。[原失败、缺失终态和清理收据](v3-release-readiness-20261021/cloud/local-shakeout-ed705/README.md)与后续诊断分别保留。
 
+后续[固定时钟诊断](v3-release-readiness-20261021/cloud/local-shakeout-grant-diagnosis/findings.md)使用真实 worker factory 和 coordinator grant allocator、即时 ACK，复现了相同 under-delivery 类型：原 100 SEND/s 对 2,500 在线用户生成的启动活动供给不足，worker 2 的 16,746 项初始义务无法在既有资格窗口内完成。延长会话 TTL 仍失败，提高供给可消除该机制；不需要假设产品背压或宿主延迟。修复将本地默认调整到 500 SEND/s、burst 1,000，保留用户数、全部启动义务、五分钟资格窗口及 400ms 阈值；三 worker 的固定时钟回归覆盖至 360 秒。此机制证据不替代真实收发或持续负载验收。
+
+该修复的默认 Go 测试、vet、format、tidy 和 FLOW 检查通过；[独立复核](v3-release-readiness-20261021/cloud/local-shakeout-repair-review/implementation-review.md)未发现阻塞。完整 scripts integration 在 Mac 上首次及唯一一次隔离复验均触及原九分钟总时限，第二次结束于不同用例，不能标记通过或归因单个测试卡死；两次失败和所属 session 清理记录均保留。现转由候选 CI 的独立 Linux job 执行同一 frozen-policy 门禁，不放宽超时、过滤用例或第三次原样本机重跑。新的完整 30 分钟本地验收尚待冻结提交后执行。
+
 凭证无关的[离线部署包准备](v3-release-readiness-20261021/cloud/bundle-ed705/README.md)已首次通过 [39555917411](https://github.com/WuKongIM/WuKongIM/actions/runs/39555917411)，source/control 均为 ed705。完整 ZIP/tar、110 个文件、manifest、9 个 ELF 与完整 DefaultIntent 已核验；bundle digest 为 `sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a`。此项仅完成离线 payload 准备，不替代本地/云验收；artifact 有限期保留，未宣称人工构建可直接接入顶层付费编排。
 
 ## stable 公网复核和外部边界
@@ -86,9 +90,9 @@ preview 的 beta.21–24 四个 active 版本已达数量上限 4；若先发 RC
 
 用户已明确使用阿里云账号，Chrome 只读核对确认现有文档 CDN 正常运行；未见包域名的 CDN 配置，四个 OSS Bucket 均为备份测试/验收用途，没有已指定的包源站。服务商已落实，生产资源、权限、签名协议与安装入口仍待实施。
 
-签名状态经用户最新澄清已更新：**目前只有 preview 备份，没有独立 stable 密钥。** 仓库两份公开证书与 preview manifest 相符，文档命名 preview 保管人为 `tangtaoit`；用户后来指定的本地目录 README 六个公开指纹也全部匹配这套 preview。早先“另有 stable 密钥”的陈述已被最新信息取代。私钥和吊销文件未读取，任何备份内容均未归档。见[公开证书核对](v3-release-readiness-20261021/packages/public-signing-observation.json)、[本地备份分类](v3-release-readiness-20261021/packages/local-backup-classification.json)及[stable 密钥准备单](2026-10-21-v3-stable-key-preparation.md)。正式签名需要在合同要求的离线/硬件环境新建独立身份，不能改名或复用 preview 证书。
+签名状态经用户最新澄清已更新：**目前只有 preview 备份，没有独立 stable 密钥。** 仓库两份公开证书与 preview manifest 相符，文档命名 preview 保管人为 `tangtaoit`；用户后来指定的本地目录 README 六个公开指纹也全部匹配这套 preview。早先“另有 stable 密钥”的陈述已被最新信息取代。私钥和吊销文件未读取，任何备份内容均未归档。见[公开证书核对](v3-release-readiness-20261021/packages/public-signing-observation.json)、[本地备份分类](v3-release-readiness-20261021/packages/local-backup-classification.json)及[stable 密钥准备单](2026-10-21-v3-stable-key-preparation.md)。正式签名需要新建独立身份，不能改名或复用 preview 证书；原离线/硬件保管约定按下述用户最新选择调整。
 
-用户随后提供极空间 NAS 作为可用存储位置，并进一步确认只有当前联网电脑与极空间。已将 NAS 记录为**加密备份候选位置**；离线或硬件签名仪式尚未落实，实际保管负责人仍待明确。重新核对合同后明确：**没有第二台或专用电脑硬要求**，现有 Mac 的独立外置系统是候选路径，仍需选定介质并验证离线操作及恢复联网时的密钥隔离。见[环境方案核对](v3-release-readiness-20261021/packages/stable-environment-options/report.md)。没有访问 NAS、写入备份或生成生产密钥；这项信息不解除 stable 签名阻塞，也不再按“已有 stable 公钥待提供”等待。
+用户随后确认只有当前 Mac 与极空间、没有外置介质，并明确要求“不需要考虑那么安全，就放 Mac 或极空间里”。据此**采用 Mac 本地保管与本地签名，NAS 可作备份；不再将离线设备或离线仪式作为阻塞**。现有包仓库的 offline/hardware 约定及相应工具须透明地同步修改，不能将在线模型标为离线完成。独立 stable 身份、APT/RPM 验签和私钥不进入 GitHub CI 的边界保留。见[最新直接用户决定](v3-release-readiness-20261021/packages/stable-local-custody-decision.json)；[早期环境核对](v3-release-readiness-20261021/packages/stable-environment-options/report.md)作为历史材料保留。没有访问 NAS、写入备份或生成生产密钥，stable 工具与渠道仍待实施。
 
 [渠道实施计划](2026-10-20-v3-stable-channel-plan.md)保留 preview 兼容及独立签名边界；PR #67（head `0ce7184bbf69472f607159f74a096e9160852843`）的两个新版 PR CI 均首次通过，且现已合并，见[证据](v3-release-readiness-20261021/packages/preflight-ci/README.md)；Pages配置、上传和部署均skipped。七个真实原生元数据场景及既有完整TEST ONLY演练不代表stable生产签名或公网发布。
 

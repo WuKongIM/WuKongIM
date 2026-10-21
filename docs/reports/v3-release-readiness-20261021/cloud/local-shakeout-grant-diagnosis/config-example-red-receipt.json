@@ -1,0 +1,15 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-p=2",
+    "./internal/bench/chatlifecycle",
+    "-run",
+    "^TestConfigExamplesLoadThroughStrictProductionParser$",
+    "-count=1",
+    "-v"
+  ],
+  "started_at": "2026-10-21T06:52:01.170681+00:00",
+  "exit_code": 1,
+  "log_sha256": "e4e99cf3a0f222fb64401dc1643d9288caccaa3a4768254274a9040dd878de76"
+}

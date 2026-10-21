@@ -1,0 +1,176 @@
+package chatlifecycle
+
+import (
+	"context"
+	"math"
+	"testing"
+	"time"
+)
+
+// Failure cases: a supported default cannot admit its mandatory bootstrap
+// activity before the unchanged eligibility deadline; only one worker is
+// covered; a fixed-clock test skips SEND deadlines; or the historical low-rate
+// failure is hidden by a changed runtime guard. This exercises the actual worker
+// factory and grant allocator with immediate fake ACKs, not product RECV or
+// latency correctness. Clock advancement and I/O are deterministic test seams.
+func TestLocalShakeoutBootstrapGrantBudget(t *testing.T) {
+	for _, probe := range []struct {
+		name           string
+		workerID       uint64
+		historicalRate bool
+	}{
+		{"default_worker_0", 0, false}, {"default_worker_1", 1, false},
+		{"default_worker_2", 2, false}, {"historical_100_underbudget", 2, true},
+	} {
+		t.Run(probe.name, func(t *testing.T) {
+			cfg, err := LoadConfig("../../../configs/wkbench/chat-lifecycle/local-shakeout.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if probe.historicalRate {
+				cfg.Workload.SendRatePerSecond = 100
+				cfg.Workload.MaxGlobalBurst = 200
+			}
+			clock := &sessionFakeClock{now: time.Unix(1700000000, 0)}
+			sessions := &engineFakeFactory{autoAck: true}
+			factory := engineWorkerGenerationFactory{clock: clock,
+				newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) { return sessions, nil },
+				newSyncer:         func(WorkerAssignment) (ConversationSyncer, error) { return engineSyncer{}, nil },
+			}
+			assignments := make([]CoordinatorAssignment, 3)
+			for i := range assignments {
+				assignments[i] = CoordinatorAssignment{WorkerAssignment: WorkerAssignment{
+					WorkerFence: WorkerFence{RunID: cfg.RunID, AssignmentID: "bootstrap-budget-regression", Generation: 1},
+					WorkerID:    uint64(i), WorkerCount: 3, CoordinatorGrants: true, Config: cfg,
+				}, Partition: CoordinatorPartition{RateWeight: 1}}
+			}
+			worker, err := factory.New(assignments[probe.workerID].WorkerAssignment)
+			if err != nil {
+				t.Fatal(err)
+			}
+			g := worker.(*engineWorkerGeneration)
+			if err := g.engine.StartGeneration(context.Background(), 1); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { g.Stop() })
+			for second := 0; second < 60 && !g.TrafficReady(); second++ {
+				clock.Set(clock.Now().Add(time.Second))
+				if err := g.step(context.Background(), clock.Now()); err != nil {
+					t.Fatalf("bootstrap step: %v", err)
+				}
+				g.engine.loginOps.Wait()
+				if err := g.step(context.Background(), clock.Now()); err != nil {
+					t.Fatalf("bootstrap settle: %v", err)
+				}
+			}
+			if !g.TrafficReady() {
+				t.Fatal("bootstrap did not complete")
+			}
+			plan, err := NewCoordinatorGrantPlan(assignments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			origin := clock.Now()
+			for second := 0; second <= 360; second++ {
+				now := origin.Add(time.Duration(second) * time.Second)
+				clock.Set(now)
+				if second > 0 {
+					if err := g.step(context.Background(), now); err != nil {
+						t.Fatalf("second=%d tick: %v", second, err)
+					}
+					g.engine.loginOps.Wait()
+					if err := g.step(context.Background(), now); err != nil {
+						t.Fatalf("second=%d settle: %v", second, err)
+					}
+				}
+				before := localBootstrapGrantState(t, g, now)
+				grant, err := plan.Tick([3]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := g.ApplyGrant(context.Background(), grant.Released[probe.workerID])
+				if err != nil {
+					after, snapshotErr := g.engine.Snapshot()
+					if snapshotErr != nil {
+						t.Fatal(snapshotErr)
+					}
+					if probe.historicalRate && result.Admitted && workerRuntimeFailureCode(err) == RuntimeFailureUnderDelivery && after.ActivityUnderDelivered > 0 && before.HeadSenderEligible && before.HeadSenderGenerationEligible && before.EarliestDeadline <= 0 && before.CanaryUnavailableAge == 0 {
+						t.Logf("historical budget rejected at virtual_second=%d sequence=%d remaining_activity=%d", second, grant.Sequence, after.ActivityCurrent)
+						return
+					}
+					t.Fatalf("second=%d sequence=%d released=%d admitted=%v runtime=%s err=%v before=%+v after_activity=%d after_under=%d harness=%d", second, grant.Sequence, grant.Released[probe.workerID], result.Admitted, workerRuntimeFailureCode(err), err, before, after.ActivityCurrent, after.ActivityUnderDelivered, after.HarnessInvalid)
+				}
+				if !probe.historicalRate && second == 240 && before.Activity != 0 {
+					t.Fatalf("default has not drained bootstrap activity before its eligibility deadlines: %+v", before)
+				}
+				if second == 0 {
+					t.Logf("after_first_grant=%+v", localBootstrapGrantState(t, g, now))
+				}
+				if second%60 == 0 {
+					t.Logf("second=%d before=%+v", second, before)
+				}
+				waitForEngineCompletions(t, g.engine, "grant")
+				for tick := 1; tick <= 100; tick++ {
+					clock.Set(now.Add(time.Duration(tick) * workerTrafficAdvanceCadence))
+					if _, err := g.engine.AdvanceContext(context.Background(), clock.Now()); err != nil {
+						t.Fatalf("second=%d subtick=%d advance: %v", second, tick, err)
+					}
+					waitForEngineCompletions(t, g.engine, "subtick")
+				}
+			}
+			if probe.historicalRate {
+				t.Fatal("historical underbudget profile no longer exposes its expired mandatory activity")
+			}
+		})
+	}
+}
+
+type localBootstrapGrantStateState struct {
+	Activity, Active, Online, Expired, EligibleActivity, DueActivity                              int
+	EarliestDue, EarliestDeadline, MinDue, MaxDue, MinDeadline, MaxDeadline, CanaryUnavailableAge time.Duration
+	HeadSenderEligible, HeadSenderGenerationEligible                                              bool
+}
+
+func localBootstrapGrantState(t *testing.T, g *engineWorkerGeneration, now time.Time) localBootstrapGrantStateState {
+	t.Helper()
+	result := make(chan localBootstrapGrantStateState, 1)
+	if err := g.engine.enqueueBlocking(engineCommand{run: func() {
+		e := g.engine
+		s := localBootstrapGrantStateState{Activity: len(e.activity), Active: len(e.activeChannels), Online: e.sessions.Counts().Online, Expired: int(e.schedulerMetrics.expired.Load())}
+		if !e.canaryUnavailableSince.IsZero() {
+			s.CanaryUnavailableAge = now.Sub(e.canaryUnavailableSince)
+		}
+		for i, a := range e.activity {
+			due, deadline := a.due.Sub(now), a.eligibilityDeadline.Sub(now)
+			if i == 0 || due < s.MinDue {
+				s.MinDue = due
+			}
+			if i == 0 || due > s.MaxDue {
+				s.MaxDue = due
+			}
+			if i == 0 || deadline < s.MinDeadline {
+				s.MinDeadline = deadline
+			}
+			if i == 0 || deadline > s.MaxDeadline {
+				s.MaxDeadline = deadline
+			}
+			if !a.due.After(now) {
+				s.DueActivity++
+			}
+			if e.sessions.sendEligibleAt(a.intent.Logical.Sender, now) {
+				s.EligibleActivity++
+			}
+		}
+		if len(e.activity) > 0 {
+			a := e.activity[0]
+			s.EarliestDue = a.due.Sub(now)
+			s.EarliestDeadline = a.eligibilityDeadline.Sub(now)
+			s.HeadSenderEligible = e.sessions.sendEligibleAt(a.intent.Logical.Sender, now)
+			s.HeadSenderGenerationEligible = !a.senderLoginBound || e.sessions.sendEligibleLoginAt(a.intent.Logical.Sender, a.senderLoginOrdinal, now)
+		}
+		result <- s
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	return <-result
+}

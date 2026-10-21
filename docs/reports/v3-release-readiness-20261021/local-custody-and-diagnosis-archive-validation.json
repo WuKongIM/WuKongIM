@@ -1,0 +1,13 @@
+{
+  "validation": "Whitespace checking applies to repository documentation and executable additions; archived .patch evidence retains exact original diff bytes, including context-line prefixes. The first all-file diff check flagged these prefixes; no source evidence was altered.",
+  "command": [
+    "git",
+    "diff",
+    "--cached",
+    "--check",
+    "--",
+    ".",
+    ":(exclude)**/*.patch"
+  ],
+  "files": 1350
+}

@@ -1,0 +1,18 @@
+{
+  "started_at": "2026-10-21T06:51:24.205208+00:00",
+  "command": [
+    "go",
+    "test",
+    "-p=2",
+    "./internal/bench/chatlifecycle",
+    "./scripts",
+    "-run",
+    "^(TestLocalShakeoutBootstrapGrantBudget|TestRepositoryConfigExamples|TestChatLifecycleShakeoutDefaultSendBudget)$",
+    "-count=1",
+    "-timeout=2m",
+    "-v"
+  ],
+  "exit_code": 1,
+  "finished_at": "2026-10-21T06:51:47.267179+00:00",
+  "log_sha256": "ea9f8f8dc9310887bc4b17f408481444bf86b323e383997836149c1c19a49000"
+}

@@ -1,0 +1,34 @@
+{
+  "name": "go-unit",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_arguments": [
+    "go",
+    "test",
+    "./cmd/...",
+    "./internal/...",
+    "./pkg/...",
+    "./scripts/...",
+    "./docker/...",
+    "-count=1"
+  ],
+  "executed_command": [
+    "go",
+    "test",
+    "./cmd/...",
+    "./internal/...",
+    "./pkg/...",
+    "./scripts/...",
+    "./docker/...",
+    "-count=1"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "environment_overrides": {
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2"
+  },
+  "started_at": "2026-10-21T06:54:53.071850+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T07:02:44.707592+00:00",
+  "log_sha256": "cb35a20c998f963c603946d96c6f5c012bb18145c3cb286f210354ee8d842b39"
+}

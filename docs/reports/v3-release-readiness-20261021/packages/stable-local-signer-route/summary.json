@@ -1,0 +1,18 @@
+{
+  "status": "scope_narrowed_to_existing_local_signer",
+  "baseline": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request",
+  "changed_files": [
+    "README.md",
+    "docs/release-contract.md",
+    "keys/README.md"
+  ],
+  "implementation_created": false,
+  "tests_executed": false,
+  "owned_processes_running": false,
+  "quiet": true,
+  "private_material_accessed": false,
+  "docker_executed": false,
+  "custody": "user-authorized ordinary local Mac; encrypted backups on Mac or NAS; stable private keys never in CI",
+  "next": "reuse existing signer with minimal local file input adapter and real TEST ONLY native drill"
+}

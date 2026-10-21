@@ -1,0 +1,10 @@
+proposal.md
+local-custody-reuse.md
+summary.json
+official-sources.json
+source-freeze.json
+superseded-offline-proposal/proposal.md
+superseded-offline-proposal/summary.json
+superseded-offline-proposal/SHA256SUMS
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

@@ -1,0 +1,42 @@
+{
+  "schema": "independent-implementation-review/v1",
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "reviewed_files": 10,
+  "remaining_findings": [],
+  "resolved_findings": [
+    "Avoid binding historical failure to pre-grant heap-head deadline",
+    "Preserve send-rate overrides when YAML default sed anchors change"
+  ],
+  "approved_scope": "fixed local500/burst1000 profile/helper, tests and docs; no runtime/validator changes",
+  "reviewer_ran_go_tests": false,
+  "evidence_producer": "rc_cloud_plan",
+  "default_workers_covered": [
+    0,
+    1,
+    2
+  ],
+  "virtual_duration_seconds": 360,
+  "bootstrap_empty_checkpoint_seconds": 240,
+  "default_activity_under_delivered": 0,
+  "default_harness_invalid": 0,
+  "historical_100_negative": {
+    "virtual_failure_second": 315,
+    "sequence": 316,
+    "admitted": true,
+    "runtime_code": "offered_load_under_delivery"
+  },
+  "render_cases": [
+    {
+      "rate": 500,
+      "burst": 1000
+    },
+    {
+      "rate": 400,
+      "burst": 800
+    }
+  ],
+  "independent_static_checks_pass": true,
+  "named_checks_status": "running_by_implementer_not_attested_complete",
+  "real_host_shakeout": "pending_new_run",
+  "product_correctness_qualification": false
+}

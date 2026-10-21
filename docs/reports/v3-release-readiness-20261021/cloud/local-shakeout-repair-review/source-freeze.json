@@ -1,0 +1,102 @@
+{
+  "schema": "independent-readonly-source-freeze/v1",
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "docs/adr/0024-protect-results-from-load-generator-saturation.md",
+      "bytes": 1019,
+      "sha256": "b4c7472900dc44e27f219386043073ea1867ff495bf18c8cd84a71c93ccf9792"
+    },
+    {
+      "path": "docs/adr/0046-report-resource-saturation-as-a-capacity-warning.md",
+      "bytes": 654,
+      "sha256": "9c9752d1bded2e6f63161494d169051d292b9b21dea295e1995970dc89d2f036"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "bytes": 158802,
+      "sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/worker_server.go",
+      "bytes": 60318,
+      "sha256": "456cc0b9f15653ca31d041d26f54bb5964f7cd2dc3a1f6715d341dd309b4b538"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine_test.go",
+      "bytes": 283525,
+      "sha256": "966503e781904dfd365ffd4e1bed3a7600cedd17e62ec8b52607e76041070b5f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/validation_workload.go",
+      "bytes": 12553,
+      "sha256": "2f00dbc46081f052791076d28f40a135f9d10a746419f4ad5d05323151636aab"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/config.go",
+      "bytes": 2153,
+      "sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/defaults.go",
+      "bytes": 10194,
+      "sha256": "2ee3e9b49ba0921ae02daa01ceef22a1c5b1091217afb007d9df96af8ffa6843"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "bytes": 21490,
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/relationship.go",
+      "bytes": 16056,
+      "sha256": "30af27240d41b21840ac516298ea9815ff00ddb09444b68f8b3b681fc0bdef27"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+      "bytes": 4339,
+      "sha256": "234db9313fb0d1bddb2bfc6a4cce4ed1d6396b0d065781aac2d4cfd24fad31ac"
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "bytes": 79739,
+      "sha256": "efc49bb068de1b5dd714ebd12dc077b4c34a27fede0d995bdf59b37caf3386af"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-04-chat-lifecycle-soak-design.md",
+      "bytes": 25515,
+      "sha256": "9de60e6f8701bb63370dd820703dec826c155b2ceef0c48d7982c03a08576dc3"
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "bytes": 13491,
+      "sha256": "7d971edd64be172ff8e36a170e2defdeec42b0617ec245da17d4f9372f6339a4"
+    }
+  ]
+}

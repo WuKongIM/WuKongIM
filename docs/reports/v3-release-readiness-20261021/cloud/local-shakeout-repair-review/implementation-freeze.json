@@ -1,0 +1,59 @@
+{
+  "schema": "independent-implementation-review-freeze/v1",
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "captured_at_utc": "2026-10-21T06:56:03.822459+00:00",
+  "scope_files": 10,
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 187962,
+      "sha256": "1740408f941d2496796c70fb7fb0810dee479e17bf20fba7ed17d3a904272b2c"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/README.md",
+      "bytes": 4559,
+      "sha256": "3a167780fb4f9897bd353d7555af688f6b2927b9d2c237c150e6aec3e02edc39"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+      "bytes": 4340,
+      "sha256": "1a9e81e18c8afaaa62fa2b1edad6dc03ea34eda7163e501c26b341cd2dc7a2a2"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 140938,
+      "sha256": "69f64bc7ae7a6128dffaafc96e8676b32d5025562486db03d79e4e2879493856"
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "bytes": 14038,
+      "sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/config_examples_test.go",
+      "bytes": 3389,
+      "sha256": "fc628a454b724aca86d13a9020ace81ba19ca6863978db367b65cf6802c2adff"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+      "bytes": 7555,
+      "sha256": "e89a98aa7412d2a17de36ede1301f9e1db7c4dae776436103ac7b834c37c09d1"
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "bytes": 79740,
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4"
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "bytes": 41273,
+      "sha256": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82"
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_test.go",
+      "bytes": 23762,
+      "sha256": "2589f7247b3fac027146b4261a721ddda552eca20893c630ebf8ec462c780e55"
+    }
+  ],
+  "uncommitted": true
+}

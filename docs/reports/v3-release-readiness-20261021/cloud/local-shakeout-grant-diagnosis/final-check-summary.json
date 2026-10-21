@@ -1,0 +1,107 @@
+{
+  "at": "2026-10-21T07:31:01.972286+00:00",
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "branch": "codex/v3-shakeout-grant-repair",
+  "source_patch_sha256": "518fb88d2d78944b25fbb132739ec3cb28e82220e83ce0649c4be621af57fde0",
+  "changed_files": [
+    "CHANGELOG.md",
+    "configs/wkbench/chat-lifecycle/README.md",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+    "internal/bench/chatlifecycle/config_examples_test.go",
+    "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+    "pkg/transport/internal/buffer/retained_test.go",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+    "scripts/wukongim_three_node_chat_lifecycle_script_test.go"
+  ],
+  "file_sha256": {
+    "CHANGELOG.md": "1740408f941d2496796c70fb7fb0810dee479e17bf20fba7ed17d3a904272b2c",
+    "configs/wkbench/chat-lifecycle/README.md": "3a167780fb4f9897bd353d7555af688f6b2927b9d2c237c150e6aec3e02edc39",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "1a9e81e18c8afaaa62fa2b1edad6dc03ea34eda7163e501c26b341cd2dc7a2a2",
+    "docs/development/PROJECT_KNOWLEDGE.md": "69f64bc7ae7a6128dffaafc96e8676b32d5025562486db03d79e4e2879493856",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf",
+    "internal/bench/chatlifecycle/config_examples_test.go": "fc628a454b724aca86d13a9020ace81ba19ca6863978db367b65cf6802c2adff",
+    "internal/bench/chatlifecycle/local_shakeout_budget_test.go": "e89a98aa7412d2a17de36ede1301f9e1db7c4dae776436103ac7b834c37c09d1",
+    "pkg/transport/internal/buffer/retained_test.go": "732390cf710b7199b0917aef02866de87e7d940687f259c587f84b84f00b0d16",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82",
+    "scripts/wukongim_three_node_chat_lifecycle_script_test.go": "2589f7247b3fac027146b4261a721ddda552eca20893c630ebf8ec462c780e55"
+  },
+  "selected_checks": [
+    "flow-doc-contracts",
+    "go-format",
+    "go-mod-tidy",
+    "go-unit",
+    "go-vet",
+    "scripts-integration"
+  ],
+  "checks": {
+    "go-unit": {
+      "receipt": "named-checks/go-unit.json",
+      "exit_code": 0,
+      "started_at": "2026-10-21T06:54:53.071850+00:00",
+      "finished_at": "2026-10-21T07:02:44.707592+00:00",
+      "log_sha256": "cb35a20c998f963c603946d96c6f5c012bb18145c3cb286f210354ee8d842b39"
+    },
+    "go-vet": {
+      "receipt": "named-checks-vet-repair/go-vet.json",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:08:54.170030+00:00",
+      "finished_at": "2026-10-21T07:09:00.525193+00:00",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "go-format": {
+      "receipt": "named-checks-vet-repair/go-format.json",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:09:00.525665+00:00",
+      "finished_at": "2026-10-21T07:09:01.125131+00:00",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "go-mod-tidy": {
+      "receipt": "named-checks-remaining/go-mod-tidy.json",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:03:38.531954+00:00",
+      "finished_at": "2026-10-21T07:03:41.059630+00:00",
+      "log_sha256": "3dbbc8d708238d0826ef6dc66adb8ec3756627767f21cbaf3cddb62f957cc19c"
+    },
+    "flow-doc-contracts": {
+      "receipt": "named-checks-flow/flow-doc-contracts.json",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:14:30.281193+00:00",
+      "finished_at": "2026-10-21T07:14:31.059588+00:00",
+      "log_sha256": "d0519f92429ba5615c10ecf1cde85010b84d1bd0ea1ec980dd6295910b7eae80"
+    },
+    "scripts-integration": {
+      "receipt": "named-checks-scripts-isolated/scripts-integration.json",
+      "exit_code": 1,
+      "started_at": "2026-10-21T07:20:33.077465+00:00",
+      "finished_at": "2026-10-21T07:29:35.463373+00:00",
+      "log_sha256": "80b7e45ded11814eac8c9aa26c3848073b290244997aa07afd4e2af0917120bc"
+    }
+  },
+  "coverage_note": "go-unit passed 219 packages before the later pre-existing buffer test pointer iteration fix; focused buffer-test and buffer-vet passed after that two-line test-only fix. All substantive local-shakeout code/tests were unchanged.",
+  "first_failures_retained": [
+    "named-checks/go-vet.json",
+    "named-checks-remaining/scripts-integration.json"
+  ],
+  "local_scripts_repeat": "Exactly one isolated repetition with same policy command, final source, 9m/parallel2 and p2/cache path; still timed out. No third run.",
+  "remaining_blocker": "scripts-integration incomplete on macOS within mandatory 9m package limit; no timeout/threshold/skip changes made.",
+  "commit_created": false,
+  "fresh_30m_run_started": false,
+  "ownership_cleanup": {
+    "at": "2026-10-21T07:30:14.876305+00:00",
+    "reason": "Go package timeout left two observed processes in exact owned test SID 23681; cleanup only this session.",
+    "cleanup": {
+      "session_id": 23681,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        91051,
+        92325
+      ],
+      "remaining_processes": []
+    }
+  }
+}

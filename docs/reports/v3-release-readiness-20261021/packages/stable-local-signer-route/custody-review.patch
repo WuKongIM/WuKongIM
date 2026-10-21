@@ -1,0 +1,65 @@
+diff --git a/README.md b/README.md
+index 2f63697..663411f 100644
+--- a/README.md
++++ b/README.md
+@@ -70,7 +70,10 @@ never committed to Git.
+ - Preview primary and next private keys currently use an explicitly accepted
+   single-operator online-workstation custody model. CI still receives only the
+   encrypted current sign-only subkey for the applicable package family.
+-- Stable signing keys remain outside GitHub-hosted CI.
++- Stable signing uses operator-managed local Mac keys, with encrypted backups
++  on the Mac or NAS. This accepted online-workstation custody model keeps
++  stable private keys outside GitHub-hosted CI; stable publication remains
++  disabled. This custody choice does not claim an offline ceremony.
+ - GitHub Pages will receive only complete, verified preview snapshots. Stable
+   publication requires migration to object storage and a CDN.
+ - `manifests/channels.json`, `manifests/preview-signing.json`, and
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index e663406..b640d58 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -359,10 +359,16 @@ multi-custodian trust model requires generating new primary certificates under
+ that model and distributing their public certificates; an online-generated
+ primary cannot become retroactively offline.
+ 
+-Stable private keys never enter GitHub-hosted CI. Stable publication uses an
+-offline or hardware-backed signing ceremony. Promoting an RPM preserves the
+-same unsigned payload, NEVRA, and provenance, but its bytes change when it is
+-signed with the independent stable key.
++Stable private keys never enter GitHub-hosted CI. Stable signing uses an
++operator-managed local Mac under the explicitly accepted online-workstation
++custody model. Operator-retained encrypted backups may be stored on the Mac or
++NAS. This reuses the encrypted-backup, local permissions, distinct passphrase,
++operating-system credential-store, and restore-check practices described above;
++it does not require or claim an offline or hardware-backed ceremony. Stable
++certificates remain independent of preview and of the other package family.
++Promoting an RPM preserves the same unsigned payload, NEVRA, and provenance,
++but its bytes change when it is signed with the independent stable key. This
++custody choice does not enable the stable channel or authorize publication.
+ 
+ ## Atomic publication and recovery
+ 
+diff --git a/keys/README.md b/keys/README.md
+index 87777be..2caecd2 100644
+--- a/keys/README.md
++++ b/keys/README.md
+@@ -38,10 +38,15 @@ production certificate must already include its next subkey. Private primary
+ keys, private subkeys, passphrases, revocation certificates, and test keys
+ remain forbidden here.
+ 
+-Production APT and RPM secret subkeys and passphrases may exist only as the
+-fixed secrets in their corresponding protected signing Environment. They must
+-not be copied to repository-level or organization-level secrets, or into the
+-other package-family Environment.
++Preview CI current signing-subkey exports and their passphrases may exist only
++as the fixed secrets in their corresponding protected signing Environment.
++They must not be copied to repository-level or organization-level secrets, or
++into the other package-family Environment. This restriction on CI exports does
++not move operator-retained primary/next keys or backups into GitHub. Stable
++private keys use the accepted local Mac custody model, with encrypted backups
++on the Mac or NAS, and never enter GitHub-hosted CI; see the
++[release contract](../docs/release-contract.md). This is an online-workstation
++model, not an offline-signing claim.
+ 
+ The publisher copies these exact certificate bytes to the stable public paths
+ `/keys/apt-preview.asc` and `/keys/rpm-preview.asc` and records their SHA-256,

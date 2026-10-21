@@ -1,0 +1,234 @@
+{
+  "helper_exit_code": 8,
+  "wrapper_exit_code": 8,
+  "helper_planned_operator_stop": false,
+  "outer_signal": null,
+  "outer_deadline_exceeded": false,
+  "wrapper_error": null,
+  "post_errors": [],
+  "final_report": {
+    "present": true,
+    "readable": true,
+    "sha256": "7451b8d0ec9df83e8c17c6d5d734880a3df47b11b257e6d438aaa85ef42823f2",
+    "final": true,
+    "verdict": {
+      "outcome": "passed"
+    }
+  },
+  "cleanup": {
+    "observed_at": "2026-10-21T07:14:05.756868+00:00",
+    "owned_session": {
+      "session_id": 23246,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "recorded_processes": {
+      "23246": {
+        "name": "helper",
+        "alive_same_identity": false,
+        "current_identity": ""
+      }
+    },
+    "ports": {
+      "15000": {
+        "open": false
+      },
+      "15001": {
+        "open": false
+      },
+      "15002": {
+        "open": false
+      },
+      "15003": {
+        "open": false
+      },
+      "15004": {
+        "open": false
+      },
+      "15005": {
+        "open": false
+      },
+      "15006": {
+        "open": false
+      },
+      "15007": {
+        "open": false
+      },
+      "15008": {
+        "open": false
+      },
+      "15009": {
+        "open": false
+      },
+      "15010": {
+        "open": false
+      },
+      "15011": {
+        "open": false
+      },
+      "15012": {
+        "open": false
+      },
+      "15013": {
+        "open": false
+      },
+      "15014": {
+        "open": false
+      },
+      "15015": {
+        "open": false
+      },
+      "15016": {
+        "open": false
+      },
+      "15017": {
+        "open": false
+      },
+      "15018": {
+        "open": false
+      },
+      "15019": {
+        "open": false
+      },
+      "15020": {
+        "open": false
+      },
+      "15021": {
+        "open": false
+      },
+      "15022": {
+        "open": false
+      },
+      "15023": {
+        "open": false
+      },
+      "15024": {
+        "open": false
+      },
+      "15025": {
+        "open": false
+      },
+      "15026": {
+        "open": false
+      },
+      "15027": {
+        "open": false
+      },
+      "15028": {
+        "open": false
+      },
+      "15029": {
+        "open": false
+      },
+      "15030": {
+        "open": false
+      },
+      "15031": {
+        "open": false
+      },
+      "15032": {
+        "open": false
+      },
+      "15033": {
+        "open": false
+      },
+      "15034": {
+        "open": false
+      },
+      "15035": {
+        "open": false
+      },
+      "15036": {
+        "open": false
+      },
+      "15037": {
+        "open": false
+      },
+      "15038": {
+        "open": false
+      },
+      "15039": {
+        "open": false
+      },
+      "15040": {
+        "open": false
+      },
+      "15041": {
+        "open": false
+      },
+      "15042": {
+        "open": false
+      },
+      "15043": {
+        "open": false
+      },
+      "15044": {
+        "open": false
+      },
+      "15045": {
+        "open": false
+      },
+      "15046": {
+        "open": false
+      },
+      "15047": {
+        "open": false
+      },
+      "15048": {
+        "open": false
+      },
+      "15049": {
+        "open": false
+      },
+      "15050": {
+        "open": false
+      },
+      "15051": {
+        "open": false
+      },
+      "15052": {
+        "open": false
+      },
+      "15053": {
+        "open": false
+      },
+      "15054": {
+        "open": false
+      },
+      "15055": {
+        "open": false
+      },
+      "15056": {
+        "open": false
+      },
+      "15057": {
+        "open": false
+      },
+      "15058": {
+        "open": false
+      },
+      "15059": {
+        "open": false
+      },
+      "15060": {
+        "open": false
+      },
+      "15061": {
+        "open": false
+      },
+      "15062": {
+        "open": false
+      },
+      "15063": {
+        "open": false
+      }
+    },
+    "observer_stopped": true,
+    "pass": true
+  },
+  "observer_errors": [],
+  "credential_scan_pass": true,
+  "source_unchanged": true
+}

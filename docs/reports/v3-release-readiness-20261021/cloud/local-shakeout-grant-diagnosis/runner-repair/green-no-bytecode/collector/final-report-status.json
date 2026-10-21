@@ -1,0 +1,9 @@
+{
+  "present": true,
+  "readable": true,
+  "sha256": "7451b8d0ec9df83e8c17c6d5d734880a3df47b11b257e6d438aaa85ef42823f2",
+  "final": true,
+  "verdict": {
+    "outcome": "passed"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schema": "independent-readonly-checks/v1",
+  "run_at_utc": "2026-10-21T06:56:03.867181+00:00",
+  "checks": [
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "bash",
+        "-n",
+        "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "gofmt",
+        "-l",
+        "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+        "internal/bench/chatlifecycle/config_examples_test.go",
+        "scripts/wukongim_three_node_chat_lifecycle_script_test.go",
+        "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

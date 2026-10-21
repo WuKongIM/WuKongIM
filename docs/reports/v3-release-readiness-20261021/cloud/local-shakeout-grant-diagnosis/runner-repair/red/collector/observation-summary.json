@@ -1,0 +1,20 @@
+{
+  "process_capture_interval_seconds": 5,
+  "host_capture_interval_seconds": 1.0,
+  "host_ports": [
+    15060,
+    15061,
+    15062,
+    15063
+  ],
+  "per_response_bytes_max": 65536,
+  "endpoint_timeout_seconds": 2,
+  "errors": [
+    {
+      "error_type": "RuntimeError",
+      "error": "injected collector failure",
+      "observed_at": "2026-10-21T07:10:41.825932+00:00"
+    }
+  ],
+  "source": "Existing loopback host-metrics and process.prom files only; no product metrics scrape or profile capture."
+}

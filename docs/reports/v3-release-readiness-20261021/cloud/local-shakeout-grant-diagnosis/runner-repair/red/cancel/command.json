@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/red/cancel/fake_child.py",
+    "cancel"
+  ],
+  "source_sha": "fake-source",
+  "helper_pid": 5527,
+  "exit_code": null
+}

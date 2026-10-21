@@ -1,0 +1,131 @@
+{
+  "captured_at": "2026-10-21T06:53:16.060786+00:00",
+  "packages_source_sha": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "root_AGENTS_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "packages_AGENTS_FLOW": [],
+  "files": {
+    "README.md": {
+      "sha256": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0",
+      "bytes": 7478
+    },
+    "keys/README.md": {
+      "sha256": "65675b17d39c760c427120971b742412bdd9aabf6421dcc6fb33e65012ef71d1",
+      "bytes": 3420
+    },
+    "docs/release-contract.md": {
+      "sha256": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871",
+      "bytes": 31622
+    },
+    "manifests/channels.json": {
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579
+    },
+    "manifests/preview-signing.json": {
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "bytes": 1110
+    },
+    "manifests/trusted-toolchain.json": {
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "bytes": 898
+    },
+    "manifests/source-read.json": {
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "bytes": 381
+    },
+    "manifests/audit-access.json": {
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "bytes": 785
+    },
+    "scripts/prepare-package-site.py": {
+      "sha256": "cd2be85e77cba38e6abece92d011aa2f21e5e4e000be379952d2599a243ae5ad",
+      "bytes": 43495
+    },
+    "scripts/sign-package-family.py": {
+      "sha256": "f2655db378d2b6d9dbda8cca08fa0123e4db56519187aa054db6e18a64f0d893",
+      "bytes": 38036
+    },
+    "scripts/validate-signing-material.py": {
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "bytes": 34568
+    },
+    "scripts/verify-production-package-site.py": {
+      "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+      "bytes": 71062
+    },
+    "scripts/package-audit-receipt.py": {
+      "sha256": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+      "bytes": 65760
+    },
+    "scripts/plan-package-publication.py": {
+      "sha256": "9fb416a831c24ad0d67bb3807b7c32c38c41135b306661fc528e42e5f2575245",
+      "bytes": 23672
+    },
+    "scripts/resolve-source-release.py": {
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+      "bytes": 23044
+    },
+    "scripts/verify-source-attestations.py": {
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "bytes": 22527
+    },
+    "scripts/verify-source-package-metadata.py": {
+      "sha256": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+      "bytes": 6185
+    },
+    "scripts/compose-package-site.py": {
+      "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+      "bytes": 105274
+    },
+    "scripts/archive-package-snapshot.py": {
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+      "bytes": 30568
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7",
+      "bytes": 19863
+    },
+    "scripts/derive-rpm-allowlists.py": {
+      "sha256": "4cade66db6133824e14a1d61b5d80a2440a96e2696e4c53b12cf210a366aeffe",
+      "bytes": 24214
+    },
+    "tests/test_sign_package_family.py": {
+      "sha256": "7e004679c29100f388e8dedd59d5ec48dc07d3872e3b089c2767b90e2753d8d5",
+      "bytes": 27486
+    },
+    "tests/test_validate_signing_material.py": {
+      "sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe",
+      "bytes": 24911
+    },
+    "tests/test_prepare_package_site.py": {
+      "sha256": "8c02bc529811210bfb3465fc7169861389427378ff471e25e83526a856750795",
+      "bytes": 20866
+    },
+    "tests/test_package_audit_receipt.py": {
+      "sha256": "fb12ce0a34d5b4e639b94543644da93856603044f38b2e84585abc28a13cafbe",
+      "bytes": 41404
+    },
+    "tests/contract.sh": {
+      "sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+      "bytes": 54998
+    },
+    "toolchain/native-package-signing/Dockerfile": {
+      "sha256": "45c8d63f5580e51db968d70fb62777fa9a05c6e0ed019032f6365e491a1481bd",
+      "bytes": 911
+    }
+  },
+  "scope": "Read-only protocol preparation. No key/NAS/cloud access, no source/control mutation, no workload or tests/build run.",
+  "parallel_research": "Existing helper followup rejected by 4-agent active limit; continued lightweight read-only source analysis.",
+  "trusted_source_builder": {
+    "repository": "WuKongIM/WuKongIM",
+    "sha": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+    "path": "scripts/build-native-package-repositories.sh",
+    "sha256": "09d87b6b8191ba0c80cf9be64150f16be19b2fdd5c5fc8f1ade66e784695e7d2",
+    "AGENTS_sha256": "e3925b2fd15113f12e9ced49a8fa5a4710210d0500d511655561296cd1b02b55",
+    "applicable_FLOW": []
+  },
+  "additional_readonly_source": {
+    "root_HEAD": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "scripts/generate-native-package-test-keyring.sh": "9578ceb1cfe342547a9d7cf16054e1b98f308ef3001101f947abf384ac8618fe"
+  },
+  "latest_user_custody_direction": "Use local Mac / NAS storage. No offline or hardware requirement; no new approval or hardware prerequisite. Stable secrets stay outside CI."
+}

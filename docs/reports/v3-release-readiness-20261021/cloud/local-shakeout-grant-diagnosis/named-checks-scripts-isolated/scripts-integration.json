@@ -1,0 +1,76 @@
+{
+  "name": "scripts-integration",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_arguments": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts/...",
+    "-count=1",
+    "-timeout=9m",
+    "-parallel=2"
+  ],
+  "executed_command": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts/...",
+    "-count=1",
+    "-timeout=9m",
+    "-parallel=2"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "environment_overrides": {
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2"
+  },
+  "source_file_sha256": {
+    "CHANGELOG.md": "1740408f941d2496796c70fb7fb0810dee479e17bf20fba7ed17d3a904272b2c",
+    "configs/wkbench/chat-lifecycle/README.md": "3a167780fb4f9897bd353d7555af688f6b2927b9d2c237c150e6aec3e02edc39",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "1a9e81e18c8afaaa62fa2b1edad6dc03ea34eda7163e501c26b341cd2dc7a2a2",
+    "docs/development/PROJECT_KNOWLEDGE.md": "69f64bc7ae7a6128dffaafc96e8676b32d5025562486db03d79e4e2879493856",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf",
+    "internal/bench/chatlifecycle/config_examples_test.go": "fc628a454b724aca86d13a9020ace81ba19ca6863978db367b65cf6802c2adff",
+    "internal/bench/chatlifecycle/local_shakeout_budget_test.go": "e89a98aa7412d2a17de36ede1301f9e1db7c4dae776436103ac7b834c37c09d1",
+    "pkg/transport/internal/buffer/retained_test.go": "732390cf710b7199b0917aef02866de87e7d940687f259c587f84b84f00b0d16",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82",
+    "scripts/wukongim_three_node_chat_lifecycle_script_test.go": "2589f7247b3fac027146b4261a721ddda552eca20893c630ebf8ec462c780e55"
+  },
+  "reason": "Single parent-authorized isolated repeat after first 540.594s timeout; all other task compilation ended. Original first receipt retained. Same cache path is now warmed, so this is not a pure one-factor contention experiment. No further rerun if timeout.",
+  "started_at": "2026-10-21T07:20:33.077465+00:00",
+  "pid": 23681,
+  "exit_code": 1,
+  "finished_at": "2026-10-21T07:29:35.463373+00:00",
+  "elapsed_seconds": 542.3792873749626,
+  "log_sha256": "80b7e45ded11814eac8c9aa26c3848073b290244997aa07afd4e2af0917120bc",
+  "source_unchanged": true,
+  "after_processes": {
+    "observed_at": "2026-10-21T07:29:35.510483+00:00",
+    "owned_session": 23681,
+    "processes": [
+      {
+        "pid": 91051,
+        "ppid": 1,
+        "pcpu": 0.0,
+        "rss_kib": 1760,
+        "comm": "bash"
+      },
+      {
+        "pid": 92196,
+        "ppid": 91051,
+        "pcpu": 0.1,
+        "rss_kib": 1056,
+        "comm": "sleep"
+      }
+    ],
+    "all_process_pcpu_sum": 66.60000000000001,
+    "loadavg": [
+      3.068359375,
+      3.15234375,
+      4.7490234375
+    ],
+    "cpu_note": "ps pcpu is platform-averaged percentage; sum may exceed 100 on multi-CPU host, not a complete interval CPU trace."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-21T07:30:14.876305+00:00",
+  "reason": "Go package timeout left two observed processes in exact owned test SID 23681; cleanup only this session.",
+  "cleanup": {
+    "session_id": 23681,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [
+      91051,
+      92325
+    ],
+    "remaining_processes": []
+  }
+}

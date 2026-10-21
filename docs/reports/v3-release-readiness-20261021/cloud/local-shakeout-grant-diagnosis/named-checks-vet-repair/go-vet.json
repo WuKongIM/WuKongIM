@@ -1,0 +1,32 @@
+{
+  "name": "go-vet",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_arguments": [
+    "go",
+    "vet",
+    "./cmd/...",
+    "./internal/...",
+    "./pkg/...",
+    "./scripts/...",
+    "./docker/..."
+  ],
+  "executed_command": [
+    "go",
+    "vet",
+    "./cmd/...",
+    "./internal/...",
+    "./pkg/...",
+    "./scripts/...",
+    "./docker/..."
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "environment_overrides": {
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2"
+  },
+  "started_at": "2026-10-21T07:08:54.170030+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T07:09:00.525193+00:00",
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,87 @@
+{
+  "created_at": "2026-10-21T07:20:25.211023+00:00",
+  "first_failures_preserved": true,
+  "script_isolated_retry_not_started": true,
+  "receipts": [
+    {
+      "path": "named-checks/go-unit.json",
+      "sha256": "a612867c808f870c5cb86f65a64f036c65919002896df3cce383c3e2de68b9c9",
+      "name": "go-unit",
+      "exit_code": 0,
+      "started_at": "2026-10-21T06:54:53.071850+00:00",
+      "finished_at": "2026-10-21T07:02:44.707592+00:00"
+    },
+    {
+      "path": "named-checks/go-vet.json",
+      "sha256": "1e78bab2d76f249513045f99a555d868a24bda1d9423e39e1706772a025fb605",
+      "name": "go-vet",
+      "exit_code": 1,
+      "started_at": "2026-10-21T07:02:44.708109+00:00",
+      "finished_at": "2026-10-21T07:03:02.979537+00:00"
+    },
+    {
+      "path": "named-checks-remaining/go-format.json",
+      "sha256": "87b455cfe6a73751a4b2a1a3e077f3faa400672ff76a9fd3c87c9072a37c2535",
+      "name": "go-format",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:03:36.859314+00:00",
+      "finished_at": "2026-10-21T07:03:38.531578+00:00"
+    },
+    {
+      "path": "named-checks-remaining/go-mod-tidy.json",
+      "sha256": "943ddd7b76af44e8a2db1c29bd1ad916acc17ecab13c9aa77bb25ad9ad8c0ad8",
+      "name": "go-mod-tidy",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:03:38.531954+00:00",
+      "finished_at": "2026-10-21T07:03:41.059630+00:00"
+    },
+    {
+      "path": "named-checks-remaining/scripts-integration.json",
+      "sha256": "3e68ef763fe933f86292ffd2c0ca945cc0bd9d77a4f7804a865ae30501552ef1",
+      "name": "scripts-integration",
+      "exit_code": 1,
+      "started_at": "2026-10-21T07:03:41.060022+00:00",
+      "finished_at": "2026-10-21T07:12:43.007278+00:00"
+    },
+    {
+      "path": "named-checks-vet-repair/buffer-vet.json",
+      "sha256": "ef35ac7e8e0a953882bc82b0077ca7888a7375260f2542b0cc9469e724454df3",
+      "name": "buffer-vet",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:08:53.177937+00:00",
+      "finished_at": "2026-10-21T07:08:53.456757+00:00"
+    },
+    {
+      "path": "named-checks-vet-repair/buffer-test.json",
+      "sha256": "bb6477e3d9a9620e714b752b2aeaa8e6ea309b65b84cdfa766843c481f8f891b",
+      "name": "buffer-test",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:08:53.457546+00:00",
+      "finished_at": "2026-10-21T07:08:54.169662+00:00"
+    },
+    {
+      "path": "named-checks-vet-repair/go-vet.json",
+      "sha256": "35e139a0347baa4b43d23dc0524c274f848465e7ba6414b61edf40ed90cc7ce5",
+      "name": "go-vet",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:08:54.170030+00:00",
+      "finished_at": "2026-10-21T07:09:00.525193+00:00"
+    },
+    {
+      "path": "named-checks-vet-repair/go-format.json",
+      "sha256": "ebeebd911ca10f56290e5403189ca008f3ab27584a317fd38e77d7e5071de556",
+      "name": "go-format",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:09:00.525665+00:00",
+      "finished_at": "2026-10-21T07:09:01.125131+00:00"
+    },
+    {
+      "path": "named-checks-flow/flow-doc-contracts.json",
+      "sha256": "6a55b9c6729d1617ab9efb34b47282a0a75cf79cf116bb18dc63151dcd9e0cfc",
+      "name": "flow-doc-contracts",
+      "exit_code": 0,
+      "started_at": "2026-10-21T07:14:30.281193+00:00",
+      "finished_at": "2026-10-21T07:14:31.059588+00:00"
+    }
+  ]
+}

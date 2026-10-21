@@ -1,0 +1,46 @@
+{
+  "schema": "wukongim/stable-local-signing-protocol-proposal-summary/v1",
+  "status": "proposal_not_implemented",
+  "packages_control_sha": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "initial_mode": "test_only",
+  "channel_changed": false,
+  "code_changed": false,
+  "keys_generated": false,
+  "private_material_read": false,
+  "native_commands_or_tests_run": false,
+  "source_control_audit_binding": "Externally frozen descriptor and request digest; proposed current-family signature over response binds output digests transitively. Descriptor hash alone is not provenance.",
+  "public_key_handshake": "Reuse pure public certificate validators; never enter validated_signing_session or private-key import.",
+  "phases": [
+    "rpm_payloads: unsigned→signed RPM + independent main-header/compressed-payload identity",
+    "apt_release: exact Release→InRelease and Release.gpg",
+    "rpm_metadata: only after accepted signed RPM bytes, repomd.xml→repomd.xml.asc"
+  ],
+  "slices": [
+    {
+      "id": "A",
+      "scope": "Update three custody documentation passages; TEST ONLY public-only certificate preflight and bounded request preparation. No secret read/keygen/signing/response acceptance."
+    },
+    {
+      "id": "B",
+      "scope": "TEST ONLY scratch-key local two-phase signing and cryptographic/content/metadata/replay response verification. Production local private-key adapter remains future work."
+    }
+  ],
+  "signed_response": "New recommended protocol design, not an existing release-contract MUST.",
+  "unsupported_initially": [
+    "Production mode",
+    "base snapshot/history/rotation/retirement",
+    "production bootstrap packages",
+    "production Mac private-key adapter/Keychain reads/backups/key generation",
+    "cloud publication",
+    "global replay coordination"
+  ],
+  "expected_new_commands_are_proposed_only": true,
+  "limitations": [
+    "Source evidence hashes do not independently reprove GitHub facts offline",
+    "Existing preview schemas/paths cannot be relabeled stable",
+    "Native RPM framing compatibility and exact source fixture checks must be proven by implementation tests",
+    "No extra machine or procurement requirement"
+  ],
+  "custody_policy_change": "Explicit user-authorized normal online Mac local custody/signing; Mac or NAS backups; no offline/hardware claim or prerequisite; stable secrets stay outside GitHub CI.",
+  "supersedes": "superseded-offline-proposal/proposal.md records the prior proposal only; latest user custody direction replaces it."
+}

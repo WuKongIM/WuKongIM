@@ -1,0 +1,2277 @@
+{
+  "schema": "wukongim/local-shakeout-readonly-diagnosis/v1",
+  "source_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "source_status": "",
+  "source_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/bench/chatlifecycle/engine.go": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef",
+    "internal/bench/chatlifecycle/worker_server.go": "456cc0b9f15653ca31d041d26f54bb5964f7cd2dc3a1f6715d341dd309b4b538",
+    "internal/bench/chatlifecycle/coordinator.go": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+    "internal/bench/chatlifecycle/grant_pacing_test.go": "ae47a6dd90fea2ce5d41dfc078e42c5796d4b2d7405a52f0a7ca7ac1b977566f",
+    "internal/bench/chatlifecycle/engine_test.go": "966503e781904dfd365ffd4e1bed3a7600cedd17e62ec8b52607e76041070b5f",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "234db9313fb0d1bddb2bfc6a4cce4ed1d6396b0d065781aac2d4cfd24fad31ac",
+    "docs/adr/0024-protect-results-from-load-generator-saturation.md": "b4c7472900dc44e27f219386043073ea1867ff495bf18c8cd84a71c93ccf9792",
+    "docs/adr/0046-report-resource-saturation-as-a-capacity-warning.md": "9c9752d1bded2e6f63161494d169051d292b9b21dea295e1995970dc89d2f036",
+    "docs/adr/0041-use-four-postpaid-hosts-for-automated-chat-lifecycle.md": "e9d765f06bb624793e3bdcd5e7382ee2ac3ea6f64146bd0044e5b3374628c7f1"
+  },
+  "frozen_evidence_summary_sha256": "c3e77f66b35c4d72eb92107ff14f26124b2a2516696cc95a130d2261e722a1de",
+  "coordinator_log_sha256": "fa3069abb867029624c8ea93ea434d46dd95e947cca20d0f261a4ddbc597ca68",
+  "first_worker_failure": {
+    "file": "run/logs/worker-3.log",
+    "line": 1,
+    "worker_id": 2,
+    "sequence": 315,
+    "runtime_code": "offered_load_under_delivery",
+    "cause": "runtime"
+  },
+  "terminal_line": "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=grant grant_failure_code=delivery worker_runtime_code=offered_load_under_delivery observer_code= preflight_code= report=unavailable",
+  "window": {
+    "from": "2026-10-21T06:27:03.664721208Z",
+    "to": "2026-10-21T06:29:03.664644666Z",
+    "duration_seconds": 119.999923,
+    "messages_delta": {
+      "sent": 12002,
+      "send_attempts": 12002,
+      "first_attempts": 12002,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 12006,
+      "send_rejected": 0,
+      "received": 15609,
+      "receive_acknowledged": 15609,
+      "receive_ack_failures": 0,
+      "retry_attempts": 0,
+      "terminal": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "hot_count_delta": 2640,
+    "hot_above_limit_delta": 0,
+    "cuts": [
+      {
+        "at": "2026-10-21T06:27:03.664721208Z",
+        "source_line": 38,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3314,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 19003,
+          "send_attempts": 19003,
+          "first_attempts": 19003,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 18994,
+          "send_rejected": 0,
+          "received": 24703,
+          "receive_acknowledged": 24703,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:08.66473175Z",
+        "source_line": 39,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3409,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 19503,
+          "send_attempts": 19503,
+          "first_attempts": 19503,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 19498,
+          "send_rejected": 0,
+          "received": 25357,
+          "receive_acknowledged": 25357,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:13.664731541Z",
+        "source_line": 40,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3512,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 20003,
+          "send_attempts": 20003,
+          "first_attempts": 20003,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 19989,
+          "send_rejected": 0,
+          "received": 25995,
+          "receive_acknowledged": 25995,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:18.664724458Z",
+        "source_line": 41,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3602,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 20503,
+          "send_attempts": 20503,
+          "first_attempts": 20503,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 20490,
+          "send_rejected": 0,
+          "received": 26637,
+          "receive_acknowledged": 26637,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:23.664726291Z",
+        "source_line": 42,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3719,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 21003,
+          "send_attempts": 21003,
+          "first_attempts": 21003,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 20988,
+          "send_rejected": 0,
+          "received": 27294,
+          "receive_acknowledged": 27294,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:28.664720875Z",
+        "source_line": 43,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3824,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 21502,
+          "send_attempts": 21502,
+          "first_attempts": 21502,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 21492,
+          "send_rejected": 0,
+          "received": 27942,
+          "receive_acknowledged": 27942,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:33.664720791Z",
+        "source_line": 44,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 3950,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 22002,
+          "send_attempts": 22002,
+          "first_attempts": 22002,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 21994,
+          "send_rejected": 0,
+          "received": 28603,
+          "receive_acknowledged": 28603,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:38.664700583Z",
+        "source_line": 45,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4049,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 22502,
+          "send_attempts": 22502,
+          "first_attempts": 22502,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 22499,
+          "send_rejected": 0,
+          "received": 29255,
+          "receive_acknowledged": 29255,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:43.664696541Z",
+        "source_line": 46,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4167,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 23004,
+          "send_attempts": 23004,
+          "first_attempts": 23004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 22998,
+          "send_rejected": 0,
+          "received": 29907,
+          "receive_acknowledged": 29907,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:48.6646925Z",
+        "source_line": 47,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4289,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 23503,
+          "send_attempts": 23503,
+          "first_attempts": 23503,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 23497,
+          "send_rejected": 0,
+          "received": 30559,
+          "receive_acknowledged": 30559,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:53.66469075Z",
+        "source_line": 48,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4404,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 24004,
+          "send_attempts": 24004,
+          "first_attempts": 24004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 24001,
+          "send_rejected": 0,
+          "received": 31213,
+          "receive_acknowledged": 31213,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:27:58.664685958Z",
+        "source_line": 49,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4505,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 24504,
+          "send_attempts": 24504,
+          "first_attempts": 24504,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 24497,
+          "send_rejected": 0,
+          "received": 31859,
+          "receive_acknowledged": 31859,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:03.664696958Z",
+        "source_line": 50,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4606,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 25003,
+          "send_attempts": 25003,
+          "first_attempts": 25003,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 24994,
+          "send_rejected": 0,
+          "received": 32503,
+          "receive_acknowledged": 32503,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:08.664679125Z",
+        "source_line": 51,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4728,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 25503,
+          "send_attempts": 25503,
+          "first_attempts": 25503,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 25494,
+          "send_rejected": 0,
+          "received": 33156,
+          "receive_acknowledged": 33156,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:13.664719458Z",
+        "source_line": 52,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4844,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 26004,
+          "send_attempts": 26004,
+          "first_attempts": 26004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 25992,
+          "send_rejected": 0,
+          "received": 33801,
+          "receive_acknowledged": 33801,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:18.664698291Z",
+        "source_line": 53,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 4950,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 26502,
+          "send_attempts": 26502,
+          "first_attempts": 26502,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 26501,
+          "send_rejected": 0,
+          "received": 34463,
+          "receive_acknowledged": 34463,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:23.664684916Z",
+        "source_line": 54,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5054,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 27004,
+          "send_attempts": 27004,
+          "first_attempts": 27004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 26999,
+          "send_rejected": 0,
+          "received": 35111,
+          "receive_acknowledged": 35111,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:28.664666583Z",
+        "source_line": 55,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5166,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 27504,
+          "send_attempts": 27504,
+          "first_attempts": 27504,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 27501,
+          "send_rejected": 0,
+          "received": 35760,
+          "receive_acknowledged": 35760,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:33.664684166Z",
+        "source_line": 56,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5292,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 28004,
+          "send_attempts": 28004,
+          "first_attempts": 28004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 27993,
+          "send_rejected": 0,
+          "received": 36402,
+          "receive_acknowledged": 36402,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:38.664661833Z",
+        "source_line": 57,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5395,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 28504,
+          "send_attempts": 28504,
+          "first_attempts": 28504,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 28494,
+          "send_rejected": 0,
+          "received": 37053,
+          "receive_acknowledged": 37053,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:43.664659708Z",
+        "source_line": 58,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 0,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5510,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 29004,
+          "send_attempts": 29004,
+          "first_attempts": 29004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 29001,
+          "send_rejected": 0,
+          "received": 37716,
+          "receive_acknowledged": 37716,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:48.664656125Z",
+        "source_line": 59,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 4,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5609,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 0,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 29505,
+          "send_attempts": 29505,
+          "first_attempts": 29505,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 29492,
+          "send_rejected": 0,
+          "received": 38354,
+          "receive_acknowledged": 38354,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:53.664653041Z",
+        "source_line": 60,
+        "totals": {
+          "target": 2500,
+          "online": 2500,
+          "starting": 0,
+          "closing": 0,
+          "traffic_ready": 2500
+        },
+        "close_reasons": {
+          "expired": 10,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5731,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 1,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 30004,
+          "send_attempts": 30004,
+          "first_attempts": 30004,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 30001,
+          "send_rejected": 0,
+          "received": 39014,
+          "receive_acknowledged": 39014,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:28:58.664649458Z",
+        "source_line": 61,
+        "totals": {
+          "target": 2500,
+          "online": 2499,
+          "starting": 1,
+          "closing": 0,
+          "traffic_ready": 2499
+        },
+        "close_reasons": {
+          "expired": 19,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5840,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 1,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 30505,
+          "send_attempts": 30505,
+          "first_attempts": 30505,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 30500,
+          "send_rejected": 0,
+          "received": 39659,
+          "receive_acknowledged": 39659,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      {
+        "at": "2026-10-21T06:29:03.664644666Z",
+        "source_line": 62,
+        "totals": {
+          "target": 2500,
+          "online": 2499,
+          "starting": 1,
+          "closing": 0,
+          "traffic_ready": 2499
+        },
+        "close_reasons": {
+          "expired": 24,
+          "heartbeat_failed": 0,
+          "remote_terminal": 0,
+          "read_failed": 0,
+          "generation_stop": 0,
+          "explicit_logout": 0,
+          "transport_close_failed": 0
+        },
+        "hot_latency": {
+          "limit_nanos": 400000000,
+          "count": 5954,
+          "above_limit": 8
+        },
+        "harness": {
+          "failures": 0,
+          "command_saturation": 0,
+          "offered_underdelivery": 0,
+          "planned_cancellations": 2,
+          "lifecycle_approval_rejections": {
+            "missing_timer": 0,
+            "invalid_shape": 0,
+            "timer_fence": 0,
+            "activity_fence": 0,
+            "invalidated": 0,
+            "fence_exhausted": 0,
+            "deadline": 0,
+            "replay_expired": 0,
+            "replay_mismatch": 0
+          },
+          "drain_timed_out": false,
+          "unexpected_exit": false
+        },
+        "messages": {
+          "sent": 31005,
+          "send_attempts": 31005,
+          "first_attempts": 31005,
+          "first_attempt_failures": 0,
+          "send_acknowledged": 31000,
+          "send_rejected": 0,
+          "received": 40312,
+          "receive_acknowledged": 40312,
+          "receive_ack_failures": 0,
+          "retry_attempts": 0,
+          "terminal": 0,
+          "losses": 0,
+          "duplicates": 0,
+          "corruptions": 0,
+          "sequence_regressions": 0
+        }
+      }
+    ]
+  },
+  "diagnostic_updated_at": "2026-10-21T06:29:03.664644666Z",
+  "last_workers": [
+    {
+      "worker_id": 0,
+      "phase": "running",
+      "snapshot_sequence": 62,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 11,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 1,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "worker_id": 1,
+      "phase": "running",
+      "snapshot_sequence": 62,
+      "connections": {
+        "target": 833,
+        "online": 832,
+        "starting": 1,
+        "closing": 0,
+        "traffic_ready": 832
+      },
+      "close_reasons": {
+        "expired": 7,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 1,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "worker_id": 2,
+      "phase": "running",
+      "snapshot_sequence": 62,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 6,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    }
+  ],
+  "recent_connection_events": [
+    {
+      "at": "2026-10-21T06:23:58.664832375Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:23:58.664832375Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:23:58.664832375Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:48.664656125Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 1,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:48.664656125Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 2,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:48.664656125Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 1,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:53.664653041Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 5,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:53.664653041Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 4,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:58.664649458Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 8,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:58.664649458Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 5,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:58.664649458Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 832,
+        "starting": 1,
+        "closing": 0,
+        "traffic_ready": 832
+      },
+      "close_reasons": {
+        "expired": 6,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:28:58.664649458Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 832,
+        "starting": 1,
+        "closing": 0,
+        "traffic_ready": 832
+      },
+      "close_reasons": {
+        "expired": 6,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:29:03.664644666Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 11,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:29:03.664644666Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 832,
+        "starting": 1,
+        "closing": 0,
+        "traffic_ready": 832
+      },
+      "close_reasons": {
+        "expired": 7,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:29:03.664644666Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 832,
+        "starting": 1,
+        "closing": 0,
+        "traffic_ready": 832
+      },
+      "close_reasons": {
+        "expired": 7,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T06:29:03.664644666Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 6,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    }
+  ],
+  "last_process_snapshots": {
+    "processes-load.prom": {
+      "sha256": "73d981bfa660de0698978b7de9204027a011385e3ebbf7380d8dc3313b87db30",
+      "metrics": {
+        "wukongim.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-host-metrics.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 10.0,
+          "wukongim_process_resident_memory_bytes": 29589504.0
+        },
+        "wkbench-worker@1.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 749.0,
+          "wukongim_process_resident_memory_bytes": 258736128.0
+        },
+        "wkbench-worker@2.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 740.0,
+          "wukongim_process_resident_memory_bytes": 257245184.0
+        },
+        "wkbench-worker@3.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 728.0,
+          "wukongim_process_resident_memory_bytes": 266584064.0
+        },
+        "wkbench-coordinator.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 201.0,
+          "wukongim_process_resident_memory_bytes": 51806208.0
+        },
+        "wkbench-formal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-rehearsal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "prometheus.service": {
+          "wukongim_process_up": 0.0
+        },
+        "caddy.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkanalysis.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wukongim-process-metrics.service": {
+          "wukongim_process_up": 0.0
+        },
+        "node-exporter.service": {
+          "wukongim_process_up": 0.0
+        },
+        "collector": {
+          "wukongim_process_collector_last_success_unixtime_seconds": 1792564147.0
+        }
+      }
+    },
+    "processes-node-1.prom": {
+      "sha256": "24969227304154ba58667309894df6e6754998b5f4078891537b372b7119ebfb",
+      "metrics": {
+        "wukongim.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 7525.0,
+          "wukongim_process_resident_memory_bytes": 708608000.0
+        },
+        "wkbench-host-metrics.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 18.0,
+          "wukongim_process_resident_memory_bytes": 29048832.0
+        },
+        "wkbench-worker@1.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-worker@2.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-worker@3.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-coordinator.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-formal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-rehearsal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "prometheus.service": {
+          "wukongim_process_up": 0.0
+        },
+        "caddy.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkanalysis.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wukongim-process-metrics.service": {
+          "wukongim_process_up": 0.0
+        },
+        "node-exporter.service": {
+          "wukongim_process_up": 0.0
+        },
+        "collector": {
+          "wukongim_process_collector_last_success_unixtime_seconds": 1792564146.0
+        }
+      }
+    },
+    "processes-node-2.prom": {
+      "sha256": "f1bca112e3db48ebf1ed58ad54fe9afdaa7cc0730cae237b243e8f89bd517345",
+      "metrics": {
+        "wukongim.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 7387.0,
+          "wukongim_process_resident_memory_bytes": 700121088.0
+        },
+        "wkbench-host-metrics.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 9.0,
+          "wukongim_process_resident_memory_bytes": 28688384.0
+        },
+        "wkbench-worker@1.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-worker@2.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-worker@3.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-coordinator.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-formal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-rehearsal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "prometheus.service": {
+          "wukongim_process_up": 0.0
+        },
+        "caddy.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkanalysis.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wukongim-process-metrics.service": {
+          "wukongim_process_up": 0.0
+        },
+        "node-exporter.service": {
+          "wukongim_process_up": 0.0
+        },
+        "collector": {
+          "wukongim_process_collector_last_success_unixtime_seconds": 1792564146.0
+        }
+      }
+    },
+    "processes-node-3.prom": {
+      "sha256": "20bb0323a2deefd51e05b59dc9909dffe68c1c46646880e62a8d986f15f28c22",
+      "metrics": {
+        "wukongim.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 7326.0,
+          "wukongim_process_resident_memory_bytes": 698925056.0
+        },
+        "wkbench-host-metrics.service": {
+          "wukongim_process_up": 1.0,
+          "wukongim_process_cpu_jiffies_total": 10.0,
+          "wukongim_process_resident_memory_bytes": 28622848.0
+        },
+        "wkbench-worker@1.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-worker@2.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-worker@3.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-coordinator.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-formal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkbench-rehearsal.service": {
+          "wukongim_process_up": 0.0
+        },
+        "prometheus.service": {
+          "wukongim_process_up": 0.0
+        },
+        "caddy.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wkanalysis.service": {
+          "wukongim_process_up": 0.0
+        },
+        "wukongim-process-metrics.service": {
+          "wukongim_process_up": 0.0
+        },
+        "node-exporter.service": {
+          "wukongim_process_up": 0.0
+        },
+        "collector": {
+          "wukongim_process_collector_last_success_unixtime_seconds": 1792564147.0
+        }
+      }
+    }
+  },
+  "available_metrics_files": [
+    "run/metrics/host-load-warmup-before.prom",
+    "run/metrics/host-node-1-warmup-before.prom",
+    "run/metrics/host-node-2-warmup-before.prom",
+    "run/metrics/host-node-3-warmup-before.prom",
+    "run/metrics/node-1-warmup-before.prom",
+    "run/metrics/node-2-warmup-before.prom",
+    "run/metrics/node-3-warmup-before.prom"
+  ],
+  "pprof_files": [],
+  "secret_scan": {
+    "pass": true,
+    "raw_token_match_found": false,
+    "scope": "Uncompressed regular logs/config/report/evidence files <=64MiB. No token values saved."
+  },
+  "limitations": [
+    "No per-grant success trace or exact runtime failure branch was persisted.",
+    "Latest status cut predates terminal failure; no final report or final drain proof.",
+    "Only initial warmup-before host snapshots exist. Last process snapshots are cumulative CPU counters and RSS gauges, not failure-window CPU pressure/host memory/IO series.",
+    "No pprof file exists. Session expiry is a temporal association, not root-cause evidence.",
+    "No load rerun, test execution, product mutation or thresholds change in this read-only analysis."
+  ]
+}

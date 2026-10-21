@@ -1,0 +1,17 @@
+{
+  "captured_at_utc": "2026-10-21T07:10:01.249378+00:00",
+  "source": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/run-shakeout-once.py",
+  "before_sha256": "65e5900dcc40736198d57e6be7a38a8229095880b844b4b5bb20999841999d94",
+  "cases": [
+    "helper exit0 preserved",
+    "helper exit8 must propagate nonzero",
+    "planned helper exit130 retained separately from final report and cleanup",
+    "outer SIGTERM must reclaim owned helper and independently grouped descendant",
+    "exception after child spawn must reclaim owned session",
+    "collector fatal exception must be visible and nonzero",
+    "outer timeout must reclaim all owned session PGIDs",
+    "external sentinel must survive all cleanup"
+  ],
+  "test_seam": "Execute actual runner lifecycle AST from first stdout-stderr.log context onward; retain runner helper definitions, inject only fake-child/observer/I/O boundaries and shorten timeout literals. No product build or workload.",
+  "shipping_source_changes": false
+}

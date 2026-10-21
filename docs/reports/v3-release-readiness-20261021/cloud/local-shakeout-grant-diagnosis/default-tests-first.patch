@@ -1,0 +1,90 @@
+diff --git a/internal/bench/chatlifecycle/config_examples_test.go b/internal/bench/chatlifecycle/config_examples_test.go
+index f20df4ebb..7e6a27c7a 100644
+--- a/internal/bench/chatlifecycle/config_examples_test.go
++++ b/internal/bench/chatlifecycle/config_examples_test.go
+@@ -46,7 +46,8 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
+ 	}
+ 	if local.Profile != ProfileLocal || local.Mode != ModeSoak || local.Workload.Sync.CompletedCoverage != 0 ||
+ 		local.Workload.OnlineUsers != 2_500 || local.Workload.BootstrapLoginsPerSecond != 200 ||
+-		local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
++		local.Workload.NewUsersPerDay != 250_000 || local.Workload.SendRatePerSecond != 500 ||
++		local.Workload.MaxGlobalBurst != 1_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
+ 		local.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 ||
+ 		local.Thresholds.Latency.HotSendACK.P99 != 400*time.Millisecond ||
+ 		local.Workload.MaxChannelsPerNode != 50_000 ||
+diff --git a/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go b/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
+index f1597a496..abc0b3027 100644
+--- a/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
++++ b/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
+@@ -156,6 +156,12 @@ cat "$FAKE_PS_FIXTURE"
+ }
+ 
+ func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *testing.T) {
++	for _, rate := range []int{0, 400} {
++		t.Run(fmt.Sprintf("send_rate_%d", rate), func(t *testing.T) { testShakeoutBuildWindowAndRenderedPorts(t, rate) })
++	}
++}
++
++func testShakeoutBuildWindowAndRenderedPorts(t *testing.T, rate int) {
+ 	root := repoRoot(t)
+ 	testRoot := t.TempDir()
+ 	scriptsDir := filepath.Join(testRoot, "scripts")
+@@ -206,7 +212,7 @@ commit_coordinator_shards = 1
+ 	}
+ 	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
+ timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
+-workload: {send_rate_per_second: 100, max_global_burst: 200}
++workload: {send_rate_per_second: 500, max_global_burst: 1000}
+ thresholds:
+   latency:
+     hot_sendack: {p99: 400ms, p999: 1s}
+@@ -264,7 +270,11 @@ fi
+ 		}
+ 	}
+ 	runDir := filepath.Join(testRoot, "run")
+-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
++	args := []string{shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000"}
++	if rate > 0 {
++		args = append(args, "--send-rate", strconv.Itoa(rate))
++	}
++	command := exec.Command("bash", args...)
+ 	command.Dir = testRoot
+ 	command.Env = append(os.Environ(),
+ 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+@@ -302,6 +312,13 @@ fi
+ 		t.Fatalf("runtime-defaults node config removed unrelated setting:\n%s", renderedNode)
+ 	}
+ 	rendered := readFile(t, filepath.Join(runDir, "chat-lifecycle.yaml"))
++	expectedRate := rate
++	if expectedRate == 0 {
++		expectedRate = 500
++	}
++	if want := fmt.Sprintf("workload: {send_rate_per_second: %d, max_global_burst: %d}", expectedRate, expectedRate*2); !strings.Contains(rendered, want) {
++		t.Fatalf("rendered grant budget missing %q: %s", want, rendered)
++	}
+ 	for _, want := range []string{
+ 		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
+ 		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
+diff --git a/scripts/wukongim_three_node_chat_lifecycle_script_test.go b/scripts/wukongim_three_node_chat_lifecycle_script_test.go
+index bbf5891c8..3c2384390 100644
+--- a/scripts/wukongim_three_node_chat_lifecycle_script_test.go
++++ b/scripts/wukongim_three_node_chat_lifecycle_script_test.go
+@@ -469,3 +469,18 @@ wkbench_host_block_io_available{field="read_write_split",physical_device="unavai
+ 		})
+ 	}
+ }
++
++// The helper must render the same affordable bootstrap budget as the YAML;
++// this no-background dry run also checks that the documented default is real.
++func TestChatLifecycleShakeoutDefaultSendBudget(t *testing.T) {
++	root := repoRoot(t)
++	cmd := exec.Command("bash", "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh", "--dry-run", "--run-dir", filepath.Join(t.TempDir(), "run"))
++	cmd.Dir = root
++	output, err := cmd.CombinedOutput()
++	if err != nil {
++		t.Fatalf("dry run: %v\n%s", err, output)
++	}
++	if !strings.Contains(string(output), "offered_send_rate_per_second=500") {
++		t.Fatalf("default budget is not 500 SEND/s: %s", output)
++	}
++}

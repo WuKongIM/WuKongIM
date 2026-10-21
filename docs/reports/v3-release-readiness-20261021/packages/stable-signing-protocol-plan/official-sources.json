@@ -1,0 +1,25 @@
+{
+  "accessed_at": "2026-10-21T06:58:55.868845+00:00",
+  "sources": [
+    {
+      "url": "https://rpm.org/docs/4.20.x/manual/format_v4.html",
+      "title": "RPM V4 Package format",
+      "use": "Four sections; signature-header padding; complete header and compressed payload comparison proposal."
+    },
+    {
+      "url": "https://rpm.org/docs/4.20.x/manual/format_header.html",
+      "title": "RPM Package Header format",
+      "use": "Bounded raw framing only; native RPM remains semantic/cryptographic authority."
+    },
+    {
+      "url": "https://rpm.org/docs/4.20.x/manual/format_lead.html",
+      "title": "RPM Package Lead format",
+      "use": "96-byte lead and signature type fields; lead major alone is not a substitute for v4 header-region validation."
+    },
+    {
+      "url": "https://rpm-software-management.github.io/rpm/man/rpmpart.1",
+      "title": "rpmpart(1), RPM 6.1.90",
+      "use": "Not assumed available in current pinned toolchain; not proposed as an unverified dependency."
+    }
+  ]
+}

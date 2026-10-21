@@ -1,0 +1,85 @@
+{
+  "runner": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/run-shakeout-once.py",
+  "runner_sha256": "8fb2cffd7bc132d358669a1aa919e104051526ff6397bc6e1a5e1c7a5116ae20",
+  "probe_sha256": "0b1e7d9a2a5ace1592abe38ef3e129c232663380f82b1ea2e877200bc9cb0521",
+  "results": [
+    {
+      "case": "exit0",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 0.3,
+      "pass": true
+    },
+    {
+      "case": "exit8",
+      "exit_code": 8,
+      "expected_exit_code": 8,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 0.243,
+      "pass": true
+    },
+    {
+      "case": "planned130",
+      "exit_code": 130,
+      "expected_exit_code": 130,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 0.241,
+      "pass": true
+    },
+    {
+      "case": "cancel",
+      "exit_code": 143,
+      "expected_exit_code": 143,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 2.258,
+      "pass": true
+    },
+    {
+      "case": "exception",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 2.246,
+      "pass": true
+    },
+    {
+      "case": "collector",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 0.247,
+      "pass": true
+    },
+    {
+      "case": "timeout",
+      "exit_code": 124,
+      "expected_exit_code": 124,
+      "remaining_owned_before_probe_cleanup": [],
+      "cleanup_receipt_present": true,
+      "cleanup_pass": true,
+      "external_sentinel_alive": true,
+      "duration_seconds": 3.212,
+      "pass": true
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,18 @@
+{
+  "started_at": "2026-10-21T06:53:32.021362+00:00",
+  "command": [
+    "go",
+    "test",
+    "-p=2",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts$",
+    "-count=1",
+    "-timeout=2m",
+    "-v"
+  ],
+  "exit_code": 0,
+  "finished_at": "2026-10-21T06:53:37.324811+00:00",
+  "log_sha256": "63292bf6c589d9d5b53b07378ca9a0f5ad851a64db756a2e7cf862767e3a2e82"
+}

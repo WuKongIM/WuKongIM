@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/green-no-bytecode/planned130/fake_child.py",
+    "planned130"
+  ],
+  "source_sha": "fake-source",
+  "helper_pid": 23254,
+  "exit_code": 130,
+  "owned_session_id": 23254,
+  "finished_at": "2026-10-21T07:14:06.013649+00:00",
+  "outer_signal": null,
+  "wrapper_error": null,
+  "source_sha_after": "fake-source",
+  "source_clean_after": true,
+  "source_files_unchanged": true,
+  "wrapper_exit_code": 130,
+  "post_errors": [],
+  "helper_planned_operator_stop": true,
+  "final_report": {
+    "present": true,
+    "readable": true,
+    "sha256": "cc672a3e52b0cb2c05257e6b296a1f1a14d875306497fe737ae52ac5b204e9fa",
+    "final": true,
+    "verdict": {
+      "outcome": "operator_stop"
+    }
+  },
+  "cleanup_pass": true,
+  "observer_errors": [],
+  "credential_scan_pass": true
+}

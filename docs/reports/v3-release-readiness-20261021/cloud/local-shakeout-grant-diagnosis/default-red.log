@@ -1,0 +1,78 @@
+=== RUN   TestLocalShakeoutBootstrapGrantBudget
+=== RUN   TestLocalShakeoutBootstrapGrantBudget/default_worker_0
+    local_shakeout_budget_test.go:107: after_first_grant={Activity:16691 Active:501 Online:834 Expired:0 EligibleActivity:16691 DueActivity:172 EarliestDue:0s EarliestDeadline:5m0s MinDue:0s MaxDue:41.995485522s MinDeadline:5m0s MaxDeadline:5m41.995485522s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=0 before={Activity:16721 Active:501 Online:834 Expired:0 EligibleActivity:16721 DueActivity:7496 EarliestDue:-12s EarliestDeadline:4m48s MinDue:-12s MaxDue:29.995485522s MinDeadline:4m48s MaxDeadline:5m29.995485522s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=60 before={Activity:14921 Active:501 Online:834 Expired:0 EligibleActivity:14921 DueActivity:14921 EarliestDue:-53.827759516s EarliestDeadline:4m6.172240484s MinDue:-53.827759516s MaxDue:-1.999999999s MinDeadline:4m0s MaxDeadline:4m41.995485522s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=120 before={Activity:13121 Active:501 Online:834 Expired:0 EligibleActivity:13121 DueActivity:13121 EarliestDue:-1m50.733678157s EarliestDeadline:3m9.266321843s MinDue:-1m50.733678157s MaxDue:-999.999999ms MinDeadline:3m0s MaxDeadline:3m41.995485522s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=180 before={Activity:11321 Active:501 Online:834 Expired:0 EligibleActivity:11321 DueActivity:11321 EarliestDue:-2m48.202116523s EarliestDeadline:2m11.797883477s MinDue:-2m48.202116523s MaxDue:-999.999999ms MinDeadline:2m0s MaxDeadline:2m41.995485522s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:104: default has not drained bootstrap activity before its eligibility deadlines: {Activity:9521 Active:501 Online:834 Expired:0 EligibleActivity:9521 DueActivity:9521 EarliestDue:-3m45.748960046s EarliestDeadline:1m14.251039954s MinDue:-3m45.748960046s MaxDue:-999.999999ms MinDeadline:1m0s MaxDeadline:1m41.995485522s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+=== RUN   TestLocalShakeoutBootstrapGrantBudget/default_worker_1
+    local_shakeout_budget_test.go:107: after_first_grant={Activity:16692 Active:500 Online:833 Expired:0 EligibleActivity:16692 DueActivity:183 EarliestDue:0s EarliestDeadline:5m0s MinDue:0s MaxDue:41.783807073s MinDeadline:5m0s MaxDeadline:5m41.783807073s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=0 before={Activity:16721 Active:500 Online:833 Expired:0 EligibleActivity:16721 DueActivity:7472 EarliestDue:-12s EarliestDeadline:4m48s MinDue:-12s MaxDue:29.783807073s MinDeadline:4m48s MaxDeadline:5m29.783807073s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=60 before={Activity:14921 Active:500 Online:833 Expired:0 EligibleActivity:14921 DueActivity:14921 EarliestDue:-53.937261491s EarliestDeadline:4m6.062738509s MinDue:-53.937261491s MaxDue:-999.999999ms MinDeadline:4m0s MaxDeadline:4m41.783807073s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=120 before={Activity:13121 Active:500 Online:833 Expired:0 EligibleActivity:13121 DueActivity:13121 EarliestDue:-1m50.721269876s EarliestDeadline:3m9.278730124s MinDue:-1m50.721269876s MaxDue:-999.999999ms MinDeadline:3m0s MaxDeadline:3m41.783807073s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=180 before={Activity:11321 Active:500 Online:833 Expired:0 EligibleActivity:11321 DueActivity:11321 EarliestDue:-2m48.213859158s EarliestDeadline:2m11.786140842s MinDue:-2m48.213859158s MaxDue:-999.999999ms MinDeadline:2m0s MaxDeadline:2m41.783807073s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:104: default has not drained bootstrap activity before its eligibility deadlines: {Activity:9521 Active:500 Online:833 Expired:0 EligibleActivity:9521 DueActivity:9521 EarliestDue:-3m45.794947331s EarliestDeadline:1m14.205052669s MinDue:-3m45.794947331s MaxDue:-999.999999ms MinDeadline:1m0s MaxDeadline:1m41.783807073s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+=== RUN   TestLocalShakeoutBootstrapGrantBudget/default_worker_2
+    local_shakeout_budget_test.go:107: after_first_grant={Activity:16715 Active:499 Online:833 Expired:0 EligibleActivity:16715 DueActivity:174 EarliestDue:0s EarliestDeadline:5m0s MinDue:0s MaxDue:41.850406029s MinDeadline:5m0s MaxDeadline:5m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=0 before={Activity:16746 Active:499 Online:833 Expired:0 EligibleActivity:16746 DueActivity:7488 EarliestDue:-12s EarliestDeadline:4m48s MinDue:-12s MaxDue:29.850406029s MinDeadline:4m48s MaxDeadline:5m29.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=60 before={Activity:14946 Active:499 Online:833 Expired:0 EligibleActivity:14946 DueActivity:14946 EarliestDue:-53.787556685s EarliestDeadline:4m6.212443315s MinDue:-53.787556685s MaxDue:-999.999999ms MinDeadline:4m0s MaxDeadline:4m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=120 before={Activity:13146 Active:499 Online:833 Expired:0 EligibleActivity:13146 DueActivity:13146 EarliestDue:-1m50.785928322s EarliestDeadline:3m9.214071678s MinDue:-1m50.785928322s MaxDue:-999.999999ms MinDeadline:3m0s MaxDeadline:3m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=180 before={Activity:11346 Active:499 Online:833 Expired:0 EligibleActivity:11346 DueActivity:11346 EarliestDue:-2m48.228306849s EarliestDeadline:2m11.771693151s MinDue:-2m48.228306849s MaxDue:-6.999999999s MinDeadline:2m0s MaxDeadline:2m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:104: default has not drained bootstrap activity before its eligibility deadlines: {Activity:9546 Active:499 Online:833 Expired:0 EligibleActivity:9546 DueActivity:9546 EarliestDue:-3m45.668047436s EarliestDeadline:1m14.331952564s MinDue:-3m45.668047436s MaxDue:-1.999999999s MinDeadline:1m0s MaxDeadline:1m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+=== RUN   TestLocalShakeoutBootstrapGrantBudget/historical_100_underbudget
+    local_shakeout_budget_test.go:107: after_first_grant={Activity:16715 Active:499 Online:833 Expired:0 EligibleActivity:16715 DueActivity:139 EarliestDue:0s EarliestDeadline:5m0s MinDue:0s MaxDue:41.850406029s MinDeadline:5m0s MaxDeadline:5m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=0 before={Activity:16746 Active:499 Online:833 Expired:0 EligibleActivity:16746 DueActivity:7488 EarliestDue:-12s EarliestDeadline:4m48s MinDue:-12s MaxDue:29.850406029s MinDeadline:4m48s MaxDeadline:5m29.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=60 before={Activity:14946 Active:499 Online:833 Expired:0 EligibleActivity:14946 DueActivity:14946 EarliestDue:-53.732751116s EarliestDeadline:4m6.267248884s MinDue:-53.732751116s MaxDue:-1.999999999s MinDeadline:4m0s MaxDeadline:4m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=120 before={Activity:13146 Active:499 Online:833 Expired:0 EligibleActivity:13146 DueActivity:13146 EarliestDue:-1m50.69066269s EarliestDeadline:3m9.30933731s MinDue:-1m50.69066269s MaxDue:-1.999999999s MinDeadline:3m0s MaxDeadline:3m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=180 before={Activity:11346 Active:499 Online:833 Expired:0 EligibleActivity:11346 DueActivity:11346 EarliestDue:-2m48.162452215s EarliestDeadline:2m11.837547785s MinDue:-2m48.162452215s MaxDue:-7.999999999s MinDeadline:2m0s MaxDeadline:2m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=240 before={Activity:9546 Active:499 Online:833 Expired:0 EligibleActivity:9546 DueActivity:9546 EarliestDue:-3m45.616899594s EarliestDeadline:1m14.383100406s MinDue:-3m45.616899594s MaxDue:-999.999999ms MinDeadline:1m0s MaxDeadline:1m41.850406029s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:110: second=300 before={Activity:7764 Active:499 Online:833 Expired:0 EligibleActivity:7753 DueActivity:7751 EarliestDue:-4m42.926685988s EarliestDeadline:17.073314012s MinDue:-4m42.926685988s MaxDue:22.597010242s MinDeadline:0s MaxDeadline:5m22.597010242s CanaryUnavailableAge:0s HeadSenderEligible:true HeadSenderGenerationEligible:true}
+    local_shakeout_budget_test.go:98: historical budget rejected at virtual_second=318 sequence=319 remaining_activity=7408
+--- FAIL: TestLocalShakeoutBootstrapGrantBudget (4.59s)
+    --- FAIL: TestLocalShakeoutBootstrapGrantBudget/default_worker_0 (1.05s)
+    --- FAIL: TestLocalShakeoutBootstrapGrantBudget/default_worker_1 (1.05s)
+    --- FAIL: TestLocalShakeoutBootstrapGrantBudget/default_worker_2 (1.09s)
+    --- PASS: TestLocalShakeoutBootstrapGrantBudget/historical_100_underbudget (1.40s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	5.088s
+=== RUN   TestChatLifecycleShakeoutDefaultSendBudget
+    wukongim_three_node_chat_lifecycle_script_test.go:484: default budget is not 500 SEND/s: run_dir=/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleShakeoutDefaultSendBudget3966579117/001/run
+        build_wukongim=GOWORK=off go build -o /private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleShakeoutDefaultSendBudget3966579117/001/run/bin/wukongim ./cmd/wukongim
+        build_wkbench=GOWORK=off go build -o /private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleShakeoutDefaultSendBudget3966579117/001/run/bin/wkcli ./cmd/wkcli
+        logical_slot_groups=12
+        hash_slots=256
+        replicas=3/3
+        online_connections=2500
+        offered_send_rate_per_second=100
+        measured_duration_seconds=0
+        warmup_seconds=60
+        drain_timeout_seconds=90
+        hot_sendack_p99_milliseconds=400
+        raw_metrics_sample_seconds=30
+        runtime_profile=explicit_rehearsal_tuning
+        channel_store_append_workers=500
+        gateway_async_send_workers=1000
+        gateway_async_send_batch_max_records=1
+        commit_coordinator_flush_window=500us
+        commit_coordinator_shards=1
+        sync_commit=true
+        coordinator_config=/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleShakeoutDefaultSendBudget3966579117/001/run/chat-lifecycle.yaml
+        report_dir=/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleShakeoutDefaultSendBudget3966579117/001/run/report
+        service_1=http://127.0.0.1:15001
+        gateway_1=127.0.0.1:15021
+        worker_1=http://127.0.0.1:15051
+        host_metrics_1=http://127.0.0.1:15061
+        service_2=http://127.0.0.1:15002
+        gateway_2=127.0.0.1:15022
+        worker_2=http://127.0.0.1:15052
+        host_metrics_2=http://127.0.0.1:15062
+        service_3=http://127.0.0.1:15003
+        gateway_3=127.0.0.1:15023
+        worker_3=http://127.0.0.1:15053
+        host_metrics_3=http://127.0.0.1:15063
+        host_metrics_load=http://127.0.0.1:15060
+--- FAIL: TestChatLifecycleShakeoutDefaultSendBudget (0.02s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	0.355s
+FAIL

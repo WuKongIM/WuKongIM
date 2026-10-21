@@ -1,0 +1,2 @@
+{"started": "2026-10-21T07:14:05.827413+00:00", "helper_pid": 23254, "source_sha": "fake-source", "run_dir": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/green-no-bytecode/planned130/run"}
+{"finished": "2026-10-21T07:14:06.015544+00:00", "helper_exit_code": 130, "wrapper_exit_code": 130, "helper_planned_operator_stop": true, "cleanup_pass": true, "raw_token_match_paths": []}

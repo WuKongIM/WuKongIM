@@ -1,0 +1,8 @@
+=== RUN   TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts
+=== RUN   TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_0
+=== RUN   TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_400
+--- PASS: TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts (3.05s)
+    --- PASS: TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_0 (1.55s)
+    --- PASS: TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts/send_rate_400 (1.49s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	3.395s

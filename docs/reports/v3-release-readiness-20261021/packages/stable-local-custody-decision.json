@@ -1,0 +1,14 @@
+{
+  "recorded_at": "2026-10-21T07:03:04.991942+00:00",
+  "source": "direct user messages in this task",
+  "available_devices": "Mac and ZSpace NAS only; no external SSD or hardware signer",
+  "user_instruction": "不需要考虑那么安全 就放Mac或极空间里",
+  "selected_implementation": "Mac-local custody and local signing; NAS may hold a backup",
+  "previous_offline_or_hardware_only_requirement": "superseded by explicit user instruction for this task; repository contract and tooling must be updated transparently",
+  "independent_stable_keys_required": true,
+  "stable_private_keys_in_github_ci": false,
+  "production_keys_generated": false,
+  "nas_accessed_or_modified": false,
+  "stable_channel_enabled": false,
+  "formal_publication_authorized_by_this_message": false
+}

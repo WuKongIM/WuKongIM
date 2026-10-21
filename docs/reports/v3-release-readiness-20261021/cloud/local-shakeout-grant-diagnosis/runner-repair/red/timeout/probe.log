@@ -1,0 +1,2 @@
+{"started": "2026-10-21T07:10:42.068535+00:00", "helper_pid": 5607, "source_sha": "fake-source", "run_dir": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/runner-repair/red/timeout/run"}
+{"finished": "2026-10-21T07:10:43.090408+00:00", "exit_code": 130, "raw_token_match_paths": []}

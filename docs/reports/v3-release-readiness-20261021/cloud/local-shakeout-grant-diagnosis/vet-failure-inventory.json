@@ -1,0 +1,11 @@
+{
+  "path": "pkg/transport/internal/buffer/retained_test.go",
+  "base": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "same_bytes_before_fix": true,
+  "sha256": "f751bf595b75fda5bd7a676205716395a41bb1831fb4cc5635e90ea4f5b2032f",
+  "applicable_rules": [
+    "AGENTS.md"
+  ],
+  "applicable_FLOW": [],
+  "failure": "Test loop range value copies slabClass containing sync.Pool/noCopy; fix only test iteration to reference an existing class by index."
+}

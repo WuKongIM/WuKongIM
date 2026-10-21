@@ -1,0 +1,38 @@
+{
+  "schema": "independent-vet-incremental-review/v1",
+  "captured_at_utc": "2026-10-21T07:06:55.411124+00:00",
+  "base_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "path": "pkg/transport/internal/buffer/retained_test.go",
+  "base_sha256": "f751bf595b75fda5bd7a676205716395a41bb1831fb4cc5635e90ea4f5b2032f",
+  "reviewed_sha256": "732390cf710b7199b0917aef02866de87e7d940687f259c587f84b84f00b0d16",
+  "slab_definition_sha256": "8496dbd0c2a7f033932d0ad0612aaa34e819aa4149391b648db89b95c3f02069",
+  "applicable_rules": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "findings": [],
+  "diff_scope": "replace range value copy with index and pointer reference; no other test logic changes",
+  "loop_closure_present": false,
+  "t_run_present": false,
+  "tests_run_by_reviewer": [],
+  "verification_status": "focused test/vet and full named go-vet delegated to implementation agent; not attested complete here",
+  "evidence_references": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/named-checks/go-vet.json",
+      "bytes": 883,
+      "sha256": "1e78bab2d76f249513045f99a555d868a24bda1d9423e39e1706772a025fb605"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/named-checks/go-vet.log",
+      "bytes": 315,
+      "sha256": "d678edb18bb125d86e09adfadbd4323d3c82e13c7012f7393c08c481a1e2410f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/vet-failure-inventory.json",
+      "bytes": 449,
+      "sha256": "d3032cd0f90e6c51f64286c160a5f6d1e6fe74c4f28a3df403ce17b9e8e5022e"
+    }
+  ]
+}
