@@ -139,7 +139,8 @@ func TestSingleNodeTerminalObserverJoinSurvivesParentSignal(t *testing.T) {
 	harnessBody := strings.TrimSuffix(production, entrypoint) + `
 trap - EXIT INT TERM
 signal_seen=0
-trap 'signal_seen=1' TERM
+signal_child_alive=0
+trap 'signal_seen=1; if kill -0 "$observer_pid" 2>/dev/null; then signal_child_alive=1; fi' TERM
 exec 3>"$WK_TEST_TRACE_PATH"
 fixture_phase=initial
 trap 'fixture_status=$?; printf "fixture_exit phase=%s status=%s\n" "$fixture_phase" "$fixture_status" >&3; exit "$fixture_status"' EXIT
@@ -157,19 +158,15 @@ TERMINAL_CUT_OBSERVER_STOP_FILE="$WK_TEST_STOP_FILE"
 ) &
 TERMINAL_CUT_OBSERVER_PID=$!
 observer_pid="$TERMINAL_CUT_OBSERVER_PID"
-( sleep 0.05; kill -TERM "$$" ) &
-signaler=$!
-printf 'fixture_children target=%s signaler=%s\n' "$observer_pid" "$signaler" >&3
+printf 'fixture_child target=%s\n' "$observer_pid" >&3
 fixture_phase=join
+printf '%s %s\n' "$$" "$observer_pid" >"$WK_TEST_READY_PATH"
 terminate_terminal_cut_observer
 join_status=$?
 printf 'fixture_join status=%s child_status=%s\n' "$join_status" "$WAIT_CHILD_STATUS" >&3
-fixture_phase=signaler_wait
-wait "$signaler"
-signaler_status=$?
-printf 'fixture_signaler_wait status=%s\n' "$signaler_status" >&3
 fixture_phase=assertions
 [[ "$signal_seen" -eq 1 ]]
+[[ "$signal_child_alive" -eq 1 ]]
 [[ -z "$TERMINAL_CUT_OBSERVER_PID" ]]
 if kill -0 "$observer_pid" 2>/dev/null; then
   exit 91
@@ -177,7 +174,7 @@ fi
 printf '%s\n' "$observer_pid" >"$WK_TEST_OBSERVER_PID"
 `
 	// Repeat the unchanged signal timing, keeping only the first failure trace.
-	for iteration := 0; iteration < 20; iteration++ {
+	for iteration := 0; iteration < 3; iteration++ {
 		if !t.Run(fmt.Sprintf("attempt_%02d", iteration+1), func(t *testing.T) {
 			harness := filepath.Join(t.TempDir(), "terminal-observer-join-harness.sh")
 			if err := os.WriteFile(harness, []byte(harnessBody), 0o700); err != nil {
@@ -186,16 +183,18 @@ printf '%s\n' "$observer_pid" >"$WK_TEST_OBSERVER_PID"
 
 			runDir := t.TempDir()
 			tracePath := filepath.Join(runDir, "trace.log")
+			readyPath := filepath.Join(runDir, "ready")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			command := exec.CommandContext(ctx, "bash", harness)
 			command.Dir = root
 			command.Env = append(os.Environ(),
 				"WK_TEST_TRACE_PATH="+tracePath,
+				"WK_TEST_READY_PATH="+readyPath,
 				"WK_TEST_STOP_FILE="+filepath.Join(runDir, "observer.stop"),
 				"WK_TEST_OBSERVER_PID="+filepath.Join(runDir, "observer.pid"),
 			)
-			if output, err := command.CombinedOutput(); err != nil {
+			if output, err := runSignalJoinFixtureOperator(ctx, command, readyPath); err != nil {
 				t.Fatalf("signal-safe observer join failed: %v\n%s\nfixture trace:\n%s", err, output, readSignalJoinFixtureTrace(tracePath))
 			}
 			if ctx.Err() != nil {
