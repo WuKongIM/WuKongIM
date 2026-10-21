@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_s": 7.084173458977602,
+  "owned_pgid": 7016,
+  "cleanup_initial": [],
+  "cleanup_remaining": [],
+  "cleanup_verified": true
+}

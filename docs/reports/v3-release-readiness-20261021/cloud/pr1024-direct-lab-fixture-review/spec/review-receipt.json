@@ -1,0 +1,15 @@
+{
+  "completed_at_utc": "2026-10-21T20:26:20.676012+00:00",
+  "axis": "Spec",
+  "finding_count": 0,
+  "open_findings": 0,
+  "source_head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "source_tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "source_freeze_sha256": "af21909193565744bd478512d428494eb3afee127bc3a5bcf2146766404d9a0a",
+  "source_before_after_and_final_equal": true,
+  "standards_report_read": false,
+  "tests_build_ci_cloud_actions": false,
+  "owned_running_processes": [],
+  "review_observer_first_failure_preserved": "observer-correction.json",
+  "result": "No specification discrepancy found; reviewed local evidence is not a Linux gate pass."
+}

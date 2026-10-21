@@ -1,0 +1,90 @@
+{
+  "source_payloads_verified": 36,
+  "source_checksums_verified": 37,
+  "target_function_lines": 107,
+  "removed_lines_including_separator": 108,
+  "other_default_source_byte_identical": true,
+  "target_body_byte_identical_after_only_declared_additions_removed": true,
+  "unchanged_real_script_and_existing_seams": true,
+  "same_serial_scratch_and_only_declared_variant_input": true,
+  "original_eight_operations_presence_modes_json_preserved": true,
+  "json_normalization_only": [
+    "state.json.created_at",
+    "state.json.activated_at"
+  ],
+  "real_go_builds_baseline": 2,
+  "real_go_builds_variant": 0,
+  "local_fixture_delta_seconds": 1.8891540839999998,
+  "timing_scope": "one local sequential A/B, not Linux gate recovery or compilation-only attribution",
+  "results": {
+    "baseline-first": {
+      "exit_code": 1,
+      "timed_out": false,
+      "elapsed_s": 3.1888954589958303,
+      "owned_pgid": 5600,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "variant-first": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 0.9196066669537686,
+      "owned_pgid": 6268,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "default-list-first": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 2.1831044579739682,
+      "owned_pgid": 6587,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "integration-list-first": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 2.3178398329764605,
+      "owned_pgid": 6614,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "default-focused-first": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 7.242416707973462,
+      "owned_pgid": 6642,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "integration-focused-first": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 7.084173458977602,
+      "owned_pgid": 7016,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    }
+  },
+  "focused_counts_from_original_event_logs": {
+    "default-focused-first": {
+      "top_level_passes": 11,
+      "failures": 0,
+      "skips": 0,
+      "named_target_passes": 0
+    },
+    "integration-focused-first": {
+      "top_level_passes": 15,
+      "failures": 0,
+      "skips": 0,
+      "named_target_passes": 1
+    }
+  },
+  "no_new_tests_builds_network_or_ci_executed": true
+}

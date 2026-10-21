@@ -1,0 +1,96 @@
+{
+  "pages": [
+    {
+      "conclusion": "success",
+      "id": 119466004155,
+      "name": "Validate complete Pages snapshot",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out exact publication control",
+          "number": 2
+        },
+        {
+          "conclusion": "success",
+          "name": "Validate repository contracts",
+          "number": 3
+        },
+        {
+          "conclusion": "skipped",
+          "name": "Configure Pages",
+          "number": 4
+        },
+        {
+          "conclusion": "skipped",
+          "name": "Upload complete Pages artifact",
+          "number": 5
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out exact publication control",
+          "number": 10
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11
+        }
+      ]
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119467073095,
+      "name": "Deploy complete Pages snapshot",
+      "steps": []
+    }
+  ],
+  "sdk": [
+    {
+      "conclusion": "success",
+      "id": 119466003783,
+      "name": "provider-contract",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 2
+        },
+        {
+          "conclusion": "success",
+          "name": "Install exact optional SDK dependencies",
+          "number": 3
+        },
+        {
+          "conclusion": "success",
+          "name": "Run mandatory offline SDK contracts",
+          "number": 4
+        },
+        {
+          "conclusion": "success",
+          "name": "Retain bounded no-credential contract receipt",
+          "number": 5
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 10
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "artifact": {
+    "id": 12378622747,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM3ODYyMjc0Nw==",
+    "name": "native-stable-four-clients-test-only",
+    "size_in_bytes": 141219,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12378622747",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12378622747/zip",
+    "expired": false,
+    "digest": "sha256:dbbdd7a73a170512a25c49ba73132c61f6f594c09c02893730f35c75ff037890",
+    "created_at": "2026-10-21T20:19:27Z",
+    "updated_at": "2026-10-21T20:19:27Z",
+    "expires_at": "2026-11-20T20:19:26Z",
+    "workflow_run": {
+      "id": 39668059195,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-preview-fixture",
+      "head_sha": "94d63a3c099dcaa69bcefda3b021bafcc8d828f6"
+    }
+  },
+  "get_exit_code": 0,
+  "zip_size": 141219,
+  "zip_sha256_recomputed": "dbbdd7a73a170512a25c49ba73132c61f6f594c09c02893730f35c75ff037890",
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "all_members_crc_verified": true,
+  "members": [
+    {
+      "path": "clients-A.json",
+      "size": 6925,
+      "sha256": "88a3379f391b4cf524e242440b6e3455e8dc97fbd27e735220d22035bb3de734",
+      "crc32": "7f71a074",
+      "crc_verified": true
+    },
+    {
+      "path": "https-requests.jsonl",
+      "size": 112457,
+      "sha256": "aef3a3ea98926fbf14ce36f12b283491256463a79c3207fc9cbe3ab1d87fb65e",
+      "crc32": "c2f6445e",
+      "crc_verified": true
+    },
+    {
+      "path": "clients-B.json",
+      "size": 6925,
+      "sha256": "d396fc4f965530df4c406468e127b0220a6dc49b98cb34055614fbf24b5593b7",
+      "crc32": "80c529a6",
+      "crc_verified": true
+    },
+    {
+      "path": "native-stable-clients.json",
+      "size": 977996,
+      "sha256": "b4396c15753003c2cd0e143bee75256bb81dd619800660e1586461a399f8ceb4",
+      "crc32": "c431dc5e",
+      "crc_verified": true
+    }
+  ],
+  "whole_zip_verified_against_api_digest": true
+}

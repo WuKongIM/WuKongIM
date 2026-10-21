@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-review/spec/verify-readonly.py", line 48, in <module>
+    assert old_function.count('\n')==108
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

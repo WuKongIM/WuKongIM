@@ -1,0 +1,7 @@
+{
+  "files_checked": 60,
+  "symlinks": 0,
+  "unsafe_paths": 0,
+  "private_material_or_token_pattern_hits": [],
+  "scope": "Finite reviewed public GitHub logs/metadata, public source and SDK artifact; raw ZIP/stderr private. Pattern scan plus explicit content selection."
+}

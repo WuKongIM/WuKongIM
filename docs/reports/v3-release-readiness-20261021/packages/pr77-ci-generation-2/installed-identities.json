@@ -1,0 +1,157 @@
+{
+  "fixture_inventory_sha256": "76a729dc8666f668aa480f86585ab359f2fb3ca3d9c6c2a05bef4a61d62ed0fc",
+  "identities": [
+    {
+      "generation": "A",
+      "distribution": "ubuntu-24.04",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "A",
+      "distribution": "debian-13",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "A",
+      "distribution": "rocky-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "A",
+      "distribution": "alma-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "B",
+      "distribution": "ubuntu-24.04",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "B",
+      "distribution": "debian-13",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "B",
+      "distribution": "rocky-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    },
+    {
+      "generation": "B",
+      "distribution": "alma-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "checks": [
+        "version",
+        "help",
+        "bench_validate",
+        "db_query",
+        "migrate_diagnose",
+        "invalid_inputs",
+        "read_only_data"
+      ],
+      "fixtures_equal_exact_head": true
+    }
+  ]
+}

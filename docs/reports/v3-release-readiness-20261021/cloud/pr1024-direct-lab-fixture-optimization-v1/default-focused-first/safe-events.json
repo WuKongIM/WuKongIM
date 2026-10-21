@@ -1,0 +1,156 @@
+[
+  {
+    "Time": "2026-10-22T04:19:48.712397+08:00",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts"
+  },
+  {
+    "Time": "2026-10-22T04:19:49.023108+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabPreflightNeverTouchesProviderWithoutTemporaryCredentials"
+  },
+  {
+    "Time": "2026-10-22T04:19:49.968488+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabPreflightNeverTouchesProviderWithoutTemporaryCredentials",
+    "Elapsed": 0.95
+  },
+  {
+    "Time": "2026-10-22T04:19:49.968502+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabPreflightAcceptsExplicitUnregisteredCloudShellCredential"
+  },
+  {
+    "Time": "2026-10-22T04:19:50.926236+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabPreflightAcceptsExplicitUnregisteredCloudShellCredential",
+    "Elapsed": 0.96
+  },
+  {
+    "Time": "2026-10-22T04:19:50.926251+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartRejectsAnotherUnreleasedRequestBeforeProviderContact"
+  },
+  {
+    "Time": "2026-10-22T04:19:50.964791+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartRejectsAnotherUnreleasedRequestBeforeProviderContact",
+    "Elapsed": 0.04
+  },
+  {
+    "Time": "2026-10-22T04:19:50.9648+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartRejectsInvalidDurationBeforeCredentialsOrProvider"
+  },
+  {
+    "Time": "2026-10-22T04:19:50.970225+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartRejectsInvalidDurationBeforeCredentialsOrProvider",
+    "Elapsed": 0.01
+  },
+  {
+    "Time": "2026-10-22T04:19:50.970252+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartRejectsUnreviewedHigherBudgetBeforeProvider"
+  },
+  {
+    "Time": "2026-10-22T04:19:50.975612+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartRejectsUnreviewedHigherBudgetBeforeProvider",
+    "Elapsed": 0.01
+  },
+  {
+    "Time": "2026-10-22T04:19:50.975615+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStopReleasesExactSelectorAndPersistsZeroProof"
+  },
+  {
+    "Time": "2026-10-22T04:19:51.300305+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStopReleasesExactSelectorAndPersistsZeroProof",
+    "Elapsed": 0.32
+  },
+  {
+    "Time": "2026-10-22T04:19:51.300311+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStopFinalizesRequestThatNeverReachedAcquire"
+  },
+  {
+    "Time": "2026-10-22T04:19:51.334116+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStopFinalizesRequestThatNeverReachedAcquire",
+    "Elapsed": 0.03
+  },
+  {
+    "Time": "2026-10-22T04:19:51.334121+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartDerivesMaximumAndLeaseFromQualificationDuration"
+  },
+  {
+    "Time": "2026-10-22T04:19:52.720305+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabStartDerivesMaximumAndLeaseFromQualificationDuration",
+    "Elapsed": 1.39
+  },
+  {
+    "Time": "2026-10-22T04:19:52.720318+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis"
+  },
+  {
+    "Time": "2026-10-22T04:19:53.745256+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabRunStopsOnStallAndKeepsLeaseForDiagnosis",
+    "Elapsed": 1.02
+  },
+  {
+    "Time": "2026-10-22T04:19:53.745265+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabRunStopsRemoteStageWhenDurationHandoffDiffers"
+  },
+  {
+    "Time": "2026-10-22T04:19:54.501817+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabRunStopsRemoteStageWhenDurationHandoffDiffers",
+    "Elapsed": 0.76
+  },
+  {
+    "Time": "2026-10-22T04:19:54.501853+08:00",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabDiagnoseUsesOnlyLocalSSHCollector"
+  },
+  {
+    "Time": "2026-10-22T04:19:54.811893+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestChatLifecycleDirectLabDiagnoseUsesOnlyLocalSSHCollector",
+    "Elapsed": 0.31
+  },
+  {
+    "Time": "2026-10-22T04:19:54.814147+08:00",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Elapsed": 6.102
+  }
+]

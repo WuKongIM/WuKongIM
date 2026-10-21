@@ -1,0 +1,110 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/test-events.json",
+    "bytes": 561382,
+    "sha256": "8801cb5164c7d69f0c4de9246f221b75bd76bf72cc31b33c438978c383c197b4"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/command.json",
+    "bytes": 338,
+    "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/result.json",
+    "bytes": 477,
+    "sha256": "f5fc29babf16c3a26275b52a2656efb45e7725c1f683cdbf6c89c4fc13fdde7d"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/stdout-stderr.log",
+    "bytes": 1389226,
+    "sha256": "a063160f17c69485771d1d31b845f35362d6e120782dc1725dcb1d7ae92e4cea"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410167925/complete.log",
+    "bytes": 85396,
+    "sha256": "481dd7646a751b209c3141afdad847f97560a75174d10127bd0375ea52643ae8"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/job-logs-public/119410167925/job.json",
+    "bytes": 3750,
+    "sha256": "28e3e886e45b928068bc8ec0cf71140ca76a4720ac04b6d41ad2a281d5f7e460"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1-private/12371361340.zip",
+    "bytes": 111041,
+    "sha256": "079ca84c412948dce10d7d2a806762cc97369a994dedf2c21393fdaab4f820ea",
+    "use": "Extract safe event fields only; no raw Output retained"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/test-events.json",
+    "bytes": 595678,
+    "sha256": "e54c935b86b7254b22c3cbead0e67a7a6745aea3837319f0862f67e625307dd2"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/command.json",
+    "bytes": 338,
+    "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/result.json",
+    "bytes": 373,
+    "sha256": "fa5df166c2635d8e06f6d4593827d616adb4dd817f1b0d342ba0732b81926ffc"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/stdout-stderr.log",
+    "bytes": 1482303,
+    "sha256": "461bc6a0d5326f604bb57034dc3fbd743abd87ce57e894e6690fbeec04aaa2db"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117999/complete.log",
+    "bytes": 85338,
+    "sha256": "620feb60adac471ac23ae4745367f18282ecfbad93327dd13de49c07297c0462"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117999/job.json",
+    "bytes": 3750,
+    "sha256": "05d1b0ed30c3c5183cc6eb8e1079db647ee0a2921f1b676d3be66d7dac24f1bb"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate-private/12373881817.zip",
+    "bytes": 117868,
+    "sha256": "8da5766db4fbfbf815a042b1b636bcbc6ba81206655ee4d1433e6a309e5d8eb8",
+    "use": "Extract safe event fields only; no raw Output retained"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/artifacts-public/12378075592/test-events.json",
+    "bytes": 543239,
+    "sha256": "595f874a4ea3cd92d6a4a961c07553de11036bac364908676e48f6c5e5768d53"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/artifacts-public/12378075592/members/command.json",
+    "bytes": 338,
+    "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/artifacts-public/12378075592/members/result.json",
+    "bytes": 461,
+    "sha256": "8e829e46a55d734fcfd167870a0e784cf6abe77eaf7b247031e937878b036dea"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/artifacts-public/12378075592/members/stdout-stderr.log",
+    "bytes": 1351636,
+    "sha256": "30c7c6b6c0141da9664ea21b2bdb487bcdd6013de3d81d1d77d533b8a19ba7e1"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/job-logs-public/119447138157/complete.log",
+    "bytes": 85384,
+    "sha256": "44a51b81db8cf5d180a230dc5024b43a48b85438db0aa8248657943df339424e"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate/job-logs-public/119447138157/job.json",
+    "bytes": 3750,
+    "sha256": "b41a70ea6462138f51a94037c9a719f20a3f536c8911f457b5cecd795ac1068b"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-3/candidate-private/12378075592.zip",
+    "bytes": 109611,
+    "sha256": "d69d187d8fe77393efa06b7b20fc02b60c3695de934dea2dce7d3446c2f4b2f0",
+    "use": "Extract safe event fields only; no raw Output retained"
+  }
+]

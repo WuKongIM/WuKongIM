@@ -1,0 +1,73 @@
+[
+  {
+    "Time": "2026-10-21T19:51:15.574952871Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts"
+  },
+  {
+    "Time": "2026-10-21T19:51:15.697434221Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper"
+  },
+  {
+    "Time": "2026-10-21T19:51:17.358427564Z",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+    "Elapsed": 1.661
+  },
+  {
+    "Time": "2026-10-21T19:51:17.587587906Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck"
+  },
+  {
+    "Time": "2026-10-21T19:51:17.60436484Z",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+    "Elapsed": 0.017
+  },
+  {
+    "Time": "2026-10-21T19:51:17.969974034Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck"
+  },
+  {
+    "Time": "2026-10-21T19:51:18.03728904Z",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+    "Elapsed": 0.067
+  },
+  {
+    "Time": "2026-10-21T19:51:18.505365018Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts"
+  },
+  {
+    "Time": "2026-10-21T19:51:18.514111294Z",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+    "Elapsed": 0.009
+  },
+  {
+    "Time": "2026-10-21T19:51:18.842817285Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf"
+  },
+  {
+    "Time": "2026-10-21T19:51:23.712231164Z",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf",
+    "Elapsed": 4.869
+  },
+  {
+    "Time": "2026-10-21T19:51:24.580755962Z",
+    "Action": "start",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe"
+  },
+  {
+    "Time": "2026-10-21T19:51:25.05238084Z",
+    "Action": "pass",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+    "Elapsed": 0.472
+  }
+]

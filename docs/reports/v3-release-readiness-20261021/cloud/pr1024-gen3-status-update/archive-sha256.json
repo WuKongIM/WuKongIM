@@ -1,0 +1,25 @@
+{
+  "schema": "wukongim/finite-public-archive/v1",
+  "files": [
+    {
+      "path": "after.json",
+      "bytes": 3054,
+      "sha256": "fd3e5007a9b072b2e0964025d257b1d732c34de847be2f0fcbb40db5d3601648"
+    },
+    {
+      "path": "before.json",
+      "bytes": 2539,
+      "sha256": "d82d26dc23a6223a29caa5b3ba3d90f2ffd3b7d81fa45f0993d0352f10f0ea17"
+    },
+    {
+      "path": "body.md",
+      "bytes": 2943,
+      "sha256": "3b5f6e8cda4d8ce8bbf43f247f942c3b36316b218d04ad4201493a4afed1a693"
+    },
+    {
+      "path": "edit.txt",
+      "bytes": 47,
+      "sha256": "cc8f4949a54061763f765e6165ada1fb4c0f97c7ae3ab415097715eb82cec7b3"
+    }
+  ]
+}

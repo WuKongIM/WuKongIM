@@ -1,0 +1,101 @@
+[
+  {
+    "generation": 1,
+    "original_summary_path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/scripts-first-failure-analysis.json",
+    "original_summary_sha256": "75232bdb38a859cdeadc87e688341755832543ddb12c82309dca6ec4bcd86043",
+    "original_summary_root_counts": {
+      "pass": 602,
+      "skip": 6
+    },
+    "corrected_root_counts": {
+      "pass": 610,
+      "incomplete": 40,
+      "skip": 6
+    },
+    "missing_from_old_sanitized_summary": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestCloudLeaseIdentitySetupPublishesOnlyNonSecretVariablesAfterLiveChecks"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestDocsCDNCertificateWorkflowInstallsACMEClientOnlyForRenewalBeforeSecretUse"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestIssueAgentPublisherUsesOnlyTopLevelEnvironmentSecret"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestLocalThresholdPprofAuthenticatesWithoutExposingTokenInArgumentsOrEvidence"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestLocalThresholdPprofScriptRejectsMissingOrUnsafeTokenBeforeCreatingArtifacts"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestSingleNodeBaselineAuthorizationRequiresReviewedContractAndFinalSeal"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestSingleNodeBaselineRedactsSecretsAndUsesPrivateModes"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestWukongIMSingleNodeScriptPassesBenchAPITokenOnlyThroughEnvironment"
+      }
+    ],
+    "reason": "Old summary parsed conservatively sanitized stdout; harmless test names matched token/secret/authorization redactor. No original bytes changed; this appendix uses only safe event fields extracted from original verified ZIP."
+  },
+  {
+    "generation": 2,
+    "original_summary_path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/scripts-first-failure-analysis.json",
+    "original_summary_sha256": "894801d2441ee865811a9a333d7cfdce6071e0145b9367f8f7f80d95d6db2b96",
+    "original_summary_root_counts": {
+      "pass": 641,
+      "skip": 6,
+      "fail": 1
+    },
+    "corrected_root_counts": {
+      "pass": 649,
+      "skip": 6,
+      "fail": 1
+    },
+    "missing_from_old_sanitized_summary": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestCloudLeaseIdentitySetupPublishesOnlyNonSecretVariablesAfterLiveChecks"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestDocsCDNCertificateWorkflowInstallsACMEClientOnlyForRenewalBeforeSecretUse"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestIssueAgentPublisherUsesOnlyTopLevelEnvironmentSecret"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestLocalThresholdPprofAuthenticatesWithoutExposingTokenInArgumentsOrEvidence"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestLocalThresholdPprofScriptRejectsMissingOrUnsafeTokenBeforeCreatingArtifacts"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestSingleNodeBaselineAuthorizationRequiresReviewedContractAndFinalSeal"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestSingleNodeBaselineRedactsSecretsAndUsesPrivateModes"
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/scripts",
+        "test": "TestWukongIMSingleNodeScriptPassesBenchAPITokenOnlyThroughEnvironment"
+      }
+    ],
+    "reason": "Old summary parsed conservatively sanitized stdout; harmless test names matched token/secret/authorization redactor. No original bytes changed; this appendix uses only safe event fields extracted from original verified ZIP."
+  }
+]

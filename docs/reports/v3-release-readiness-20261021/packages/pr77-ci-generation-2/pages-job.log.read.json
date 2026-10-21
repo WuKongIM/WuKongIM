@@ -1,0 +1,12 @@
+{
+  "endpoint": "repos/WuKongIM/packages/actions/jobs/119458251603/logs",
+  "started_at": "20261021T201649023986Z",
+  "exit_code": 0,
+  "raw_bytes": 19867,
+  "raw_sha256": "4dc93fe7056939b43c9b46eb64000cdc7716b0fe2f266097a0d0ca570b6181da",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "public_bytes": 19867,
+  "public_sha256": "4dc93fe7056939b43c9b46eb64000cdc7716b0fe2f266097a0d0ca570b6181da",
+  "redacted": false
+}

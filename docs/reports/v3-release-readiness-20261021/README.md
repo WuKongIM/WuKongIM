@@ -412,3 +412,11 @@ immutable publication and signed native-package public-client acceptance.
 - [两代原始时序](cloud/pr1024-ci-generation-3/candidate/scripts-generation-timing-comparison.json)：保留step/包START与Retention RUN/CONT/终态，不把排队时间当纯编译，也不把无断言FAIL当通过。
 - [#77安装阶段诊断首红首绿](packages/pr77-installed-stage-repair-v1/README.md)、[Spec独审](packages/pr77-installed-stage-review/spec/review.md)、[Standards独审](packages/pr77-installed-stage-review/standards/report.md)与[提交交付](packages/pr77-installed-stage-delivery/commit-identity.json)：94d63a3c/tree0c843c1a，580通过+1既有本地skip、合同4通过；首次CI待终态。阶段B只诊断，不证明历史唯一根因或49通过。
 - [第三代CI与阶段诊断复制校验](pr1024-third-ci-and-pr77-installed-diagnostics-copy.json)：311份公共文件逐项核原字节，旧10,000项先核验；仅rolling README更新，旧immutable档案保持。未冻结的耗时诊断留待单独归档，当前云已释放，无新费用。
+
+
+- [第三代耗时诊断](cloud/pr1024-gen3-timeout-diagnosis/README.md)、[锁等待措辞澄清](cloud/pr1024-gen3-timeout-review/clarification.md)与[状态更新](cloud/pr1024-gen3-status-update/after.json)：32.307秒前置阶段增量仅证明预算余量脆弱；锁等待是基于事件与源码的推断，无获锁观测，历史P3由附录关闭。原三次失败保留。
+- [第一／二代计数更正](cloud/pr1024-gen3-timeout-diagnosis/count-correction-appendix.json)：各补8个安全测试名称PASS，分别为610 PASS/6 SKIP/40未完成与649 PASS/6 SKIP/1 FAIL；旧收据字节不改。
+- [direct-lab夹具首红首绿](cloud/pr1024-direct-lab-fixture-optimization-v1/README.md)、[双轴复核](cloud/pr1024-direct-lab-fixture-delivery/combined-review.md)与[提交身份](cloud/pr1024-direct-lab-fixture-delivery/identity.json)：f419ea8f/treea13367b2，仅消除两个未使用构建并正确分层，原断言不变；相关11/15项首过、owned进程组清零，完整第四代Linux待终态。
+- [#77第二代首次完整CI](packages/pr77-ci-generation-2/README.md)与[正常rebase合并](packages/pr77-merge-delivery/merge-receipt.json)：49/49、8身份、12缓存、2跨代证明及owned清理闭合；581+4、SDK22+10、M1 29和旧签名演练通过。20:26:08Z合并为bbcfb377，同验收tree0c843c1a；原Alma600.151秒失败原因仍未知，原非祖先tip及干净worktree保留。
+- [#77合并后自然首次CI](packages/pr77-main-first-ci/README.md)：581零skip+4及SDK22+10再次通过，生产部署条件skip、无Pages制品；native未重复触发。M2a从新main开始实施但尚未验收，生产stable仍关闭。
+- [本次有限复制收据](pr1024-fixture-and-pr77-merge-copy.json)：321份来源公共文件（其中main首次CI为65份）；复制前后全部旧10,312项校验通过，旧immutable内容不改。未冻结M2/M2a和第四代CI留待独立归档；维持NO-GO，云已释放，无新资源、预算或正式发布。

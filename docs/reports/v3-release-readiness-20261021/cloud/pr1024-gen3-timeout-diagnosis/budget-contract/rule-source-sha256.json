@@ -1,0 +1,190 @@
+{
+  "schema": "readonly-budget-source-manifest/v1",
+  "repository_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "source_sha": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "source_tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "scope": "read-only source/history; no tests, build, runtime, network, cloud or CI operations",
+  "sources": [
+    {
+      "kind": "rule/context",
+      "path": "AGENTS.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/AGENTS.md",
+      "git_blob_sha1": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "kind": "rule/context",
+      "path": "CONTEXT.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/CONTEXT.md",
+      "git_blob_sha1": "d1a1495b25153d5299b1ba22658c188c4c53283b",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "kind": "rule/context",
+      "path": "docs/agents/domain.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/docs/agents/domain.md",
+      "git_blob_sha1": "7a7247cc67343a05184229e3c29a7b345e2aebda",
+      "sha256": "c8fdb946c0aacd833eb287d51a8c3351fe719924febff0d7d4018153ac4859e6"
+    },
+    {
+      "kind": "rule/context",
+      "path": "internal/runtime/reviewagentverify/FLOW.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/runtime/reviewagentverify/FLOW.md",
+      "git_blob_sha1": "6d09e25ad0f2a13feac16dabd24bc99277a73683",
+      "sha256": "3c90cf7db36c3edba4411bfa7b0253cc3c247e8f1bb9e4aff078ab995963d33c"
+    },
+    {
+      "kind": "rule/context",
+      "path": "internal/usecase/reviewagent/FLOW.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/usecase/reviewagent/FLOW.md",
+      "git_blob_sha1": "d434e9aaf8590e3246d7c8acd70510a0fea06835",
+      "sha256": "6640b2695cbb74f2448bbf6710a1a3b3517ca33386eba576b0c65470e2dba08f"
+    },
+    {
+      "kind": "rule/context",
+      "path": "internal/access/reviewagentcli/FLOW.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/access/reviewagentcli/FLOW.md",
+      "git_blob_sha1": "6675538f50c90c4e2857b257de43d8ba234fa820",
+      "sha256": "f7d7149d53b41ca531e91dd6fca69ec7720fcc7111ff4fb19ae41f8fbf45ecbd"
+    },
+    {
+      "kind": "rule/context",
+      "path": "internal/contracts/reviewagent/FLOW.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/contracts/reviewagent/FLOW.md",
+      "git_blob_sha1": "494197c25e91ff79078778eca49ae9fc575668b4",
+      "sha256": "f8990607d5b24d842fe839734f94183d4bc0bc005eb42129bd8377512f5e7b4b"
+    },
+    {
+      "kind": "repository source",
+      "path": ".github/workflows/README.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/workflows/README.md",
+      "git_blob_sha1": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "kind": "repository source",
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/workflows/v3-candidate-regression.yml",
+      "git_blob_sha1": "7cd41b43751ec364ddeab32b9a2249149de530b8",
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "kind": "repository source",
+      "path": ".github/review-agent/policy.json",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/review-agent/policy.json",
+      "git_blob_sha1": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "kind": "repository source",
+      "path": ".github/issue-agent/policy.json",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/issue-agent/policy.json",
+      "git_blob_sha1": "771e2a1d4cbe906b69d3ac7a40bf8c6a1ebc33e8",
+      "sha256": "3e61ce856401063025b1a6f0b03e52c4959e1ed67ebaf576a46655260c8bee40"
+    },
+    {
+      "kind": "repository source",
+      "path": "docs/agents/review-agent.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/docs/agents/review-agent.md",
+      "git_blob_sha1": "49848bdd12d987b6521e790bf62778a105a6e1ec",
+      "sha256": "80d5d56a4df32a843491fba6d59cc01dfc4b7a18556d98d35da80c2ad448cf38"
+    },
+    {
+      "kind": "repository source",
+      "path": "docs/agents/issue-agent.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/docs/agents/issue-agent.md",
+      "git_blob_sha1": "e95bc4fdb7f4d4e8df9c02c1f9e998cff00680b1",
+      "sha256": "d7afd170799ff231f90293e6eae4b942b1f159c0db2c43266aef1bedb85a3818"
+    },
+    {
+      "kind": "repository source",
+      "path": "scripts/run-v3-candidate-check.py",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/run-v3-candidate-check.py",
+      "git_blob_sha1": "29a00b6eae5b8a7dbbe61cd238bcd3de77ee2c93",
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+    },
+    {
+      "kind": "repository source",
+      "path": "scripts/v3_candidate_workflow_contract_test.py",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/v3_candidate_workflow_contract_test.py",
+      "git_blob_sha1": "30699c2b6e63fa6595f15e6da013f7f44ba67e82",
+      "sha256": "d4c691b6dc49364c66fccb95ede050256d0980f0e83282270e3b0bb7ab2a4ed2"
+    },
+    {
+      "kind": "repository source",
+      "path": "internal/runtime/reviewagentverify/os_executor.go",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/runtime/reviewagentverify/os_executor.go",
+      "git_blob_sha1": "379b18fcb735b19678453283ef262fc09844d37c",
+      "sha256": "ac3d9db230a33414f742b986d7dc1a396d185a2ae3690e462b0f27e93d90cfad"
+    },
+    {
+      "kind": "repository source",
+      "path": "internal/runtime/reviewagentverify/runner.go",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/internal/runtime/reviewagentverify/runner.go",
+      "git_blob_sha1": "d5b9c8eec483f30af028a662a889df09a91f4e1e",
+      "sha256": "92792116f17135ebd9b7d926986b247e7cc9375a6b9c3f90a2a38ad2e06af644"
+    },
+    {
+      "kind": "repository source",
+      "path": "scripts/script_test_helpers_test.go",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/script_test_helpers_test.go",
+      "git_blob_sha1": "22b81b4b29a54f72c8fb862092deaa79bb5fa0b1",
+      "sha256": "ab1e9730796794ea94959d6e3b8b1c3ec34fa0bcf850658f3df483bceda10bb7"
+    },
+    {
+      "kind": "repository source",
+      "path": "scripts/script_test_helpers_integration_test.go",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/script_test_helpers_integration_test.go",
+      "git_blob_sha1": "ad7fd2354a69e6d3c619a73774872237ddbbd76a",
+      "sha256": "7e04c8a2f1c6551fe1614477d761d207f78a34d5b0300e88e888340666b538ac"
+    },
+    {
+      "kind": "repository source",
+      "path": "scripts/test_main_test.go",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/test_main_test.go",
+      "git_blob_sha1": "fb09c0dae7b4e574ad361898eadb950035867bfb",
+      "sha256": "178aa1f7240368e10e842372a90c75d3ae0844ce5cb552d5d522f12c9082cbba"
+    },
+    {
+      "kind": "repository source",
+      "path": "docs/superpowers/reports/2026-09-23-deployment-test-stability.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/docs/superpowers/reports/2026-09-23-deployment-test-stability.md",
+      "git_blob_sha1": "d2fcb4938948041b6de4962cde6eb70fcf0d6ed8",
+      "sha256": "ea4586b95f8e289a5dd1d6fb36b0c90c73641dd51984d8f4b822ce7aff05a9ae"
+    },
+    {
+      "kind": "repository source",
+      "path": "docs/superpowers/plans/2026-07-30-review-agent-implementation.md",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/docs/superpowers/plans/2026-07-30-review-agent-implementation.md",
+      "git_blob_sha1": "aae4bd04ccb9d206387ed6f39a5b02a03b8366d6",
+      "sha256": "a158efe5cf078173b8e3fb15567e42f28179e57dccdf36fdd2dd7209502d0231"
+    },
+    {
+      "kind": "repository source",
+      "path": "go.mod",
+      "absolute_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/go.mod",
+      "git_blob_sha1": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d"
+    },
+    {
+      "kind": "installed upstream Go source; not CI-host attestation",
+      "absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/VERSION",
+      "sha256": "1b48ef052c0a9f37d974cc6509e07b52172a5ca2a58fb181a9e1bf00b2634234"
+    },
+    {
+      "kind": "installed upstream Go source; not CI-host attestation",
+      "absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/cmd/go/internal/test/test.go",
+      "sha256": "2d8a59a60c9f728f4da93b22b8c7e8c382f14e2eff2541eb490282940665ad24"
+    },
+    {
+      "kind": "installed upstream Go source; not CI-host attestation",
+      "absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go",
+      "sha256": "7ea0bc471a7d22b6757c68eca689efa0561a0610052545242d866d8039dd1781"
+    },
+    {
+      "kind": "installed upstream Go source; not CI-host attestation",
+      "absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/cmd/internal/test2json/test2json.go",
+      "sha256": "32334b2c819b3cd53a72f5b9eacf6597dbce1eff6ef9dccfaeb9334bfc87edaf"
+    }
+  ]
+}

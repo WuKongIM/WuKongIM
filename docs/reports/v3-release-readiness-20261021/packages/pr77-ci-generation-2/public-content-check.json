@@ -1,0 +1,8 @@
+{
+  "all_regular_paths_and_utf8_or_gzip": true,
+  "symlinks": 0,
+  "private_material_token_signedquery_pattern_hits": [],
+  "file_count_before_envelope": 128,
+  "total_disk_bytes": 2911968,
+  "scope": "Includes decompressed reviewed public GitHub job logs. Excludes private ZIPs/raw stderr/product binaries. Pattern screening plus explicit finite artifact selection, not a claim about unseen data."
+}

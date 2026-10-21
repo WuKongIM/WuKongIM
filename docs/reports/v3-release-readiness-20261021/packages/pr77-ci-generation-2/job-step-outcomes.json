@@ -1,0 +1,312 @@
+{
+  "native": [
+    {
+      "conclusion": "success",
+      "id": 119458251046,
+      "name": "TEST ONLY stable four clients and A/B",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out exact package client control",
+          "number": 2
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out immutable trusted repository tools",
+          "number": 3
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out exact TEST ONLY product build source",
+          "number": 4
+        },
+        {
+          "conclusion": "success",
+          "name": "Prepare fixed product Go toolchain",
+          "number": 5
+        },
+        {
+          "conclusion": "success",
+          "name": "Prepare host verification tools and pinned images",
+          "number": 6
+        },
+        {
+          "conclusion": "success",
+          "name": "Exercise signed TEST ONLY stable clients and exact installed CLI",
+          "number": 7
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve public stable client evidence",
+          "number": 8
+        },
+        {
+          "conclusion": "success",
+          "name": "Reject tracked client-control mutation",
+          "number": 9
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Prepare fixed product Go toolchain",
+          "number": 15
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out exact TEST ONLY product build source",
+          "number": 16
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out immutable trusted repository tools",
+          "number": 17
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out exact package client control",
+          "number": 18
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 119458251335,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out exact package-repository control",
+          "number": 2
+        },
+        {
+          "conclusion": "success",
+          "name": "Validate reviewed control",
+          "number": 3
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out immutable trusted repository tools",
+          "number": 4
+        },
+        {
+          "conclusion": "success",
+          "name": "Verify trusted repository tool bytes",
+          "number": 5
+        },
+        {
+          "conclusion": "success",
+          "name": "Check real native source metadata in isolated TEST ONLY fixtures",
+          "number": 6
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve TEST ONLY native metadata evidence",
+          "number": 7
+        },
+        {
+          "conclusion": "success",
+          "name": "Sign and independently verify real TEST ONLY local file inputs",
+          "number": 8
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve TEST ONLY native local signing evidence",
+          "number": 9
+        },
+        {
+          "conclusion": "success",
+          "name": "Build and coinstall TEST ONLY preview and stable bootstrap preparations",
+          "number": 10
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve TEST ONLY native bootstrap preparation evidence",
+          "number": 11
+        },
+        {
+          "conclusion": "success",
+          "name": "Compose and independently verify TEST ONLY stable offline candidate",
+          "number": 12
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve TEST ONLY native stable candidate evidence",
+          "number": 13
+        },
+        {
+          "conclusion": "success",
+          "name": "Verify native TEST ONLY preview and stable delivery fixtures",
+          "number": 14
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve public native delivery fixture evidence",
+          "number": 15
+        },
+        {
+          "conclusion": "success",
+          "name": "Set up fixed GoReleaser toolchain",
+          "number": 16
+        },
+        {
+          "conclusion": "success",
+          "name": "Install fixed GoReleaser version",
+          "number": 17
+        },
+        {
+          "conclusion": "success",
+          "name": "Restore exact source Go toolchain",
+          "number": 18
+        },
+        {
+          "conclusion": "success",
+          "name": "Build unsigned TEST ONLY packages",
+          "number": 19
+        },
+        {
+          "conclusion": "success",
+          "name": "Build, sign, verify, and install TEST ONLY repositories",
+          "number": 20
+        },
+        {
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 21
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Restore exact source Go toolchain",
+          "number": 39
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Set up fixed GoReleaser toolchain",
+          "number": 40
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out immutable trusted repository tools",
+          "number": 41
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out exact package-repository control",
+          "number": 42
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 43
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "conclusion": "success",
+      "id": 119458251603,
+      "name": "Validate complete Pages snapshot",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1
+        },
+        {
+          "conclusion": "success",
+          "name": "Check out exact publication control",
+          "number": 2
+        },
+        {
+          "conclusion": "success",
+          "name": "Validate repository contracts",
+          "number": 3
+        },
+        {
+          "conclusion": "skipped",
+          "name": "Configure Pages",
+          "number": 4
+        },
+        {
+          "conclusion": "skipped",
+          "name": "Upload complete Pages artifact",
+          "number": 5
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Check out exact publication control",
+          "number": 10
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11
+        }
+      ]
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119459318338,
+      "name": "Deploy complete Pages snapshot",
+      "steps": []
+    }
+  ],
+  "sdk": [
+    {
+      "conclusion": "success",
+      "id": 119458252810,
+      "name": "provider-contract",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 2
+        },
+        {
+          "conclusion": "success",
+          "name": "Install exact optional SDK dependencies",
+          "number": 3
+        },
+        {
+          "conclusion": "success",
+          "name": "Run mandatory offline SDK contracts",
+          "number": 4
+        },
+        {
+          "conclusion": "success",
+          "name": "Retain bounded no-credential contract receipt",
+          "number": 5
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 10
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11
+        }
+      ]
+    }
+  ]
+}

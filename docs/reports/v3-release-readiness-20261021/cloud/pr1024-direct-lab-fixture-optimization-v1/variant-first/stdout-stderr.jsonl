@@ -1,0 +1,8 @@
+{"Time":"2026-10-22T04:18:01.843982+08:00","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-22T04:18:01.979509+08:00","Action":"run","Package":"command-line-arguments","Test":"TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire"}
+{"Time":"2026-10-22T04:18:01.979574+08:00","Action":"output","Package":"command-line-arguments","Test":"TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire","Output":"=== RUN   TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire\n"}
+{"Time":"2026-10-22T04:18:02.551938+08:00","Action":"output","Package":"command-line-arguments","Test":"TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire","Output":"--- PASS: TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire (0.57s)\n"}
+{"Time":"2026-10-22T04:18:02.551964+08:00","Action":"pass","Package":"command-line-arguments","Test":"TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire","Elapsed":0.57}
+{"Time":"2026-10-22T04:18:02.551979+08:00","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-22T04:18:02.552357+08:00","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t0.708s\n"}
+{"Time":"2026-10-22T04:18:02.552373+08:00","Action":"pass","Package":"command-line-arguments","Elapsed":0.708}

@@ -1,0 +1,73 @@
+GEN 1 {'step_to_package_start_s_approx': 123.173057022, 'package_start_to_last_test_event_s': 477.797996138, 'package_start_to_first_parallel_cont_s': 60.226999144, 'root_counts': {'pass': 610, 'incomplete': 40, 'skip': 6}, 'scripts_root_counts': {'pass': 524, 'incomplete': 40, 'skip': 6}, 'root_pending_last_action': {'pause': 36, 'cont': 4}}
+GEN 2 {'step_to_package_start_s_approx': 112.312204707, 'package_start_to_last_test_event_s': 463.467669636, 'package_start_to_first_parallel_cont_s': 55.027314932, 'root_counts': {'pass': 649, 'skip': 6, 'fail': 1}, 'scripts_root_counts': {'pass': 563, 'skip': 6, 'fail': 1}, 'root_pending_last_action': {}}
+GEN 3 {'step_to_package_start_s_approx': 126.574952871, 'package_start_to_last_test_event_s': 472.067408953, 'package_start_to_first_parallel_cont_s': 61.823091474, 'root_counts': {'pass': 618, 'incomplete': 33, 'skip': 6}, 'scripts_root_counts': {'pass': 532, 'incomplete': 33, 'skip': 6}, 'root_pending_last_action': {'pause': 29, 'cont': 4}}
+TOP REPORTED ELAPSED COMMON ROOT INCREASE: g1/g2/g3
+TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload 3.73 0.15 21.97 delta 21.82
+TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup 16.43 4.9 24.5 delta 19.6
+TestCloudSimulationFinalizeRealAnalyzeVerifiesReleasedWithoutGo 10.29 1.86 10.69 delta 8.83
+TestChatLifecycleShakeoutScriptIntegration 127.39 121.43 129.66 delta 8.23
+TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes 3.51 3.45 9.17 delta 5.72
+TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision 45.91 36.96 42.64 delta 5.68
+TestCloudSimulationAnalyzeRecoversCorrelatedCloseAfterLocalGitHubErrors 8.11 4.96 8.8 delta 3.84
+TestWKDBDiffSmokeScript 11.83 9.37 13.21 delta 3.84
+TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT 1.87 1.76 5.42 delta 3.66
+TestCloudSimulationAnalyzeUsesLocalSourceWithoutFetching 4.5 1.64 4.56 delta 2.92
+TestWKDBExportRoundTripSmokeScript 9.7 7.52 10.25 delta 2.73
+TestWKDBImportSmokeScriptValidatesAndImportsBundle 6.18 5.26 7.01 delta 1.75
+TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire 13.91 12.43 14.14 delta 1.71
+TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations 13.57 13.18 14.78 delta 1.6
+TestSingleNodeBaselineGitObservationFailureFailsSourceIdentityClosed 7.23 6.91 8.38 delta 1.47
+TestSingleNodeBaselineCrashBeforeAtomicCompletionDoesNotPublishResult 8.33 7.01 8.44 delta 1.43
+TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange 7.22 6.9 8.32 delta 1.42
+TestSingleNodeBaselineExternalBinariesStayBinaryIdentityOnlyForCleanSource 7.14 6.92 8.29 delta 1.37
+TestSingleNodeBaselineDefaultProfileDoesNotCreatePprofArtifacts 8.4 7.1 8.45 delta 1.35
+TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering 7.17 6.93 8.28 delta 1.35
+TestCloudSimulationAnalyzeFallsBackWhenSameHostObservationIsUnavailable 10.84 9.68 10.96 delta 1.28
+TestCloudSimulationAnalyzeFailsClosedWhenSameHostIPv4ChangesAgain 0.71 0.53 1.7 delta 1.17
+TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors 1.28 0.17 1.3 delta 1.13
+TestCloudDeploymentActivateHostsWithFakeSSH 5.67 4.8 5.92 delta 1.12
+TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically None 0.41 1.46 delta 1.05
+TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInvalid None 0.37 1.4 delta 1.03
+TestSingleNodeBaselineOwnedWorkerBuildDoesNotReuseOrOverwriteExistingBinary 5.27 4.68 5.63 delta 0.95
+TestCloudSimulationAnalyzeBoundsCryptoAndWorktreeProcessGroups 13.22 12.48 13.36 delta 0.88
+TestCloudSimulationSetupConfiguresAlibabaAndGitHubWithoutAPIKey 9.99 9.47 10.34 delta 0.87
+TestSingleNodeBaselineRedactionFailureRemovesUnsealedBuildBeforeChecksum 5.19 5.02 5.67 delta 0.65
+TOP G 1
+TestChatLifecycleShakeoutScriptIntegration 127.39 None 109.880628042
+TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision 45.91 429.721061971 239.481503065
+TestNativePackageBootstrapFailureDiagnostics 20.42 None 76.915767813
+TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup 16.43 379.69163115 60.181737976
+TestCloudSimulationAnalyzeBoundsDiagnosisAndValidationProcessGroups 16.19 391.115878274 60.181719521
+TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire 13.91 None 2.125470436
+TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations 13.57 291.269378888 98.64326919
+TestSingleNodeBaselineRestartsOneProductGenerationPerRateAndPreservesData 13.53 294.233093251 98.643246888
+TestCloudSimulationAnalyzeBoundsCryptoAndWorktreeProcessGroups 13.22 377.894182669 60.181756571
+TestWKDBDiffSmokeScript 11.83 309.223316852 98.36915025
+TestCloudDeploymentExecution 11.03 None 46.010517387
+TestCloudSimulationAnalyzeFallsBackWhenSameHostObservationIsUnavailable 10.84 334.042863941 60.181866165
+TOP G 2
+TestChatLifecycleShakeoutScriptIntegration 121.43 None 102.997139227
+TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision 36.96 346.852985327 226.598169125
+TestWukongIMSingleNodeScriptPassesBenchAPITokenOnlyThroughEnvironment 33.04 350.841453049 100.574139087
+TestNativePackageBootstrapFailureDiagnostics 20.35 None 71.612538339
+TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails 15.53 240.177785359 92.746010856
+TestChatLifecycleTerminalEvidenceRetention 14.79 239.89182357 31.438939798
+TestSingleNodeBaselineRestartsOneProductGenerationPerRateAndPreservesData 13.19 423.54854206 93.09797323
+TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations 13.18 420.151248022 93.098023547
+TestCloudSimulationAnalyzeBoundsCryptoAndWorktreeProcessGroups 12.48 284.913794962 54.988796364
+TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire 12.43 None 1.825859668
+TestChatLifecycleRepairMonitorRetriesTransientRemoteAndInconsistentCuts 11.93 318.093291146 30.749964335
+TestDevSimPerfTriageCollectsEvidenceForSampledScenario 11.11 286.399465537 62.205224506
+TOP G 3
+TestChatLifecycleShakeoutScriptIntegration 129.66 None 112.739855905
+TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision 42.64 353.694385297 244.620449051
+TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup 24.5 439.886708375 61.775206506
+TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload 21.97 374.520163885 69.519604503
+TestNativePackageBootstrapFailureDiagnostics 20.43 None 79.575908705
+TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations 14.78 306.508458047 101.365745234
+TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire 14.14 None 2.284882822
+TestSingleNodeBaselineRestartsOneProductGenerationPerRateAndPreservesData 13.67 311.676722542 101.365720789
+TestCloudSimulationAnalyzeBoundsCryptoAndWorktreeProcessGroups 13.36 438.0571316 61.775227355
+TestWKDBDiffSmokeScript 13.21 327.372064792 101.080021959
+TestCloudSimulationAnalyzeFallsBackWhenSameHostObservationIsUnavailable 10.96 424.368942161 61.775359763
+TestCloudDeploymentExecution 10.79 None 47.834909862

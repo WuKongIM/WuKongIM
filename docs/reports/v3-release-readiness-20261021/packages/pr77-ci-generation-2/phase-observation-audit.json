@@ -1,0 +1,499 @@
+{
+  "acceptance_supported_separately_by_identity_receipts_and_negative_diagnostics": true,
+  "commands": [
+    {
+      "command_index": 52,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 15.338,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "apt",
+      "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "4d23454ee744e8b7aa774063eee703d311c8d9bf7615c56dd968845152216488",
+      "output_size": 36227,
+      "phase_summary_outside_tail": true
+    },
+    {
+      "command_index": 56,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 9.775,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "apt",
+      "image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "c6e70df5023c1f83f8c60c5572751826877acd96d5972bf6e6fe87aa1cb683fb",
+      "output_size": 20131,
+      "phase_summary_outside_tail": true
+    },
+    {
+      "command_index": 62,
+      "complete_output_hash_and_events_recomputed": true,
+      "elapsed_seconds": 11.99,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "rpm",
+      "image": "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "signature"
+          },
+          {
+            "event": "complete",
+            "phase": "signature"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "9f487edd08175b496238f87992e22a6b9cfd1c6ab7354b314c053e76e428e72a",
+      "output_size": 3672,
+      "phase_summary_outside_tail": false
+    },
+    {
+      "command_index": 66,
+      "complete_output_hash_and_events_recomputed": true,
+      "elapsed_seconds": 13.402,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "rpm",
+      "image": "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "signature"
+          },
+          {
+            "event": "complete",
+            "phase": "signature"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "09ca1455bd4656854e65fbe655fb92a6659ee6c1e9954ed10ea1806c58ef6ffb",
+      "output_size": 3026,
+      "phase_summary_outside_tail": false
+    },
+    {
+      "command_index": 79,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 13.113,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "apt",
+      "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "fe618398c29e76f7f61df3edf4b122bbba6b2906b0e8ebcb223a867354b2f928",
+      "output_size": 36227,
+      "phase_summary_outside_tail": true
+    },
+    {
+      "command_index": 83,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 7.746,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "apt",
+      "image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "61c50beddc9655fac232d55dd313c30162875ff358a683011386ec9de94991da",
+      "output_size": 20131,
+      "phase_summary_outside_tail": true
+    },
+    {
+      "command_index": 89,
+      "complete_output_hash_and_events_recomputed": true,
+      "elapsed_seconds": 14.476,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "rpm",
+      "image": "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "signature"
+          },
+          {
+            "event": "complete",
+            "phase": "signature"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "34aa644adb6ea0b3cc1615676e625e419d858ee7da9ff07038df483154c52a28",
+      "output_size": 3672,
+      "phase_summary_outside_tail": false
+    },
+    {
+      "command_index": 93,
+      "complete_output_hash_and_events_recomputed": true,
+      "elapsed_seconds": 14.448,
+      "exit_code": 0,
+      "expected_rejection_case": [],
+      "family": "rpm",
+      "image": "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "signature"
+          },
+          {
+            "event": "complete",
+            "phase": "signature"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          },
+          {
+            "event": "complete",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "e6ff253d11064760171bb405c5dc288e91985a5fd74549bac4767dfe7387698a",
+      "output_size": 3026,
+      "phase_summary_outside_tail": false
+    },
+    {
+      "command_index": 236,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 13.16,
+      "exit_code": 1,
+      "expected_rejection_case": [
+        "reject-actual-installed-source-SHA"
+      ],
+      "family": "apt",
+      "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "a63ff129010a3c94a4041c58a9cee9444894414c6a33ac962212f00c492017fd",
+      "output_size": 36280,
+      "phase_summary_outside_tail": true
+    },
+    {
+      "command_index": 238,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 13.143,
+      "exit_code": 1,
+      "expected_rejection_case": [
+        "reject-actual-installed-old-version"
+      ],
+      "family": "apt",
+      "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "0a06d827332fa74b590d42e0ba53be261f461b9679f90f0faff31499096183bd",
+      "output_size": 36280,
+      "phase_summary_outside_tail": true
+    },
+    {
+      "command_index": 240,
+      "complete_output_hash_and_events_recomputed": false,
+      "elapsed_seconds": 12.358,
+      "exit_code": 1,
+      "expected_rejection_case": [
+        "reject-actual-installed-missing-wkcli"
+      ],
+      "family": "apt",
+      "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "installed_phase_events": {
+        "events": [
+          {
+            "event": "begin",
+            "phase": "checksum"
+          },
+          {
+            "event": "complete",
+            "phase": "checksum"
+          },
+          {
+            "event": "begin",
+            "phase": "dependencies"
+          },
+          {
+            "event": "complete",
+            "phase": "dependencies"
+          },
+          {
+            "event": "begin",
+            "phase": "cli"
+          }
+        ],
+        "schema": "wukongim/native-installed-phase-events/v1",
+        "truncated": false
+      },
+      "output_sha256": "afa934ccbd3c461c6c04d169c3d016ffcaf6320b9f288d6d7d3b50bcd0c6dc9f",
+      "output_size": 36311,
+      "phase_summary_outside_tail": true
+    }
+  ],
+  "full_output_hash_and_events_recomputed": 4,
+  "historical_timeout_subphase": "unknown; this passing run does not locate the previous timeout",
+  "intended_rejection_commands": 3,
+  "large_stdout_limit": "For seven truncated outputs, only the original full-output SHA declaration plus tail and bounded event receipt are available; no claim of independently reconstructing the full stream.",
+  "phase_events_are_diagnostic_only": true,
+  "success_commands": 8
+}

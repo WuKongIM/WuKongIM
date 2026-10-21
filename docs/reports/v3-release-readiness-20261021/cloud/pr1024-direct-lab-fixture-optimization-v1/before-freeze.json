@@ -1,0 +1,47 @@
+{
+  "head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_test.go",
+      "sha256": "bbc7446d53bf41032ac3bb3dfeeb13c0f5f8617cf743c3e9ef8be1dbcc6cbfcc"
+    },
+    {
+      "path": "scripts/chat-lifecycle/direct-lab.sh",
+      "sha256": "8bdbfef0a79526a63e200327dac26e2436df5f462b1d1be4efe5a2ece95fb631"
+    },
+    {
+      "path": "scripts/script_test_helpers_test.go",
+      "sha256": "ab1e9730796794ea94959d6e3b8b1c3ec34fa0bcf850658f3df483bceda10bb7"
+    },
+    {
+      "path": "scripts/script_test_helpers_integration_test.go",
+      "sha256": "7e04c8a2f1c6551fe1614477d761d207f78a34d5b0300e88e888340666b538ac"
+    }
+  ],
+  "scratch_files": [
+    {
+      "path": "plan-and-failure-matrix.md",
+      "sha256": "ec6439babd2bff39b0deb792f62a95275f35df936baf8182bd97c6329f20d947"
+    },
+    {
+      "path": "original-test-function.go.txt",
+      "sha256": "210baa500dd269ec7f35e3991ebb8d6d6bde99863e3e8dbef40954607d968cad"
+    },
+    {
+      "path": "go-trace.py",
+      "sha256": "1f2c813d98219d863f03b53732be61a2a3b4030ad9f04754c4c3296842dd1559"
+    },
+    {
+      "path": "fixture_test.go",
+      "sha256": "f2c1e37d5c230fde4872abbebdb80ef133eaaa7e68e4bc95c7c636ab9b8c5055"
+    }
+  ]
+}

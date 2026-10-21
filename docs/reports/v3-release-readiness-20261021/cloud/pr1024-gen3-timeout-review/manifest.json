@@ -1,0 +1,36 @@
+{
+  "files": [
+    {
+      "path": "clarification.md",
+      "bytes": 1496,
+      "sha256": "2c44d29e533b4dd72404abd4c2d56c7fb28658feb7250a5f69b7f700b5022e83"
+    },
+    {
+      "path": "independent-verification.json",
+      "bytes": 12275,
+      "sha256": "257e6c313adab8a5ebc6f0a6e1cf3a8d1092dd43799cf60cd6be1baab7105b7d"
+    },
+    {
+      "path": "report.md",
+      "bytes": 1565,
+      "sha256": "7032aa1ce98ca8f9fec3912f828bf89fa7d28eccfee8a02608dc55edf8e2d64d"
+    },
+    {
+      "path": "review-receipt.json",
+      "bytes": 1017,
+      "sha256": "1025c057cb267c5e716b8cd08e0bb1a3353a4d3732ce1975533bb0b4d22202e3"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 7985,
+      "sha256": "660e9ed97128bfa6ba7ec12acaf9ca0ee6b07e53485bc57f9f523fdfb2edec0a"
+    },
+    {
+      "path": "verify-readonly.py",
+      "bytes": 9137,
+      "sha256": "5fcb4777984149c70690026654088bd32fb7dc644a54b19c595d3fa144d5f973"
+    }
+  ],
+  "payload_count": 6,
+  "total_bytes": 33475
+}

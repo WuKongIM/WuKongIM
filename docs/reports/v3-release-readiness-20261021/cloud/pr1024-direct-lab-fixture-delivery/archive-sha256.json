@@ -1,0 +1,55 @@
+{
+  "schema": "wukongim/finite-public-archive/v1",
+  "files": [
+    {
+      "path": "combined-review.md",
+      "bytes": 3925,
+      "sha256": "4ae5c1a9950ca6372ee07bca33d778a37b055e2179398915a50eb9b19657b91d"
+    },
+    {
+      "path": "commit.txt",
+      "bytes": 230,
+      "sha256": "7dffdfdfeb8df635a3bd079d6c19b1816ce2a9643f5c431517bae6424531e051"
+    },
+    {
+      "path": "identity.json",
+      "bytes": 183,
+      "sha256": "c8e5973f6e998d3abb62202a4857d49ba1e211c8ce3d92f1e283cbe001f93ef0"
+    },
+    {
+      "path": "pr-after.json",
+      "bytes": 3839,
+      "sha256": "0b077ba90ae37f91897dcce124a2c093b45d5d93501de260f1fe428349e31ee6"
+    },
+    {
+      "path": "pr-before.json",
+      "bytes": 3054,
+      "sha256": "fd3e5007a9b072b2e0964025d257b1d732c34de847be2f0fcbb40db5d3601648"
+    },
+    {
+      "path": "pr-body.md",
+      "bytes": 3671,
+      "sha256": "9dae83bcd0476ab6c491627d83dac9fd89a479ae66cb8b8091d67e12bf340271"
+    },
+    {
+      "path": "pr-edit.txt",
+      "bytes": 47,
+      "sha256": "cc8f4949a54061763f765e6165ada1fb4c0f97c7ae3ab415097715eb82cec7b3"
+    },
+    {
+      "path": "push.txt",
+      "bytes": 107,
+      "sha256": "677c1b4cd36dae887380e8df5b05c7905fd06957cff55bc0362e72adf85061ac"
+    },
+    {
+      "path": "source-verification.json",
+      "bytes": 623,
+      "sha256": "b8d9a223d6daee2e646acc001428e341c1431d06249317412ee2423777f55310"
+    },
+    {
+      "path": "staged.patch",
+      "bytes": 13262,
+      "sha256": "cd7cf1f32209abf0313f7573ed0581654ca63d99272e04729a09657642fe5411"
+    }
+  ]
+}

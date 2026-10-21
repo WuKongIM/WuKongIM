@@ -1,0 +1,36 @@
+{
+  "main_head": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "same_tree_as_accepted_PR": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "SDK": {
+    "actual_checkout": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+    "tests": 22,
+    "input_tests": 10,
+    "skips": 0
+  },
+  "files": [
+    {
+      "path": "manifests/channels.json",
+      "size": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "equal_accepted_PR": true
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "size": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "equal_accepted_PR": true
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "size": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "equal_accepted_PR": true
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "size": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "equal_accepted_PR": true
+    }
+  ]
+}

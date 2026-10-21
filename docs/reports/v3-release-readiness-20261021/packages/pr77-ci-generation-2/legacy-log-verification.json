@@ -1,0 +1,9 @@
+{
+  "actual_checkout": "1625487a0ffc18090047dcfce65113a62595b1de",
+  "job_id": 119458251335,
+  "full_signed_repository_install_passed": true,
+  "M1_command_contains_init": true,
+  "log_uncompressed_bytes": 13480327,
+  "log_uncompressed_sha256": "3cd3ef9af6053877f93d95b65cb4e7940ea5a6de8d1597ed1fe559bd44fd86b9",
+  "CI_process_inventory": "not captured; no zero-zombie claim"
+}

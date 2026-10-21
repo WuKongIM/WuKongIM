@@ -1,0 +1,225 @@
+{
+  "files": {
+    "bootstrap-access.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "bundle": {
+      "directory": true,
+      "mode": "0700"
+    },
+    "deployment_ed25519": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "deployment_ed25519.pub": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "diagnostic_ed25519": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "diagnostic_ed25519.pub": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "lease-plan.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "materialize-template.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "quote.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "receipt-selector.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "receipt.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "release-selector.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "run-plan.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "run-policy.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "state.json": {
+      "directory": false,
+      "mode": "0600"
+    },
+    "tools": {
+      "directory": true,
+      "mode": "0700"
+    }
+  },
+  "fixture_elapsed_s": 0.5690775,
+  "go_calls": [],
+  "injected_unused_tools": true,
+  "json_files": {
+    "bootstrap-access.json": {
+      "access": {
+        "public_keys": [
+          "ssh-ed25519 fake"
+        ]
+      },
+      "schema": "wukongim.cloud_lease.bootstrap_access/v1"
+    },
+    "lease-plan.json": {
+      "lease_id": "lease-direct",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "request_id": "chat-20260823T020304Z-b1c2d3e4",
+      "schema": "wukongim.cloud_lease/v1"
+    },
+    "materialize-template.json": {
+      "budget": {
+        "currency": "CNY",
+        "hard_limit_micros": 300000000,
+        "operational_stop_micros": 250000000
+      },
+      "compute": {
+        "allow_burstable": false,
+        "architecture": "x86_64",
+        "billing_model": "postpaid",
+        "memory_bytes": 8589934592,
+        "vcpus": 4
+      },
+      "host_groups": [
+        {
+          "count": 3,
+          "data_disk_bytes": 536870912000,
+          "public_ipv4": false,
+          "role": "service",
+          "system_disk_bytes": 42949672960
+        },
+        {
+          "count": 1,
+          "data_disk_bytes": 214748364800,
+          "public_ipv4": true,
+          "role": "load",
+          "system_disk_bytes": 42949672960
+        }
+      ],
+      "lease_duration_seconds": 21600,
+      "network": {
+        "conservative_public_egress_bytes": 10737418241,
+        "peak_bandwidth_mbps": 20
+      },
+      "provider": "alibaba",
+      "readiness_timeout_seconds": 1800,
+      "region": "cn-hangzhou",
+      "retry": {
+        "deployment_retries": 0
+      },
+      "schema": "wukongim.chat_lifecycle.run_plan_template/v1",
+      "stage": "repair",
+      "workload_duration_seconds": 4500
+    },
+    "quote.json": {
+      "quote": {
+        "capacity_available": true,
+        "plan_digest": "0000000000000000000000000000000000000000000000000000000000000002",
+        "quota_available": true,
+        "request_id": "chat-20260823T020304Z-b1c2d3e4",
+        "selection": {
+          "instance_type": "ecs.test"
+        },
+        "zone": "cn-hangzhou-a"
+      },
+      "schema": "wukongim.cloud_lease.quote/v1"
+    },
+    "receipt-selector.json": {
+      "schema": "wukongim.cloud_lease.selector/v1",
+      "selector": {
+        "lease_id": "lease-direct",
+        "plan_digest": "0000000000000000000000000000000000000000000000000000000000000002",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "request_id": "chat-20260823T020304Z-b1c2d3e4"
+      }
+    },
+    "receipt.json": {
+      "receipt": {
+        "lease_id": "lease-direct",
+        "plan_digest": "0000000000000000000000000000000000000000000000000000000000000002",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "request_id": "chat-20260823T020304Z-b1c2d3e4",
+        "resources": [],
+        "state": "active"
+      },
+      "schema": "wukongim.cloud_lease.receipt/v1"
+    },
+    "release-selector.json": {
+      "schema": "wukongim.cloud_lease.selector/v1",
+      "selector": {
+        "lease_id": "lease-direct",
+        "plan_digest": "0000000000000000000000000000000000000000000000000000000000000002",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "request_id": "chat-20260823T020304Z-b1c2d3e4"
+      }
+    },
+    "run-plan.json": {
+      "bootstrap_access": {
+        "public_keys": [
+          "ssh-ed25519 fake"
+        ]
+      },
+      "lease_plan": {
+        "lease_id": "lease-direct",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "request_id": "chat-20260823T020304Z-b1c2d3e4",
+        "schema": "wukongim.cloud_lease/v1"
+      },
+      "schema": "wukongim.chat_lifecycle.run_plan/v1"
+    },
+    "run-policy.json": {
+      "budget_cny": 300,
+      "duration": "60m",
+      "duration_seconds": 3600,
+      "hard_limit_micros": 300000000,
+      "lease_duration_seconds": 21600,
+      "max_duration_seconds": 4500,
+      "operational_stop_micros": 250000000,
+      "qualification_reserve_seconds": 900,
+      "schema": "wukongim.chat_lifecycle.direct_lab_run_policy/v1"
+    },
+    "state.json": {
+      "activated_at": "2026-10-21T20:18:02Z",
+      "bundle_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+      "created_at": "2026-10-21T20:18:02Z",
+      "generation": 0,
+      "lease_id": "lease-direct",
+      "request_id": "chat-20260823T020304Z-b1c2d3e4",
+      "schema": "wukongim.chat_lifecycle.direct_lab_state/v1",
+      "source_sha": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+      "state": "active"
+    }
+  },
+  "operation_calls": "build\nmaterialize\nquote\nselector-from-plan\nrelease-enable\nacquire\nrelease-enable-after-provision\nselector\n",
+  "original_assertions_passed": true,
+  "schema": "wukongim.fixture_probe/v1",
+  "tool_names": [
+    "timeout"
+  ]
+}

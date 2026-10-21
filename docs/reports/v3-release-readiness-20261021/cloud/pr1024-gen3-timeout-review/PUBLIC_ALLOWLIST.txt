@@ -1,0 +1,6 @@
+clarification.md
+independent-verification.json
+report.md
+review-receipt.json
+source-binding.json
+verify-readonly.py

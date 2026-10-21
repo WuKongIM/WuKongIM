@@ -1,0 +1,28 @@
+{
+  "finished_at": "2026-10-21T20:18:34.244718+00:00",
+  "findings": 1,
+  "reviewed_manifest_sha256": "9debf2d669b77cb2565e7af066eee2f94ab2f44c907a2f72b69f6202f9fee072",
+  "independent_verification_sha256": "257e6c313adab8a5ebc6f0a6e1cf3a8d1092dd43799cf60cd6be1baab7105b7d",
+  "original_inputs_unchanged": true,
+  "diagnosis_files_unchanged": true,
+  "tests_build_ci_cloud_source_mutations": false,
+  "all_owned_commands_terminal": true,
+  "tool_replacement_experiment_reviewed": false,
+  "findings_detail": [
+    {
+      "priority": 3,
+      "file": "README.md",
+      "lines": [
+        16,
+        17
+      ],
+      "type": "inference-wording",
+      "summary": "Lock waiting is inferred from safe-event intervals plus source; no acquisition event was observed. Detailed limitations elsewhere are already accurate.",
+      "status": "closed_by_appendix",
+      "clarification_path": "clarification.md"
+    }
+  ],
+  "numerical_or_method_blockers": 0,
+  "open_findings": 0,
+  "parent_accepted_clarification": true
+}

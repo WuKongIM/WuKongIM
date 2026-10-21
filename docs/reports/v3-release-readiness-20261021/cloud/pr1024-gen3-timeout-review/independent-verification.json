@@ -1,0 +1,299 @@
+{
+  "frozen_input_manifest_sha256": "9debf2d669b77cb2565e7af066eee2f94ab2f44c907a2f72b69f6202f9fee072",
+  "input_payloads": 20,
+  "input_payload_bytes": 7936582,
+  "all_21_original_input_hashes_verified": 21,
+  "exact_head_source_files_verified": 19,
+  "generations": [
+    {
+      "generation": 1,
+      "original_zip_sha256": "079ca84c412948dce10d7d2a806762cc97369a994dedf2c21393fdaab4f820ea",
+      "original_stdout_sha256": "0d21eb890f4735b6f161b200f3ba77cef3c1ebbe83e5e6eeb644d530558ce9c1",
+      "safe_events_count": 2933,
+      "all_package_first_cont": {
+        "Time": "2026-10-21T18:38:54.297410748Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+        "Test": "TestAppearsBeforeRejectsMissingAnchors"
+      },
+      "scripts_package_first_any_cont": {
+        "Time": "2026-10-21T18:39:51.400056166Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationFinalizeWaitsAnalyzesCleansAndVerifiesRelease/completed_workload"
+      },
+      "scripts_first_root_cont": {
+        "Time": "2026-10-21T18:42:50.724621143Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestWukongIMBenchScriptsLogActualChannelCount"
+      },
+      "package_start": "2026-10-21T18:38:51.173057022Z",
+      "step_start_second_precision": "2026-10-21T18:36:48Z",
+      "step_to_marker_s_approx": 123.173057022,
+      "marker_to_root_cont_s": 239.551564121,
+      "shakeout_contained_span_s": 127.388291758,
+      "roots": {
+        "pass": 610,
+        "incomplete": 40,
+        "skip": 6
+      },
+      "collector_root_cont_rank": 150,
+      "collector_explicit_pause_s": 373.851147587,
+      "collector_terminal": [],
+      "pending_states": {
+        "pause": 36,
+        "cont": 4
+      }
+    },
+    {
+      "generation": 2,
+      "original_zip_sha256": "8da5766db4fbfbf815a042b1b636bcbc6ba81206655ee4d1433e6a309e5d8eb8",
+      "original_stdout_sha256": "bf742b3df8a1fc1d9e5240f22907b957b0fe4e7208fc31b152f148464ffb1316",
+      "safe_events_count": 3120,
+      "all_package_first_cont": {
+        "Time": "2026-10-21T19:13:29.873371441Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+        "Test": "TestAppearsBeforeRejectsMissingAnchors"
+      },
+      "scripts_package_first_any_cont": {
+        "Time": "2026-10-21T19:14:22.339519639Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationFinalizeWaitsAnalyzesCleansAndVerifiesRelease/completed_workload"
+      },
+      "scripts_first_root_cont": {
+        "Time": "2026-10-21T19:17:13.961206507Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleLocalBaselineChecksumCoversFinalVerdict"
+      },
+      "package_start": "2026-10-21T19:13:27.312204707Z",
+      "step_start_second_precision": "2026-10-21T19:11:35Z",
+      "step_to_marker_s_approx": 112.312204707,
+      "marker_to_root_cont_s": 226.6490018,
+      "shakeout_contained_span_s": 121.432830389,
+      "roots": {
+        "pass": 649,
+        "skip": 6,
+        "fail": 1
+      },
+      "collector_root_cont_rank": 9,
+      "collector_explicit_pause_s": 208.452858731,
+      "collector_terminal": [
+        {
+          "Time": "2026-10-21T19:17:41.991034555Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "Elapsed": 14.79
+        }
+      ],
+      "pending_states": {}
+    },
+    {
+      "generation": 3,
+      "original_zip_sha256": "d69d187d8fe77393efa06b7b20fc02b60c3695de934dea2dce7d3446c2f4b2f0",
+      "original_stdout_sha256": "56237ecd3f438cbdfd43bd4175141d7ee775370b0b37634b0be3b5d263b30e8c",
+      "safe_events_count": 2876,
+      "all_package_first_cont": {
+        "Time": "2026-10-21T19:51:18.513631533Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+        "Test": "TestAppearsBeforeRejectsMissingAnchors"
+      },
+      "scripts_package_first_any_cont": {
+        "Time": "2026-10-21T19:52:17.398044345Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationFinalizeWaitsAnalyzesCleansAndVerifiesRelease/completed_workload"
+      },
+      "scripts_first_root_cont": {
+        "Time": "2026-10-21T19:55:20.26834439Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestWukongIMDeliveryBenchScriptGeneratesGroupScenarioAndSummary"
+      },
+      "package_start": "2026-10-21T19:51:15.574952871Z",
+      "step_start_second_precision": "2026-10-21T19:49:09Z",
+      "step_to_marker_s_approx": 126.574952871,
+      "marker_to_root_cont_s": 244.693391519,
+      "shakeout_contained_span_s": 129.656980411,
+      "roots": {
+        "pass": 618,
+        "incomplete": 33,
+        "skip": 6
+      },
+      "collector_root_cont_rank": 179,
+      "collector_explicit_pause_s": 433.258904588,
+      "collector_terminal": [],
+      "pending_states": {
+        "pause": 29,
+        "cont": 4
+      }
+    }
+  ],
+  "disjoint_growth": {
+    "pre_marker_approx_s": 14.262748163999987,
+    "root_serial_prefix_s": 18.04438971899998,
+    "sum_approx_s": 32.30713788299997,
+    "outer_gen2_nominal_margin_s": 24.04600000000005,
+    "no_counterfactual_completion_claim": true
+  },
+  "counts_correction": [
+    {
+      "generation": 1,
+      "missing_names_confirmed": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestCloudLeaseIdentitySetupPublishesOnlyNonSecretVariablesAfterLiveChecks"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestDocsCDNCertificateWorkflowInstallsACMEClientOnlyForRenewalBeforeSecretUse"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestIssueAgentPublisherUsesOnlyTopLevelEnvironmentSecret"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestLocalThresholdPprofAuthenticatesWithoutExposingTokenInArgumentsOrEvidence"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestLocalThresholdPprofScriptRejectsMissingOrUnsafeTokenBeforeCreatingArtifacts"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestSingleNodeBaselineAuthorizationRequiresReviewedContractAndFinalSeal"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestSingleNodeBaselineRedactsSecretsAndUsesPrivateModes"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestWukongIMSingleNodeScriptPassesBenchAPITokenOnlyThroughEnvironment"
+        }
+      ],
+      "old_summary_sha256": "75232bdb38a859cdeadc87e688341755832543ddb12c82309dca6ec4bcd86043",
+      "old_bytes_unchanged": true
+    },
+    {
+      "generation": 2,
+      "missing_names_confirmed": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestCloudLeaseIdentitySetupPublishesOnlyNonSecretVariablesAfterLiveChecks"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestDocsCDNCertificateWorkflowInstallsACMEClientOnlyForRenewalBeforeSecretUse"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestIssueAgentPublisherUsesOnlyTopLevelEnvironmentSecret"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestLocalThresholdPprofAuthenticatesWithoutExposingTokenInArgumentsOrEvidence"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestLocalThresholdPprofScriptRejectsMissingOrUnsafeTokenBeforeCreatingArtifacts"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestSingleNodeBaselineAuthorizationRequiresReviewedContractAndFinalSeal"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestSingleNodeBaselineRedactsSecretsAndUsesPrivateModes"
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/scripts",
+          "test": "TestWukongIMSingleNodeScriptPassesBenchAPITokenOnlyThroughEnvironment"
+        }
+      ],
+      "old_summary_sha256": "894801d2441ee865811a9a333d7cfdce6071e0145b9367f8f7f80d95d6db2b96",
+      "old_bytes_unchanged": true
+    }
+  ],
+  "lock_evidence_rows": [
+    {
+      "test": "TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload",
+      "root_cont": "2026-10-21T19:57:30.095116756Z",
+      "root_terminal": {
+        "Time": "2026-10-21T19:57:52.064393598Z",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload",
+        "Elapsed": 21.97
+      },
+      "first_child_run": null,
+      "cont_to_first_child_s": null,
+      "interpretation": "CONT precedes the source-defined admission gate; this is not an observed lock acquisition or CPU duration."
+    },
+    {
+      "test": "TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup",
+      "root_cont": "2026-10-21T19:58:35.461661246Z",
+      "root_terminal": {
+        "Time": "2026-10-21T19:58:59.960757979Z",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup",
+        "Elapsed": 24.5
+      },
+      "first_child_run": {
+        "Time": "2026-10-21T19:58:54.79528303Z",
+        "Action": "run",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup/hup"
+      },
+      "cont_to_first_child_s": 19.333621784,
+      "interpretation": "CONT precedes the source-defined admission gate; this is not an observed lock acquisition or CPU duration."
+    },
+    {
+      "test": "TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes",
+      "root_cont": "2026-10-21T19:58:54.795289532Z",
+      "root_terminal": {
+        "Time": "2026-10-21T19:59:03.96088724Z",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes",
+        "Elapsed": 9.17
+      },
+      "first_child_run": {
+        "Time": "2026-10-21T19:59:00.379223121Z",
+        "Action": "run",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes/version"
+      },
+      "cont_to_first_child_s": 5.583933589,
+      "interpretation": "CONT precedes the source-defined admission gate; this is not an observed lock acquisition or CPU duration."
+    },
+    {
+      "test": "TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision",
+      "root_cont": "2026-10-21T19:57:09.269338168Z",
+      "root_terminal": {
+        "Time": "2026-10-21T19:57:51.90519514Z",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision",
+        "Elapsed": 42.64
+      },
+      "first_child_run": null,
+      "cont_to_first_child_s": null,
+      "interpretation": "CONT precedes the source-defined admission gate; this is not an observed lock acquisition or CPU duration."
+    }
+  ],
+  "limits": [
+    "Read-only safe-field extraction; original raw outputs/profiles/ZIPs are not copied.",
+    "API step origins have second precision; package start is not the exact package alarm start.",
+    "Root CONT differs from child/all-package CONT; admission may follow CONT.",
+    "No lock acquisition, compile, readiness, actual workload or drain phase timestamp is independently retained for the highlighted successful fixtures.",
+    "No fixture experiment, new test/build/CI/cloud run, budget recommendation or source mutation executed."
+  ]
+}

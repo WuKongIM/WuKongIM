@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/usr/local/go/bin/go",
+    "test",
+    "/private/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/fixture_test.go",
+    "-count=1",
+    "-timeout=70s",
+    "-parallel=2",
+    "-json"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "scratch_timeout_s": 90,
+  "single_variable": {
+    "DIRECT_LAB_INJECT_UNUSED_TOOLS": "true"
+  },
+  "source_sha256": "f2c1e37d5c230fde4872abbebdb80ef133eaaa7e68e4bc95c7c636ab9b8c5055"
+}

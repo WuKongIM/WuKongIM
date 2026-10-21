@@ -1,0 +1,80 @@
+{
+  "rows": [
+    {
+      "generation": 1,
+      "outer_result": "timeout",
+      "outer_elapsed_with_cleanup_s": 600.108,
+      "pre_package_marker_s_approx": 123.173057022,
+      "package_marker_to_first_root_cont_s": 239.551564121,
+      "serial_shakeout_span_s": 127.388291758,
+      "remaining_prefix_span_s": 112.163272363,
+      "api_step_to_root_parallel_phase_s_approx": 362.724621143,
+      "nominal_600_minus_api_step_to_root_parallel_phase_s_approx": 237.275378857,
+      "parallel_root_phase_to_last_observed_event_s": 238.246432017,
+      "package_start_to_result_emission_s": 477.929771778,
+      "collector_cont_root_rank": 150,
+      "collector_explicit_pause_s": 373.851147587,
+      "collector_reported_elapsed_s": null,
+      "collector_last_observed_bound_nonpaused_s": 69.127864383,
+      "roots": {
+        "pass": 610,
+        "incomplete": 40,
+        "skip": 6
+      },
+      "pending_states": {
+        "pause": 36,
+        "cont": 4
+      }
+    },
+    {
+      "generation": 2,
+      "outer_result": "failed",
+      "outer_elapsed_with_cleanup_s": 575.954,
+      "pre_package_marker_s_approx": 112.312204707,
+      "package_marker_to_first_root_cont_s": 226.6490018,
+      "serial_shakeout_span_s": 121.432830389,
+      "remaining_prefix_span_s": 105.216171411,
+      "api_step_to_root_parallel_phase_s_approx": 338.961206507,
+      "nominal_600_minus_api_step_to_root_parallel_phase_s_approx": 261.038793493,
+      "parallel_root_phase_to_last_observed_event_s": 236.818667836,
+      "package_start_to_result_emission_s": 464.042642293,
+      "collector_cont_root_rank": 9,
+      "collector_explicit_pause_s": 208.452858731,
+      "collector_reported_elapsed_s": 14.79,
+      "collector_last_observed_bound_nonpaused_s": 14.787031319,
+      "roots": {
+        "pass": 649,
+        "skip": 6,
+        "fail": 1
+      },
+      "pending_states": {}
+    },
+    {
+      "generation": 3,
+      "outer_result": "timeout",
+      "outer_elapsed_with_cleanup_s": 600.1,
+      "pre_package_marker_s_approx": 126.574952871,
+      "package_marker_to_first_root_cont_s": 244.693391519,
+      "serial_shakeout_span_s": 129.656980411,
+      "remaining_prefix_span_s": 115.036411108,
+      "api_step_to_root_parallel_phase_s_approx": 371.26834439,
+      "nominal_600_minus_api_step_to_root_parallel_phase_s_approx": 228.73165561,
+      "parallel_root_phase_to_last_observed_event_s": 227.374017434,
+      "package_start_to_result_emission_s": 473.851928229,
+      "collector_cont_root_rank": 179,
+      "collector_explicit_pause_s": 433.258904588,
+      "collector_reported_elapsed_s": null,
+      "collector_last_observed_bound_nonpaused_s": 2.636034828,
+      "roots": {
+        "pass": 618,
+        "incomplete": 33,
+        "skip": 6
+      },
+      "pending_states": {
+        "pause": 29,
+        "cont": 4
+      }
+    }
+  ],
+  "method": "Disjoint wall-clock intervals. Root CONT phase follows all top-level registrations; early child CONTs are not this boundary. Prefix minus contained serial shakeout is interval subtraction, not summed test durations. API step start second precision; no exact process start inferred. Incomplete observed intervals end at final safe event, not assumed alive until result emission."
+}

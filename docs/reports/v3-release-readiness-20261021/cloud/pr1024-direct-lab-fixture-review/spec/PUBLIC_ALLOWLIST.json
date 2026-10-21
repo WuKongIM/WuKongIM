@@ -1,0 +1,53 @@
+{
+  "schema": "finite-public-review-archive/v1",
+  "files": [
+    {
+      "path": "independent-verification.json",
+      "bytes": 2608,
+      "sha256": "1b7305e5fc0a2b54917363289ed0d4c3f7f733659495cea2d400ad937bd2d7d8"
+    },
+    {
+      "path": "observer-correction.json",
+      "bytes": 456,
+      "sha256": "7bddd64c4ba4efdd605674be413c05c25a19cbf0998f721b6230d777602bb2ec"
+    },
+    {
+      "path": "report.md",
+      "bytes": 1744,
+      "sha256": "f9e0edd603aa4aae0e21ce3ba85f1b57a533f51f08b10a885c584de7ef562f5c"
+    },
+    {
+      "path": "review-receipt.json",
+      "bytes": 668,
+      "sha256": "208f4e0f471dcde5b1eb66894cda5c8196327a51a00d23fbac91fa5e8d5948b1"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 11398,
+      "sha256": "784b3ced9377e88a38df49ce93574f6f548d737c814b46f0a0ffc9630d86526c"
+    },
+    {
+      "path": "verify-corrected.log",
+      "bytes": 157,
+      "sha256": "57bea90d6a6bcd3111580aebac566ecb73f45c3f84ad67c5e9ded088de95fd0e"
+    },
+    {
+      "path": "verify-first.log",
+      "bytes": 262,
+      "sha256": "0211c9ca217ce9a5770a60911157318f8d9710043d47f9c9c4bf380464c1b1b6"
+    },
+    {
+      "path": "verify-readonly-first.py",
+      "bytes": 8845,
+      "sha256": "bda4ec13d211045e689985472803949343708ffefd7ad0967ebb1466366b2beb"
+    },
+    {
+      "path": "verify-readonly.py",
+      "bytes": 8931,
+      "sha256": "a460b00f9369cd50aaac9c2a14cb733288aa027b08b9c0c16bd2efc89cffe271"
+    }
+  ],
+  "payload_count": 9,
+  "payload_bytes": 35069,
+  "excludes": "No source edits, raw secrets, private keys, binaries, ZIPs, or AGENTS/FLOW source copies."
+}

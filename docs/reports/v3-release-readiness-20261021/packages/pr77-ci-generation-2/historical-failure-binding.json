@@ -1,0 +1,13 @@
+{
+  "generation": 1,
+  "manifest_sha256": "4dc93581853533f2218aca848403dff4a0ea9785e6dd8a9693ed9045aeca3906",
+  "manifest_entries_reverified": 175,
+  "all_prior_payloads_unchanged": true,
+  "first_failure_sha256": "bfbf0d725d06181dcdec8c64a56c6d56df9d927c7c226947e53e4bcced1dadaa",
+  "counts": {
+    "passed": 0,
+    "failed": 1,
+    "not_reached": 48
+  },
+  "timeout_subphase": "unknown"
+}

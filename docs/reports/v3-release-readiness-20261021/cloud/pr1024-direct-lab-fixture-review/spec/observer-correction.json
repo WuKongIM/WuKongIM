@@ -1,0 +1,9 @@
+{
+  "classification": "review_observer_line_count_assumption",
+  "initial_log": "verify-first.log",
+  "original_observer": "verify-readonly-first.py",
+  "source_changed": false,
+  "actual_function_lines": 107,
+  "removed_lines_including_separator": 108,
+  "explanation": "The 108 removed lines include the separator blank line. First verifier incorrectly asserted the normalized function itself had 108 lines; byte-preservation checks remain unchanged."
+}

@@ -1,0 +1,64 @@
+{
+  "original_assertions_passed_both": true,
+  "same_operation_calls": "build\nmaterialize\nquote\nselector-from-plan\nrelease-enable\nacquire\nrelease-enable-after-provision\nselector\n",
+  "same_required_file_presence_and_modes": true,
+  "same_json_after_declared_timestamp_normalization": true,
+  "normalized_fields": [
+    {
+      "run": "baseline-first",
+      "path": "json_files/state.json/created_at",
+      "value": "2026-10-21T20:17:50Z"
+    },
+    {
+      "run": "baseline-first",
+      "path": "json_files/state.json/activated_at",
+      "value": "2026-10-21T20:17:52Z"
+    },
+    {
+      "run": "variant-first",
+      "path": "json_files/state.json/created_at",
+      "value": "2026-10-21T20:18:02Z"
+    },
+    {
+      "run": "variant-first",
+      "path": "json_files/state.json/activated_at",
+      "value": "2026-10-21T20:18:02Z"
+    }
+  ],
+  "baseline_actual_go_commands": [
+    {
+      "event": "exit",
+      "argv": [
+        "build",
+        "-trimpath",
+        "-o",
+        "/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire2976402781/001/chat-20260823T020304Z-b1c2d3e4/tools/wkcloudgate",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/cmd/wkcloudgate"
+      ],
+      "elapsed_s": 0.49837670900160447,
+      "exit_code": 0
+    },
+    {
+      "event": "exit",
+      "argv": [
+        "build",
+        "-trimpath",
+        "-o",
+        "/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire2976402781/001/chat-20260823T020304Z-b1c2d3e4/tools/wkcloudbundle",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/cmd/wkcloudbundle"
+      ],
+      "elapsed_s": 0.2908899169997312,
+      "exit_code": 0
+    }
+  ],
+  "variant_actual_go_commands": [],
+  "intentional_tool_inventory_delta": [
+    "tools/wkcloudgate",
+    "tools/wkcloudbundle"
+  ],
+  "baseline_fixture_s": 2.458231584,
+  "variant_fixture_s": 0.5690775,
+  "observed_local_delta_s": 1.8891540839999998,
+  "interpretation": "One A/B on the same fixed serial scratch source; actual successful unused builds eliminated. Local warm caches and per-run runtime variance preclude claiming this observed ratio or saved seconds on the cold Linux gate. No prewarm or cache manipulation performed. No tier/scheduler change during A/B.",
+  "scratch_source_sha256": "f2c1e37d5c230fde4872abbebdb80ef133eaaa7e68e4bc95c7c636ab9b8c5055"
+}

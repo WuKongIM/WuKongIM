@@ -1,0 +1,236 @@
+[
+  {
+    "generation": 1,
+    "artifact_id": 12371361340,
+    "job_id": 119410167925,
+    "command": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608,
+      "named_check": "scripts-integration",
+      "environment": {
+        "GOWORK": "off",
+        "GOFLAGS": "-p=2 -json"
+      }
+    },
+    "result": {
+      "status": "timeout",
+      "exit_code": -15,
+      "session_id": 2505,
+      "output_bytes": 1403179,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 2505,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [
+          2505,
+          12886,
+          93309,
+          106961,
+          107123,
+          107127,
+          107129
+        ],
+        "remaining_processes": []
+      },
+      "command_status": "timeout",
+      "wrapper_exit_code": 124,
+      "elapsed_seconds": 600.108
+    },
+    "step_start_api_s": "2026-10-21T18:36:48Z",
+    "step_end_api_s": "2026-10-21T18:46:49Z",
+    "package_start": "2026-10-21T18:38:51.173057022Z",
+    "package_terminal": null,
+    "last_test_event": {
+      "Time": "2026-10-21T18:46:48.97105316Z",
+      "Action": "run",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_deployment"
+    },
+    "result_emitted_at": "2026-10-21T18:46:49.1028288Z",
+    "step_to_package_start_s_approx": 123.173057022,
+    "package_start_to_last_test_event_s": 477.797996138,
+    "package_start_to_result_emission_s": 477.929771778,
+    "first_parallel_cont_at": "2026-10-21T18:39:51.400056166Z",
+    "package_start_to_first_parallel_cont_s": 60.226999144,
+    "root_counts": {
+      "pass": 610,
+      "incomplete": 40,
+      "skip": 6
+    },
+    "scripts_root_counts": {
+      "pass": 524,
+      "incomplete": 40,
+      "skip": 6
+    },
+    "root_pending_last_action": {
+      "pause": 36,
+      "cont": 4
+    }
+  },
+  {
+    "generation": 2,
+    "artifact_id": 12373881817,
+    "job_id": 119428117999,
+    "command": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608,
+      "named_check": "scripts-integration",
+      "environment": {
+        "GOWORK": "off",
+        "GOFLAGS": "-p=2 -json"
+      }
+    },
+    "result": {
+      "status": "failed",
+      "exit_code": 1,
+      "session_id": 2323,
+      "output_bytes": 1496252,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 2323,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "failed",
+      "wrapper_exit_code": 1,
+      "elapsed_seconds": 575.954
+    },
+    "step_start_api_s": "2026-10-21T19:11:35Z",
+    "step_end_api_s": "2026-10-21T19:21:11Z",
+    "package_start": "2026-10-21T19:13:27.312204707Z",
+    "package_terminal": {
+      "Time": "2026-10-21T19:21:10.790648417Z",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 463.478
+    },
+    "last_test_event": {
+      "Time": "2026-10-21T19:21:10.779874343Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode",
+      "Elapsed": 1.19
+    },
+    "result_emitted_at": "2026-10-21T19:21:11.3548470Z",
+    "step_to_package_start_s_approx": 112.312204707,
+    "package_start_to_last_test_event_s": 463.467669636,
+    "package_start_to_result_emission_s": 464.042642293,
+    "first_parallel_cont_at": "2026-10-21T19:14:22.339519639Z",
+    "package_start_to_first_parallel_cont_s": 55.027314932,
+    "root_counts": {
+      "pass": 649,
+      "skip": 6,
+      "fail": 1
+    },
+    "scripts_root_counts": {
+      "pass": 563,
+      "skip": 6,
+      "fail": 1
+    },
+    "root_pending_last_action": {}
+  },
+  {
+    "generation": 3,
+    "artifact_id": 12378075592,
+    "job_id": 119447138157,
+    "command": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608,
+      "named_check": "scripts-integration",
+      "environment": {
+        "GOWORK": "off",
+        "GOFLAGS": "-p=2 -json"
+      }
+    },
+    "result": {
+      "status": "timeout",
+      "exit_code": -15,
+      "session_id": 2527,
+      "output_bytes": 1365587,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 2527,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [
+          2527,
+          12897,
+          99942,
+          102156,
+          102687,
+          102829
+        ],
+        "remaining_processes": []
+      },
+      "command_status": "timeout",
+      "wrapper_exit_code": 124,
+      "elapsed_seconds": 600.1
+    },
+    "step_start_api_s": "2026-10-21T19:49:09Z",
+    "step_end_api_s": "2026-10-21T19:59:09Z",
+    "package_start": "2026-10-21T19:51:15.574952871Z",
+    "package_terminal": null,
+    "last_test_event": {
+      "Time": "2026-10-21T19:59:07.642361824Z",
+      "Action": "cont",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleRepairMonitorSurvivesOneServiceProbeFailure"
+    },
+    "result_emitted_at": "2026-10-21T19:59:09.4268811Z",
+    "step_to_package_start_s_approx": 126.574952871,
+    "package_start_to_last_test_event_s": 472.067408953,
+    "package_start_to_result_emission_s": 473.851928229,
+    "first_parallel_cont_at": "2026-10-21T19:52:17.398044345Z",
+    "package_start_to_first_parallel_cont_s": 61.823091474,
+    "root_counts": {
+      "pass": 618,
+      "incomplete": 33,
+      "skip": 6
+    },
+    "scripts_root_counts": {
+      "pass": 532,
+      "incomplete": 33,
+      "skip": 6
+    },
+    "root_pending_last_action": {
+      "pause": 29,
+      "cont": 4
+    }
+  }
+]

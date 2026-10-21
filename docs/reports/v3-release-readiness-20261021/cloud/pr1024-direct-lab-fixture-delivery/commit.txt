@@ -1,0 +1,3 @@
+[codex/v3-rc-terminal-evidence f419ea8f8] test(scripts): avoid unused direct lab fixture builds
+ 3 files changed, 134 insertions(+), 108 deletions(-)
+ create mode 100644 scripts/chat_lifecycle_direct_lab_start_integration_test.go

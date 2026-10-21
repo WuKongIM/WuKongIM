@@ -1,0 +1,33 @@
+{
+  "head": "94d63a3c099dcaa69bcefda3b021bafcc8d828f6",
+  "parent": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "five_changed_files_match_reviewed_freeze": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3965,
+      "sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "bytes": 88596,
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "bytes": 71299,
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    },
+    {
+      "path": "tests/test_installed_cli_acceptance.py",
+      "bytes": 17892,
+      "sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "bytes": 85318,
+      "sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9"
+    }
+  ],
+  "source_freeze_sha256": "38aaaba7eae628c67b85bfc2dbce4ea8411acba6563e853888a120a83266a576",
+  "other_files_unchanged_since_parent": true
+}

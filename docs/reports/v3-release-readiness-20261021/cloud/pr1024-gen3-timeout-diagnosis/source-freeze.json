@@ -1,0 +1,110 @@
+{
+  "head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "status_porcelain": "",
+  "frozen_at_utc": "2026-10-21T20:15:01.849109+00:00",
+  "applicable_flow": "No root/subtree FLOW applies to scripts root. Read only tests and script root/chat-lifecycle/cloud-sim sources; independent budget audit freezes its own applicable runtime FLOW.",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01"
+    },
+    {
+      "path": "scripts/script_test_helpers_test.go",
+      "sha256": "ab1e9730796794ea94959d6e3b8b1c3ec34fa0bcf850658f3df483bceda10bb7",
+      "git_blob": "22b81b4b29a54f72c8fb862092deaa79bb5fa0b1"
+    },
+    {
+      "path": "scripts/script_test_helpers_integration_test.go",
+      "sha256": "7e04c8a2f1c6551fe1614477d761d207f78a34d5b0300e88e888340666b538ac",
+      "git_blob": "ad7fd2354a69e6d3c619a73774872237ddbbd76a"
+    },
+    {
+      "path": "scripts/test_main_test.go",
+      "sha256": "178aa1f7240368e10e842372a90c75d3ae0844ce5cb552d5d522f12c9082cbba",
+      "git_blob": "fb09c0dae7b4e574ad361898eadb950035867bfb"
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_test.go",
+      "sha256": "bbc7446d53bf41032ac3bb3dfeeb13c0f5f8617cf743c3e9ef8be1dbcc6cbfcc",
+      "git_blob": "ec7f6b7c38784146ff84a9b8cbd87efac442e7e8"
+    },
+    {
+      "path": "scripts/chat-lifecycle/direct-lab.sh",
+      "sha256": "8bdbfef0a79526a63e200327dac26e2436df5f462b1d1be4efe5a2ece95fb631",
+      "git_blob": "7ef898094097c2f662add13c1bceaacfbe130702"
+    },
+    {
+      "path": "scripts/cloud_sim_setup_integration_test.go",
+      "sha256": "6f568d9d34d0638963d3a426e7e2cce5bb26e0e8e2cd812cef907e896b036970",
+      "git_blob": "b16037cd0220b53055455b6848bf517f4b7c5f77"
+    },
+    {
+      "path": "scripts/cloud_sim_analyze_integration_test.go",
+      "sha256": "51fa007c7d5eacc12d9bc2fb53f93ebc8672a4c5487082a164e371a2ffcef650",
+      "git_blob": "4f20d000094f3c0e12d3c8f941e534fbeb249291"
+    },
+    {
+      "path": "scripts/cloud_sim_finalize_integration_test.go",
+      "sha256": "2d1bb1eb1e650a947197151b663731b2fc12f51f67c55e6a90d402efb1a1f89e",
+      "git_blob": "4e8403ce339c81de009727309bc6f5fdd02ebcee"
+    },
+    {
+      "path": "scripts/wukongim_three_nodes_build_integration_test.go",
+      "sha256": "1fbab2bd77824ce611d1e6353ce941bcdfad96c2ece70ece30e2814af30a65cb",
+      "git_blob": "1d4c859812bc0696a9533c33e2f02d26f92e5cc2"
+    },
+    {
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "sha256": "0f665c92e3b99eeaf23a57e65fca4f91d16bf7b7e53a1d9d34462f49e820ccfa",
+      "git_blob": "5fc4873aa4481d581ac0b547a463ecc0a62f985a"
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+      "git_blob": "4608a450de748676ffb2a981c97b959b52e52cf6"
+    },
+    {
+      "path": "scripts/native_package_bootstrap_diagnostics_integration_test.go",
+      "sha256": "e29a53d2bed1a114542912764b078acb3281b874cffbba3ac4abbec2025c848c",
+      "git_blob": "e76a810d7c55720866e3bbd8849e012657a9c5b1"
+    },
+    {
+      "path": "scripts/wkdb_import_smoke_script_integration_test.go",
+      "sha256": "145a7ca256c7ce5ecc195ff1d4ec565edc1150fa56700319115008227d2da0e0",
+      "git_blob": "a4c24461c3e5e002bb1829a4df991ae412406f26"
+    },
+    {
+      "path": "scripts/cloud_deployment_execution_integration_test.go",
+      "sha256": "86efe6a3cafa8ed5ff75a5640b533cfeabb510640bb68516bdc49457c53ca794",
+      "git_blob": "c465bcff5654781d5fa348757f9e30c849969356"
+    },
+    {
+      "path": "scripts/cloud_deployment_activate_integration_test.go",
+      "sha256": "a9e70821fdafe0b6d28c2657d92fca84b99e3cc2a6f6e977c45221ebe3df4332",
+      "git_blob": "ec8e5997faab342081f3f0c95b63d0a615f64fe9"
+    }
+  ],
+  "skill": {
+    "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  },
+  "runtime_actions": "none",
+  "source_changes": "none"
+}

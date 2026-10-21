@@ -1,0 +1,346 @@
+{
+  "review": "Independent Standards only; Spec reports not read",
+  "reviewed_at_utc": "2026-10-21T20:24:07.211915+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "fixed_head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "fixed_tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "branch_commits": [],
+  "status_porcelain": [
+    " M docs/development/PROJECT_KNOWLEDGE.md",
+    " M scripts/chat_lifecycle_direct_lab_test.go",
+    "?? scripts/chat_lifecycle_direct_lab_start_integration_test.go"
+  ],
+  "staged": [],
+  "untracked": [
+    "scripts/chat_lifecycle_direct_lab_start_integration_test.go"
+  ],
+  "diff_command": "git diff 44de9452d94edae16129b5781d794f8c1c6c7c57 -- docs/development/PROJECT_KNOWLEDGE.md scripts/chat_lifecycle_direct_lab_test.go; separately read untracked scripts/chat_lifecycle_direct_lab_start_integration_test.go",
+  "source_freeze_sha256": "af21909193565744bd478512d428494eb3afee127bc3a5bcf2146766404d9a0a",
+  "sources": [
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "before_sha256": "ca8b02ea80ffd161c339b9cff262b0239b81c3d4981e0435ca1780ef9cf1b7ff",
+      "after_sha256": "42aa7f2976b12fde7ccd135e5acbef69ee7cabbcaac25fb1d42b8284050c6a36",
+      "after_bytes": 145107,
+      "frozen_matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_test.go",
+      "before_sha256": "bbc7446d53bf41032ac3bb3dfeeb13c0f5f8617cf743c3e9ef8be1dbcc6cbfcc",
+      "after_sha256": "cf42269fd621ef8c4dad1a2766b1599f18ff2d719d8a9f10fd692a051b38715f",
+      "after_bytes": 28722,
+      "frozen_matches": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_start_integration_test.go",
+      "before_sha256": null,
+      "after_sha256": "f59325ccf1b7dd3692dc8021491ce68cdcac013bf8ba0d3f6de3b56bc0891f71",
+      "after_bytes": 5769,
+      "frozen_matches": true
+    }
+  ],
+  "rules_and_unchanged_support": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/.github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/chat-lifecycle/direct-lab.sh",
+      "sha256": "8bdbfef0a79526a63e200327dac26e2436df5f462b1d1be4efe5a2ece95fb631",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/script_test_helpers_integration_test.go",
+      "sha256": "7e04c8a2f1c6551fe1614477d761d207f78a34d5b0300e88e888340666b538ac",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence/scripts/script_test_helpers_test.go",
+      "sha256": "ab1e9730796794ea94959d6e3b8b1c3ec34fa0bcf850658f3df483bceda10bb7",
+      "matches_head": true
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+    }
+  ],
+  "flow_discovery": {
+    "applicable_flow": [],
+    "root_scripts_docs_and_docs_development_flow_absent": true,
+    "additional_agents_in_these_directories": []
+  },
+  "independent_static_equivalence": {
+    "remaining_default_file_exact": true,
+    "moved_function_exact_after_only_stub_block_and_two_env_lines_removed": true,
+    "original_function_sha256": "210baa500dd269ec7f35e3991ebb8d6d6bde99863e3e8dbef40954607d968cad",
+    "scratch_original_assertions_passed_both": true,
+    "scratch_only_input_variable_tool_injection": true,
+    "operation_trace_equal": true,
+    "file_modes_and_inventory_equal": true,
+    "json_equal_after_only_state_created_at_and_activated_at_removed": true,
+    "baseline_successful_build_count": 2,
+    "variant_build_count": 0
+  },
+  "test_evidence": {
+    "baseline_first": "expected RED exit 1, preserved original assertions passed",
+    "variant_first": "GREEN exit 0",
+    "default_focused_first_top_level_passes": 11,
+    "integration_focused_first_top_level_passes": 15,
+    "default_target_list_count": 0,
+    "integration_target_list_count": 1,
+    "review_reran_tests": false,
+    "linux_600_second_gate_recovery_proven": false
+  },
+  "smell_baseline": [
+    {
+      "name": "Mysterious Name",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Duplicated Code",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Feature Envy",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Data Clumps",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Primitive Obsession",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Repeated Switches",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Shotgun Surgery",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Divergent Change",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Speculative Generality",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Message Chains",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Middle Man",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    },
+    {
+      "name": "Refused Bequest",
+      "classification": "judgment-only heuristic; repository rules prevail",
+      "actionable_new_finding": false
+    }
+  ],
+  "hard_findings": [],
+  "heuristic_findings": [],
+  "finite_evidence_manifest": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/README.md",
+      "bytes": 6576,
+      "sha256": "0b36b51ea777047bf1b86caf2330a07e0a6ed1fc50a8e000ed2a8881c20290a6"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/plan-and-failure-matrix.md",
+      "bytes": 5370,
+      "sha256": "ec6439babd2bff39b0deb792f62a95275f35df936baf8182bd97c6329f20d947"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/before-freeze.json",
+      "bytes": 1505,
+      "sha256": "61cfa086e5be2fa9288c4906f25d7066c6b038d66bb79edb5adbad0c1a4da6c6"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/review-source-freeze.json",
+      "bytes": 1410,
+      "sha256": "af21909193565744bd478512d428494eb3afee127bc3a5bcf2146766404d9a0a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/delivery-receipt.json",
+      "bytes": 496,
+      "sha256": "90cf411b1cf1609adefbb95e4111f4b1366e210b821fbc56faa68f3b899d6072"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/final.diff",
+      "bytes": 13505,
+      "sha256": "8623a11dc2977b817ff629d3d7dca63a2142a51e8b58c19e8c0dbd7e4aa6b210"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/fixture_test.go",
+      "bytes": 8296,
+      "sha256": "f2c1e37d5c230fde4872abbebdb80ef133eaaa7e68e4bc95c7c636ab9b8c5055"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/original-test-function.go.txt",
+      "bytes": 5219,
+      "sha256": "210baa500dd269ec7f35e3991ebb8d6d6bde99863e3e8dbef40954607d968cad"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/go-trace.py",
+      "bytes": 458,
+      "sha256": "1f2c813d98219d863f03b53732be61a2a3b4030ad9f04754c4c3296842dd1559"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/run_scratch.py",
+      "bytes": 1993,
+      "sha256": "990cddac22de4139cefffd35b6cb7e5cabe1b0e78a6ff20017a29d4b0c0c37ae"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/semantic-comparison.json",
+      "bytes": 2523,
+      "sha256": "bbbd36448a5e93315cae410b4ec4ed344df9b4699b668f8e28c0d10d4db9163e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/validation-summary.json",
+      "bytes": 1073,
+      "sha256": "e72b94cf765cb21aa7830c71493c3794587b645c1a32abea9861b0144a4952fa"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/baseline-first/command.json",
+      "bytes": 524,
+      "sha256": "b67ea7f30139c16367223b36bd1b35e542a22d242bfbc44ff5782be86f6306f8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/baseline-first/result.json",
+      "bytes": 180,
+      "sha256": "2884157236b151e9fe0fd39dcd9ba6ee993dd4ef8e8e463269c1d4fc1332fc65"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/baseline-first/stdout-stderr.jsonl",
+      "bytes": 3785,
+      "sha256": "eb0a56fb37e68bd3a6191a3a8542b8c4e549f8d81271d77e72a43b3b358a5773"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/variant-first/command.json",
+      "bytes": 523,
+      "sha256": "950cff447237653ca34b264800511de86cf40aa9d516bb22cf384c0fa933e4c1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/variant-first/result.json",
+      "bytes": 180,
+      "sha256": "58669c278a652ee3be6b2b8ef9a82bec12bb1394b89c766e9bd6ab693d043bda"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/variant-first/stdout-stderr.jsonl",
+      "bytes": 1341,
+      "sha256": "dfa7027771ccd4026a8562c5864c51214924ca3c8b6e758581818293ca2117f1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-list-first/command.json",
+      "bytes": 840,
+      "sha256": "c40d788798c8423e735897d81bc7bf11ff6306eae9c13bbddbb8aa4bc556bdd2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-list-first/result.json",
+      "bytes": 180,
+      "sha256": "398a636eb185ada8d200a21c002755b24dfb1ea035cfc71917b20ce76dcaec6e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-list-first/stdout-stderr.log",
+      "bytes": 49,
+      "sha256": "90076fc47a9dc6aafe666e1e52aba8db8d68dea3f2915334a091116f6d8c5610"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-list-first/command.json",
+      "bytes": 865,
+      "sha256": "658413779ae42102c369a2f32de59bae33ce0d250860cb0c26df2268a738a169"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-list-first/result.json",
+      "bytes": 180,
+      "sha256": "ca6f58c2a2391a31753242f93347505624d927aa35187bfd95eaa5ac8b16a780"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-list-first/stdout-stderr.log",
+      "bytes": 113,
+      "sha256": "dda05c8898a6a9f9d56d40696616fd4aab531c0c255c62f2bcc1529400c18d4f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-focused-first/command.json",
+      "bytes": 850,
+      "sha256": "927cef15b593f9bde5340863221e347102d7448cd3b9716cdeb545f62ef33abe"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-focused-first/result.json",
+      "bytes": 179,
+      "sha256": "289d8417d51fcae74b0607c5234b320f8e379672f58ab3bee51e0127359338ba"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-focused-first/stdout-stderr.log",
+      "bytes": 11474,
+      "sha256": "9cb9d84493cee059eeb5f5c0f0936711381c99cca1336bf147de0e0908e85486"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-focused-first/command.json",
+      "bytes": 894,
+      "sha256": "1e19ef9bee7c3c9a0d773832db86fddb4e0a6ecce93660385c2c2f319ca02f2a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-focused-first/result.json",
+      "bytes": 179,
+      "sha256": "f5db125b9735f671a4c59ad7aadc69de12e85c5a359fed9ca8cb5f0b43c978ed"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-focused-first/stdout-stderr.log",
+      "bytes": 18797,
+      "sha256": "1687b51298cc2720af06c4932ec06d34141a06f9db11b195c10c23339c859d9f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/baseline-first/artifact.json",
+      "bytes": 8244,
+      "sha256": "d24fc43883a41c040203ff5a0f12aec4cf83d6d5c131e9fbaec82e8dec3d25b3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/variant-first/artifact.json",
+      "bytes": 6332,
+      "sha256": "b65fdff8c027b100f43385e0870278ca19adeef963d55f1ca02e3f4dd276641c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/default-focused-first/safe-events.json",
+      "bytes": 5418,
+      "sha256": "85af1eeb4fed1a2506a1529822db50fd028285812401be163536de26ea628197"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/integration-focused-first/safe-events.json",
+      "bytes": 8888,
+      "sha256": "61a88ef7e43654f7291403a52933414652e74b90c837988922023fd6d7429994"
+    }
+  ]
+}

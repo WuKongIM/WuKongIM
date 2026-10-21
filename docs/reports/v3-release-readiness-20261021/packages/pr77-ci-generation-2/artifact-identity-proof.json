@@ -1,0 +1,65 @@
+[
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12378047763,
+    "member_count": 1,
+    "name": "native-bootstrap-preparation-test-only",
+    "whole_zip_sha256_recomputed": "f00a710b9733d60c2155645d26baaff6be41ada4f15680d4f4cb9a9d3b5f7f6b",
+    "zip_size": 7151
+  },
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12377882965,
+    "member_count": 1,
+    "name": "native-local-signing-test-only",
+    "whole_zip_sha256_recomputed": "3b6a107b5af42dc776050329cbec2cf4b10cefda7064a588251cdd9b731b9f38",
+    "zip_size": 2794
+  },
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12376949822,
+    "member_count": 2,
+    "name": "native-object-delivery-fixture-test-only",
+    "whole_zip_sha256_recomputed": "ff73831a3303f0044f63843e3a13a1045174f915005b4c576927be7757fcbe6c",
+    "zip_size": 8394
+  },
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12378052611,
+    "member_count": 1,
+    "name": "native-source-metadata-test-only",
+    "whole_zip_sha256_recomputed": "9113c324281ceb38bfad595969addf77559c840e863d8a6c686a4dbcba2d2da2",
+    "zip_size": 1270
+  },
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12378601551,
+    "member_count": 1,
+    "name": "native-stable-candidate-test-only",
+    "whole_zip_sha256_recomputed": "79933c3e407f7d2b32c7330c0b61f8e78e1eb1811dd88b5cf2f4d8e9b4ce9620",
+    "zip_size": 4191
+  },
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12378622747,
+    "member_count": 4,
+    "name": "native-stable-four-clients-test-only",
+    "whole_zip_sha256_recomputed": "dbbdd7a73a170512a25c49ba73132c61f6f594c09c02893730f35c75ff037890",
+    "zip_size": 141219
+  },
+  {
+    "API_digest_verified": true,
+    "all_member_CRC_SHA_size_verified": true,
+    "id": 12378920713,
+    "member_count": 1,
+    "name": "object-storage-sdk-contract",
+    "whole_zip_sha256_recomputed": "7bf55a5ae06f54626a46590af26e986182e66f2d7913a4cf586d0c9ce029ac40",
+    "zip_size": 1032
+  }
+]

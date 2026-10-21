@@ -1,0 +1,78 @@
+{
+  "observed_at_utc": "2026-10-21T20:24:07.211915+00:00",
+  "author_first_run_results": [
+    {
+      "run": "baseline-first",
+      "exit_code": 1,
+      "timed_out": false,
+      "elapsed_s": 3.1888954589958303,
+      "owned_pgid": 5600,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    {
+      "run": "variant-first",
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 0.9196066669537686,
+      "owned_pgid": 6268,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    {
+      "run": "default-list-first",
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 2.1831044579739682,
+      "owned_pgid": 6587,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    {
+      "run": "integration-list-first",
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 2.3178398329764605,
+      "owned_pgid": 6614,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    {
+      "run": "default-focused-first",
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 7.242416707973462,
+      "owned_pgid": 6642,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    {
+      "run": "integration-focused-first",
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 7.084173458977602,
+      "owned_pgid": 7016,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    }
+  ],
+  "independent_read_only_census": {
+    "command": "ps -axo pid=,ppid=,pgid=,stat=,comm=",
+    "selected_owned_pgids": [
+      5600,
+      6268,
+      6587,
+      6614,
+      6642,
+      7016
+    ],
+    "remaining_owned_processes": []
+  },
+  "review_started_test_or_background_processes": false
+}

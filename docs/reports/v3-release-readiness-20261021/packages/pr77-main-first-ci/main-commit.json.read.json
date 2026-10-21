@@ -1,0 +1,12 @@
+{
+  "endpoint": "repos/WuKongIM/packages/git/commits/bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "started_at": "20261021T202642003194Z",
+  "exit_code": 0,
+  "raw_bytes": 1125,
+  "raw_sha256": "f822739ac908d526c384ef73b9897bb6f6aa54ceb2539896ab676fe3ebd40c07",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "public_bytes": 1125,
+  "public_sha256": "f822739ac908d526c384ef73b9897bb6f6aa54ceb2539896ab676fe3ebd40c07",
+  "redacted": false
+}

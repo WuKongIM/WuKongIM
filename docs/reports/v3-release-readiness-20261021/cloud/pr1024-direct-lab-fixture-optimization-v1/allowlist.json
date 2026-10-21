@@ -1,0 +1,186 @@
+{
+  "frozen_at_utc": "2026-10-21T20:21:35.593763+00:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 6576,
+      "sha256": "0b36b51ea777047bf1b86caf2330a07e0a6ed1fc50a8e000ed2a8881c20290a6"
+    },
+    {
+      "path": "baseline-first/artifact.json",
+      "bytes": 8244,
+      "sha256": "d24fc43883a41c040203ff5a0f12aec4cf83d6d5c131e9fbaec82e8dec3d25b3"
+    },
+    {
+      "path": "baseline-first/command.json",
+      "bytes": 524,
+      "sha256": "b67ea7f30139c16367223b36bd1b35e542a22d242bfbc44ff5782be86f6306f8"
+    },
+    {
+      "path": "baseline-first/result.json",
+      "bytes": 180,
+      "sha256": "2884157236b151e9fe0fd39dcd9ba6ee993dd4ef8e8e463269c1d4fc1332fc65"
+    },
+    {
+      "path": "baseline-first/stdout-stderr.jsonl",
+      "bytes": 3785,
+      "sha256": "eb0a56fb37e68bd3a6191a3a8542b8c4e549f8d81271d77e72a43b3b358a5773"
+    },
+    {
+      "path": "before-freeze.json",
+      "bytes": 1505,
+      "sha256": "61cfa086e5be2fa9288c4906f25d7066c6b038d66bb79edb5adbad0c1a4da6c6"
+    },
+    {
+      "path": "default-focused-first/command.json",
+      "bytes": 850,
+      "sha256": "927cef15b593f9bde5340863221e347102d7448cd3b9716cdeb545f62ef33abe"
+    },
+    {
+      "path": "default-focused-first/result.json",
+      "bytes": 179,
+      "sha256": "289d8417d51fcae74b0607c5234b320f8e379672f58ab3bee51e0127359338ba"
+    },
+    {
+      "path": "default-focused-first/safe-events.json",
+      "bytes": 5418,
+      "sha256": "85af1eeb4fed1a2506a1529822db50fd028285812401be163536de26ea628197"
+    },
+    {
+      "path": "default-focused-first/stdout-stderr.log",
+      "bytes": 11474,
+      "sha256": "9cb9d84493cee059eeb5f5c0f0936711381c99cca1336bf147de0e0908e85486"
+    },
+    {
+      "path": "default-list-first/command.json",
+      "bytes": 840,
+      "sha256": "c40d788798c8423e735897d81bc7bf11ff6306eae9c13bbddbb8aa4bc556bdd2"
+    },
+    {
+      "path": "default-list-first/result.json",
+      "bytes": 180,
+      "sha256": "398a636eb185ada8d200a21c002755b24dfb1ea035cfc71917b20ce76dcaec6e"
+    },
+    {
+      "path": "default-list-first/stdout-stderr.log",
+      "bytes": 49,
+      "sha256": "90076fc47a9dc6aafe666e1e52aba8db8d68dea3f2915334a091116f6d8c5610"
+    },
+    {
+      "path": "delivery-receipt.json",
+      "bytes": 496,
+      "sha256": "90cf411b1cf1609adefbb95e4111f4b1366e210b821fbc56faa68f3b899d6072"
+    },
+    {
+      "path": "final.diff",
+      "bytes": 13505,
+      "sha256": "8623a11dc2977b817ff629d3d7dca63a2142a51e8b58c19e8c0dbd7e4aa6b210"
+    },
+    {
+      "path": "fixture_test.go",
+      "bytes": 8296,
+      "sha256": "f2c1e37d5c230fde4872abbebdb80ef133eaaa7e68e4bc95c7c636ab9b8c5055"
+    },
+    {
+      "path": "go-trace.py",
+      "bytes": 458,
+      "sha256": "1f2c813d98219d863f03b53732be61a2a3b4030ad9f04754c4c3296842dd1559"
+    },
+    {
+      "path": "integration-focused-first/command.json",
+      "bytes": 894,
+      "sha256": "1e19ef9bee7c3c9a0d773832db86fddb4e0a6ecce93660385c2c2f319ca02f2a"
+    },
+    {
+      "path": "integration-focused-first/result.json",
+      "bytes": 179,
+      "sha256": "f5db125b9735f671a4c59ad7aadc69de12e85c5a359fed9ca8cb5f0b43c978ed"
+    },
+    {
+      "path": "integration-focused-first/safe-events.json",
+      "bytes": 8888,
+      "sha256": "61a88ef7e43654f7291403a52933414652e74b90c837988922023fd6d7429994"
+    },
+    {
+      "path": "integration-focused-first/stdout-stderr.log",
+      "bytes": 18797,
+      "sha256": "1687b51298cc2720af06c4932ec06d34141a06f9db11b195c10c23339c859d9f"
+    },
+    {
+      "path": "integration-list-first/command.json",
+      "bytes": 865,
+      "sha256": "658413779ae42102c369a2f32de59bae33ce0d250860cb0c26df2268a738a169"
+    },
+    {
+      "path": "integration-list-first/result.json",
+      "bytes": 180,
+      "sha256": "ca6f58c2a2391a31753242f93347505624d927aa35187bfd95eaa5ac8b16a780"
+    },
+    {
+      "path": "integration-list-first/stdout-stderr.log",
+      "bytes": 113,
+      "sha256": "dda05c8898a6a9f9d56d40696616fd4aab531c0c255c62f2bcc1529400c18d4f"
+    },
+    {
+      "path": "original-test-function.go.txt",
+      "bytes": 5219,
+      "sha256": "210baa500dd269ec7f35e3991ebb8d6d6bde99863e3e8dbef40954607d968cad"
+    },
+    {
+      "path": "plan-and-failure-matrix.md",
+      "bytes": 5370,
+      "sha256": "ec6439babd2bff39b0deb792f62a95275f35df936baf8182bd97c6329f20d947"
+    },
+    {
+      "path": "prepare_scratch.py",
+      "bytes": 5007,
+      "sha256": "3d218839606e353a789378397832a3ed18a6b478bec0dae72390e8a655c7876a"
+    },
+    {
+      "path": "review-source-freeze.json",
+      "bytes": 1410,
+      "sha256": "af21909193565744bd478512d428494eb3afee127bc3a5bcf2146766404d9a0a"
+    },
+    {
+      "path": "run_focused.py",
+      "bytes": 2282,
+      "sha256": "d08190cb8566d91073765296f2e6c5cf732de3f25549340d079b1d3aa78a4058"
+    },
+    {
+      "path": "run_scratch.py",
+      "bytes": 1993,
+      "sha256": "990cddac22de4139cefffd35b6cb7e5cabe1b0e78a6ff20017a29d4b0c0c37ae"
+    },
+    {
+      "path": "semantic-comparison.json",
+      "bytes": 2523,
+      "sha256": "bbbd36448a5e93315cae410b4ec4ed344df9b4699b668f8e28c0d10d4db9163e"
+    },
+    {
+      "path": "validation-summary.json",
+      "bytes": 1073,
+      "sha256": "e72b94cf765cb21aa7830c71493c3794587b645c1a32abea9861b0144a4952fa"
+    },
+    {
+      "path": "variant-first/artifact.json",
+      "bytes": 6332,
+      "sha256": "b65fdff8c027b100f43385e0870278ca19adeef963d55f1ca02e3f4dd276641c"
+    },
+    {
+      "path": "variant-first/command.json",
+      "bytes": 523,
+      "sha256": "950cff447237653ca34b264800511de86cf40aa9d516bb22cf384c0fa933e4c1"
+    },
+    {
+      "path": "variant-first/result.json",
+      "bytes": 180,
+      "sha256": "58669c278a652ee3be6b2b8ef9a82bec12bb1394b89c766e9bd6ab693d043bda"
+    },
+    {
+      "path": "variant-first/stdout-stderr.jsonl",
+      "bytes": 1341,
+      "sha256": "dfa7027771ccd4026a8562c5864c51214924ca3c8b6e758581818293ca2117f1"
+    }
+  ],
+  "excludes": "Generated key material, binaries, original request TempDir, any cloud credential; no raw runtime directory copied."
+}

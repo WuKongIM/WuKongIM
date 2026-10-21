@@ -1,0 +1,283 @@
+﻿2026-10-21T20:26:14.3459697Z Current runner version: '2.338.0'
+2026-10-21T20:26:14.3475769Z ##[group]Runner Image Provisioner
+2026-10-21T20:26:14.3476326Z Hosted Compute Agent
+2026-10-21T20:26:14.3476688Z Version: 20261015.610
+2026-10-21T20:26:14.3477120Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-21T20:26:14.3477598Z Build Date: 2026-10-14T17:06:54Z
+2026-10-21T20:26:14.3478154Z Worker ID: {65fd5488-3799-4a69-a241-522b83a23d72}
+2026-10-21T20:26:14.3478617Z Region: centralus
+2026-10-21T20:26:14.3478966Z Cloud: Azure
+2026-10-21T20:26:14.3479322Z ##[endgroup]
+2026-10-21T20:26:14.3480108Z ##[group]Operating System
+2026-10-21T20:26:14.3480499Z Ubuntu
+2026-10-21T20:26:14.3480873Z 24.04.5
+2026-10-21T20:26:14.3481193Z LTS
+2026-10-21T20:26:14.3481538Z ##[endgroup]
+2026-10-21T20:26:14.3481925Z ##[group]Runner Image
+2026-10-21T20:26:14.3482294Z Image: ubuntu-24.04
+2026-10-21T20:26:14.3482961Z Version: 20261018.339.1
+2026-10-21T20:26:14.3483729Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T20:26:14.3484688Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T20:26:14.3485256Z ##[endgroup]
+2026-10-21T20:26:14.3485960Z ##[group]GITHUB_TOKEN Permissions
+2026-10-21T20:26:14.3487118Z Contents: read
+2026-10-21T20:26:14.3487560Z Metadata: read
+2026-10-21T20:26:14.3488031Z ##[endgroup]
+2026-10-21T20:26:14.3489350Z Secret source: Actions
+2026-10-21T20:26:14.3489903Z Cache mode: write
+2026-10-21T20:26:14.3490301Z Prepare workflow directory
+2026-10-21T20:26:14.3695117Z Prepare all required actions
+2026-10-21T20:26:14.3727410Z Getting action download info
+2026-10-21T20:26:14.6070905Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-21T20:26:14.6944533Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-10-21T20:26:14.8440849Z Complete job name: provider-contract
+2026-10-21T20:26:14.8897305Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-21T20:26:14.8897951Z with:
+2026-10-21T20:26:14.8898205Z   persist-credentials: false
+2026-10-21T20:26:14.8898502Z   repository: WuKongIM/packages
+2026-10-21T20:26:14.8900505Z   token: ***
+2026-10-21T20:26:14.8900750Z   ssh-strict: true
+2026-10-21T20:26:14.8900993Z   ssh-user: git
+2026-10-21T20:26:14.8901228Z   clean: true
+2026-10-21T20:26:14.8901483Z   sparse-checkout-cone-mode: true
+2026-10-21T20:26:14.8901774Z   fetch-depth: 1
+2026-10-21T20:26:14.8902015Z   fetch-tags: false
+2026-10-21T20:26:14.8902263Z   show-progress: true
+2026-10-21T20:26:14.8902512Z   lfs: false
+2026-10-21T20:26:14.8902745Z   submodules: false
+2026-10-21T20:26:14.8903001Z   set-safe-directory: true
+2026-10-21T20:26:14.8903282Z   allow-unsafe-pr-checkout: false
+2026-10-21T20:26:14.8903639Z ##[endgroup]
+2026-10-21T20:26:14.9559038Z Syncing repository: WuKongIM/packages
+2026-10-21T20:26:14.9560150Z ##[group]Getting Git version info
+2026-10-21T20:26:14.9560621Z Working directory is '/home/runner/work/packages/packages'
+2026-10-21T20:26:14.9561234Z [command]/usr/bin/git version
+2026-10-21T20:26:14.9640881Z git version 2.55.0
+2026-10-21T20:26:14.9654146Z ##[endgroup]
+2026-10-21T20:26:14.9662269Z Temporarily overriding HOME='/home/runner/work/_temp/27d6ac60-9ca0-40c3-8abb-a7cfd33ac994' before making global git config changes
+2026-10-21T20:26:14.9663613Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T20:26:14.9666513Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-21T20:26:14.9710961Z Deleting the contents of '/home/runner/work/packages/packages'
+2026-10-21T20:26:14.9713478Z ##[group]Determining repository object format
+2026-10-21T20:26:14.9714627Z ##[endgroup]
+2026-10-21T20:26:14.9715256Z ##[group]Initializing the repository
+2026-10-21T20:26:14.9718205Z [command]/usr/bin/git init /home/runner/work/packages/packages
+2026-10-21T20:26:14.9800462Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T20:26:14.9801782Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T20:26:14.9806402Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T20:26:14.9808932Z hint: call:
+2026-10-21T20:26:14.9809642Z hint:
+2026-10-21T20:26:14.9810170Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T20:26:14.9810709Z hint:
+2026-10-21T20:26:14.9811211Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T20:26:14.9812032Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T20:26:14.9812673Z hint:
+2026-10-21T20:26:14.9813024Z hint: 	git branch -m <name>
+2026-10-21T20:26:14.9813427Z hint:
+2026-10-21T20:26:14.9813965Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T20:26:14.9814912Z Initialized empty Git repository in /home/runner/work/packages/packages/.git/
+2026-10-21T20:26:14.9817384Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/packages
+2026-10-21T20:26:14.9874031Z ##[endgroup]
+2026-10-21T20:26:14.9874466Z ##[group]Disabling automatic garbage collection
+2026-10-21T20:26:14.9874846Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T20:26:14.9912478Z ##[endgroup]
+2026-10-21T20:26:14.9912893Z ##[group]Setting up auth
+2026-10-21T20:26:14.9913201Z Removing SSH command configuration
+2026-10-21T20:26:14.9914646Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T20:26:14.9948666Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T20:26:15.0235582Z Removing HTTP extra header
+2026-10-21T20:26:15.0240057Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T20:26:15.0278792Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T20:26:15.0465791Z Removing includeIf entries pointing to credentials config files
+2026-10-21T20:26:15.0469387Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T20:26:15.0535826Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T20:26:15.0730461Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T20:26:15.0772601Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git.path /home/runner/work/_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.0810965Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.0853915Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.0891727Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.0929653Z ##[endgroup]
+2026-10-21T20:26:15.0930282Z ##[group]Fetching the repository
+2026-10-21T20:26:15.0934345Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17:refs/remotes/origin/main
+2026-10-21T20:26:15.6481848Z From https://github.com/WuKongIM/packages
+2026-10-21T20:26:15.6484928Z  * [new ref]         bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17 -> origin/main
+2026-10-21T20:26:15.6492030Z [command]/usr/bin/git branch --list --remote origin/main
+2026-10-21T20:26:15.6525996Z   origin/main
+2026-10-21T20:26:15.6531902Z [command]/usr/bin/git rev-parse refs/remotes/origin/main
+2026-10-21T20:26:15.6563129Z bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17
+2026-10-21T20:26:15.6567123Z ##[endgroup]
+2026-10-21T20:26:15.6568069Z ##[group]Determining the checkout info
+2026-10-21T20:26:15.6568906Z ##[endgroup]
+2026-10-21T20:26:15.6570787Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T20:26:15.6624606Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T20:26:15.6662870Z ##[group]Checking out the ref
+2026-10-21T20:26:15.6665775Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-21T20:26:15.6812896Z Switched to a new branch 'main'
+2026-10-21T20:26:15.6816868Z branch 'main' set up to track 'origin/main'.
+2026-10-21T20:26:15.6821671Z ##[endgroup]
+2026-10-21T20:26:15.6864514Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T20:26:15.6897265Z bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17
+2026-10-21T20:26:15.6904779Z ##[group]Removing auth
+2026-10-21T20:26:15.6905292Z Removing SSH command configuration
+2026-10-21T20:26:15.6906749Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T20:26:15.6944625Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T20:26:15.7139411Z Removing HTTP extra header
+2026-10-21T20:26:15.7141147Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T20:26:15.7177482Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T20:26:15.7366980Z Removing includeIf entries pointing to credentials config files
+2026-10-21T20:26:15.7369502Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T20:26:15.7405401Z includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-21T20:26:15.7406118Z includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-21T20:26:15.7408581Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T20:26:15.7409318Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T20:26:15.7413153Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-21T20:26:15.7443722Z /home/runner/work/_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.7450849Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-1cc22afd\-6285\-4ceb\-aef4\-32b5594407c0\.config
+2026-10-21T20:26:15.7495534Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-21T20:26:15.7526214Z /home/runner/work/_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.7533086Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-1cc22afd\-6285\-4ceb\-aef4\-32b5594407c0\.config
+2026-10-21T20:26:15.7574294Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T20:26:15.7606065Z /github/runner_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.7611663Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-1cc22afd\-6285\-4ceb\-aef4\-32b5594407c0\.config
+2026-10-21T20:26:15.7649526Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T20:26:15.7679777Z /github/runner_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config
+2026-10-21T20:26:15.7685975Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-1cc22afd\-6285\-4ceb\-aef4\-32b5594407c0\.config
+2026-10-21T20:26:15.7753588Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T20:26:15.7939670Z Removing credentials config '/home/runner/work/_temp/git-credentials-1cc22afd-6285-4ceb-aef4-32b5594407c0.config'
+2026-10-21T20:26:15.7947113Z ##[endgroup]
+2026-10-21T20:26:15.8106063Z ##[group]Run python3 -m venv /tmp/provider-contract-venv
+2026-10-21T20:26:15.8106574Z [36;1mpython3 -m venv /tmp/provider-contract-venv[0m
+2026-10-21T20:26:15.8107356Z [36;1mtimeout 240 /tmp/provider-contract-venv/bin/python -m pip install --only-binary=:all: --require-hashes -r requirements-object-storage-provider.lock[0m
+2026-10-21T20:26:15.8235785Z shell: /usr/bin/bash -e {0}
+2026-10-21T20:26:15.8236105Z ##[endgroup]
+2026-10-21T20:26:18.1265462Z Collecting alibabacloud-oss-v2==1.4.1 (from -r requirements-object-storage-provider.lock (line 4))
+2026-10-21T20:26:18.2083498Z   Downloading alibabacloud_oss_v2-1.4.1-py3-none-any.whl (377 kB)
+2026-10-21T20:26:18.2413638Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 377.7/377.7 kB 11.8 MB/s eta 0:00:00
+2026-10-21T20:26:18.2838190Z Collecting aliyun-python-sdk-cdn==3.8.8 (from -r requirements-object-storage-provider.lock (line 7))
+2026-10-21T20:26:18.2955939Z   Downloading aliyun_python_sdk_cdn-3.8.8-py2.py3-none-any.whl (162 kB)
+2026-10-21T20:26:18.2992190Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 162.8/162.8 kB 66.2 MB/s eta 0:00:00
+2026-10-21T20:26:18.3258013Z Collecting aliyun-python-sdk-core==2.16.1 (from -r requirements-object-storage-provider.lock (line 11))
+2026-10-21T20:26:18.3360428Z   Downloading aliyun_python_sdk_core-2.16.1-py3-none-any.whl (521 kB)
+2026-10-21T20:26:18.3478827Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 521.3/521.3 kB 47.5 MB/s eta 0:00:00
+2026-10-21T20:26:18.4066196Z Collecting aliyun-python-sdk-sts==3.1.3 (from -r requirements-object-storage-provider.lock (line 14))
+2026-10-21T20:26:18.4171850Z   Downloading aliyun_python_sdk_sts-3.1.3-py2.py3-none-any.whl (8.0 kB)
+2026-10-21T20:26:18.4467658Z Collecting certifi==2026.10.19 (from -r requirements-object-storage-provider.lock (line 18))
+2026-10-21T20:26:18.4567676Z   Downloading certifi-2026.10.19-py3-none-any.whl (136 kB)
+2026-10-21T20:26:18.4596244Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 136.5/136.5 kB 70.1 MB/s eta 0:00:00
+2026-10-21T20:26:18.5614285Z Collecting cffi==2.1.1 (from -r requirements-object-storage-provider.lock (line 22))
+2026-10-21T20:26:18.5718308Z   Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+2026-10-21T20:26:18.5749233Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 221.8/221.8 kB 106.9 MB/s eta 0:00:00
+2026-10-21T20:26:18.6856653Z Collecting charset-normalizer==3.5.2 (from -r requirements-object-storage-provider.lock (line 124))
+2026-10-21T20:26:18.6964753Z   Downloading charset_normalizer-3.5.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (257 kB)
+2026-10-21T20:26:18.6999626Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 257.6/257.6 kB 120.4 MB/s eta 0:00:00
+2026-10-21T20:26:18.7291068Z Collecting crcmod-plus==2.3.6 (from -r requirements-object-storage-provider.lock (line 298))
+2026-10-21T20:26:18.7392784Z   Downloading crcmod_plus-2.3.6-cp311-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (26 kB)
+2026-10-21T20:26:18.8739217Z Collecting cryptography==50.0.2 (from -r requirements-object-storage-provider.lock (line 350))
+2026-10-21T20:26:18.8866142Z   Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl (4.8 MB)
+2026-10-21T20:26:18.9271454Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 121.1 MB/s eta 0:00:00
+2026-10-21T20:26:18.9535617Z Collecting idna==3.20 (from -r requirements-object-storage-provider.lock (line 411))
+2026-10-21T20:26:18.9636042Z   Downloading idna-3.20-py3-none-any.whl (69 kB)
+2026-10-21T20:26:18.9662078Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 69.6/69.6 kB 41.2 MB/s eta 0:00:00
+2026-10-21T20:26:18.9876871Z Collecting jmespath==1.1.0 (from -r requirements-object-storage-provider.lock (line 415))
+2026-10-21T20:26:18.9977027Z   Downloading jmespath-1.1.0-py3-none-any.whl (20 kB)
+2026-10-21T20:26:19.0283327Z Collecting pycparser==3.11 (from -r requirements-object-storage-provider.lock (line 419))
+2026-10-21T20:26:19.0382091Z   Downloading pycparser-3.11-py3-none-any.whl (51 kB)
+2026-10-21T20:26:19.0407395Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 51.2/51.2 kB 28.1 MB/s eta 0:00:00
+2026-10-21T20:26:19.1042481Z Collecting pycryptodome==4.1.0 (from -r requirements-object-storage-provider.lock (line 423))
+2026-10-21T20:26:19.1143533Z   Downloading pycryptodome-4.1.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (2.8 MB)
+2026-10-21T20:26:19.1345059Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.8/2.8 MB 145.6 MB/s eta 0:00:00
+2026-10-21T20:26:19.1901687Z Collecting requests==2.34.2 (from -r requirements-object-storage-provider.lock (line 452))
+2026-10-21T20:26:19.2003192Z   Downloading requests-2.34.2-py3-none-any.whl (73 kB)
+2026-10-21T20:26:19.2030845Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.1/73.1 kB 39.1 MB/s eta 0:00:00
+2026-10-21T20:26:19.2449160Z Collecting urllib3==2.8.0 (from -r requirements-object-storage-provider.lock (line 456))
+2026-10-21T20:26:19.2547648Z   Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+2026-10-21T20:26:19.2575539Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 135.7/135.7 kB 75.9 MB/s eta 0:00:00
+2026-10-21T20:26:19.3095492Z Installing collected packages: urllib3, pycryptodome, pycparser, jmespath, idna, crcmod-plus, charset-normalizer, certifi, requests, cffi, cryptography, alibabacloud-oss-v2, aliyun-python-sdk-core, aliyun-python-sdk-sts, aliyun-python-sdk-cdn
+2026-10-21T20:26:20.2773399Z Successfully installed alibabacloud-oss-v2-1.4.1 aliyun-python-sdk-cdn-3.8.8 aliyun-python-sdk-core-2.16.1 aliyun-python-sdk-sts-3.1.3 certifi-2026.10.19 cffi-2.1.1 charset-normalizer-3.5.2 crcmod-plus-2.3.6 cryptography-50.0.2 idna-3.20 jmespath-1.1.0 pycparser-3.11 pycryptodome-4.1.0 requests-2.34.2 urllib3-2.8.0
+2026-10-21T20:26:20.4045999Z ##[group]Run timeout 120 /tmp/provider-contract-venv/bin/python -B tests/provider_sdk/test_aliyun_object_storage_provider.py --receipt /tmp/provider-contract-receipt.json
+2026-10-21T20:26:20.4046682Z [36;1mtimeout 120 /tmp/provider-contract-venv/bin/python -B tests/provider_sdk/test_aliyun_object_storage_provider.py --receipt /tmp/provider-contract-receipt.json[0m
+2026-10-21T20:26:20.4047167Z [36;1mtimeout 120 python3 -B -m unittest discover -s tests -p test_object_storage_delivery_inputs.py -v[0m
+2026-10-21T20:26:20.4098031Z shell: /usr/bin/bash -e {0}
+2026-10-21T20:26:20.4098189Z ##[endgroup]
+2026-10-21T20:26:20.6060173Z test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) ... ok
+2026-10-21T20:26:20.6175780Z test_config_exact_batches_and_readback (__main__.ProviderContract.test_config_exact_batches_and_readback) ... ok
+2026-10-21T20:26:20.6244498Z test_config_snapshot_includes_unrelated_rules_and_rewrite_order (__main__.ProviderContract.test_config_snapshot_includes_unrelated_rules_and_rewrite_order) ... ok
+2026-10-21T20:26:20.6317179Z test_configuration_observation_cannot_cross_explicit_resource_binding (__main__.ProviderContract.test_configuration_observation_cannot_cross_explicit_resource_binding) ... ok
+2026-10-21T20:26:20.6413372Z test_create_only_then_complete_get_and_exact_conflict (__main__.ProviderContract.test_create_only_then_complete_get_and_exact_conflict) ... ok
+2026-10-21T20:26:20.6459550Z test_debug_logging_rejected_before_sdk_client_construction (__main__.ProviderContract.test_debug_logging_rejected_before_sdk_client_construction) ... ok
+2026-10-21T20:26:20.6536482Z test_debug_logging_rejected_before_sdk_credentials_enter_logs (__main__.ProviderContract.test_debug_logging_rejected_before_sdk_credentials_enter_logs) ... ok
+2026-10-21T20:26:20.6616023Z test_exact_observation_allows_only_its_managed_rewrite_update (__main__.ProviderContract.test_exact_observation_allows_only_its_managed_rewrite_update) ... ok
+2026-10-21T20:26:20.6665391Z test_exact_rewrite_preserves_alias_target_and_priority (__main__.ProviderContract.test_exact_rewrite_preserves_alias_target_and_priority) ... ok
+2026-10-21T20:26:20.6714787Z test_explicit_transport_does_not_consume_proxy_or_debug_environment (__main__.ProviderContract.test_explicit_transport_does_not_consume_proxy_or_debug_environment) ... ok
+2026-10-21T20:26:20.6830020Z test_full_configuration_observation_tampering_rejects_before_write (__main__.ProviderContract.test_full_configuration_observation_tampering_rejects_before_write) ... ok
+2026-10-21T20:26:20.6885880Z test_identity_versioning_and_sdk_wire_are_bound (__main__.ProviderContract.test_identity_versioning_and_sdk_wire_are_bound) ... ok
+2026-10-21T20:26:20.6932752Z test_object_local_drift_and_key_escape_prevent_writes (__main__.ProviderContract.test_object_local_drift_and_key_escape_prevent_writes) ... ok
+2026-10-21T20:26:20.6994612Z test_readback_needs_full_eof_size_hash_cache_without_compression (__main__.ProviderContract.test_readback_needs_full_eof_size_hash_cache_without_compression) ... ok
+2026-10-21T20:26:20.7040758Z test_refresh_foreign_or_directory_urls_rejected_without_write (__main__.ProviderContract.test_refresh_foreign_or_directory_urls_rejected_without_write) ... ok
+2026-10-21T20:26:20.7108490Z test_refresh_only_exact_task_ids_in_bounded_batches (__main__.ProviderContract.test_refresh_only_exact_task_ids_in_bounded_batches) ... ok
+2026-10-21T20:26:20.7286800Z test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) ... ok
+2026-10-21T20:26:20.7446658Z test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) ... ok
+2026-10-21T20:26:20.7551636Z test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) ... ok
+2026-10-21T20:26:20.7628334Z test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) ... ok
+2026-10-21T20:26:20.7736640Z test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) ... ok
+2026-10-21T20:26:20.7785928Z test_wire_limits_and_ambiguous_route_inputs_are_rejected (__main__.ProviderContract.test_wire_limits_and_ambiguous_route_inputs_are_rejected) ... ok
+2026-10-21T20:26:20.7786653Z 
+2026-10-21T20:26:20.7786790Z ----------------------------------------------------------------------
+2026-10-21T20:26:20.7787105Z Ran 22 tests in 0.272s
+2026-10-21T20:26:20.7787231Z 
+2026-10-21T20:26:20.7787306Z OK
+2026-10-21T20:26:20.7833717Z {"checkout_sha": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17", "checkout_tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036", "errors": 0, "failures": 0, "lock_sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b", "provider_network_allowed": false, "python": "3.12.3", "schema": "wukongim.provider_sdk_contract/v1", "sdk_versions": {"alibabacloud-oss-v2": "1.4.1", "aliyun-python-sdk-cdn": "3.8.8", "aliyun-python-sdk-core": "2.16.1", "aliyun-python-sdk-sts": "3.1.3"}, "skips": 0, "test_names": ["test_bad_configid_partial_and_timeout_keep_truth", "test_config_exact_batches_and_readback", "test_config_snapshot_includes_unrelated_rules_and_rewrite_order", "test_configuration_observation_cannot_cross_explicit_resource_binding", "test_create_only_then_complete_get_and_exact_conflict", "test_debug_logging_rejected_before_sdk_client_construction", "test_debug_logging_rejected_before_sdk_credentials_enter_logs", "test_exact_observation_allows_only_its_managed_rewrite_update", "test_exact_rewrite_preserves_alias_target_and_priority", "test_explicit_transport_does_not_consume_proxy_or_debug_environment", "test_full_configuration_observation_tampering_rejects_before_write", "test_identity_versioning_and_sdk_wire_are_bound", "test_object_local_drift_and_key_escape_prevent_writes", "test_readback_needs_full_eof_size_hash_cache_without_compression", "test_refresh_foreign_or_directory_urls_rejected_without_write", "test_refresh_only_exact_task_ids_in_bounded_batches", "test_refresh_rejects_other_tasks_and_noncomplete_states", "test_resource_drift_and_arbitrary_endpoints_are_rejected", "test_unknown_put_never_retries_write", "test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply", "test_versioning_ambiguous_inputs_all_rejected", "test_wire_limits_and_ambiguous_route_inputs_are_rejected"], "tests": 22}
+2026-10-21T20:26:21.2410073Z test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time (test_object_storage_delivery_inputs.FreshInputContract.test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time) ... ok
+2026-10-21T20:26:21.4103338Z test_current_historical_candidate_and_seal_controls_remain_distinct (test_object_storage_delivery_inputs.FreshInputContract.test_current_historical_candidate_and_seal_controls_remain_distinct) ... ok
+2026-10-21T20:26:21.5600170Z test_fence_rechecks_exact_fresh_anchors_and_local_digests (test_object_storage_delivery_inputs.FreshInputContract.test_fence_rechecks_exact_fresh_anchors_and_local_digests) ... ok
+2026-10-21T20:26:21.7001958Z test_library_has_no_production_entrypoint_or_history_execution (test_object_storage_delivery_inputs.FreshInputContract.test_library_has_no_production_entrypoint_or_history_execution) ... ok
+2026-10-21T20:26:21.9070397Z test_nonancestor_seal_current_main_and_historical_blob_fail_closed (test_object_storage_delivery_inputs.FreshInputContract.test_nonancestor_seal_current_main_and_historical_blob_fail_closed) ... ok
+2026-10-21T20:26:22.1089138Z test_original_plan_digest_is_checked_before_github_or_any_writer (test_object_storage_delivery_inputs.FreshInputContract.test_original_plan_digest_is_checked_before_github_or_any_writer) ... ok
+2026-10-21T20:26:22.2585480Z test_test_only_composite_and_arbitrary_authority_are_rejected (test_object_storage_delivery_inputs.FreshInputContract.test_test_only_composite_and_arbitrary_authority_are_rejected) ... ok
+2026-10-21T20:26:22.8460764Z test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified (test_object_storage_delivery_inputs.FreshPreviewWire.test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified) ... ok
+2026-10-21T20:26:23.2813602Z test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair (test_object_storage_delivery_inputs.FreshPreviewWire.test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair) ... ok
+2026-10-21T20:26:23.2817255Z test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions (test_object_storage_delivery_inputs.ProviderWorkflowContract.test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions) ... ok
+2026-10-21T20:26:23.2818104Z 
+2026-10-21T20:26:23.2818234Z ----------------------------------------------------------------------
+2026-10-21T20:26:23.2818520Z Ran 10 tests in 2.195s
+2026-10-21T20:26:23.2818641Z 
+2026-10-21T20:26:23.2818713Z OK
+2026-10-21T20:26:23.3100911Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-21T20:26:23.3101135Z with:
+2026-10-21T20:26:23.3101257Z   name: object-storage-sdk-contract
+2026-10-21T20:26:23.3101426Z   path: /tmp/provider-contract-receipt.json
+2026-10-21T20:26:23.3101589Z   if-no-files-found: error
+2026-10-21T20:26:23.3101718Z   retention-days: 7
+2026-10-21T20:26:23.3101838Z   compression-level: 6
+2026-10-21T20:26:23.3101955Z   overwrite: false
+2026-10-21T20:26:23.3102079Z   include-hidden-files: false
+2026-10-21T20:26:23.3102208Z   archive: true
+2026-10-21T20:26:23.3102319Z ##[endgroup]
+2026-10-21T20:26:23.4027881Z With the provided path, there will be 1 file uploaded
+2026-10-21T20:26:23.4031579Z Artifact name is valid!
+2026-10-21T20:26:23.4032047Z Root directory input is valid!
+2026-10-21T20:26:23.6756513Z Uploading artifact: object-storage-sdk-contract.zip
+2026-10-21T20:26:23.6781466Z Beginning upload of artifact content to blob storage
+2026-10-21T20:26:23.8150588Z Uploaded bytes 1032
+2026-10-21T20:26:23.8483912Z Finished uploading artifact content to blob storage!
+2026-10-21T20:26:23.8484476Z SHA256 digest of uploaded artifact is caef752cd77f8f82e8b1073676833ba3a8133f9976ec17098d4bef95441fd861
+2026-10-21T20:26:23.8484924Z Finalizing artifact upload
+2026-10-21T20:26:24.1744461Z Artifact object-storage-sdk-contract successfully finalized. Artifact ID 12379711369
+2026-10-21T20:26:24.1745169Z Artifact object-storage-sdk-contract has been successfully uploaded! Final size is 1032 bytes. Artifact ID is 12379711369
+2026-10-21T20:26:24.1745878Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39670271825/artifacts/12379711369
+2026-10-21T20:26:24.1908639Z Post job cleanup.
+2026-10-21T20:26:24.2436647Z [command]/usr/bin/git version
+2026-10-21T20:26:24.2482330Z git version 2.55.0
+2026-10-21T20:26:24.2504405Z Temporarily overriding HOME='/home/runner/work/_temp/a4dbe739-b4df-4a92-a8fe-9647645219ce' before making global git config changes
+2026-10-21T20:26:24.2505124Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T20:26:24.2506519Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-21T20:26:24.2535799Z Removing SSH command configuration
+2026-10-21T20:26:24.2539433Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T20:26:24.2571744Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T20:26:24.2780567Z Removing HTTP extra header
+2026-10-21T20:26:24.2781150Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T20:26:24.2828587Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T20:26:24.3038638Z Removing includeIf entries pointing to credentials config files
+2026-10-21T20:26:24.3039253Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T20:26:24.3074228Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T20:26:24.3389971Z Cleaning up orphan processes

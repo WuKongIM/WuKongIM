@@ -1,0 +1,50 @@
+{
+  "SDK_artifact": {
+    "API_digest_verified": true,
+    "all_members_SHA_CRC_size_verified": true,
+    "whole_ZIP_SHA_recomputed": "caef752cd77f8f82e8b1073676833ba3a8133f9976ec17098d4bef95441fd861"
+  },
+  "all_observer_processes_terminal": true,
+  "both_runs_terminal_success": true,
+  "checks_skipped": 1,
+  "checks_success": 2,
+  "deploy": {
+    "Configure_Pages": "skipped",
+    "Pages_artifact_count": 0,
+    "Upload_Pages": "skipped",
+    "conclusion": "skipped",
+    "job_id": 119467073095,
+    "source_condition": "preview.enabled=true yields deploy_bootstrap=false; deploy requires true",
+    "stable_enabled": false
+  },
+  "main_head": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "native_reexecution": false,
+  "natural_push_attempt": 1,
+  "observer_rerun_dispatch_merge_source_cloud_actions": 0,
+  "prior_accepted_native_run": 39668059195,
+  "prior_evidence_manifest_sha256": "9d34898f4d6c1a27e5302d0d1bf38fdfa63d5d65ee6714e966bddd72b420278f",
+  "proof": {
+    "pages": {
+      "actual_checkout": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+      "log_sha256": "6b7ed9a75e3f5642e3d900da9b08eb4125c9b1c1fd203f4277b1aaa85b94706f",
+      "run": 39670271788,
+      "test_skips": 0,
+      "tests_in_log_order": [
+        4,
+        581
+      ]
+    },
+    "sdk": {
+      "actual_checkout": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+      "log_sha256": "084ec77cece93e5d5d7d4992084edb1aec362019e4810de0a98a41251a9c647f",
+      "run": 39670271825,
+      "test_skips": 0,
+      "tests_in_log_order": [
+        22,
+        10
+      ]
+    }
+  },
+  "tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "tree_equal_accepted_PR": true
+}

@@ -1,0 +1,18 @@
+{
+  "freeze_sha256": "af21909193565744bd478512d428494eb3afee127bc3a5bcf2146766404d9a0a",
+  "files": [
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "42aa7f2976b12fde7ccd135e5acbef69ee7cabbcaac25fb1d42b8284050c6a36"
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_test.go",
+      "sha256": "cf42269fd621ef8c4dad1a2766b1599f18ff2d719d8a9f10fd692a051b38715f"
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_start_integration_test.go",
+      "sha256": "f59325ccf1b7dd3692dc8021491ce68cdcac013bf8ba0d3f6de3b56bc0891f71"
+    }
+  ],
+  "all_unchanged_rules_match": true
+}

@@ -1,14 +1,14 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 20:12Z（北京时间10月22日04:12）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 20:33Z（北京时间10月22日04:33）**；后续状态须绑定新的提交和收据。
 
 结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
-产品 #1016/#1017/#1019–#1022及packages #67–#76已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z通过，49/49场景和清理已独立核验；18:17:48Z普通rebase合并为be32eb37，同验收tree e319ee72，合并后默认/SDK检查也首次通过且部署跳过。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
+产品 #1016/#1017/#1019–#1022及packages #67–#77已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z通过，49/49场景和清理已独立核验；18:17:48Z普通rebase合并为be32eb37，同验收tree e319ee72，合并后默认/SDK检查也首次通过且部署跳过。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
 
-两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1。已复现spawn与登记之间取消竞态，44de9452修复后九项确定性回归及相关15顶层测试首次通过、两轴零发现；新head第三代首次Linux默认、E2E及性能通过，但scripts在原600秒外层时限结束：600.100秒、wrapper exit124，无断言FAIL事件；九项新回归及原interrupt均通过，Retention直到末尾才获执行且未完成，不能计作79场景通过。三代原失败均保留，#1024仍未合并。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1。已复现spawn与登记之间取消竞态，44de9452修复后九项确定性回归及相关15顶层测试首次通过、两轴零发现；新head第三代首次Linux默认、E2E及性能通过，但scripts在原600秒外层时限结束：600.100秒、wrapper exit124，无断言FAIL事件；九项新回归及原interrupt均通过，Retention直到末尾才出现CONT且未完成，不能计作79场景通过。三代原失败均保留，#1024仍未合并。随后仅优化direct-lab夹具，提交f419ea8f/treea13367b2；原断言逐字保留，相关默认11项和integration15项首次通过，双轴零开放发现。第四代首次完整Linux CI仍待终态，不以本地结果声明原600秒门禁恢复。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
 
-packages #77新增五文件安装阶段诊断已提交为 `94d63a3c099dcaa69bcefda3b021bafcc8d828f6`，tree `0c843c1a30df5a75eac5e8ac0b966b5b84e20036`。测试先行与两轴复核完成，首次新head CI仍待终态；阶段B只增加诊断记录，不证明原Alma超时的唯一原因，也不证明49客户端通过。当前云请求已释放，本次归档没有重启、采购或新增费用。
+packages #77安装阶段诊断head `94d63a3c` 的首次新候选CI已通过：默认581项零skip+4合同、SDK22+10、M1 29/29、旧签名演练和49/49客户端场景全部完成；8套installed身份、12项缓存及2项RPM跨代证明闭合，owned容器/网络和缓存清零。20:26:08Z普通rebase合并为 `bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17`，tree `0c843c1a30df5a75eac5e8ac0b966b5b84e20036` 与验收候选完全相同；合并后默认581+4及SDK22+10自然首次检查再次通过，生产部署条件skip、native未重复触发。原Alma600.151秒首失败和unknown原因仍保留；原tip不在rebase后main祖先链，干净原分支/worktree保留而未强删。M2a已从新的packages main开始实施，尚未验收；未冻结内容不纳入本次证据。云仍已释放，没有新增云资源、预算或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -342,3 +342,18 @@ MQTT 继续默认关闭、开发预览。专项 self-chat、100 GiB/4h 迁移、
 [#77安装阶段诊断](v3-release-readiness-20261021/packages/pr77-installed-stage-repair-v1/README.md)先完成9方法/22处首红，再以相同测试字节首绿；默认581项中580通过、1既有本地skip，合同4通过。[Spec](v3-release-readiness-20261021/packages/pr77-installed-stage-review/spec/review.md)与[Standards](v3-release-readiness-20261021/packages/pr77-installed-stage-review/standards/report.md)均0发现。五文件仅给现有安装命令增加固定阶段标记、从原有界输出保留最多16项诊断事件，不改签验、通过条件、600/650秒限制或49场景。[提交与推送收据](v3-release-readiness-20261021/packages/pr77-installed-stage-delivery/commit-identity.json)绑定新head `94d63a3c`/tree `0c843c1a`，首次CI待终态。原Alma首失败及未观测的子阶段继续保留，阶段B不作为根因修复或真实安装通过声明。
 
 本次仅追加已封存的公共有限证据，[复制收据](v3-release-readiness-20261021/pr1024-third-ci-and-pr77-installed-diagnostics-copy.json)逐项验证来源及旧清单；未冻结的整体耗时诊断不纳入。结论仍为NO-GO，云已释放且没有重启、续租或新费用。
+
+
+## 20:33Z 夹具窄改与 #77 合并检查点
+
+[#1024三代耗时诊断](v3-release-readiness-20261021/cloud/pr1024-gen3-timeout-diagnosis/README.md)采用不重叠的阶段区间：第三代进入顶层并行阶段比第二代晚32.307秒，其中包标记之前增加约14.263秒、串行注册阶段增加18.044秒；第二代整体仅有24.046秒名义余量。这证明原预算余量脆弱，不证明唯一根因或新候选必然完成。[独审澄清](v3-release-readiness-20261021/cloud/pr1024-gen3-timeout-review/clarification.md)关闭一项历史P3措辞发现：CONT至子用例的时间差加源码锁顺序仅支持准入／锁等待推断，没有获锁／解锁时间观测，不应写成直接测得锁等待。原诊断字节与三次失败均保留；[状态更新收据](v3-release-readiness-20261021/cloud/pr1024-gen3-status-update/after.json)单独归档。
+
+[计数更正附录](v3-release-readiness-20261021/cloud/pr1024-gen3-timeout-diagnosis/count-correction-appendix.json)补回旧脱敏器因安全测试名称含token/secret/authorization而漏记的每代8个PASS。第一代更正为610 PASS/6 SKIP/40未完成，第二代649 PASS/6 SKIP/1 FAIL；第三代仍618 PASS/6 SKIP/33未完成。旧报告和此前历史段落的原始计数不覆盖，新增附录不改变退出状态或放行结论。
+
+[direct-lab夹具首红首绿](v3-release-readiness-20261021/cloud/pr1024-direct-lab-fixture-optimization-v1/README.md)先以同一scratch源、相同追踪和串行调度，仅切换两个既有工具输入：原断言两侧均通过，基线因实际构建两个未使用工具而RED，变体零构建GREEN。随后三文件窄改保留原操作顺序、权限、状态和预算断言，真实Bash/SSH-keygen测试移至integration层并复用原有界调度；两个替身误调用会记录并失败。相关默认11项、integration15项首次通过，六个owned进程组无残留；[双轴复核](v3-release-readiness-20261021/cloud/pr1024-direct-lab-fixture-delivery/combined-review.md)均无开放发现。[提交身份](v3-release-readiness-20261021/cloud/pr1024-direct-lab-fixture-delivery/identity.json)为f419ea8f/treea13367b2。第四代首次完整Linux尚待终态；局部warm-cache差值不等于Linux提速比例或600秒门禁恢复，未放宽时限、修改策略或重跑旧head。
+
+[#77第二代首次完整CI](v3-release-readiness-20261021/packages/pr77-ci-generation-2/README.md)绑定94d63a3c、实际checkout1625487a及同tree0c843c1a：581零skip+4合同、SDK22+10、M1 29/29、旧7/10/6/31+8与完整签名安装演练全部通过。原stable49/49、8套CLI来源／版本身份、12缓存场景和Rocky/Alma两项跨代证明闭合；owned容器/网络、四缓存根清零。M1另有TEST秘密及scratch清理，CI未采集OS进程清单，因此不声称全机零僵尸。第一代Alma600.151秒失败仍是0通过/1失败/48未到，当前通过不能反推原超时原因。
+
+[正常合并收据](v3-release-readiness-20261021/packages/pr77-merge-delivery/merge-receipt.json)记录20:26:08Z普通rebase为main bbcfb377，与验收tree完全相同。原tip不在main祖先链，保留干净原分支/worktree，无强制删除。[合并后自然首次CI](v3-release-readiness-20261021/packages/pr77-main-first-ci/README.md)再次通过581零skip+4及SDK22+10；生产Configure/Upload/Deploy条件skip、无Pages制品，native未重新触发。生产stable仍关闭，没有公网签名channel发布或真实provider激活结论。
+
+M2a已从新packages main开始实施，尚未验收；未冻结的M2/M2a及#1024第四代CI不纳入本次复制。[有限复制收据](v3-release-readiness-20261021/pr1024-fixture-and-pr77-merge-copy.json)记录321份公共来源文件及原10,312项复制前后核验，合并后CI占65文件。只更新滚动README、当前报告和顶层摘要；旧immutable证据不变。总体仍为**NO-GO**：云已释放，没有新资源、预算、正式tag或发布，历史message_loss根因与2小时／72小时资格仍未关闭。

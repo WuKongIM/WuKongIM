@@ -1,0 +1,11 @@
+{
+  "merged_at": "2026-10-21T20:26:08Z",
+  "original_head": "94d63a3c099dcaa69bcefda3b021bafcc8d828f6",
+  "merge_commit": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "target": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "target_tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "reviewed_tested_tree_match": true,
+  "original_tip_contained_in_target": false,
+  "worktree_clean": true,
+  "cleanup": "retained: rebase commit does not contain original branch tip; no forced deletion"
+}

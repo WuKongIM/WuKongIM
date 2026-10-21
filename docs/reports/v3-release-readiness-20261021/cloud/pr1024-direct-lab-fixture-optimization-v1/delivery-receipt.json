@@ -1,0 +1,21 @@
+{
+  "frozen_at_utc": "2026-10-21T20:21:35.593763+00:00",
+  "head_unchanged": true,
+  "source_freeze_matches": true,
+  "diff_check": 0,
+  "owned_pgid_list": [
+    5600,
+    6642,
+    6587,
+    7016,
+    6614,
+    6268
+  ],
+  "remaining_owned_processes": [],
+  "changed_source_paths": [
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "scripts/chat_lifecycle_direct_lab_test.go",
+    "scripts/chat_lifecycle_direct_lab_start_integration_test.go"
+  ],
+  "no_commit_push_fullsuite_ci_cloud": true
+}

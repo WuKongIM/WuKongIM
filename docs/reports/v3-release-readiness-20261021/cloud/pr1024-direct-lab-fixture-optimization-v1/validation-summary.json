@@ -1,0 +1,38 @@
+{
+  "other_default_source_byte_identical": true,
+  "moved_function_byte_identical_except_declared_stub_and_two_env_lines": true,
+  "all_original_assertions_preserved": true,
+  "default_list_case_count": 0,
+  "integration_list_case_count": 1,
+  "default-focused-first": {
+    "result": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 7.242416707973462,
+      "owned_pgid": 6642,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "pass_records": 11,
+    "top_level_passes": 11,
+    "failure_or_skip_events": [],
+    "target_case_passes": 0
+  },
+  "integration-focused-first": {
+    "result": {
+      "exit_code": 0,
+      "timed_out": false,
+      "elapsed_s": 7.084173458977602,
+      "owned_pgid": 7016,
+      "cleanup_initial": [],
+      "cleanup_remaining": [],
+      "cleanup_verified": true
+    },
+    "pass_records": 15,
+    "top_level_passes": 15,
+    "failure_or_skip_events": [],
+    "target_case_passes": 1
+  },
+  "scope": "Focused only; no full original-policy Linux gate pass asserted."
+}
