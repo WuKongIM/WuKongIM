@@ -1,0 +1,218 @@
+[
+  {
+    "generation": "A",
+    "distribution": "ubuntu-24.04",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.0"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.0_amd64.deb",
+      "sha256": "6ce580b39eebdf73f874bfe6baa9d7313b159a59c9ae7aa8504a9b0b48fbb096",
+      "size": 29932198,
+      "snapshot_versions": [
+        "3.0.0"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "A",
+    "distribution": "debian-13",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.0"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.0_amd64.deb",
+      "sha256": "6ce580b39eebdf73f874bfe6baa9d7313b159a59c9ae7aa8504a9b0b48fbb096",
+      "size": 29932198,
+      "snapshot_versions": [
+        "3.0.0"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "A",
+    "distribution": "rocky-linux-9",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.0"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.0_linux_amd64.rpm",
+      "sha256": "d515656711771e4fa2456f9a422f4fd11f645f11b68965b15bf77902c461b199",
+      "size": 38398459,
+      "snapshot_versions": [
+        "3.0.0"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "A",
+    "distribution": "alma-linux-9",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.0"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.0_linux_amd64.rpm",
+      "sha256": "d515656711771e4fa2456f9a422f4fd11f645f11b68965b15bf77902c461b199",
+      "size": 38398459,
+      "snapshot_versions": [
+        "3.0.0"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "B",
+    "distribution": "ubuntu-24.04",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.1"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.1_amd64.deb",
+      "sha256": "62b1770266cb35371c939a6ec406d50d4b6fd148e12e150df2cad0b0a34667c9",
+      "size": 29932802,
+      "snapshot_versions": [
+        "3.0.1"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "B",
+    "distribution": "debian-13",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.1"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.1_amd64.deb",
+      "sha256": "62b1770266cb35371c939a6ec406d50d4b6fd148e12e150df2cad0b0a34667c9",
+      "size": 29932802,
+      "snapshot_versions": [
+        "3.0.1"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "B",
+    "distribution": "rocky-linux-9",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.1"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.1_linux_amd64.rpm",
+      "sha256": "dd9e581bf3729c6fdcf1b985af78e1489d6b076786dff64d593cbe0c03b389b1",
+      "size": 38398463,
+      "snapshot_versions": [
+        "3.0.1"
+      ]
+    },
+    "installed_cli_verified": true
+  },
+  {
+    "generation": "B",
+    "distribution": "alma-linux-9",
+    "identity": {
+      "build_source": "release",
+      "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "version": "3.0.1"
+    },
+    "checks": [
+      "version",
+      "help",
+      "bench_validate",
+      "db_query",
+      "migrate_diagnose",
+      "invalid_inputs",
+      "read_only_data"
+    ],
+    "download": {
+      "filename": "wukongim_3.0.1_linux_amd64.rpm",
+      "sha256": "dd9e581bf3729c6fdcf1b985af78e1489d6b076786dff64d593cbe0c03b389b1",
+      "size": 38398463,
+      "snapshot_versions": [
+        "3.0.1"
+      ]
+    },
+    "installed_cli_verified": true
+  }
+]

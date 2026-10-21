@@ -1,0 +1,133 @@
+{
+  "review_axis": "standards",
+  "review_version": "combined-v2-final-limited-delta",
+  "reviewed_at": "2026-10-21T16:10:06.294479+00:00",
+  "base_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "head_verified_equal_base": true,
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "frozen_files_sha256": {
+    "CHANGELOG.md": "8c57aa80061e200f9363daa28a9ad248e1b06e3d6e74378028503a333112052e",
+    "pkg/channel/FLOW.md": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259",
+    "pkg/channel/replication/recovery_barrier.go": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "d24b12b77aadf0f356c46cff2930b2f293e8be33d645034e0118dac1eccf973c",
+    "pkg/channel/replication/recovery_barrier_pending_test.go": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d",
+    "docs/development/FLOW_INDEX.md": "4759e55986b34fb16545626db9769720ed69a0bc094450bc14509680b0eeca44"
+  },
+  "patch_sha256": "38519d247817780b633401280ffebba3433bf0f8b0bf5ee1e6bbc059a38c03b0",
+  "all_seven_file_hashes_verified": true,
+  "complete_git_patch_reconstruction_verified": true,
+  "prior_six_file_hashes_unchanged": true,
+  "patch_without_generated_index_hunk_equals_prior_patch": true,
+  "actual_delta": {
+    "path": "docs/development/FLOW_INDEX.md",
+    "line": 81,
+    "field": "pkg/channel/FLOW.md generated line count",
+    "old": 148,
+    "new": 150
+  },
+  "prior_reviews_and_failed_generations": {
+    "barrier-review/standards/report.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-review/standards/report.md",
+      "sha256": "8fdc32a8c5e6b58782caf7bbcaf8d6c57fe90e9f615d62a6dc4ece47f320a9c0"
+    },
+    "barrier-review/standards/source-binding.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-review/standards/source-binding.json",
+      "sha256": "7e0d870668d7ee966df08d709fa0236ecf398bbfa0f99fd50d80d90136bbac96"
+    },
+    "barrier-review/standards/combined-delta-report.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-review/standards/combined-delta-report.md",
+      "sha256": "34085c9ab6878ad37f36a27224ea631ce2ecde52bf6672de1c911cba4bed4dd0"
+    },
+    "barrier-review/standards/combined-source-binding.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-review/standards/combined-source-binding.json",
+      "sha256": "60c730525d93e1f9bb7c5c4dff5f62f583a2611a1ace790234f75c8cf2a3e4c8"
+    },
+    "combined-repair-v1/source-freeze.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/source-freeze.json",
+      "sha256": "a6c14f386dfd2712b9b287dbdf42cc5eb4459643dcfb1f984ee3d2a99d5c43ed"
+    },
+    "combined-repair-v1/implementation.patch": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/implementation.patch",
+      "sha256": "c900cf44483333033485c0047281304b1c325d9222ac52e77636326c0a7ba7c4"
+    },
+    "barrier-repair-v1/flow-doc-contracts/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/result.json",
+      "sha256": "83fba59dbe8aae064b0b7e7f2d2a6495396078210e3ec39b2ea690bafe933bd7"
+    },
+    "combined-repair-v1/flow-doc-contracts/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/flow-doc-contracts/result.json",
+      "sha256": "1441f06ff90712231581ce59e87974765dd1e0d86ff4098a77147fb23ced7649"
+    }
+  },
+  "evidence": {
+    "source-freeze.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/source-freeze.json",
+      "sha256": "1c8a9e7a7d82360bbd95316fbe957bc11db1b73c3b39fd916ebadd7f803ef2a8",
+      "size": 1553
+    },
+    "implementation.patch": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/implementation.patch",
+      "sha256": "38519d247817780b633401280ffebba3433bf0f8b0bf5ee1e6bbc059a38c03b0",
+      "size": 17163
+    },
+    "named-check-results.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/named-check-results.json",
+      "sha256": "c92af1ccb198f9bd47ffa1281f7e319d995972d662ca154c2fd58d69b8d5291b",
+      "size": 847
+    },
+    "flow-doc-contracts/command.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/flow-doc-contracts/command.json",
+      "sha256": "3d5ccaa6ac670e21662903c0ec46b61b228023ec085f0f8b4ffe6271ebbfbb69",
+      "size": 476
+    },
+    "flow-doc-contracts/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/flow-doc-contracts/result.json",
+      "sha256": "b294b9a9cd65a8bf811c72bd2c01eac7f90611f690c078349db365dc74343ff1",
+      "size": 369
+    },
+    "flow-doc-contracts/stdout-stderr.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/flow-doc-contracts/stdout-stderr.log",
+      "sha256": "5ebe3121e5c1b878ace6159d0e34bdf5f370bc21868496383269cabcc14d408e",
+      "size": 1376
+    },
+    "go-format/command.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/go-format/command.json",
+      "sha256": "5acfb93da1c0b98eed9c7bcacdb4dec20a0a50e41fefb50e86394038ac24a00c",
+      "size": 458
+    },
+    "go-format/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/go-format/result.json",
+      "sha256": "328a14771ab7c93c3ff86ac5f89c23213c2519d233c3ff98e614c73d4ef9947d",
+      "size": 366
+    },
+    "go-format/stdout-stderr.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/go-format/stdout-stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    }
+  },
+  "named_checks": {
+    "flow-doc-contracts": {
+      "status": "passed",
+      "exit_code": 0,
+      "FLOW_files": 88,
+      "compliant": 88,
+      "invalid": 0,
+      "warnings": 20
+    },
+    "go-format": {
+      "status": "passed",
+      "exit_code": 0
+    }
+  },
+  "manual_hard_findings": 0,
+  "heuristic_findings": 0,
+  "all_twelve_prior_smell_heuristics_considered_for_delta": true,
+  "full_topology_result_claimed": false,
+  "original_Mac_causality_claimed": false,
+  "checks_executed_by_reviewer": false,
+  "source_modified": false,
+  "report_word_count": 198,
+  "named_check_commands_bind_exact_source_freeze": true
+}

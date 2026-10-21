@@ -1,0 +1,24 @@
+{
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "frozen_at": "2026-10-21T16:02:47.275658+00:00",
+  "files": {
+    "CHANGELOG.md": "6492b3fcdf8ed04c88843df8f78b5e1a08a9c8389be447f5728325a9835c25ab",
+    "pkg/channel/FLOW.md": "9d09dfdbd2f4bbfb98fa538e0ebdd64c92f06e6d86f74dbedfc6467173ad3872",
+    "pkg/channel/replication/recovery_barrier.go": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+    "pkg/channel/replication/recovery_barrier_pending_test.go": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d"
+  },
+  "patch_sha256": "0be01dacb235a457cdfb54ff9bec46a2c272337008afb8c09c56b00fa4d49ed7",
+  "production_changes": [
+    "pkg/channel/replication/recovery_barrier.go"
+  ],
+  "tests": "19 cases: red2/17controlpass, green19; cleanup complete",
+  "untouched": [
+    "wire6",
+    "quorum_round_state.go",
+    "quorum_log.go",
+    "fixture",
+    "budgets",
+    "error thresholds"
+  ],
+  "limitations": "Original Mac cause unconfirmed; original cause loss retained. Pending classification is not repair scheduling."
+}

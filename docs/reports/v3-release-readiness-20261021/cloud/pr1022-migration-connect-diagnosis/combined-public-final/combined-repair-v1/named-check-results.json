@@ -1,0 +1,20 @@
+{
+  "flow-doc-contracts": {
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 47137,
+    "output_bytes": 1458,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 47137,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 0.614
+  }
+}

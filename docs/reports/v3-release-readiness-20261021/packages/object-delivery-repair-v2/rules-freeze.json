@@ -1,0 +1,21 @@
+{
+  "frozen_at": "2026-10-21T15:56:13.909837+00:00",
+  "packages_source_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "packages_branch": "codex/stable-object-delivery",
+  "packages_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "repository_rules": [],
+  "enclosing_repository_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "applicable_rule_sha256": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "v1_scope_sha256": {
+    "CHANGELOG.md": "217ba4f44bd887fd8dde4588c980db5152678646ff140c1a4b15ef681d7fe0cc",
+    "README.md": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+    "docs/object-storage-delivery.md": "f3b5ac68431f0f11ccde87a8bdb6be2e5547d60170a2b9a0f574e2ad6137715a",
+    "scripts/prepare-object-storage-delivery.py": "edf90960ae44e29529e9c3e1d717cc9ce961ad492891aa5da2248062fc254037",
+    "tests/test_object_storage_delivery.py": "f0d6f33d5955b5197a4628fd0440232e012263d0cdf1c6a5da9f2dd027146061"
+  },
+  "spec_review_sha256": "b5f8df4f76d89af74562b17198b3f0f79dd80ba956fa9f785ac2acc14cd2d20c",
+  "production_actions_authorized": false,
+  "tdd_deviation": "All related failure tests before implementation, as explicitly requested; no new tests after implementation."
+}

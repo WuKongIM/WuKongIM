@@ -1,0 +1,159 @@
+{
+  "raw_sha256": "acb90f89b7cd6b1e6ae5a118030d7b70c1b47b46b0dc765a6f3dd1fec4e78138",
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 47712,
+    "output_bytes": 7414,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 47712,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 29.183
+  },
+  "terminal": [
+    {
+      "Time": "2026-10-22T00:08:26.113294+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Elapsed": 23.52
+    },
+    {
+      "Time": "2026-10-22T00:08:26.114123+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology",
+      "Elapsed": 23.52
+    },
+    {
+      "Time": "2026-10-22T00:08:26.117285+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Elapsed": 24.129
+    }
+  ],
+  "action_counts": {
+    "start": 1,
+    "run": 2,
+    "output": 20,
+    "pass": 3
+  },
+  "history_count": 13,
+  "history": [
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:15.248417+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:15.250716+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:15.254031+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:15.433602+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:15.434644+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:15.435772+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:21.0033+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:21.00516+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:21.006677+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:22.504477+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:25.206207+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:25.210806+08:00"
+    },
+    {
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0,
+      "time": "2026-10-22T00:08:25.212588+08:00"
+    }
+  ],
+  "retried_history_count": 0,
+  "total_503_temporary_retries": 0,
+  "max_503_temporary_retries": 0
+}

@@ -1,0 +1,151 @@
+=== RUN   TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes
+    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0
+    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:214: 
+        	Error Trace:	/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect/test/e2e/migration/ordinary_history/ordinary_history_test.go:155
+        	            				/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect/test/e2e/migration/ordinary_history/ordinary_history_test.go:214
+        	            				/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect/test/e2e/migration/ordinary_history/ordinary_history_test.go:47
+        	Error:      	Received unexpected error:
+        	            	POST http://127.0.0.1:24067/channel/messagesync returned 400: {"msg":"internal/message: append failed: channel replication: durable quorum unavailable","status":400}
+        	Test:       	TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes
+        	Messages:   	history phase=after-full-restart node=1 temporary_retries=0
+        	            	node 1 diagnostics:
+        	            	readyz: status=200 body={"ready":true}
+        	            	process: pid=41246 running
+        	            	config: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/wukongim.toml
+        	            	config-tail: [truncated]
+        	            	config-content:
+        	            	protocol = 'wkproto'
+        	            	transport = 'gnet'
+        	            	
+        	            	[manager]
+        	            	listen_addr = '127.0.0.1:24068'
+        	            	
+        	            	[node]
+        	            	data_dir = '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/data'
+        	            	id = 1
+        	            	
+        	            	[observability]
+        	            	metrics_enable = true
+        	            	
+        	            	[plugin]
+        	            	enable = false
+        	            	stdout: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/stdout.log
+        	            	stderr: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/stderr.log
+        	            	stdout-tail: [truncated]
+        	            	stdout-content:
+        	            	2026-10-21 23:49:09.831	INFO	[cluster.slot]	multiraft/recovery.go:89	Slot recovery progress	{"event": "slot.recovery.progress", "nodeID": 1, "slotID": 4, "stage": "complete", "snapshotIndex": 1, "bytes": 0, "totalBytes": 0, "entries": 0, "totalEntries": 0, "elapsed": 7}
+        	            	2026-10-21 23:49:12.661	INFO	[cluster.slot.raft]	wklog/raft_logger.go:98	1 became leader at term 3	{"raftScope": "slot", "nodeID": 1, "slotID": 4, "event": "raft.log", "raftEvent": "leader_change"}
+        	            	WuKongIM
+        	            	
+        	            	Node       1 · multi-node cluster
+        	            	Cluster    migration-ordinary-history · 127.0.0.1:24063
+        	            	Gateway    tcp-wkproto   tcp://127.0.0.1:24064
+        	            	API        http://127.0.0.1:24067
+        	            	Demo       http://127.0.0.1:24067/demo/
+        	            	Manager    http://127.0.0.1:24068
+        	            	Metrics    http://127.0.0.1:24067/metrics
+        	            	Config     /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/wukongim.toml
+        	            	Data       /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/data
+        	            	
+        	            	✓ Ready in 3.557s
+        	            	stderr-content:
+        	            	app-log: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/logs/app.log
+        	            	app-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/logs/app.log: no such file or directory
+        	            	error-log: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/logs/error.log
+        	            	error-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/logs/error.log: no such file or directory
+        	            	node 2 diagnostics:
+        	            	readyz: status=200 body={"ready":true}
+        	            	process: pid=41247 running
+        	            	config: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/wukongim.toml
+        	            	config-tail: [truncated]
+        	            	config-content:
+        	            	protocol = 'wkproto'
+        	            	transport = 'gnet'
+        	            	
+        	            	[manager]
+        	            	listen_addr = '127.0.0.1:24074'
+        	            	
+        	            	[node]
+        	            	data_dir = '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/data'
+        	            	id = 2
+        	            	
+        	            	[observability]
+        	            	metrics_enable = true
+        	            	
+        	            	[plugin]
+        	            	enable = false
+        	            	stdout: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/stdout.log
+        	            	stderr: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/stderr.log
+        	            	stdout-tail: [truncated]
+        	            	stdout-content:
+        	            	2026-10-21 23:49:09.835	INFO	[cluster.slot]	multiraft/recovery.go:89	Slot recovery progress	{"event": "slot.recovery.progress", "nodeID": 2, "slotID": 4, "stage": "complete", "snapshotIndex": 1, "bytes": 0, "totalBytes": 0, "entries": 0, "totalEntries": 0, "elapsed": 3}
+        	            	2026-10-21 23:49:12.619	INFO	[cluster.slot.raft]	wklog/raft_logger.go:98	2 became leader at term 4	{"raftScope": "slot", "nodeID": 2, "slotID": 1, "event": "raft.log", "raftEvent": "leader_change"}
+        	            	WuKongIM
+        	            	
+        	            	Node       2 · multi-node cluster
+        	            	Cluster    migration-ordinary-history · 127.0.0.1:24069
+        	            	Gateway    tcp-wkproto   tcp://127.0.0.1:24070
+        	            	API        http://127.0.0.1:24073
+        	            	Demo       http://127.0.0.1:24073/demo/
+        	            	Manager    http://127.0.0.1:24074
+        	            	Metrics    http://127.0.0.1:24073/metrics
+        	            	Config     /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/wukongim.toml
+        	            	Data       /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/data
+        	            	
+        	            	✓ Ready in 3.638s
+        	            	stderr-content:
+        	            	app-log: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/logs/app.log
+        	            	app-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/logs/app.log: no such file or directory
+        	            	error-log: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/logs/error.log
+        	            	error-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/logs/error.log: no such file or directory
+        	            	node 3 diagnostics:
+        	            	readyz: status=200 body={"ready":true}
+        	            	process: pid=41248 running
+        	            	config: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/wukongim.toml
+        	            	config-tail: [truncated]
+        	            	config-content:
+        	            	protocol = 'wkproto'
+        	            	transport = 'gnet'
+        	            	
+        	            	[manager]
+        	            	listen_addr = '127.0.0.1:24080'
+        	            	
+        	            	[node]
+        	            	data_dir = '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/data'
+        	            	id = 3
+        	            	
+        	            	[observability]
+        	            	metrics_enable = true
+        	            	
+        	            	[plugin]
+        	            	enable = false
+        	            	stdout: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/stdout.log
+        	            	stderr: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/stderr.log
+        	            	stdout-tail: [truncated]
+        	            	stdout-content:
+        	            	2026-10-21 23:49:12.204	INFO	[cluster.slot.raft]	wklog/raft_logger.go:98	3 became leader at term 3	{"raftScope": "slot", "nodeID": 3, "slotID": 3, "event": "raft.log", "raftEvent": "leader_change"}
+        	            	2026-10-21 23:49:12.706	INFO	[cluster.slot.raft]	wklog/raft_logger.go:98	3 became leader at term 3	{"raftScope": "slot", "nodeID": 3, "slotID": 2, "event": "raft.log", "raftEvent": "leader_change"}
+        	            	WuKongIM
+        	            	
+        	            	Node       3 · multi-node cluster
+        	            	Cluster    migration-ordinary-history · 127.0.0.1:24075
+        	            	Gateway    tcp-wkproto   tcp://127.0.0.1:24076
+        	            	API        http://127.0.0.1:24079
+        	            	Demo       http://127.0.0.1:24079/demo/
+        	            	Manager    http://127.0.0.1:24080
+        	            	Metrics    http://127.0.0.1:24079/metrics
+        	            	Config     /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/wukongim.toml
+        	            	Data       /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/data
+        	            	
+        	            	✓ Ready in 3.615s
+        	            	stderr-content:
+        	            	app-log: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/logs/app.log
+        	            	app-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/logs/app.log: no such file or directory
+        	            	error-log: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/logs/error.log
+        	            	error-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/logs/error.log: no such file or directory
+--- FAIL: TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes (17.93s)

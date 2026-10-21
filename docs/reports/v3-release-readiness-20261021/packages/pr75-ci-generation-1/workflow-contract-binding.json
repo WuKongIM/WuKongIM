@@ -1,0 +1,29 @@
+{
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "files": {
+    "README.md": {
+      "size": 10871,
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    "docs/release-contract.md": {
+      "size": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    "docs/stable-audit-transport.md": {
+      "size": 12830,
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1"
+    },
+    ".github/workflows/pages.yml": {
+      "size": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "size": 15073,
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    }
+  },
+  "repository_AGENTS_FLOW_CONTEXT_and_workflow_README": "not present; governing user AGENTS instructions and explicit workflow/release contract read",
+  "permissions": "Pages build contents read; deploy PR skipped. Native contents read; disposable TEST ONLY keys; no production publication",
+  "observer_scope": "GET-only, attempt1 natural PR, no retry/dispatch/cancel/PR mutation"
+}

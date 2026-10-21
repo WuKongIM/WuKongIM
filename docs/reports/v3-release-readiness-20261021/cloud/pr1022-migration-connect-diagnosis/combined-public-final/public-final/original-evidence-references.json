@@ -1,0 +1,37 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/ordinary_history/result.json",
+    "size": 371,
+    "sha256": "7d93d4018cbc18540e4233f619630969b31b6e5c5955c633f54fc8aad7f0235a"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/ordinary_history/command.json",
+    "size": 302,
+    "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/ordinary_history/stdout.jsonl",
+    "size": 27770,
+    "sha256": "236e117584f33e9a5cac9e2dd826a71b8297998c314b79ba882166c7a798f9c2"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/ordinary_history/stderr.log",
+    "size": 262,
+    "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/identity.json",
+    "size": 172,
+    "sha256": "856305427fc3721f913e39715ddde6eb167adeba68420347abc173856f086775"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/binary.sha256",
+    "size": 134,
+    "sha256": "3a74dff5ea108360934cc370142271c62576d8536e2942c50b8d8be63f7b4c3f"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12356928133/members/binary-build-info.txt",
+    "size": 8895,
+    "sha256": "bb2ead0b2c4130c9a2da6403fb1caeec2907d52ac57acc57fa8c0005074529c6"
+  }
+]

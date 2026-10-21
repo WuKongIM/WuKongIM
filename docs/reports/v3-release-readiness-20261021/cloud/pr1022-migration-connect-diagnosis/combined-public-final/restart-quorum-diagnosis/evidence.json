@@ -1,0 +1,45 @@
+{
+  "new_failure": {
+    "phase": "after-full-restart",
+    "http_status": 400,
+    "code_present": false,
+    "msg": "internal/message: append failed: channel replication: durable quorum unavailable",
+    "source_freeze": "../repair-v1/source-freeze.json",
+    "original_logs": "../repair-v1/full-five-topologies/stdout.jsonl",
+    "nodes": [
+      {
+        "node": 1,
+        "pid": 41246,
+        "observed_running": true,
+        "observed_readyz_status": 200,
+        "stdout_tail_truncated": true,
+        "raw_files_still_exist": false
+      },
+      {
+        "node": 2,
+        "pid": 41247,
+        "observed_running": true,
+        "observed_readyz_status": 200,
+        "stdout_tail_truncated": true,
+        "raw_files_still_exist": false
+      },
+      {
+        "node": 3,
+        "pid": 41248,
+        "observed_running": true,
+        "observed_readyz_status": 200,
+        "stdout_tail_truncated": true,
+        "raw_files_still_exist": false
+      }
+    ],
+    "temporarily_retry_count": 0,
+    "prior_after_import_rows": 3,
+    "prior_after_protocol_append_rows": 4,
+    "after_failure_same_generation_observation": false
+  },
+  "classification": "quorum recovery-barrier failure is consistent with source; exact per-voter cause unknown",
+  "original_connect_refusal_cause": "still unknown and distinct",
+  "product_edits": false,
+  "additional_load_runs": 0,
+  "underlying_read_after_cleanup_possible": false
+}

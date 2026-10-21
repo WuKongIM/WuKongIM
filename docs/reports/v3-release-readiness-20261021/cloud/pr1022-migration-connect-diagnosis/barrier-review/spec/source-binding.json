@@ -1,0 +1,162 @@
+{
+  "reviewed_at": "2026-10-21T16:05:16.905424+00:00",
+  "axis": "Spec",
+  "method": "static read-only frozen-patch review; reconstruct changed bytes in memory",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "base_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "head_sha_observed": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "base_tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "implementation_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/source-freeze.json",
+    "sha256": "99419793473a18399f5ac876c39bfa6c337a58fd31103a9041381784cd1c8ce6",
+    "size": 1065
+  },
+  "implementation_patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/implementation.patch",
+    "sha256": "0be01dacb235a457cdfb54ff9bec46a2c272337008afb8c09c56b00fa4d49ed7",
+    "size": 12282
+  },
+  "frozen_files_verified": {
+    "CHANGELOG.md": {
+      "sha256": "6492b3fcdf8ed04c88843df8f78b5e1a08a9c8389be447f5728325a9835c25ab",
+      "size": 190143,
+      "source": "immutable Git base plus frozen implementation.patch; reconstructed and hash-checked in memory"
+    },
+    "pkg/channel/FLOW.md": {
+      "sha256": "9d09dfdbd2f4bbfb98fa538e0ebdd64c92f06e6d86f74dbedfc6467173ad3872",
+      "size": 12577,
+      "source": "immutable Git base plus frozen implementation.patch; reconstructed and hash-checked in memory"
+    },
+    "pkg/channel/replication/recovery_barrier.go": {
+      "sha256": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+      "size": 5863,
+      "source": "immutable Git base plus frozen implementation.patch; reconstructed and hash-checked in memory"
+    },
+    "pkg/channel/replication/recovery_barrier_pending_test.go": {
+      "sha256": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d",
+      "size": 8502,
+      "source": "immutable Git base plus frozen implementation.patch; reconstructed and hash-checked in memory"
+    }
+  },
+  "current_working_files": {
+    "CHANGELOG.md": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/CHANGELOG.md",
+      "sha256": "8c57aa80061e200f9363daa28a9ad248e1b06e3d6e74378028503a333112052e",
+      "size": 190412
+    },
+    "pkg/channel/FLOW.md": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/FLOW.md",
+      "sha256": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259",
+      "size": 12423
+    },
+    "pkg/channel/replication/recovery_barrier.go": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/recovery_barrier.go",
+      "sha256": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+      "size": 5863
+    },
+    "pkg/channel/replication/recovery_barrier_pending_test.go": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/recovery_barrier_pending_test.go",
+      "sha256": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d",
+      "size": 8502
+    }
+  },
+  "live_worktree_drift_excluded_from_review": [
+    "CHANGELOG.md",
+    "pkg/channel/FLOW.md"
+  ],
+  "applicable_rules": {
+    "AGENTS.md": {
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "reviewed_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "scope": "repository"
+    },
+    "pkg/channel/FLOW.md": {
+      "base_sha256": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+      "reviewed_sha256": "9d09dfdbd2f4bbfb98fa538e0ebdd64c92f06e6d86f74dbedfc6467173ad3872",
+      "scope": "subtree"
+    }
+  },
+  "supporting_sources": {
+    "pkg/channel/replication/quorum_round_state.go": {
+      "base_sha256": "9a3363f2e7ac4e3b717947c10bcece9390b6d9c24eeeb2541e48a45ab1345269",
+      "working_copy": {
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/quorum_round_state.go",
+        "sha256": "9a3363f2e7ac4e3b717947c10bcece9390b6d9c24eeeb2541e48a45ab1345269",
+        "size": 9566
+      }
+    },
+    "pkg/channel/replication/quorum_round.go": {
+      "base_sha256": "071e016817325663043401d6521c395d052657c916bb95bea6a6000195217f7f",
+      "working_copy": {
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/quorum_round.go",
+        "sha256": "071e016817325663043401d6521c395d052657c916bb95bea6a6000195217f7f",
+        "size": 4683
+      }
+    },
+    "pkg/channel/replication/quorum_log.go": {
+      "base_sha256": "da31a1e1d5fd4c2f8d86bde9ef9aa5639dd528aef3cd9fb676bde48f84aea4cf",
+      "working_copy": {
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/quorum_log.go",
+        "sha256": "da31a1e1d5fd4c2f8d86bde9ef9aa5639dd528aef3cd9fb676bde48f84aea4cf",
+        "size": 27407
+      }
+    },
+    "pkg/channel/replication/peer_batcher.go": {
+      "base_sha256": "bee214df23e79acc46171ad22981d60bedad413432768a4037f1eca8533352f0",
+      "working_copy": {
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/peer_batcher.go",
+        "sha256": "bee214df23e79acc46171ad22981d60bedad413432768a4037f1eca8533352f0",
+        "size": 22462
+      }
+    }
+  },
+  "spec_sources": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/independent-error-taxonomy/needfrom-only-addendum/review.md",
+      "sha256": "23913e0fe32a62027af4e4711cd14b032117a116d197fbf795ae2e89edecec89",
+      "size": 3226
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/failure-inventory.json",
+      "sha256": "2fadd131ed3f75a6b1ecefcd1d4ee8bce877f3eb01f484ae87ca5cf2502f67fa",
+      "size": 1991
+    }
+  ],
+  "supplied_validation_evidence": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/result.json",
+      "sha256": "2545fb468991dea1cac9bdec2faf180f9c9f2bf8aaf1593bd5c886282ab8974b",
+      "size": 370
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/result.json",
+      "sha256": "76e78edff5ed82f59613e57441b48fa0a9ddc7cb475735bd1c8609e87ac329f8",
+      "size": 371
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/result.json",
+      "sha256": "83fba59dbe8aae064b0b7e7f2d2a6495396078210e3ec39b2ea690bafe933bd7",
+      "size": 370
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/stdout-stderr.log",
+      "sha256": "3dc57299fd421b03c164f8bcacf55710c1fbd130021461f772aa69cf4201521b",
+      "size": 1389
+    }
+  ],
+  "findings": 0,
+  "scope_creep": false,
+  "all_frozen_hashes_match": true,
+  "report": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-review/spec/README.md",
+    "sha256": "f4f7697c3846f0ef1adb897e8d250fe98d754706bbf37cee4a5a5d4c7fb655da",
+    "size": 2276
+  },
+  "tests_run": false,
+  "runtime_probes_run": false,
+  "source_edits": false,
+  "git_mutations": false,
+  "cloud_api_used": false,
+  "ci_used": false,
+  "private_material_read": false
+}

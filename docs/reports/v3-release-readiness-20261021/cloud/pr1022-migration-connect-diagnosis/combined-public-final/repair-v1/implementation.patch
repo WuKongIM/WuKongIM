@@ -1,0 +1,51 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d3cfd00c0..2033ccbbc 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Wait for protocol readiness in original-v2 migration acceptance after the
++  first imported-history check, and retain connection-failure diagnostics.
++  / 原 v2 迁移验收先核对导入历史，再等待协议就绪后验证原凭证，保留连接失败诊断。
++
+ - Allow a new cloud chat-lifecycle request to lower its budget ceiling while
+   preserving the cleanup reserve through rehearsal, formal execution and remote
+   cost guards. / 新云端聊天生命周期请求可向下调整预算上限，预演、正式运行和远端
+diff --git a/test/e2e/migration/ordinary_history/AGENTS.md b/test/e2e/migration/ordinary_history/AGENTS.md
+index bf8bc52b9..fe169b019 100644
+--- a/test/e2e/migration/ordinary_history/AGENTS.md
++++ b/test/e2e/migration/ordinary_history/AGENTS.md
+@@ -25,6 +25,11 @@ another append, and applicable Channel Leader failover. Each successful history
+ check logs its phase, node, row count and temporary-retry count; failures retain
+ the phase/node and existing bounded public/process diagnostics.
+ 
++After the first imported-history read, wait for the target ingress's real
++WKProto readiness before authenticating with the retained v2 credential.
++HTTP `/readyz` alone does not prove that protocol listener has started; keep
++the original credential assertion and do not retry business Connect or SEND.
++
+ Run the original regression slice with
+ `GOWORK=off go test -tags=e2e ./test/e2e/migration/ordinary_history -run '^TestOriginalOrdinaryHistoryTopology$/^1_source_nodes_to_3_target_nodes$' -count=1 -timeout=12m -p=1 -parallel=1 -json`,
+ then run the same command without `-run` for all five topology cases. Preserve
+diff --git a/test/e2e/migration/ordinary_history/ordinary_history_test.go b/test/e2e/migration/ordinary_history/ordinary_history_test.go
+index 34b3c7c9a..b3f639a81 100644
+--- a/test/e2e/migration/ordinary_history/ordinary_history_test.go
++++ b/test/e2e/migration/ordinary_history/ordinary_history_test.go
+@@ -167,11 +167,14 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
+ 	for i := range cluster.Nodes {
+ 		check(&cluster.Nodes[i], "after-import")
+ 	}
++	// HTTP history can be ready before the WKProto listener. Preserve the cold
++	// history check above, then prove protocol readiness before using v2 credentials.
++	require.NoError(t, cluster.MustNode(1).Process.WaitWKProtoReady(ctx, cluster.MustNode(1).GatewayAddr()), cluster.DumpDiagnostics())
+ 	// Authenticate through the real protocol using the token retained from v2.
+ 	client, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(1).GatewayAddr(), OperationTimeout: 5 * time.Second})
+ 	require.NoError(t, err)
+ 	_, err = client.Connect(ctx, wkclient.ConnectOptions{UID: "migrationalice", Token: "synthetic-migrationalice", DeviceID: "migration-history-check", DeviceFlag: frame.DeviceFlag(1)})
+-	require.NoError(t, err)
++	require.NoError(t, err, cluster.DumpDiagnostics())
+ 	ack, err := client.Send(ctx, wkclient.Message{ClientSeq: 1, ClientMsgNo: "after-original-migration", ChannelID: "migrationgroup", ChannelType: 2, Payload: []byte("protocol append")})
+ 	require.NoError(t, err)
+ 	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)

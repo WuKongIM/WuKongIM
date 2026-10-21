@@ -1,0 +1,76 @@
+{
+  "source_head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "shipping_worktree_unchanged": true,
+  "observed_original_failure": {
+    "run_id": 39625524702,
+    "artifact_id": 12356928133,
+    "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+    "phase": "first retained-token WKProto Connect, before SEND",
+    "after_import_rows": 3,
+    "http_history_time": "2026-10-21T15:35:16.337948555Z",
+    "connect_error_time": "2026-10-21T15:35:16.340157322Z",
+    "error": "dial tcp 127.0.0.1:27802: connect: connection refused",
+    "node_process_logs_present": false
+  },
+  "ranked_hypotheses": [
+    {
+      "id": "H1",
+      "cause": "HTTP /readyz can succeed before Gateway opens its TCP listener",
+      "prediction": "On an original Connect refusal, same product PID remains alive and exact TCP endpoint becomes listening within bounded observation; startup completion log follows readiness.",
+      "current_support": "Static startup API\u2192Manager\u2192Prometheus\u2192Gateway; normal readyz only requires cluster write routing. Fixture waits only HTTP."
+    },
+    {
+      "id": "H2",
+      "cause": "Gateway/later component startup failure or product exit after HTTP history",
+      "prediction": "Original process ExitResult or rollback/lifecycle error appears before/at refusal and listener never becomes available.",
+      "current_support": "Not distinguishable from retained CI log; no node diagnostics attached to Connect assertion."
+    },
+    {
+      "id": "H3",
+      "cause": "Incorrect endpoint or port collision between reservation and bind",
+      "prediction": "Spec/rendered gateway endpoint differs or bind-address-in-use error exists; persistent refusal maps to configuration/ownership.",
+      "current_support": "Port block sentinel protects suite peers but release-after-bind check does not reserve every port against unrelated processes."
+    }
+  ],
+  "next_experiment": {
+    "kind": "temporary observation only, actual original single-node migration test",
+    "fixed_count": 3,
+    "test_context": "original 3 minutes unchanged",
+    "test_timeout": "12m unchanged",
+    "product": "one clean-source e2e-tagged binary built before observation edits",
+    "temporary_changes": "Only ordinary_history fixture: record actual HTTP readiness return and original DialContext result. No protocol retry. On failure preserve diagnostics/raw bounded logs privately, observe original PID and exact TCP listener for <=1s, then retain original failure. Success has no extra connection.",
+    "limitation": "Darwin local observation cannot recover Linux missing logs or prove same environment; no failure in3 rounds is inconclusive. No increased count."
+  },
+  "failure_inventory": [
+    {
+      "id": "D01",
+      "case": "Original Connect refused while process survives and listener opens",
+      "outcome": "retain test failure; supports H1 only with measured identity/timing"
+    },
+    {
+      "id": "D02",
+      "case": "Process exits or rollback occurs",
+      "outcome": "retain exact original failure plus exit/log evidence; do not label ready race"
+    },
+    {
+      "id": "D03",
+      "case": "All3 pass",
+      "outcome": "inconclusive reproduction, do not change count or call bug fixed"
+    },
+    {
+      "id": "D04",
+      "case": "Collector/file/probe fails",
+      "outcome": "record missing evidence, do not replace original Connect result"
+    },
+    {
+      "id": "D05",
+      "case": "Cleanup incomplete or timeout",
+      "outcome": "mark experiment failed/inconclusive, preserve owned cleanup receipt"
+    },
+    {
+      "id": "D06",
+      "case": "Observed config/port mismatch",
+      "outcome": "separate H3 diagnosis; no broad transport retries"
+    }
+  ]
+}

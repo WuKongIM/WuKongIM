@@ -1,0 +1,22 @@
+{
+  "source": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "clean_at_build": true,
+  "tags": [
+    "e2e"
+  ],
+  "go_version": "go version go1.25.0 darwin/arm64",
+  "sha256": "3f80232dcdbddbb64ee0e9a310152bed5fb4fc5b020a1daba32343c8334315d5",
+  "size": 92904434,
+  "built_before_diagnostic_test_edits": true,
+  "platform": "darwin/arm64",
+  "command": [
+    "go",
+    "build",
+    "-tags=e2e",
+    "-o",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/wukongim-9a490-darwin",
+    "./cmd/wukongim"
+  ],
+  "cache": "/tmp/wukongim-v3-readiness-20261021/cloud/downward-budget-implementation/gocache",
+  "built_at": "2026-10-21T15:43:05.290612+00:00"
+}

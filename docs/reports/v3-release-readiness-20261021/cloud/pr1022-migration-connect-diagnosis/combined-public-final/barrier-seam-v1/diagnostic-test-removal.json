@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-21T16:00:50.511145+00:00",
+  "reason": "temporary diagnostic hypotheses deliberately red; preserve exact source outside shipping; new narrow contract separately test-first",
+  "file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier/pkg/channel/replication/recovery_barrier_diagnostic_test.go",
+  "sha256": "aafa9023a524f6833c7041c80b48ca2383dc3cb974a1bdfa34c86c699b154756",
+  "production_edits": false
+}

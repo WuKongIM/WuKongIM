@@ -1,0 +1,206 @@
+{
+  "review_axis": "standards",
+  "review_version": "v2",
+  "reviewed_at": "2026-10-21T16:01:50.822478+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "frozen_source": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/source",
+  "base_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "head_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "base_tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "branch_commits": [],
+  "scope_commands": [
+    "git diff HEAD --binary",
+    "git ls-files --others --exclude-standard",
+    "git diff --no-index --binary -- /dev/null <each untracked path>"
+  ],
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "e8aeed28284a079b72a8cbb591a1e97921ef28cc5a1bb7b9574ca2428002cbe3",
+      "size": 3054,
+      "worktree_sha256": "e8aeed28284a079b72a8cbb591a1e97921ef28cc5a1bb7b9574ca2428002cbe3"
+    },
+    "README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871,
+      "worktree_sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "a7f50b2a86259666f0e81e942dd06dcc23a1222eb7c55a86a654f27eb6291b58",
+      "size": 8905,
+      "worktree_sha256": "a7f50b2a86259666f0e81e942dd06dcc23a1222eb7c55a86a654f27eb6291b58"
+    },
+    "scripts/prepare-object-storage-delivery.py": {
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "size": 26015,
+      "worktree_sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    "tests/test_object_storage_delivery.py": {
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b",
+      "size": 33155,
+      "worktree_sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b"
+    }
+  },
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/implementation.patch",
+    "sha256": "758c319723a6ae83169ae29cab015296ba13a6f160dea46f7223b8ca978d0029",
+    "exact_git_reconstruction_verified": true
+  },
+  "incremental_implementation_diff": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/repair-implementation.diff",
+    "sha256": "1167848c31cecc6d5c1c3d80e672c65496133b233c5b9865dd3b1c49198f415f",
+    "exact_diff_reconstruction_verified": true
+  },
+  "implementation_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/implementation-freeze.json",
+    "sha256": "c71f3e58af751db74fb73265edcb92e27e4c6fccb490d7300f2834d9c01d7457"
+  },
+  "standards_sources": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "source_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+      "source_revision_bytes_verified": true
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "revision": "reviewed working copy"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/object-storage-planning.md": {
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+      "revision": "983e567f155a982c45ca066e4dc67d33851f0d24"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/stable-audit-transport.md": {
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+      "revision": "983e567f155a982c45ca066e4dc67d33851f0d24"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "revision": "983e567f155a982c45ca066e4dc67d33851f0d24"
+    }
+  },
+  "package_rule_inventory": [],
+  "previous_review_binding": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-review/standards/source-binding.json",
+    "sha256": "7b1d19188fb02accc1cb49c30a7d09a55cebc3365416f97efc24875e00a7b760",
+    "previous_report_sha256": "6df082140f88f40099e32fc3dc217886f356a29fee7bd7007d6a746987c6e7b3",
+    "unchanged_sources_verified": true
+  },
+  "evidence": {
+    "rules-freeze.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/rules-freeze.json",
+      "sha256": "c28d7941f87d22a372361d441a742926d27663d2727457b0a4c470a2c77b7629",
+      "size": 1355
+    },
+    "failure-inventory.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/failure-inventory.md",
+      "sha256": "4ebfea765cff56f5e215fb9e04372ac14551db6dafc01b4cac7eede736a17293",
+      "size": 1891
+    },
+    "first-red.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/first-red.json",
+      "sha256": "4475db465952bb350782d230648b30de8e6bbcd85b03aa2cf638acd966e875e2",
+      "size": 559
+    },
+    "first-red.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/first-red.log",
+      "sha256": "0c3a88c20894ec35cfcf7194f2716958c6732db03a47703cbb29ad82dc2ab27d",
+      "size": 28996
+    },
+    "first-red-tests.py.txt": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/first-red-tests.py.txt",
+      "sha256": "8de9399e8b90ee40783cda5af41ef82391a81c4fb4cb0a8f198b2f26cf244243",
+      "size": 32978
+    },
+    "focused-attempt-1.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/focused-attempt-1.json",
+      "sha256": "3114cc30709d6e6857633f71370a4bae5b72d38dff17f2874e893ef4a9e71d87",
+      "size": 527
+    },
+    "focused-attempt-1.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/focused-attempt-1.log",
+      "sha256": "5834250e2706489fe1e34bfe13229aabf2324851f3386ab2d7dd46c91e9ba498",
+      "size": 9224
+    },
+    "fixture-correction.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/fixture-correction.md",
+      "sha256": "99c3b86dea8d8a3c9c1a8c8167eb8a4adfd07081a4bcf5394075eb2fb84ebb94",
+      "size": 776
+    },
+    "related-tests.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/related-tests.json",
+      "sha256": "25ea85f51b511af73463c46c38ed38b8ae18cdfaa3af32af653324c5e7eba60c",
+      "size": 513
+    },
+    "related-tests.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/related-tests.log",
+      "sha256": "2693ec935bb18eccc475d3ed8b7fd033ab79dd1a40763899853d9407eb433b1f",
+      "size": 14814
+    },
+    "contracts.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/contracts.json",
+      "sha256": "4add4b4fa80a713dee58e6bc08c352d2f2f009267e888e2bc233b78f1c0e3a31",
+      "size": 243
+    },
+    "contracts.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/contracts.log",
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6",
+      "size": 176
+    },
+    "full-suite-first-run-start.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/full-suite-first-run-start.json",
+      "sha256": "aadcad243413ad96b8668f095add9c14a77dd58740cbda4c1a9df1f3822fd1f0",
+      "size": 625
+    },
+    "full-suite-first-run.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/full-suite-first-run.json",
+      "sha256": "98cd8c345ee475286c5c7467b4ded6c54f63a1da2ebc4db0896fb384137ad4ad",
+      "size": 717
+    },
+    "full-suite-first-run.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-repair-v2/full-suite-first-run.log",
+      "sha256": "a2758331c8906d769b5f784ac9f6a8266597445820129c30201815b58e3b57f3",
+      "size": 101922
+    }
+  },
+  "test_first": {
+    "first_red_test_digest_verified": true,
+    "first_red_used_v1_implementation": true,
+    "first_red_methods": 26,
+    "final_methods": 26,
+    "post_implementation_test_diff": "Only one recorded assertion correction: compare historical control fields instead of matching SHA substring inside serialized snapshot facts.",
+    "no_new_test_methods_after_implementation": true
+  },
+  "smell_baseline_reviewed": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "hard_findings": 0,
+  "heuristic_findings": 0,
+  "validation_observed": {
+    "related_storage_tests": 75,
+    "related_storage_result": "passed",
+    "contract_tests": 4,
+    "contracts_result": "passed",
+    "full_suite": {
+      "tests": 554,
+      "passed": 553,
+      "skipped": 1,
+      "result": "passed with one existing native RPM-tool skip",
+      "exit_code": 0,
+      "implementation_and_test_digests_verified": true
+    }
+  },
+  "tests_executed_by_reviewer": false,
+  "implementation_modified": false,
+  "external_actions": false,
+  "report_word_count": 285
+}

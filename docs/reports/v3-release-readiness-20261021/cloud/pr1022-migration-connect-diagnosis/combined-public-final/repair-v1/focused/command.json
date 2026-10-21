@@ -1,0 +1,18 @@
+{
+  "arguments": [
+    "go",
+    "test",
+    "-tags=e2e",
+    "./test/e2e/migration/ordinary_history",
+    "-run",
+    "^TestOriginalOrdinaryHistoryTopology$/^1_source_nodes_to_1_target_nodes$",
+    "-count=1",
+    "-timeout=12m",
+    "-p=1",
+    "-parallel=1",
+    "-json"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect",
+  "timeout_seconds": 780,
+  "max_output_bytes": 67108864
+}

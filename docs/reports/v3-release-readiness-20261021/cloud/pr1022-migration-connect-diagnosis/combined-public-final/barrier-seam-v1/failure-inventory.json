@@ -1,0 +1,58 @@
+{
+  "at": "2026-10-21T15:57:01.636377+00:00",
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "rules_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "pkg/channel/FLOW.md": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+  },
+  "skill_sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e",
+  "production_writes_allowed": false,
+  "scenarios": [
+    {
+      "name": "control",
+      "fault": "none",
+      "want": "ready frontier at2 and original history retained"
+    },
+    {
+      "name": "remote_backpressure",
+      "fault": "both remote barrier completions DefinitelyNotWritten+ErrBackpressured; exact existing wire mapping",
+      "want": "original cause retained+NotReady; no ready frontier"
+    },
+    {
+      "name": "local_sync_error",
+      "fault": "local ReplicaStore.Sync barrier result Unknown+unique storage error",
+      "want": "original cause retained without NotReady; no ready frontier"
+    },
+    {
+      "name": "local_conflict",
+      "fault": "local ReplicaStore.Sync barrier result Conflict+ErrLogConflict",
+      "want": "LogConflict retained without NotReady; no ready frontier"
+    },
+    {
+      "name": "remote_conflict",
+      "fault": "both remote barrier completions Conflict+ErrLogConflict",
+      "want": "LogConflict retained without NotReady; no ready frontier"
+    }
+  ],
+  "shared_assertions": [
+    "exact old record bytes/identity on all3 replicas before/after failure",
+    "failed Install returns no Installed frontier and state remains notready/HW0",
+    "Commit before recovery refused",
+    "one fault-clear Install per fault arm may recover original history without new business write",
+    "only synchronous injected callbacks, no real sleeps, no external resources"
+  ],
+  "limits": [
+    "single focused go test invocation/count1/2m; no suite rerun",
+    "classification hypothesis red; does not reproduce original Mac cause",
+    "wire ReplicateBackpressured itself may originate from generic DefinitelyNotWritten storage error; no permanent-is-transient inference",
+    "clearing injected conflict is a fixture operation, not a production repair technique"
+  ],
+  "hypotheses": [
+    "known temporary barrier vote shortfall loses its readiness identity",
+    "storage and conflict causes also lose identity through aggregate quorum error",
+    "actual Mac 400 could have any such cause; no unique attribution from string"
+  ]
+}

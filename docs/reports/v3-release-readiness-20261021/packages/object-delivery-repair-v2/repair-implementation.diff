@@ -1,0 +1,65 @@
+--- v1/scripts/prepare-object-storage-delivery.py
++++ v2/scripts/prepare-object-storage-delivery.py
+@@ -295,13 +295,26 @@
+     return observation
+ 
+ 
+-def _client_result(value, request):
++def _activation_control(observation, expected_sha):
++    """Fence independently observed current control, not historical plan controls."""
++    C.exact(observation, {'simulated', 'activation_control_sha'}, 'simulated activation control')
++    current_sha = observation['activation_control_sha']
++    require(observation['simulated'] is True and isinstance(current_sha, str)
++            and re.fullmatch('[0-9a-f]{40}', current_sha) and current_sha == expected_sha,
++            'simulated current activation control is unknown or differs from expected fence')
++
++
++def _client_result(value, request, inputs_sha256, plan_sha256):
+     """Check the outer binding, retaining the original verifier receipt unchanged."""
+     expected_schema = V.STABLE_RECEIPT_SCHEMA if request['channel'] == 'stable' else V.RECEIPT_SCHEMA
+     require(value.get('schema') == expected_schema and value.get('expected_version') == request['identity']['version']
+             and value.get('expected_version_verified') is True and value.get('installed_cli_verified') is True
+             and value.get('bootstrap_verified') is True and value.get('audit_release_id') == request['audit_release_id']
+             and value.get('snapshot_sha256') == request['snapshot_sha256'], 'client receipt target or acceptance differs')
++    if request['channel'] == 'stable':
++        require(value.get('transport_inputs_sha256') == inputs_sha256
++                and value.get('transport_plan_sha256') == plan_sha256,
++                'stable client receipt transport input or plan digest differs')
+     for family, clients in (('apt', V.APT_CLIENTS), ('rpm', V.RPM_CLIENTS)):
+         results = value.get(family)
+         require(isinstance(results, list) and [r.get('distribution') for r in results] == [c[0] for c in clients],
+@@ -331,6 +344,7 @@
+                'publication_verified': False, 'cloud_verified': False, 'github_provenance_verified': False,
+                'inputs_sha256': preparation['inputs_sha256'], 'plan_sha256': preparation['plan_sha256'],
+                'plan_schema': preparation['plan_schema'], 'activation_control_sha': preparation['activation_control_sha'],
++               'activation_control_observations': [],
+                'snapshots': preparation['snapshots'], 'resource_intent': resource,
+                'objects': [], 'clients': [], 'configuration_diff': None,
+                'configuration': {'before': None, 'after': None, 'write_attempted': False,
+@@ -339,6 +353,8 @@
+     output_dir = Path(prepare_args['output_dir'])
+     try:
+         receipt['preflight'] = _preflight(api, resource)
++        receipt['activation_control_observations'].append(copy.deepcopy(api.read_activation_control()))
++        _activation_control(receipt['activation_control_observations'][-1], preparation['activation_control_sha'])
+         before = _configuration(api.read_configuration())
+         receipt['configuration']['before'] = before
+         require(sha256(canonical(before)) == expected_configuration_sha256, 'current configuration differs from expected fence')
+@@ -373,6 +389,8 @@
+         require(sha256(raw) == preparation['inputs_sha256'], 'inputs changed before activation')
+         _preflight(api, resource)
+         require(_configuration(api.read_configuration()) == before, 'configuration drifted before activation')
++        receipt['activation_control_observations'].append(copy.deepcopy(api.read_activation_control()))
++        _activation_control(receipt['activation_control_observations'][-1], preparation['activation_control_sha'])
+         receipt['stage'] = 'activation'
+         receipt['configuration']['write_attempted'] = True
+         try:
+@@ -398,7 +416,7 @@
+             result = client_verifier(copy.deepcopy(request))
+             receipt['clients'].append({'channel': request['channel'], 'receipt_sha256': sha256(canonical(result)),
+                                        'receipt': copy.deepcopy(result)})
+-            _client_result(result, request)
++            _client_result(result, request, preparation['inputs_sha256'], preparation['plan_sha256'])
+         receipt.update(status='simulated_complete', stage='complete')
+     except ERRORS as error:
+         receipt['error'] = str(error)[:1024]

@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-21T16:01:49.702415+00:00",
+  "endpoint": "repos/WuKongIM/packages/branches/main/protection",
+  "exit_code": 0,
+  "stdout_sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 15:53Z（北京时间23:53）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 16:22Z（北京时间10月22日00:22）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 先前迁移修复及固定候选 Linux 性能/功能验收已完成；产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。但当前 #1022 首次 Linux 在迁移连接与 Rocky 环境引导两处失败；协议就绪窄修的本地完整回归又捕获1→3重启历史读取返回400的独立失败，尚未修复。完整云预演及72小时长稳、生产stable公网交付仍未完成；对象存储离线核心的需求复核发现两项P2，正在修复。没有正式tag或正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类，候选 b3fdb777 的本地五拓扑55次历史校验通过，新的首次 Linux CI仍在运行；原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，但其首次客户端验收在Alma A→B切换中读到B版本，未满足精确A目标，仍阻塞合并。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -199,7 +199,7 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 
 [固定镜像GPG缓存文件诊断](v3-release-readiness-20261021/packages/rpm-cache-filetype-diagnosis/README.md)确认 signed Repo.load 会在pubring遗留五种Unix socket；原第五代CI未记录stat，独立file://重放不冒充对原文件的追溯。第六代窄修只豁免canonical cache父路径中这五名、socket且nlink=1/size=0，其他类型/链接/大小及metadata的inode/SHA/真实atime复用证明均保持。10项新增测试先红后绿、41项相关回归及本地528+4通过，[双轴复核](v3-release-readiness-20261021/packages/cache-filetype-review/combined-review.md)无发现；[第六代首次Linux CI](v3-release-readiness-20261021/packages/pr74-ci-generation-6/README.md)现已完整通过：49/49、两代八套installed source/version一致，Rocky与Alma重复读取各五项metadata，device/inode/SHA/size不变、atime前进，清理全部零。实际checkout186138391与head983e567完整tree相同。用户明确同意后#74正常rebase合并为620bdfa1，同已验收tree，分支保护字节不变；原tip因rebase非main祖先，保留干净原分支/worktree，未强删。TEST ONLY的published/public_origin/source_provenance仍为false，不能充当生产发布证据。
 
-[向下预算实现封存](v3-release-readiness-20261021/cloud/downward-budget-implementation/public-final/README-final.md)已交付为[#1022](https://github.com/WuKongIM/WuKongIM/pull/1022)，head9a4900dc、tree9a199e72。新增规范十进制上限输入，停止线固定减150000000 micros；预算贯穿Run Plan/Lease/Deployment/wkcli，formal从已认证rehearsal继承，降低上限不能和旧continuation混用。Spec首次P2发现预算拒绝会让零库存上传被隐含success条件跳过，先红后修两处always条件并保持cleanup.zero要求，[v2双轴复核](v3-release-readiness-20261021/cloud/downward-budget-review/combined-review-v2.md)已关闭且27文件匹配冻结。本地完整go-unit 219包/15无测试与另五项named检查通过；scripts包540.676秒/外层544.260秒触及原9分钟上限，未打印单项断言失败，但不算通过，原owned SID cleanup完整/remaining=[]。早期v1因会话交接丢失无完整终态，未称超时或通过；所有原始记录保留。Linux首次CI仍进行中，没有新付费运行。
+[向下预算实现封存](v3-release-readiness-20261021/cloud/downward-budget-implementation/public-final/README-final.md)已交付为[#1022](https://github.com/WuKongIM/WuKongIM/pull/1022)，head9a4900dc、tree9a199e72。新增规范十进制上限输入，停止线固定减150000000 micros；预算贯穿Run Plan/Lease/Deployment/wkcli，formal从已认证rehearsal继承，降低上限不能和旧continuation混用。Spec首次P2发现预算拒绝会让零库存上传被隐含success条件跳过，先红后修两处always条件并保持cleanup.zero要求，[v2双轴复核](v3-release-readiness-20261021/cloud/downward-budget-review/combined-review-v2.md)已关闭且27文件匹配冻结。本地完整go-unit 219包/15无测试与另五项named检查通过；scripts包540.676秒/外层544.260秒触及原9分钟上限，未打印单项断言失败，但不算通过，原owned SID cleanup完整/remaining=[]。早期v1因会话交接丢失无完整终态，未称超时或通过；所有原始记录保留。该head的Linux首次CI已终态，结果及其后修复见下文；没有新付费运行。
 
 [stable交付缺口续审](v3-release-readiness-20261021/packages/after-native-delivery-gap/README.md)和[独立范围复核](v3-release-readiness-20261021/packages/after-native-delivery-gap-review/README.md)确认继续既有D适配器：同一窄核心消费原v1 preview与v2 composite，复用签名/来源及四客户端入口；精确materialize、create-only读回、路由和阶段receipt先离线验证。#74跨代RPM可能映射到public/snapshots，因此精确alias必须先于snapshot直达，不能整段盲改。隔离分支开始tests-first，生产保持disabled，真实OSS/CDN、配置回读、TLS/DNS、费用与公网精确版本验收仍未完成；¥100/7天对象存储方案未获采购批准。
 
@@ -209,9 +209,17 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 
 [#1022首轮完整归档](v3-release-readiness-20261021/cloud/pr1022-ci-generation-1/README.md)已经终态：候选和native为failure，三节点、SDK与两signal为success，均attempt1。Rocky的28MB AppStream元数据下载耗4分46秒，300秒bootstrap期限到时还在安装依赖，未进入产品systemd生命周期；其余三系统lifecycle通过。不据此猜测底层网络故障或放宽期限。[后续一次API读回](v3-release-readiness-20261021/cloud/pr1022-ci-followup/README.md)确认scripts job已completed/success，状态滞后消除，原归档不覆盖。
 
-[连接拒绝有界观测](v3-release-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/README.md)固定三轮全部通过而未复现，故历史初因仍unknown；静态证据确认HTTP ready不保证协议监听。最窄fixture变更保留首次导入历史冷读，再调用已有WKProto readiness，原凭证Connect和Send仍单次。root复核指出v1诊断被成功路径提前求值，v2改为仅失败取诊断；独立标准/需求复核均0发现，v2尚未执行。v1 focused1→1通过，但完整五拓扑首次在1→3全重启后遇到HTTP400 durable quorum unavailable，其余四通过；这是新阻塞证据，不计完整通过。正在追查恢复barrier与HTTP错误分类，尚未证明具体副本失败原因。
+[连接拒绝有界观测](v3-release-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/README.md)固定三轮全部通过而未复现，故历史初因仍unknown；静态证据确认HTTP ready不保证协议监听。最窄fixture变更保留首次导入历史冷读，再调用已有WKProto readiness，原凭证Connect和Send仍单次。root复核指出v1诊断被成功路径提前求值，v2改为仅失败取诊断；独立标准/需求复核均0发现；v2随后与屏障分类修复共同执行，结果见下文。v1 focused1→1通过，但完整五拓扑首次在1→3全重启后遇到HTTP400 durable quorum unavailable，其余四通过；这是新阻塞证据，不计完整通过。随后受控诊断确认恢复barrier错误分类缺口并窄修，但原始失败具体副本原因仍未证明。
 
-对象存储离线实现的[独立复核](v3-release-readiness-20261021/packages/object-delivery-review/combined-review-v1.md)为Standards0、Spec2项P2：当前activation-control没有独立fake观察/fence；stable客户端回执未绑定原transport inputs/plan摘要。原五文件冻结与20/69项通过结果保留；两项修复正按tests-first进行，不启用真实云适配。
+对象存储离线实现的[独立复核](v3-release-readiness-20261021/packages/object-delivery-review/combined-review-v1.md)为Standards0、Spec2项P2：当前activation-control没有独立fake观察/fence；stable客户端回执未绑定原transport inputs/plan摘要。原五文件冻结与20/69项通过结果保留；两项随后按tests-first修复并独审关闭，原首次发现保持原样；不启用真实云适配。
+
+[#1022 新候选交付](v3-release-readiness-20261021/cloud/pr1022-delivery-generation-2/commit-source-binding.json)绑定 head `b3fdb777b9270128fe56086bc47562b321c2c947`、tree `ae5a4175337f10f521a13a6c704c1b3040cf2bd2`。有界副本故障实验定位到 Install 的 barrier 错误会丢失临时恢复分类；窄修只在本地已 durable、票数不足、每个其余 voter 均有本轮有效且有界 NeedFrom 时保留 ErrNotReady，混合未知/冲突/背压/本地失败和取消仍关闭。19例全部在生产修改前编写，两项预期正例先红、17项反例控制通过；修复后19例和完整复制包通过，不改quorum/frontier/HW/wire或补调度。原HTTP400的具体副本原因仍unknown，不能用受控实验冒充追溯根因。[最终双轴复核](v3-release-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-review/combined-review-final.md)均0发现；FLOW行数及生成索引的两次首失败保留，最终原限额的named FLOW/format通过。
+
+[同一二进制的最终组合验收](v3-release-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-public-final/SHA256SUMS)先执行1→3 focused通过，再执行一次完整五拓扑通过，55次完整历史校验、零临时重试，owned sessions清理完整。server SHA256 `8543864c52d254b50b1a585b9c4db4784defc5d5f14b8cf2fb05f51db9a751b3`，构建身份如实保留base9a+dirty7files；七文件冻结与最终b3f提交逐字节相符。E2E未观察到实际NeedFrom或503，不能声称复现并唯一关闭原Mac故障。新首次Linux运行candidate39632640472、3node39632640443、native39632640756、SDK39632641140绑定synthetic `8805fe2e09d4171ff761bfa4699859c6ba4fed17`、同完整tree；16:21Z三节点门禁已通过，其余仍在执行，未重跑旧head。
+
+[对象存储离线核心v2独审](v3-release-readiness-20261021/packages/object-delivery-review/combined-review-v2.md)关闭两项P2：写入前及激活前观察当前control，并绑定原始stable客户端回执的transport inputs/plan摘要；本地75项相关、完整554项（553通过、1既有Mac工具skip）与4合同通过。已提交[#75](https://github.com/WuKongIM/packages/pull/75)，head `eac9d252f13ea201b405825e6303de703af08c16`、tree `ca255a7d0fc27186a68f291ccf7ce70948a976d1`。同tree rebase未改变五文件源字节。该核心仍使用fake API且生产关闭，不具备真实OSS/CDN发布能力。
+
+[#75首次CI完整封存](v3-release-readiness-20261021/packages/pr75-ci-generation-1/README.md)：Pages39631486007的554项Python零skip、4合同通过，原native完整签名安装演练及7/10/6/31/8项通过；native39631486744的新stable job失败。33/49通过，case34 Alma A→B request-barrier下载exit0并验签B3.0.1，但host精确A索引拒绝；15项未到达。HTTP serial35包含A元数据后又获取B元数据及B payload，非404或坏签名；两代八套baseline身份全部通过，容器/网络/四缓存清理零遗留。相关driver/validator/fixtures/workflow在983e→620b→eac9完全相同，此事实不直接证明基础设施根因。已开始精确屏障与缓存时序诊断，不放松版本目标，也不重跑旧CI取绿。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

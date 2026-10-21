@@ -1,0 +1,47 @@
+{
+  "at": "2026-10-21T16:00:50.512139+00:00",
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "approved_change": "Only within recovery-barrier Install: original quorum-unavailable AND localDurable AND votes<quorum AND votes+this-round valid repair receipts==all voters. Validate every NeedFrom is within barrier last. Join NotReady only for this exact pending-proof class. No wire/general round/backpressure remapping.",
+  "failure_inventory": [
+    "healthy",
+    "all_remote_need_from",
+    "quorum3_local_and_one_durable_rest_need_from",
+    "one_need_from_with_healthy_quorum",
+    "need_from_and_conflict",
+    "need_from_and_unknown",
+    "need_from_and_backpressure",
+    "need_from_and_submit_failure",
+    "all_backpressure",
+    "all_unknown",
+    "local_unknown_remote_need_from",
+    "local_not_written_remote_need_from",
+    "local_conflict_remote_need_from",
+    "need_from_zero",
+    "need_from_beyond_barrier",
+    "need_from_wrong_follower",
+    "need_from_wrong_cause",
+    "need_from_wrong_outcome",
+    "canceled"
+  ],
+  "every_case_checks": [
+    "real Install from nonempty older-authority prefix",
+    "failed Install no frontier/readiness or business admission",
+    "old committed row bytes remain identical for all voters",
+    "one explicit fault-clear Install succeeds without changing original row"
+  ],
+  "limitations": [
+    "finite synchronous injected completion seam is not original Mac cause",
+    "no assertion that this schedules repair or closes actual E2E until subsequent first new-source run",
+    "local/remote original-cause collapse remains outside scope",
+    "mixed failures must not become transient because of any one typed cause"
+  ],
+  "allowed_production_files": [
+    "pkg/channel/replication/recovery_barrier.go"
+  ],
+  "allowed_docs": [
+    "pkg/channel/FLOW.md",
+    "CHANGELOG.md",
+    "docs/development/FLOW_INDEX.md only if generator requires"
+  ],
+  "test_file": "pkg/channel/replication/recovery_barrier_pending_test.go"
+}

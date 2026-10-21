@@ -1,0 +1,11 @@
+{
+  "sha256": "cf8fb77f85f32ae2df0b4769d99c7ffdc815ed1d1da8a29c77e605abd1df28df",
+  "bytes": 195956,
+  "excerpts": [
+    "2026-10-21T16:04:52.4166107Z HEAD is now at 0c87528 Merge eac9d252f13ea201b405825e6303de703af08c16 into 620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+    "2026-10-21T16:04:52.4223417Z [command]/usr/bin/git log -1 --format=%H",
+    "2026-10-21T16:04:56.8553516Z HEAD is now at ed7e67d Merge pull request #861 from WuKongIM/codex/native-package-release-assets",
+    "2026-10-21T16:04:56.8610441Z [command]/usr/bin/git log -1 --format=%H",
+    "2026-10-21T16:10:56.5196547Z native-package signed repository container validation passed"
+  ]
+}

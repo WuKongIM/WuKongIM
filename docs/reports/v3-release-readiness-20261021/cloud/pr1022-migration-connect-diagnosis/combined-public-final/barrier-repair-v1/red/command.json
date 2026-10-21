@@ -1,0 +1,16 @@
+{
+  "arguments": [
+    "go",
+    "test",
+    "./pkg/channel/replication",
+    "-run",
+    "^TestQuorumLogInstallClassifiesOnlyProvedBarrierRepairPending$",
+    "-count=1",
+    "-timeout=2m",
+    "-p=2",
+    "-json"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "timeout_seconds": 150,
+  "max_output_bytes": 2097152
+}

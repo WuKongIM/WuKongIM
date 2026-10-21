@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery.py",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "timestamp": "2026-10-21T15:57:11.159022+00:00",
+  "exit_code": 1,
+  "seconds": 13.471,
+  "implementation_sha256": "edf90960ae44e29529e9c3e1d717cc9ce961ad492891aa5da2248062fc254037",
+  "tests_sha256": "8de9399e8b90ee40783cda5af41ef82391a81c4fb4cb0a8f198b2f26cf244243",
+  "implementation_is_v1": true
+}

@@ -1,0 +1,9 @@
+{
+  "reviewed_at": "2026-10-21T15:59:22.159206+00:00",
+  "source_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "read_only": true,
+  "tests_executed": false,
+  "conclusion": "Narrow NeedFrom-only barrier classification is structurally sound under existing distinct-voter/terminal guards; verify needFrom upper bound once; actual failure voter causes remain unobserved.",
+  "original_manifest_sha256": "023cf90e44009eba64286b14b5c699fb838fd4fa4897773d8901f25fe31aca1e",
+  "no_wire_or_business_retry_change": true
+}

@@ -1,0 +1,11 @@
+# Spec review — recovery-barrier NeedFrom-only patch
+
+**No actionable Spec findings or scope expansion found in the frozen four-file patch.** Base: `9a4900dc67ac674791edba11ea9a719cd91ec570`; patch SHA-256: `0be01dacb235a457cdfb54ff9bec46a2c272337008afb8c09c56b00fa4d49ed7`. All four frozen file hashes were verified by reconstructing the patch against the immutable base in memory. The live worktree's CHANGELOG/FLOW subsequently changed; those later edits are outside this report.
+
+The approved addendum (`independent-error-taxonomy/needfrom-only-addendum/review.md:5`) requires “localDurable && durableVotes < writeQuorum && durableVotes + len(repairs) == len(authority.Voters)” only for the original quorum-unavailable sentinel. Lines 18–22 additionally require bounded NeedFrom, unchanged cancellation/mixed-failure semantics, and no published Ready/HW/frontier.
+
+`recovery_barrier.go:59–67` implements exactly that conjunction, checks every repair offset is positive and no greater than the barrier's last offset, and joins `ErrNotReady` while preserving the original sentinel. Existing round validation binds each repair to one remote voter, enforces DefinitelyNotWritten plus the repair cause, and rejects duplicate/late callbacks; durable votes and repairs are disjoint. A mixed unknown/conflict/backpressure/submission failure cannot satisfy the all-voter count. Other errors and successful quorum outcomes retain their existing paths.
+
+The error still exits Install before frontier, HW or readiness assignment (`quorum_log.go:191–201`), leaving business admission closed. The nineteen-case Install table covers both new positives, healthy quorum, mixed/local/malformed failures, cancellation, unchanged original committed history, and recovery after removing the injected fault. No wire6, generic round, HTTP retry, repair scheduling or readiness-budget changes appear in the patch.
+
+Static review only; no tests or mutations performed. Supplied focused and package results passed; the original frozen FLOW check failed because 152 lines exceeded its 150-line limit, so this is not an all-gates-pass statement. The actual voter cause of the earlier Mac HTTP 400 and original Linux refusal remains unknown; combined real-topology validation is separate.

@@ -1,0 +1,15 @@
+{
+  "arguments": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "timeout_seconds": 60,
+  "max_output_bytes": 1048576,
+  "named_check": "flow-doc-contracts",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "source_freeze_sha256": "a6c14f386dfd2712b9b287dbdf42cc5eb4459643dcfb1f984ee3d2a99d5c43ed"
+}

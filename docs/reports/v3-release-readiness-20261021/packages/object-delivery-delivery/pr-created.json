@@ -1,0 +1,16 @@
+{
+  "repository": "WuKongIM/packages",
+  "number": 75,
+  "url": "https://github.com/WuKongIM/packages/pull/75",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "base": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "draft_at_creation": true,
+  "attached_to_task": true,
+  "first_natural_runs": [
+    39631486007,
+    39631486744
+  ],
+  "merge_authorization": "user standing instruction: 以后你自己合并 不需要再让我确认",
+  "merged": false
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "independent-readonly-review-manifest/v1",
+  "files": [
+    {
+      "path": "observations.json",
+      "size": 28558,
+      "sha256": "168ea040a7c83ceed750763a1cb0548721b2cff5d92236184ff21867d582f8de"
+    },
+    {
+      "path": "review.md",
+      "size": 7097,
+      "sha256": "963bb2f22a40cd96d739051e377ef0cb305d14aa1341f3c5e3ce18a364d12d30"
+    },
+    {
+      "path": "source-freeze.json",
+      "size": 6070,
+      "sha256": "c5cf46b5da5e31b762da792a86c7477f5e22fa367d560f36c01a1787c580c607"
+    }
+  ],
+  "omissions": [
+    "No copied server binaries, secrets, raw full node configs, or mutable source checkout snapshots. Source bytes bound to exact Git commit and SHA digests."
+  ]
+}

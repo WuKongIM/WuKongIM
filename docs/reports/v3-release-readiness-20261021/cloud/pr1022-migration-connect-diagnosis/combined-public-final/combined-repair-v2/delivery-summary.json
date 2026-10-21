@@ -1,0 +1,123 @@
+{
+  "recorded_at": "2026-10-21T16:11:47.156498+00:00",
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "patch_sha256": "38519d247817780b633401280ffebba3433bf0f8b0bf5ee1e6bbc059a38c03b0",
+  "shipping_changes": [
+    "CHANGELOG.md",
+    "pkg/channel/FLOW.md",
+    "pkg/channel/replication/recovery_barrier.go",
+    "test/e2e/migration/ordinary_history/AGENTS.md",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go",
+    "pkg/channel/replication/recovery_barrier_pending_test.go",
+    "docs/development/FLOW_INDEX.md"
+  ],
+  "source_and_binary_verified_unchanged_after_tests": true,
+  "complete": {
+    "focused_1to3": {
+      "passed": true,
+      "history_checks": 13,
+      "503_retries": 0,
+      "elapsed_seconds": 29.183,
+      "cleanup": {
+        "session_id": 47712,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    "full_five_topologies": {
+      "passed": true,
+      "history_checks": 55,
+      "history_checks_per_topology": {
+        "1_source_nodes_to_1_target_nodes": 4,
+        "1_source_nodes_to_3_target_nodes": 13,
+        "3_source_nodes_to_1_target_nodes": 4,
+        "3_source_nodes_to_3_target_nodes": 13,
+        "3_source_nodes_to_5_target_nodes": 21
+      },
+      "503_retries": 0,
+      "elapsed_seconds": 106.079,
+      "cleanup": {
+        "session_id": 48046,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    "replication_package": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 46424,
+      "output_bytes": 261427,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 46424,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 1.799
+    },
+    "named_checks": {
+      "flow-doc-contracts": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 47312,
+        "output_bytes": 1376,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 47312,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 0.129
+      },
+      "go-format": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 47319,
+        "output_bytes": 0,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 47319,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 0.944
+      }
+    }
+  },
+  "preserved_failures": [
+    "original Linux PR1022 first-run 1to1 TCP refusal; original artifact referenced, not replaced",
+    "repair-v1 full first-run 1to3 HTTP400 durable quorum unavailable",
+    "barrier-seam-v1 diagnostic red: three distinct original causes collapse",
+    "barrier-repair-v1 red: two NeedFrom-only positive cases lack NotReady",
+    "barrier-repair-v1 flow-doc-contracts: 152-line FLOW exceeds150 hard limit",
+    "combined-repair-v1 flow-doc-contracts: generated FLOW_INDEX stale after FLOW compression"
+  ],
+  "limits": [
+    "Original Linux TCP refusal and original Mac voter cause remain unknown.",
+    "No full-process E2E observed any 503 retry; green E2E does not demonstrate the new NeedFrom classification executed.",
+    "Synthetic seam proves narrow classification/fail-closed frontier and history safety; clearing injected fault is not real follower catch-up scheduling.",
+    "General round error collapse and broad wire Backpressured mapping remain unchanged.",
+    "No new business retry, timeout, source migration rewrite, or assertion relaxation.",
+    "Product source changed; fixed fc182 or shipping9a acceptance cannot be relabeled as this combined source.",
+    "New-head full Linux CI is still required; no commit/push performed by this agent."
+  ]
+}

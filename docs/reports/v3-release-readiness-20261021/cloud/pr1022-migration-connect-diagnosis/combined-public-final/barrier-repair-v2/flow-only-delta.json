@@ -1,0 +1,7 @@
+{
+  "previous_freeze": "../barrier-repair-v1/source-freeze.json",
+  "reason": "mandatory FLOW150-line limit; first named-check failure retained",
+  "before_sha256": "9d09dfdbd2f4bbfb98fa538e0ebdd64c92f06e6d86f74dbedfc6467173ad3872",
+  "after_sha256": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259",
+  "core_go_and_test_unchanged": true
+}

@@ -1,0 +1,178 @@
+{
+  "review_axis": "standards",
+  "review_version": "barrier-core-v1",
+  "reviewed_at": "2026-10-21T16:05:33.369460+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "base_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "branch_commits": [],
+  "scope_commands": [
+    "git diff HEAD --binary",
+    "git ls-files --others --exclude-standard",
+    "git diff --no-index --binary -- /dev/null <untracked test>"
+  ],
+  "frozen_files_sha256": {
+    "CHANGELOG.md": "6492b3fcdf8ed04c88843df8f78b5e1a08a9c8389be447f5728325a9835c25ab",
+    "pkg/channel/FLOW.md": "9d09dfdbd2f4bbfb98fa538e0ebdd64c92f06e6d86f74dbedfc6467173ad3872",
+    "pkg/channel/replication/recovery_barrier.go": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+    "pkg/channel/replication/recovery_barrier_pending_test.go": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d"
+  },
+  "all_four_file_bytes_verified_during_review": true,
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/implementation.patch",
+    "sha256": "0be01dacb235a457cdfb54ff9bec46a2c272337008afb8c09c56b00fa4d49ed7",
+    "exact_reconstruction_verified": true
+  },
+  "freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/source-freeze.json",
+    "sha256": "99419793473a18399f5ac876c39bfa6c337a58fd31103a9041381784cd1c8ce6"
+  },
+  "standards_sources": {
+    "AGENTS.md": {
+      "revision": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "working_copy_matches_source": true
+    },
+    "pkg/channel/FLOW.md": {
+      "scope": "subtree",
+      "base_revision": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "base_sha256": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+      "reviewed_sha256": "9d09dfdbd2f4bbfb98fa538e0ebdd64c92f06e6d86f74dbedfc6467173ad3872"
+    }
+  },
+  "subordinate_AGENTS": [],
+  "supporting_code_at_base": {
+    "pkg/channel/replication/quorum_round.go": {
+      "revision": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "sha256": "071e016817325663043401d6521c395d052657c916bb95bea6a6000195217f7f"
+    },
+    "pkg/channel/replication/quorum_round_state.go": {
+      "revision": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "sha256": "9a3363f2e7ac4e3b717947c10bcece9390b6d9c24eeeb2541e48a45ab1345269"
+    },
+    "pkg/channel/replication/quorum_log.go": {
+      "revision": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "sha256": "da31a1e1d5fd4c2f8d86bde9ef9aa5639dd528aef3cd9fb676bde48f84aea4cf"
+    }
+  },
+  "evidence": {
+    "failure-inventory.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/failure-inventory.json",
+      "sha256": "2fadd131ed3f75a6b1ecefcd1d4ee8bce877f3eb01f484ae87ca5cf2502f67fa",
+      "size": 1991
+    },
+    "red-source-freeze.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red-source-freeze.json",
+      "sha256": "089431f821e01acd34044f28e2f9546bc210aba90b152678e4137c355fd32ebe",
+      "size": 234
+    },
+    "red-test.go.source": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red-test.go.source",
+      "sha256": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d",
+      "size": 8502
+    },
+    "red/command.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/command.json",
+      "sha256": "4117333ab3a716138c7c0a0bb1552e0fa35fb0688c57300a1ce287813341cbf6",
+      "size": 379
+    },
+    "red/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/result.json",
+      "sha256": "f28d4c0d494de4372b5173ce2e872369a801990c42e8f8c90a10e2d2c9ad2ab6",
+      "size": 371
+    },
+    "red/stdout.jsonl": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/stdout.jsonl",
+      "sha256": "17e459020e3a7f6ea08e25e5edcf3de5418c7aa0c2e39bcded67c577294afa94",
+      "size": 23546
+    },
+    "focused-green/command.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/command.json",
+      "sha256": "4117333ab3a716138c7c0a0bb1552e0fa35fb0688c57300a1ce287813341cbf6",
+      "size": 379
+    },
+    "focused-green/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/result.json",
+      "sha256": "2545fb468991dea1cac9bdec2faf180f9c9f2bf8aaf1593bd5c886282ab8974b",
+      "size": 370
+    },
+    "focused-green/stdout.jsonl": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/stdout.jsonl",
+      "sha256": "d98f5eea4b890903070c1c34db74ad2f9454b382bf710f17cfeacebff0a47100",
+      "size": 22769
+    },
+    "replication-package/command.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/command.json",
+      "sha256": "21517021c1bb25acbb4006c8dd496f6cd80198a491718b1bd1c9e757d9b8998f",
+      "size": 297
+    },
+    "replication-package/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/result.json",
+      "sha256": "76e78edff5ed82f59613e57441b48fa0a9ddc7cb475735bd1c8609e87ac329f8",
+      "size": 371
+    },
+    "replication-package/stdout.jsonl": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/stdout.jsonl",
+      "sha256": "bc7bf14a8c7edf2d2043c416a26397e15b1b55b2ab75a0774646ca244395d7e0",
+      "size": 261427
+    },
+    "named-checks-selection.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/named-checks-selection.json",
+      "sha256": "b6fc19c5246ce88a87026b8d3203a4ede2f2e8c911d08658e084342fe10f3e0b",
+      "size": 640
+    },
+    "flow-doc-contracts/command.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/command.json",
+      "sha256": "ddc4fa111c687fc5237abeba8a0f02002eca94cedaaa84119e5adf41defd64fb",
+      "size": 256
+    },
+    "flow-doc-contracts/result.json": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/result.json",
+      "sha256": "83fba59dbe8aae064b0b7e7f2d2a6495396078210e3ec39b2ea690bafe933bd7",
+      "size": 370
+    },
+    "flow-doc-contracts/stdout-stderr.log": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/stdout-stderr.log",
+      "sha256": "3dc57299fd421b03c164f8bcacf55710c1fbd130021461f772aa69cf4201521b",
+      "size": 1389
+    }
+  },
+  "test_first": {
+    "test_sha256": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d",
+    "matches_frozen_final_test": true,
+    "red_pending_cases_failed": 2,
+    "red_control_cases_passed": 17,
+    "green_cases_passed": 19,
+    "replication_package": "passed"
+  },
+  "smell_baseline_reviewed": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "manual_hard_findings": 0,
+  "heuristic_findings": 0,
+  "tool_reported_gate_failures": [
+    {
+      "check": "flow-doc-contracts",
+      "file": "pkg/channel/FLOW.md",
+      "actual_lines": 152,
+      "maximum_lines": 150,
+      "status": "failed in frozen v1"
+    }
+  ],
+  "tests_executed_by_reviewer": false,
+  "implementation_modified": false,
+  "external_actions": false,
+  "causality_limit": "Original Mac E2E cause unconfirmed; finite injected completion tests do not prove that cause.",
+  "report_word_count": 287
+}

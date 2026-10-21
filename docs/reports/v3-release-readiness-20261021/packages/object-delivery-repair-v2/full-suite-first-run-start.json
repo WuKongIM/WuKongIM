@@ -1,0 +1,24 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "started_at": "2026-10-21T15:58:51.607020+00:00",
+  "platform": "Darwin",
+  "open_files_limit": [
+    1048575,
+    9223372036854775807
+  ],
+  "environment_changes": {},
+  "production_material_access": false,
+  "implementation_sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+  "tests_sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b"
+}

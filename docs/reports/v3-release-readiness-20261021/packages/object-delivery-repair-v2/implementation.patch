@@ -1,0 +1,1245 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 7912491..e04239d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,11 @@
+ 
+ ## Unreleased
+ 
++- Prepare exact preview/composite object-storage deliveries locally and exercise
++  create-only upload, routing and acceptance failures through explicit simulated
++  APIs, with independent current-control fences and exact stable receipt input/plan
++  binding. No cloud writer or production activation is enabled.
++
+ - Add explicit stable four-client acceptance with required installed CLI checks
+   and isolated TEST ONLY A/B repository switching; stable publication remains disabled.
+ - Retain stable SHA512 index aliases for native APT generation switching,
+diff --git a/README.md b/README.md
+index 68af21b..2e80cf7 100644
+--- a/README.md
++++ b/README.md
+@@ -144,6 +144,11 @@ existing preview audit snapshots and explicitly retained dependency generations
+ without credentials or network access. Its output is a plan only; it does not
+ sign, upload, activate CDN routing or enable the stable channel.
+ 
++The [offline delivery preparer](docs/object-storage-delivery.md) consumes either
++the original preview plan or an explicit composite plan, materializes exact
++objects and previews routes. Its in-memory test seam exercises upload/activation
++failures without a cloud provider; all completion evidence remains simulated.
++
+ ## Unpublished stable bootstrap preparation
+ 
+ The offline builder can prepare separate stable APT/RPM repository-setup
+diff --git a/docs/object-storage-delivery.md b/docs/object-storage-delivery.md
+new file mode 100644
+index 0000000..7dee447
+--- /dev/null
++++ b/docs/object-storage-delivery.md
+@@ -0,0 +1,150 @@
++# Offline object delivery preparation
++
++`scripts/prepare-object-storage-delivery.py` consumes the existing v1 preview
++or v2 composite transport inputs. It recomputes the original planner output and
++requires its exact canonical SHA-256. It preserves that schema, bytes and digest;
++it never upgrades a preview plan to composite or invents a stable descriptor.
++The original source, candidate, seal and activation-control identities remain
++separate. Saved JSON verification fields are not production authorization.
++
++The command performs local file operations only. There is no cloud SDK,
++credential discovery, API endpoint loader, signer, production mode or workflow
++connection. Stable remains disabled. Existing producer/control files and Pages
++publication are unchanged.
++
++## Prepare a new local directory
++
++Provide a resource intent with exactly these fields. Actual cloud values are
++unknown in this slice; non-null account/bucket/region/endpoint fields are rejected.
++
++```json
++{"production_enabled":false,"account_id":null,"bucket":null,"region":null,"endpoint":null,"domain":"packages.githubim.com"}
++```
++
++```sh
++python3 scripts/prepare-object-storage-delivery.py \
++  --inputs /path/to/reviewed-transport-inputs.json \
++  --expected-plan-sha256 <original-planner-output-sha256> \
++  --resource-intent /path/to/disabled-resource-intent.json \
++  --activation-control-sha <reviewed-current-control-sha> \
++  --max-routes 1000 --output-dir /path/to/new-delivery-directory
++```
++
++For composite inputs, add `--composite`; explicitly TEST ONLY composite fixtures
++also require `--test-only`. The original planner still enforces its input and
++signature-verification boundaries. The optional activation-control SHA is a
++separate caller-supplied anchor, not authenticated GitHub truth; omission stays
++null for preparation. Simulation requires a matching independent fake current
++control observation before any PUT and again immediately before activation.
++The tool never accesses private keys, Keychain or NAS.
++
++The output directory must be new and outside the input roots. It contains:
++
++- `transport-plan.json`: the original canonical planner bytes.
++- `archives/<audit-id>/`: each bounded archive safely extracted once. Alias
++  entries refer to the exact source audit ID and member, even when their public
++  URL names a different generation. There is no extra archive extraction per
++  alias and no signed-byte rewriting.
++- `generated/<sha256>.txt`: the existing planner's exact UTF-8 mirrorlist bytes.
++- `delivery.json`: input/plan digests, separate identity anchors, object facts
++  and source paths, route request table, and existing client-verifier requests.
++
++Object keys must agree on SHA-256, size and cache metadata. Entrypoints only
++reference those physical objects. Inputs are revalidated after materialization.
++The existing archive limits apply; each evidence JSON is bounded to 8 MiB.
++Do not publish or archive this whole working directory as test evidence: it can
++contain large packages. Keep only reviewed small JSON/log summaries.
++
++## Route request table
++
++The table uses exact, ordered URI matches: entrypoints, immutable aliases, then
++original snapshot objects. `/` maps to current preview's `/index.html` object;
++`/repo` remains preview. Aliases such as `/snapshots/stable/B/.../A.rpm` explicitly
++map to their `public/snapshots/...` object, while original snapshot members keep
++their own object key. No universal `/public/` prepend, URI normalization,
++percent decoding, prefix fallback or recursive rewriting is performed.
++
++The original planner can expose identical bytes under one URI from two physical
++snapshots. The first matching entry is retained only when size, digest and cache
++metadata agree. This does not permit conflicting payloads. Floating entrypoints
++retain `no-store`; immutable aliases retain the original immutable cache value.
++
++`--max-routes` bounds this exact request table (maximum 10,000), not Alibaba CDN
++wire rules. This slice does not merge rules or assert provider expressibility.
++A future provider adapter must compile equivalent routing, prove every listed
++and neighboring URI's behavior, and enforce the provider's actual rule limit.
++No cloud API parameters, ConfigIds or atomic-switch semantics are invented here.
++
++## Explicit in-memory simulation seam
++
++`simulate_delivery` accepts the same preparation arguments plus `api`,
++`client_verifier`, `expected_configuration_sha256` and an optional
++`allow_managed_removals=False`. It always prepares afresh: there is no success
++journal to resume from. The CLI never loads or invokes these callbacks.
++
++The test API declares `simulation_only=True` and implements `preflight`, `read_activation_control`,
++`put_create_only`, `get_object`, `read_configuration`, `apply_configuration`,
++`refresh`, and `check_public`. Their exact in-memory shapes are illustrated in
++`tests/test_object_storage_delivery.py`; they are not Alibaba wire schemas.
++An observation must explicitly be simulated, bind the disabled resource intent,
++and model fresh, never-enabled bucket versioning. No IAM privilege is added to
++make that observation: actual version-state reading remains provider work.
++`read_activation_control` takes no expected SHA and reads separate fake current
++state. Its observation must contain exactly `simulated: true` and a 40-character
++lowercase hexadecimal `activation_control_sha` matching the caller's anchor.
++Both observations are preserved in `activation_control_observations`; missing,
++unknown or changed current control stops the simulation without a new activation.
++Historical source/candidate/seal controls cannot substitute for this observation.
++Real GitHub current-control resolution remains outside this offline slice.
++
++Each PUT is create-only. An existing-object conflict or unknown timeout is
++resolved only by GET of actual bytes, size and cache metadata. ETag, HEAD and old
++receipts cannot substitute. All objects must be read back before activation.
++The simulation then rechecks original inputs and the complete current config.
++The bounded config diff includes additions, replacements and removals of managed
++routes; removals need explicit simulation opt-in. Unmanaged configuration is
++rejected. An observed stable configuration cannot be replaced by preview-only.
++
++After applying the complete route set, configuration is read back even if the
++apply callback raises. The simulation records `write_attempted`, observed before
++and after state, or an unknown observation, without claiming rollback. Refresh,
++origin/public-entrypoint checks and clients follow; a failure leaves the receipt
++`incomplete` at its stage and preserves observed effects. It neither deletes
++objects nor promises atomic CDN switching.
++
++The client callback receives `channel`, exact source/version and audit/snapshot
++anchors, and `kwargs` for the existing `validate_clients` interface in
++`validate-production-package-clients.py`. Preview uses its original snapshot
++interface; stable uses transport inputs and requires installed CLI acceptance.
++No signer, native downloader or installed CLI is reimplemented or executed here.
++The outer checks require both existing APT and both RPM distributions, exact
++target downloads and matching installed identities. Original client receipts,
++including stable's `transport_inputs_sha256` and `transport_plan_sha256`, must
++bind this preparation's exact input bytes and original planner digest. A receipt
++for the same stable candidate in a different composite is insufficient. Receipts,
++including their false provenance/publication fields, are retained unchanged and
++hashed. These are fake callback results in this slice, never public verification.
++
++`simulation.json` can report only `simulated_complete` or `incomplete`. Its
++production/publication/cloud/provenance flags stay false. Preparation errors
++before any API call raise without a simulation receipt; later API failures leave
++stage evidence. This is a test seam, not a sandbox for untrusted callback code.
++
++## Validation and remaining provider work
++
++```sh
++python3 -m unittest discover -s tests -p 'test_object_storage_delivery.py' -v
++```
++
++Tests use existing real archive fixtures and in-memory APIs. The existing
++composite structural fixture substitutes native verification; cryptographic
++coverage remains in the existing Linux native drill. These tests do not rerun
++that drill, access GitHub or demonstrate a real upload, origin or client result.
++
++The remaining original D work is a reviewed provider adapter and explicit
++object-storage publication control: actual resource identities and permissions,
++fresh GitHub/control verification, create-only OSS writes and remote readback,
++equivalent CDN wire configuration/readback, public origin checks and execution
++of the existing four clients. Those operations still require their actual
++resource and publication authorization. No production enablement can be inferred
++from local plans, fixture successes or JSON fields.
+diff --git a/scripts/prepare-object-storage-delivery.py b/scripts/prepare-object-storage-delivery.py
+new file mode 100644
+index 0000000..cd80e7a
+--- /dev/null
++++ b/scripts/prepare-object-storage-delivery.py
+@@ -0,0 +1,452 @@
++#!/usr/bin/env python3
++"""Prepare local transport objects and simulate delivery; never contact a cloud.
++
++The CLI only prepares files. simulate_delivery is a function-level test seam:
++no SDK, endpoint loader, credentials, network runner or production mode exists.
++Its observations can never authorize publication, including after fake success.
++"""
++from __future__ import annotations
++
++import argparse
++import copy
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import re
++import sys
++import tempfile
++
++
++def _module(name, filename):
++    spec = importlib.util.spec_from_file_location(name, Path(__file__).parent / filename)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++P = _module('delivery_planner', 'plan-object-storage-publication.py')
++C = P.C
++V = _module('delivery_clients', 'validate-production-package-clients.py')
++MAX_JSON_BYTES = 8 * 1024 * 1024
++MAX_ROUTES = 10000
++RESOURCE_FIELDS = {'production_enabled', 'account_id', 'bucket', 'region', 'endpoint', 'domain'}
++FACT_FIELDS = ('sha256', 'size', 'cache_control')
++ERRORS = (ValueError, RuntimeError, OSError, KeyError, TypeError)
++
++
++class DeliveryError(ValueError):
++    """The offline preparation or simulated observation is inconsistent."""
++
++
++def require(condition, message):
++    if not condition:
++        raise DeliveryError(message)
++
++
++def canonical(value):
++    return json.dumps(value, sort_keys=True, separators=(',', ':'), default=str).encode() + b'\n'
++
++
++def sha256(raw):
++    return hashlib.sha256(raw).hexdigest()
++
++
++def _json_write(path, value):
++    raw = canonical(value)
++    require(len(raw) <= MAX_JSON_BYTES, 'delivery evidence exceeds JSON limit')
++    C.write_exclusive(path, raw, 'delivery evidence')
++
++
++def _read(path, label):
++    checked = C.candidate_path(path.parent, path.name, label)
++    return C.read_checked(checked, label, maximum_bytes=MAX_JSON_BYTES)
++
++
++def _resource(value):
++    C.exact(value, RESOURCE_FIELDS, 'disabled resource intent')
++    require(value['production_enabled'] is False, 'production must remain disabled')
++    require(all(value[key] is None for key in ('account_id', 'bucket', 'region', 'endpoint')),
++            'offline resource identities must remain unknown')
++    require(value['domain'] == C.REPOSITORY_ORIGIN.removeprefix('https://'),
++            'resource domain must remain the canonical public domain')
++    return copy.deepcopy(value)
++
++
++def _load_plan(inputs, expected_digest, composite, test_only):
++    raw = _read(inputs, 'transport inputs')
++    require(isinstance(expected_digest, str) and re.fullmatch('[0-9a-f]{64}', expected_digest),
++            'expected plan digest must be SHA-256')
++    plan = P.make_plan(inputs, composite=composite, test_only=test_only)
++    require(sha256(C.canonical_json(plan)) == expected_digest, 'recomputed plan digest differs')
++    require(_read(inputs, 'transport inputs') == raw, 'transport inputs changed during planning')
++    return plan, raw, json.loads(raw, object_pairs_hook=C.reject_duplicate_pairs)
++
++
++def _descriptors(value, composite):
++    if composite:
++        values = [value['current']['preview'], value['current']['stable'], *value['retain']]
++        return [(v['channel'], v['snapshot'] if v['channel'] == 'preview' else v) for v in values]
++    return [('preview', v) for v in [value['current'], *value['retain']]]
++
++
++def _facts(value):
++    return {field: value[field] for field in FACT_FIELDS}
++
++
++def _object_key(key):
++    C.safe_relative(key, 'object key')
++    require(key.startswith(('snapshots/', 'public/', 'generated/')), 'object key is outside transport namespaces')
++
++
++def _route_table(plan, objects, max_routes):
++    """Compile exact matches only; aliases precede original snapshot routes.
++
++    This is a bounded request table, not Alibaba wire configuration. There are
++    no regex/prefix rewrites to broaden access or recursively rewrite aliases.
++    """
++    require(type(max_routes) is int and 0 < max_routes <= MAX_ROUTES, 'route limit is invalid')
++    routes = []
++    selected = {}
++
++    def add(uri, value, kind):
++        if uri != '/':
++            require(isinstance(uri, str) and uri.startswith('/'), 'route URI must be absolute')
++            P._public_path(uri[1:])
++        key = value['object_key']
++        require(key in objects and _facts(objects[key]) == _facts(value),
++                'route must reference an exact materialized object')
++        row = {'public_uri': uri, 'object_key': key, **_facts(value), 'kind': kind}
++        if uri in selected:
++            # The original planner permits different physical snapshots to
++            # serve the same URI when all byte/cache facts are identical.
++            require(_facts(selected[uri]) == _facts(row),
++                    'route URI collision')
++            return
++        selected[uri] = row
++        routes.append(row)
++
++    for value in plan['entrypoints']:
++        require(value['cache_control'] == 'no-store', 'floating entrypoint must be no-store')
++        add(value['public_uri'], value, 'entrypoint')
++    require('/repo' in selected and '/index.html' in selected, 'preview shared entrypoints are required')
++    preview_id = (plan['current_audit_release_ids']['preview'] if plan['channel'] == 'composite'
++                  else plan['current_audit_release_id'])
++    for uri in ('/repo', '/index.html'):
++        require(selected[uri]['object_key'].startswith(f'snapshots/preview/r{preview_id}-'),
++                'shared entrypoints must belong to current preview')
++    add('/', selected['/index.html'], 'entrypoint')
++    for value in plan['immutable_aliases']:
++        require(value['cache_control'] == P.IMMUTABLE_CACHE, 'immutable alias cache metadata differs')
++        add(value['public_uri'], value, 'alias')
++    for value in plan['snapshot_objects']:
++        add('/' + value['object_key'], value, 'snapshot')
++    require(len(routes) <= max_routes, 'route table exceeds declared route limit')
++    require(len(canonical(routes)) <= MAX_JSON_BYTES, 'route table exceeds JSON limit')
++    return routes
++
++
++def route_request(routes, public_uri):
++    """Resolve only a listed URI, without URL decoding, normalization or fallback."""
++    return next((copy.deepcopy(row) for row in routes if row['public_uri'] == public_uri), None)
++
++
++def _client_requests(descriptors, inputs, output_dir, test_only):
++    requests = []
++    # Composite descriptors always start with current preview and stable;
++    # retained generations must never become separate publication targets.
++    current = descriptors[:2] if len(descriptors) > 1 and descriptors[1][0] == 'stable' else descriptors[:1]
++    for channel, item in current:
++        control = P.local_path(item['control_dir'], inputs.parent, 'client control')
++        audit_id = item['audit_release_id']
++        if channel == 'stable':
++            candidate = item['candidate']
++            version = candidate['version']
++            source_sha = V.TEST_PRODUCT_SHA if test_only else candidate['source']['source_sha']
++            snapshot_sha = candidate['snapshot_sha256']
++        else:
++            version = item['source']['version']
++            source_sha = item['source']['source_sha']
++            snapshot_sha = item['snapshot_sha256']
++        kwargs = dict(site_root=None, snapshot_path=(None if channel == 'stable' else
++                      output_dir / 'archives' / str(audit_id) / 'audit/snapshot.json'),
++                      base_url=C.REPOSITORY_ORIGIN, apt_public_cert=control / f'keys/apt-{channel}.asc',
++                      rpm_public_cert=control / f'keys/rpm-{channel}.asc', expected_version=version,
++                      verify_installed_cli=True, channel=channel)
++        if channel == 'stable':
++            kwargs.update(transport_inputs=inputs, test_only=test_only,
++                          test_product_sha=V.TEST_PRODUCT_SHA if test_only else None)
++        requests.append({'channel': channel, 'audit_release_id': audit_id, 'snapshot_sha256': snapshot_sha,
++                         'identity': {'version': version, 'commit': source_sha, 'build_source': 'release'},
++                         'kwargs': kwargs})
++    return requests
++
++
++def prepare_delivery(*, inputs, expected_plan_sha256, output_dir, resource_intent,
++                     activation_control_sha, max_routes, composite=False, test_only=False):
++    """Recompute original planner output and extract each bounded archive once.
++
++    Aliases share their source member, not a copied package or destination audit
++    identity. The new directory is local preparation only; no API is invoked.
++    """
++    inputs, output_dir = Path(inputs), Path(output_dir)
++    resource = _resource(resource_intent)
++    require(activation_control_sha is None or (isinstance(activation_control_sha, str)
++            and re.fullmatch('[0-9a-f]{40}', activation_control_sha)), 'activation control SHA is invalid')
++    require(not os.path.lexists(output_dir), 'delivery output already exists')
++    plan, raw, value = _load_plan(inputs, expected_plan_sha256, composite, test_only)
++    descriptors = _descriptors(value, composite)
++    boundaries = [inputs]
++    for channel, item in descriptors:
++        fields = ('archive', 'receipt', 'control_dir') if channel == 'preview' else (
++            'archive', 'receipt', 'control_dir', 'plan', 'resolution', 'source_dir', 'apt_receipt', 'rpm_receipt')
++        boundaries.extend(P.local_path(item[f], inputs.parent, f) for f in fields
++                          if P.local_path(item[f], inputs.parent, f).exists())
++    C.validate_candidate_output_paths((output_dir,), tuple(boundaries))
++    require(output_dir.parent.is_dir(), 'delivery output parent must already exist')
++    with tempfile.TemporaryDirectory(prefix='.delivery-', dir=output_dir.parent) as temporary:
++        stage = Path(temporary) / 'prepared'
++        stage.mkdir()
++        archives = {}
++        for channel, item in descriptors:
++            audit_id = item['audit_release_id']
++            archive = P.local_path(item['archive'], inputs.parent, 'archive')
++            facts = ({'sha256': item['archive_sha256'], 'size': item['archive_size']} if channel == 'preview'
++                     else {key: item['candidate']['archive'][key] for key in ('sha256', 'size')})
++            destination = stage / 'archives' / str(audit_id)
++            destination.parent.mkdir(exist_ok=True)
++            extracted = P.R.snapshot_archive.extract_snapshot(archive_path=archive, output_dir=destination,
++                max_members=P.R.snapshot_archive.DEFAULT_MAX_MEMBERS, max_total_size=P.R.ARCHIVE_MAX_TOTAL_BYTES)
++            require({key: extracted[key] for key in ('sha256', 'size')} == facts, 'archive changed during materialization')
++            archives[audit_id] = (channel, destination)
++        objects = {}
++
++        def add(value, path):
++            key = value['object_key']
++            _object_key(key)
++            require(C.hash_file(path, 'materialized object', maximum_bytes=value['size'])
++                    == {field: value[field] for field in ('sha256', 'size')}, 'materialized object bytes differ')
++            if key in objects:
++                require(_facts(objects[key]) == _facts(value), 'object key has conflicting bytes or cache metadata')
++                return
++            objects[key] = {**copy.deepcopy(value), 'materialized_file': path.relative_to(stage).as_posix()}
++
++        for value in [*plan['snapshot_objects'], *plan['immutable_aliases']]:
++            source = value['source']
++            channel, archive_root = archives[source['audit_release_id']]
++            require(source.get('channel', 'preview') == channel, 'object source channel differs')
++            path = C.candidate_path(archive_root, source['member'], 'object source member')
++            add(value, path)
++        for value in plan.get('generated_objects', []):
++            path = stage / 'generated' / (value['sha256'] + '.txt')
++            C.write_exclusive(path, value['content_utf8'].encode('utf-8'), 'generated object')
++            add(value, path)
++        routes = _route_table(plan, objects, max_routes)
++        # Rechecking the original planner also rechecks all supplied source,
++        # archive and public control inputs. No persisted success journal exists.
++        _, final_raw, _ = _load_plan(inputs, expected_plan_sha256, composite, test_only)
++        require(final_raw == raw, 'transport inputs changed during materialization')
++        result = {'schema': 'wukongim.object_storage_delivery_preparation/v1', 'mode': 'dry_run',
++                  'production_enabled': False, 'publication_verified': False, 'cloud_verified': False,
++                  'inputs_sha256': sha256(raw), 'plan_sha256': expected_plan_sha256, 'plan_schema': plan['schema'],
++                  'channel': plan['channel'], 'activation_control_sha': activation_control_sha,
++                  'resource_intent': resource, 'snapshots': plan['snapshots'],
++                  'planner_verification': plan['verification'], 'objects': [objects[key] for key in sorted(objects)],
++                  'routes': routes, 'client_requests': _client_requests(descriptors, inputs, output_dir, test_only)}
++        _json_write(stage / 'delivery.json', result)
++        C.write_exclusive(stage / 'transport-plan.json', C.canonical_json(plan), 'original transport plan')
++        os.rename(stage, output_dir)
++    return result
++
++
++def _configuration(value):
++    C.exact(value, {'observation_id', 'channels', 'managed_routes', 'unmanaged_routes'}, 'simulated configuration')
++    require(isinstance(value['observation_id'], str)
++            and re.fullmatch(r'simulated:[1-9][0-9]*', value['observation_id']), 'invalid simulated configuration identity')
++    require(value['channels'] in (['preview'], ['preview', 'stable']), 'configuration channels are invalid')
++    require(isinstance(value['managed_routes'], list) and isinstance(value['unmanaged_routes'], list),
++            'configuration route lists are invalid')
++    require(len(canonical(value)) <= MAX_JSON_BYTES, 'configuration observation exceeds JSON limit')
++    require(not value['unmanaged_routes'], 'unmanaged configuration cannot be modified by this simulation')
++    seen = set()
++    for row in value['managed_routes']:
++        C.exact(row, {'public_uri', 'object_key', 'sha256', 'size', 'cache_control', 'kind'}, 'managed route')
++        require(row['public_uri'] not in seen, 'duplicate managed URI')
++        seen.add(row['public_uri'])
++    return copy.deepcopy(value)
++
++
++def _config_diff(before, routes, allow_removals):
++    old = {row['public_uri']: row for row in before['managed_routes']}
++    new = {row['public_uri']: row for row in routes}
++    removed = [old[uri] for uri in sorted(old.keys() - new.keys())]
++    require(not removed or allow_removals is True, 'managed route removals require explicit simulation opt-in')
++    return {'add': [new[u] for u in sorted(new.keys() - old.keys())], 'remove': removed,
++            'replace': [{'before': old[u], 'after': new[u]} for u in sorted(new.keys() & old.keys()) if old[u] != new[u]]}
++
++
++def _preflight(api, resource):
++    observation = api.preflight(copy.deepcopy(resource))
++    C.exact(observation, {'simulated', 'resource_sha256', 'versioning', 'fresh'}, 'simulated preflight')
++    require(observation['simulated'] is True and observation['fresh'] is True
++            and observation['versioning'] == 'never_enabled'
++            and observation['resource_sha256'] == sha256(canonical(resource)), 'simulated preflight is missing, stale or incompatible')
++    return observation
++
++
++def _activation_control(observation, expected_sha):
++    """Fence independently observed current control, not historical plan controls."""
++    C.exact(observation, {'simulated', 'activation_control_sha'}, 'simulated activation control')
++    current_sha = observation['activation_control_sha']
++    require(observation['simulated'] is True and isinstance(current_sha, str)
++            and re.fullmatch('[0-9a-f]{40}', current_sha) and current_sha == expected_sha,
++            'simulated current activation control is unknown or differs from expected fence')
++
++
++def _client_result(value, request, inputs_sha256, plan_sha256):
++    """Check the outer binding, retaining the original verifier receipt unchanged."""
++    expected_schema = V.STABLE_RECEIPT_SCHEMA if request['channel'] == 'stable' else V.RECEIPT_SCHEMA
++    require(value.get('schema') == expected_schema and value.get('expected_version') == request['identity']['version']
++            and value.get('expected_version_verified') is True and value.get('installed_cli_verified') is True
++            and value.get('bootstrap_verified') is True and value.get('audit_release_id') == request['audit_release_id']
++            and value.get('snapshot_sha256') == request['snapshot_sha256'], 'client receipt target or acceptance differs')
++    if request['channel'] == 'stable':
++        require(value.get('transport_inputs_sha256') == inputs_sha256
++                and value.get('transport_plan_sha256') == plan_sha256,
++                'stable client receipt transport input or plan digest differs')
++    for family, clients in (('apt', V.APT_CLIENTS), ('rpm', V.RPM_CLIENTS)):
++        results = value.get(family)
++        require(isinstance(results, list) and [r.get('distribution') for r in results] == [c[0] for c in clients],
++                'client receipt requires all four distributions')
++        for row in results:
++            require(row.get('bootstrap_installed') is True
++                    and row.get('download', {}).get('snapshot_versions') == [request['identity']['version']]
++                    and row.get('installed_cli', {}).get('verified') is True
++                    and row['installed_cli'].get('identity') == request['identity'], 'client download or installed CLI identity differs')
++
++
++def simulate_delivery(*, api, client_verifier, expected_configuration_sha256,
++                      allow_managed_removals=False, **prepare_args):
++    """Exercise only caller-supplied in-memory seams and record observed effects.
++
++    The module never discovers a provider or executes verifier commands. Every
++    invocation prepares and revalidates from scratch; receipts cannot resume or
++    authorize a later run. A failed activation can still have observed effects.
++    """
++    require(getattr(api, 'simulation_only', None) is True, 'only an explicit simulation API is accepted')
++    require(callable(client_verifier), 'simulation requires a client verifier seam')
++    preparation = prepare_delivery(**prepare_args)
++    resource = preparation['resource_intent']
++    target_channels = ['preview', 'stable'] if preparation['channel'] == 'composite' else ['preview']
++    receipt = {'schema': 'wukongim.object_storage_delivery_simulation/v1', 'mode': 'simulated',
++               'status': 'incomplete', 'stage': 'preflight', 'production_enabled': False,
++               'publication_verified': False, 'cloud_verified': False, 'github_provenance_verified': False,
++               'inputs_sha256': preparation['inputs_sha256'], 'plan_sha256': preparation['plan_sha256'],
++               'plan_schema': preparation['plan_schema'], 'activation_control_sha': preparation['activation_control_sha'],
++               'activation_control_observations': [],
++               'snapshots': preparation['snapshots'], 'resource_intent': resource,
++               'objects': [], 'clients': [], 'configuration_diff': None,
++               'configuration': {'before': None, 'after': None, 'write_attempted': False,
++                                 'observed_change': None, 'rollback_performed': False},
++               'refresh': None, 'public': None}
++    output_dir = Path(prepare_args['output_dir'])
++    try:
++        receipt['preflight'] = _preflight(api, resource)
++        receipt['activation_control_observations'].append(copy.deepcopy(api.read_activation_control()))
++        _activation_control(receipt['activation_control_observations'][-1], preparation['activation_control_sha'])
++        before = _configuration(api.read_configuration())
++        receipt['configuration']['before'] = before
++        require(sha256(canonical(before)) == expected_configuration_sha256, 'current configuration differs from expected fence')
++        require(not ('stable' in before['channels'] and 'stable' not in target_channels),
++                'cannot replace public stable with preview-only configuration')
++        receipt['configuration_diff'] = _config_diff(before, preparation['routes'], allow_managed_removals)
++        receipt['stage'] = 'upload'
++        for value in preparation['objects']:
++            path = C.candidate_path(output_dir, value['materialized_file'], 'upload source')
++            require(C.hash_file(path, 'upload source', maximum_bytes=value['size'])
++                    == {key: value[key] for key in ('sha256', 'size')}, 'upload source bytes changed')
++            observation = {'object_key': value['object_key'], **_facts(value), 'put_outcome': 'unknown',
++                           'readback_verified': False}
++            receipt['objects'].append(observation)
++            try:
++                result = api.put_create_only(value['object_key'], path, value['cache_control'])
++                require(result == 'created', 'unknown create-only PUT response')
++                observation['put_outcome'] = 'created'
++            except FileExistsError:
++                observation['put_outcome'] = 'exists'
++            except TimeoutError:
++                pass  # A timeout does not say whether PUT happened: GET decides.
++            observed = api.get_object(value['object_key'])
++            C.exact(observed, {'body', 'cache_control'}, 'simulated GET')
++            body = observed['body']
++            require(isinstance(body, bytes) and len(body) == value['size'] and sha256(body) == value['sha256']
++                    and observed['cache_control'] == value['cache_control'], 'GET bytes or cache metadata differ')
++            observation['readback_verified'] = True
++        receipt['stage'] = 'activation_fence'
++        _, raw, _ = _load_plan(prepare_args['inputs'], preparation['plan_sha256'],
++                               prepare_args.get('composite', False), prepare_args.get('test_only', False))
++        require(sha256(raw) == preparation['inputs_sha256'], 'inputs changed before activation')
++        _preflight(api, resource)
++        require(_configuration(api.read_configuration()) == before, 'configuration drifted before activation')
++        receipt['activation_control_observations'].append(copy.deepcopy(api.read_activation_control()))
++        _activation_control(receipt['activation_control_observations'][-1], preparation['activation_control_sha'])
++        receipt['stage'] = 'activation'
++        receipt['configuration']['write_attempted'] = True
++        try:
++            api.apply_configuration(copy.deepcopy(preparation['routes']), target_channels)
++        finally:
++            # A failed API call may have applied some routes. Read independently,
++            # preserve that observation and never invent a rollback or no-write.
++            after = api.read_configuration()
++            receipt['configuration']['after'] = copy.deepcopy(after)
++            receipt['configuration']['observed_change'] = after != before
++        after = _configuration(after)
++        require(after['managed_routes'] == preparation['routes'] and after['channels'] == target_channels,
++                'configuration readback differs from complete target')
++        receipt['stage'] = 'refresh'
++        receipt['refresh'] = api.refresh()
++        require(receipt['refresh'] == {'simulated': True, 'complete': True}, 'simulated refresh incomplete')
++        receipt['stage'] = 'public'
++        receipt['public'] = api.check_public(copy.deepcopy(preparation['routes']))
++        require(receipt['public'] == {'simulated': True, 'origin_verified': True, 'entrypoints_verified': True},
++                'simulated public or origin observation failed')
++        receipt['stage'] = 'clients'
++        for request in preparation['client_requests']:
++            result = client_verifier(copy.deepcopy(request))
++            receipt['clients'].append({'channel': request['channel'], 'receipt_sha256': sha256(canonical(result)),
++                                       'receipt': copy.deepcopy(result)})
++            _client_result(result, request, preparation['inputs_sha256'], preparation['plan_sha256'])
++        receipt.update(status='simulated_complete', stage='complete')
++    except ERRORS as error:
++        receipt['error'] = str(error)[:1024]
++    _json_write(output_dir / 'simulation.json', receipt)
++    return receipt
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--inputs', required=True, type=Path)
++    parser.add_argument('--expected-plan-sha256', required=True)
++    parser.add_argument('--output-dir', required=True, type=Path)
++    parser.add_argument('--resource-intent', required=True, type=Path)
++    parser.add_argument('--activation-control-sha')
++    parser.add_argument('--max-routes', required=True, type=int, help='Offline request table capacity, not a provider claim')
++    parser.add_argument('--composite', action='store_true')
++    parser.add_argument('--test-only', action='store_true')
++    args = parser.parse_args(argv)
++    try:
++        resource = json.loads(_read(args.resource_intent, 'resource intent'), object_pairs_hook=C.reject_duplicate_pairs)
++        result = prepare_delivery(inputs=args.inputs, expected_plan_sha256=args.expected_plan_sha256,
++            output_dir=args.output_dir, resource_intent=resource, activation_control_sha=args.activation_control_sha,
++            max_routes=args.max_routes, composite=args.composite, test_only=args.test_only)
++    except ERRORS as error:
++        print('offline object delivery failed: ' + str(error), file=sys.stderr)
++        return 1
++    print(canonical({key: result[key] for key in ('schema', 'mode', 'plan_schema', 'plan_sha256',
++        'inputs_sha256', 'production_enabled', 'publication_verified', 'cloud_verified')}).decode(), end='')
++    return 0
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+diff --git a/tests/test_object_storage_delivery.py b/tests/test_object_storage_delivery.py
+new file mode 100644
+index 0000000..c5fd02e
+--- /dev/null
++++ b/tests/test_object_storage_delivery.py
+@@ -0,0 +1,593 @@
++"""Offline delivery boundaries: real archives, fake cloud and client observations.
++
++The existing composite fixture substitutes only native candidate verification;
++these tests do not claim signatures, GitHub provenance, or public acceptance.
++"""
++import contextlib
++import copy
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++import tempfile
++import unittest
++from unittest import mock
++
++from tests.test_plan_object_storage_publication import InputSnapshot, canonical
++from test_composite_storage_plan import StableTransportFixture
++from test_stable_audit_transport import load
++
++ROOT = Path(__file__).resolve().parents[1]
++SCRIPT = ROOT / 'scripts/prepare-object-storage-delivery.py'
++RESOURCE = {'production_enabled': False, 'account_id': None, 'bucket': None,
++            'region': None, 'endpoint': None, 'domain': 'packages.githubim.com'}
++ACTIVATION_SHA = 'c' * 40
++
++
++def digest(value):
++    return hashlib.sha256(value).hexdigest()
++
++
++class FakeCloud:
++    """An in-memory API; no SDK, network, credentials, clock or real cloud IDs."""
++    simulation_only = True
++
++    def __init__(self):
++        self.objects = {}
++        self.events = []
++        self.config = {'observation_id': 'simulated:1', 'channels': ['preview'],
++                       'managed_routes': [], 'unmanaged_routes': []}
++        self.put_fault = None
++        self.get_fault = None
++        self.apply_fault = None
++        self.preflight_fault = None
++        self.refresh_ok = True
++        self.origin_ok = True
++        self.after_first_put = None
++        self.before_read = None
++        self.activation_control = {'simulated': True, 'activation_control_sha': ACTIVATION_SHA}
++
++    def preflight(self, resource):
++        self.events.append('preflight')
++        result = {'simulated': True, 'resource_sha256': digest(canonical(resource)),
++                  'versioning': 'never_enabled', 'fresh': True}
++        if self.preflight_fault:
++            result.update(self.preflight_fault)
++        return result
++
++    def read_activation_control(self):
++        # Independent fake current state: never echo an expected caller anchor.
++        self.events.append('read_activation_control')
++        return copy.deepcopy(self.activation_control)
++
++    def put_create_only(self, key, path, cache_control):
++        self.events.append(('put', key))
++        if self.put_fault == 'denied':
++            raise PermissionError('simulated denied')
++        if key in self.objects:
++            raise FileExistsError('simulated conflict')
++        self.objects[key] = {'body': path.read_bytes(), 'cache_control': cache_control}
++        if self.after_first_put:
++            callback, self.after_first_put = self.after_first_put, None
++            callback()
++        if self.put_fault == 'timeout':
++            raise TimeoutError('simulated unknown PUT outcome')
++        return 'created'
++
++    def get_object(self, key):
++        self.events.append(('get', key))
++        result = copy.deepcopy(self.objects[key])
++        if self.get_fault == 'error':
++            raise OSError('simulated read failed')
++        if self.get_fault == 'truncated':
++            result['body'] = result['body'][:-1]
++        if self.get_fault == 'digest':
++            result['body'] = b'X' * len(result['body'])
++        if self.get_fault == 'cache':
++            result['cache_control'] = 'wrong'
++        return result
++
++    def read_configuration(self):
++        self.events.append('read_configuration')
++        if self.before_read:
++            self.before_read(self)
++        return copy.deepcopy(self.config)
++
++    def apply_configuration(self, routes, channels):
++        self.events.append('apply_configuration')
++        self.config.update(observation_id='simulated:2', channels=channels,
++                           managed_routes=copy.deepcopy(routes))
++        if self.apply_fault in ('partial', 'error_after_write'):
++            self.config['managed_routes'] = self.config['managed_routes'][:1]
++        if self.apply_fault == 'error_after_write':
++            raise OSError('simulated partial activation')
++
++    def refresh(self):
++        self.events.append('refresh')
++        return {'simulated': True, 'complete': self.refresh_ok}
++
++    def check_public(self, routes):
++        self.events.append('check_public')
++        return {'simulated': True, 'origin_verified': self.origin_ok,
++                'entrypoints_verified': True}
++
++
++def client_receipt(request):
++    """Return the existing verifier shape; an outer simulation cannot upgrade it."""
++    channel = request['channel']
++    identity = request['identity']
++    value = {'schema': ('wukongim/stable-package-client-validation/v1' if channel == 'stable'
++                        else 'wukongim/production-package-client-validation/v4'),
++             'expected_version': identity['version'], 'expected_version_verified': True,
++             'installed_cli_verified': True, 'bootstrap_verified': True,
++             'audit_release_id': request['audit_release_id'],
++             'snapshot_sha256': request['snapshot_sha256'],
++             'github_provenance_verified': False, 'publication_verified': False}
++    for family, distros in [('apt', ['ubuntu-24.04', 'debian-13']),
++                           ('rpm', ['rocky-linux-9', 'alma-linux-9'])]:
++        value[family] = [{'distribution': distro, 'bootstrap_installed': True,
++                          'download': {'snapshot_versions': [identity['version']]},
++                          'installed_cli': {'verified': True, 'identity': identity}}
++                         for distro in distros]
++    return value
++
++
++class ObjectStorageDeliveryTest(unittest.TestCase):
++    def setUp(self):
++        self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
++        spec = importlib.util.spec_from_file_location('offline_delivery_test', SCRIPT)
++        self.d = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(self.d)
++        self.temporary = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temporary.cleanup)
++        self.root = Path(self.temporary.name).resolve()
++        self.preview = InputSnapshot(self.root / 'preview')
++        self.inputs = {'schema': 'wukongim.object_storage_plan_inputs/v1',
++                       'channel': 'preview', 'current': self.preview.descriptor(), 'retain': []}
++        self.path = self.root / 'inputs.json'
++        self.output_number = 0
++        self.cloud = FakeCloud()
++        self.requests = []
++
++    def write(self):
++        self.path.write_bytes(canonical(self.inputs))
++
++    def kwargs(self, **updates):
++        self.write()
++        composite = self.inputs['channel'] == 'composite'
++        plan = self.d.P.make_plan(self.path, composite=composite, test_only=composite)
++        self.output_number += 1
++        result = dict(inputs=self.path, expected_plan_sha256=digest(canonical(plan)),
++                      output_dir=self.root / f'delivery-{self.output_number}',
++                      resource_intent=copy.deepcopy(RESOURCE), activation_control_sha=ACTIVATION_SHA,
++                      max_routes=10000, composite=composite, test_only=composite)
++        result.update(updates)
++        return result
++
++    def verify(self, request):
++        self.cloud.events.append(('clients', request['channel']))
++        self.requests.append(copy.deepcopy(request))
++        value = client_receipt(request)
++        if request['channel'] == 'stable':
++            path = request['kwargs']['transport_inputs']
++            plan = self.d.P.make_plan(path, composite=True, test_only=True)
++            value.update(transport_inputs_sha256=digest(path.read_bytes()),
++                         transport_plan_sha256=digest(canonical(plan)))
++        return value
++
++    def simulate(self, **updates):
++        args = self.kwargs()
++        args.update(api=self.cloud, client_verifier=self.verify,
++                    expected_configuration_sha256=digest(canonical(self.cloud.config)))
++        args.update(updates)
++        return self.d.simulate_delivery(**args)
++
++    @contextlib.contextmanager
++    def composite(self):
++        self.stable_a = StableTransportFixture(self.root / 'stable-a', self.preview, 4242)
++        other = InputSnapshot(self.root / 'other', audit_id=11, version='3.1.0-rc.2', deb=b'other')
++        self.stable_b = StableTransportFixture(self.root / 'stable-b', other, 4243,
++                                              version='3.0.1', bootstrap_version='1.1.2')
++        self.inputs = {'schema': 'wukongim.object_storage_plan_inputs/v2', 'channel': 'composite',
++                       'test_only': True, 'current': {
++                           'preview': {'channel': 'preview', 'snapshot': self.preview.descriptor()},
++                           'stable': self.stable_b.descriptor}, 'retain': [self.stable_a.descriptor]}
++        native = load('verify-stable-seal-inputs.py')
++        # Reuse the existing structural fixture's native-verification seam.
++        # Real signature coverage remains the original Linux native drill.
++        with mock.patch.object(native, 'verify_candidate'), mock.patch.object(self.d.P, '_load', return_value=native):
++            yield
++
++    def test_01_preview_only_preserves_original_plan_and_unknown_resource(self):
++        args = self.kwargs()
++        before = self.path.read_bytes()
++        result = self.d.prepare_delivery(**args)
++        self.assertEqual('dry_run', result['mode'])
++        self.assertEqual('wukongim.object_storage_publication_plan/v1', result['plan_schema'])
++        self.assertEqual(args['expected_plan_sha256'], result['plan_sha256'])
++        self.assertEqual(before, self.path.read_bytes())
++        self.assertEqual(RESOURCE, result['resource_intent'])
++        self.assertFalse(result['production_enabled'])
++        self.assertFalse(result['publication_verified'])
++        self.assertEqual(['preview'], [r['channel'] for r in result['client_requests']])
++        self.assertEqual([], self.cloud.events)
++
++    def test_02_original_planner_rejects_schema_channel_unknown_fields(self):
++        args = self.kwargs()
++        for update in [{'channel': 'composite'}, {'schema': 'unknown'}, {'verified': True}]:
++            with self.subTest(update=update):
++                bad = dict(self.inputs, **update)
++                self.path.write_bytes(canonical(bad))
++                with self.assertRaises((ValueError, RuntimeError)):
++                    self.d.prepare_delivery(**args)
++                self.assertFalse(args['output_dir'].exists())
++        with self.composite():
++            args = self.kwargs()
++            del self.inputs['current']['stable']
++            self.write()
++            with self.assertRaises((ValueError, RuntimeError)):
++                self.d.prepare_delivery(**args)
++
++    def test_03_simulated_success_never_means_production_and_cannot_enable_resource(self):
++        result = self.simulate()
++        self.assertEqual('simulated_complete', result['status'])
++        self.assertFalse(result['publication_verified'])
++        self.assertFalse(result['cloud_verified'])
++        self.assertEqual(ACTIVATION_SHA, result['activation_control_sha'])
++        self.assertEqual(False, result['clients'][0]['receipt']['publication_verified'])
++        self.assertEqual(['preflight', 'read_activation_control', 'read_configuration'], self.cloud.events[:3])
++        self.assertLess(self.cloud.events.index('apply_configuration'), self.cloud.events.index('refresh'))
++        self.assertLess(self.cloud.events.index('check_public'), self.cloud.events.index(('clients', 'preview')))
++        for updates in [{'production_enabled': True}, {'endpoint': 'https://example.invalid'},
++                        {'domain': 'other.invalid'}, {'verified': True}]:
++            args = self.kwargs(resource_intent=dict(RESOURCE, **updates))
++            with self.assertRaises((ValueError, RuntimeError)):
++                self.d.prepare_delivery(**args)
++
++    def test_04_input_or_archive_change_never_reuses_old_progress(self):
++        args = self.kwargs()
++        self.path.write_bytes(self.path.read_bytes() + b' ')
++        # A different input encoding is bound even when the plan is equivalent.
++        result = self.d.prepare_delivery(**args)
++        self.assertEqual(digest(self.path.read_bytes()), result['inputs_sha256'])
++        self.cloud.after_first_put = lambda: self.preview.archive.write_bytes(b'changed')
++        result = self.simulate()
++        self.assertEqual('incomplete', result['status'])
++        self.assertNotIn('apply_configuration', self.cloud.events)
++        self.assertTrue(result['objects'])
++        with self.assertRaises((ValueError, RuntimeError)):
++            self.d.prepare_delivery(**args)
++
++    def test_05_composite_alias_materializes_from_original_source_and_preserves_schema(self):
++        with self.composite():
++            args = self.kwargs()
++            result = self.d.prepare_delivery(**args)
++            aliases = [o for o in result['objects'] if o['object_key'].startswith('public/snapshots/stable/')]
++            self.assertTrue(aliases)
++            a_at_b = next(o for o in aliases if o['source']['audit_release_id'] == 4242
++                          and '/r4243-' in o['object_key'] and 'wukongim_3.0.0_linux_amd64.rpm' in o['object_key'])
++            self.assertEqual((self.stable_a.tree / a_at_b['source']['member']).read_bytes(),
++                             (args['output_dir'] / a_at_b['materialized_file']).read_bytes())
++            self.assertEqual('wukongim.object_storage_publication_plan/v2', result['plan_schema'])
++            self.assertEqual(args['expected_plan_sha256'], result['plan_sha256'])
++            result = self.simulate()
++            self.assertEqual('simulated_complete', result['status'])
++            self.assertEqual(['preview', 'stable'], [r['channel'] for r in self.requests])
++            stable = self.requests[-1]
++            self.assertEqual(self.path, stable['kwargs']['transport_inputs'])
++            self.assertTrue(stable['kwargs']['verify_installed_cli'])
++
++    def test_05_missing_or_changed_archive_member_is_rejected(self):
++        args = self.kwargs()
++        self.preview.archive.write_bytes(b'missing members')
++        with self.assertRaises((ValueError, RuntimeError)):
++            self.d.prepare_delivery(**args)
++        self.assertFalse(args['output_dir'].exists())
++
++    def test_06_plan_digest_and_materialized_generated_bytes_are_exact(self):
++        with self.assertRaisesRegex(ValueError, 'plan.*digest'):
++            self.d.prepare_delivery(**self.kwargs(expected_plan_sha256='0' * 64))
++        with self.composite():
++            args = self.kwargs()
++            result = self.d.prepare_delivery(**args)
++            generated = next(o for o in result['objects'] if o['object_key'].startswith('generated/'))
++            raw = (args['output_dir'] / generated['materialized_file']).read_bytes()
++            self.assertTrue(raw.endswith(b'/site/rpm/stable/el/9/x86_64/\n'))
++            self.assertEqual(digest(raw), generated['sha256'])
++            self.assertEqual('no-store', generated['cache_control'])
++
++    def test_07_conflict_and_unknown_put_success_require_actual_exact_get(self):
++        first = self.simulate()
++        self.assertEqual('simulated_complete', first['status'])
++        self.cloud.config = {'observation_id': 'simulated:1', 'channels': ['preview'],
++                             'managed_routes': [], 'unmanaged_routes': []}
++        second = self.simulate()
++        self.assertEqual('simulated_complete', second['status'])
++        self.assertTrue(all(o['put_outcome'] == 'exists' for o in second['objects']))
++        self.cloud = FakeCloud(); self.cloud.put_fault = 'timeout'
++        result = self.simulate()
++        self.assertEqual('simulated_complete', result['status'])
++        self.assertTrue(all(o['put_outcome'] == 'unknown' and o['readback_verified'] for o in result['objects']))
++
++    def test_07_get_faults_and_put_denial_keep_observed_upload_side_effects(self):
++        for fault in ['error', 'truncated', 'digest', 'cache']:
++            with self.subTest(fault=fault):
++                self.cloud = FakeCloud(); self.cloud.get_fault = fault
++                result = self.simulate()
++                self.assertEqual('incomplete', result['status'])
++                self.assertEqual('upload', result['stage'])
++                self.assertEqual('created', result['objects'][0]['put_outcome'])
++                self.assertFalse(result['objects'][0]['readback_verified'])
++                self.assertNotIn('apply_configuration', self.cloud.events)
++        self.cloud = FakeCloud(); self.cloud.put_fault = 'denied'
++        self.assertEqual('incomplete', self.simulate()['status'])
++
++    def test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops(self):
++        for fault in [{'fresh': False}, {'simulated': False}, {'versioning': 'Enabled'},
++                      {'versioning': None}, {'resource_sha256': '0' * 64}]:
++            with self.subTest(fault=fault):
++                self.cloud = FakeCloud(); self.cloud.preflight_fault = fault
++                result = self.simulate()
++                self.assertEqual('incomplete', result['status'])
++                self.assertEqual('preflight', result['stage'])
++                self.assertFalse(self.cloud.objects)
++        self.cloud = FakeCloud(); self.cloud.simulation_only = False
++        with self.assertRaisesRegex(ValueError, 'simulation'):
++            self.simulate()
++
++    def test_09_alias_priority_and_original_snapshot_routes_are_exact(self):
++        with self.composite():
++            result = self.d.prepare_delivery(**self.kwargs())
++            alias = next(o for o in result['objects'] if o['object_key'].startswith('public/snapshots/'))
++            uri = alias['object_key'][len('public'):]
++            self.assertEqual(alias['object_key'], self.d.route_request(result['routes'], uri)['object_key'])
++            original = next(o for o in result['objects'] if o['object_key'].startswith('snapshots/stable/')
++                            and '/Packages/' in o['object_key'])
++            self.assertEqual(original['object_key'], self.d.route_request(result['routes'], '/'+original['object_key'])['object_key'])
++            kinds = [r['kind'] for r in result['routes']]
++            self.assertLess(kinds.index('alias'), kinds.index('snapshot'))
++
++    def test_10_root_repo_and_floating_cache_are_preserved(self):
++        result = self.d.prepare_delivery(**self.kwargs())
++        route = lambda uri: self.d.route_request(result['routes'], uri)
++        self.assertEqual(route('/index.html')['object_key'], route('/')['object_key'])
++        self.assertIn('/preview/r10-', route('/repo')['object_key'])
++        self.assertEqual('no-store', route('/apt/dists/preview/main/binary-amd64/Packages.gz')['cache_control'])
++        with self.composite():
++            result = self.d.prepare_delivery(**self.kwargs())
++            self.assertEqual('no-store', route('/rpm/stable/el/9/x86_64/mirrorlist')['cache_control'])
++            self.assertIn('/preview/', route('/repo')['object_key'])
++
++    def test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed(self):
++        result = self.d.prepare_delivery(**self.kwargs())
++        for uri in ['/repo/', '/repo?x=1', '/%72epo', '//repo', '/x/../repo', '/repo-stable',
++                    '/snapshots/unknown/site/status.json']:
++            self.assertIsNone(self.d.route_request(result['routes'], uri), uri)
++        with self.assertRaisesRegex(ValueError, 'route.*limit'):
++            self.d.prepare_delivery(**self.kwargs(max_routes=1))
++
++    def test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops(self):
++        row = {'public_uri': '/old', 'object_key': 'old', 'sha256': '0' * 64,
++               'size': 1, 'cache_control': 'no-store', 'kind': 'entrypoint'}
++        self.cloud.config['managed_routes'] = [row]
++        result = self.simulate()
++        self.assertEqual('incomplete', result['status'])
++        self.assertNotIn('apply_configuration', self.cloud.events)
++        result = self.simulate(allow_managed_removals=True)
++        self.assertEqual('simulated_complete', result['status'])
++        self.assertEqual(['/old'], [r['public_uri'] for r in result['configuration_diff']['remove']])
++        self.cloud = FakeCloud(); self.cloud.config['unmanaged_routes'] = [row]
++        self.assertEqual('incomplete', self.simulate()['status'])
++        self.cloud = FakeCloud(); self.cloud.config['observation_id'] = None
++        self.assertEqual('incomplete', self.simulate()['status'])
++
++    def test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback(self):
++        for fault in ['partial', 'error_after_write']:
++            self.cloud = FakeCloud(); self.cloud.apply_fault = fault
++            result = self.simulate()
++            self.assertEqual('incomplete', result['status'])
++            self.assertTrue(result['configuration']['write_attempted'])
++            self.assertTrue(result['configuration']['observed_change'])
++            self.assertFalse(result['configuration']['rollback_performed'])
++            self.assertNotIn('refresh', self.cloud.events)
++
++    def test_13_configuration_or_control_drift_before_activation_stops(self):
++        count = []
++        def drift(api):
++            count.append(True)
++            if len(count) == 2:
++                api.config['observation_id'] = 'simulated:9'
++        self.cloud.before_read = drift
++        result = self.simulate()
++        self.assertEqual('incomplete', result['status'])
++        self.assertNotIn('apply_configuration', self.cloud.events)
++        self.cloud = FakeCloud()
++        self.cloud.after_first_put = lambda: (self.preview.control/'manifests/channels.json').write_text('{}')
++        result = self.simulate()
++        self.assertEqual('incomplete', result['status'])
++        self.assertNotIn('apply_configuration', self.cloud.events)
++
++    def test_14_refresh_or_origin_failure_retains_activated_observation(self):
++        for fault in ['refresh_ok', 'origin_ok']:
++            self.cloud = FakeCloud(); setattr(self.cloud, fault, False)
++            result = self.simulate()
++            self.assertEqual('incomplete', result['status'])
++            self.assertTrue(result['configuration']['observed_change'])
++            self.assertFalse(result['configuration']['rollback_performed'])
++            self.assertFalse(result['cloud_verified'])
++
++    def test_15_exact_target_cli_identity_and_all_four_receipts_are_required(self):
++        def bad(request, fault):
++            value = client_receipt(request)
++            if fault == 'version': value['expected_version'] = '0.0.1'
++            if fault == 'client': value['rpm'].pop()
++            if fault == 'cli': value['apt'][0]['installed_cli']['identity']['commit'] = 'd'*40
++            if fault == 'download': value['apt'][0]['download']['snapshot_versions'] = ['0.0.1']
++            return value
++        for fault in ['version', 'client', 'cli', 'download']:
++            self.cloud = FakeCloud()
++            result = self.simulate(client_verifier=lambda request: bad(request, fault))
++            self.assertEqual('incomplete', result['status'])
++            self.assertEqual('clients', result['stage'])
++            self.assertTrue(result['configuration']['observed_change'])
++
++    def test_16_preview_only_cannot_replace_an_observed_stable_configuration(self):
++        self.cloud.config['channels'] = ['preview', 'stable']
++        result = self.simulate(allow_managed_removals=True)
++        self.assertEqual('incomplete', result['status'])
++        self.assertIn('stable', result['error'])
++        self.assertNotIn('apply_configuration', self.cloud.events)
++
++    def test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put(self):
++        observations = [{}, {'simulated': True},
++                        {'simulated': True, 'activation_control_sha': None},
++                        {'simulated': True, 'activation_control_sha': 'invalid'},
++                        {'simulated': True, 'activation_control_sha': 'd' * 40},
++                        {'simulated': False, 'activation_control_sha': ACTIVATION_SHA}]
++        for observation in observations:
++            with self.subTest(observation=observation):
++                self.cloud = FakeCloud()
++                self.cloud.activation_control = observation
++                result = self.simulate()
++                self.assertEqual('incomplete', result['status'])
++                self.assertEqual('preflight', result['stage'])
++                self.assertEqual([observation], result['activation_control_observations'])
++                self.assertFalse(self.cloud.objects)
++                self.assertFalse(result['configuration']['write_attempted'])
++                self.assertFalse(result['production_enabled'])
++                self.assertNotIn('apply_configuration', self.cloud.events)
++
++    def test_18_unknown_activation_control_allows_preparation_but_not_simulated_writes(self):
++        prepared = self.d.prepare_delivery(**self.kwargs(activation_control_sha=None))
++        self.assertIsNone(prepared['activation_control_sha'])
++        result = self.simulate(activation_control_sha=None)
++        self.assertEqual('incomplete', result['status'])
++        self.assertEqual('preflight', result['stage'])
++        self.assertFalse(self.cloud.objects)
++        self.assertNotIn('apply_configuration', self.cloud.events)
++
++    def test_19_only_current_activation_control_drift_is_fenced_after_upload(self):
++        self.write()
++        input_before = self.path.read_bytes()
++        historical_control = (self.preview.control / 'manifests/channels.json').read_bytes()
++        config_before = copy.deepcopy(self.cloud.config)
++        self.cloud.after_first_put = lambda: self.cloud.activation_control.update(activation_control_sha='d' * 40)
++        result = self.simulate()
++        self.assertEqual('incomplete', result['status'])
++        self.assertEqual('activation_fence', result['stage'])
++        self.assertEqual([ACTIVATION_SHA, 'd' * 40],
++                         [o['activation_control_sha'] for o in result['activation_control_observations']])
++        self.assertTrue(result['objects'])
++        self.assertTrue(all(o['readback_verified'] for o in result['objects']))
++        self.assertEqual(input_before, self.path.read_bytes())
++        self.assertEqual(historical_control, (self.preview.control / 'manifests/channels.json').read_bytes())
++        self.assertEqual(config_before, self.cloud.config)
++        self.assertFalse(result['configuration']['write_attempted'])
++        self.assertFalse(result['publication_verified'])
++        self.assertNotIn('apply_configuration', self.cloud.events)
++
++    def test_20_matching_current_control_and_stable_receipt_digests_preserve_original_evidence(self):
++        returned = []
++        def verifier(request):
++            value = self.verify(request)
++            returned.append(copy.deepcopy(value))
++            return value
++        with self.composite():
++            args = self.kwargs()
++            planned = self.d.P.make_plan(self.path, composite=True, test_only=True)
++            result = self.simulate(client_verifier=verifier)
++            self.assertEqual('simulated_complete', result['status'])
++            self.assertEqual(planned['snapshots'], result['snapshots'])
++            self.assertEqual([self.cloud.activation_control] * 2, result['activation_control_observations'])
++            self.assertEqual(2, self.cloud.events.count('read_activation_control'))
++            for snapshot in planned['snapshots']:
++                self.assertNotIn(ACTIVATION_SHA, (snapshot.get('control_sha'), snapshot.get('seal_control_sha'),
++                                                  snapshot.get('candidate', {}).get('control_sha')))
++            self.assertEqual(digest(self.path.read_bytes()), returned[-1]['transport_inputs_sha256'])
++            self.assertEqual(args['expected_plan_sha256'], returned[-1]['transport_plan_sha256'])
++            for original, saved in zip(returned, result['clients']):
++                self.assertEqual(canonical(original), canonical(saved['receipt']))
++                self.assertEqual(digest(canonical(original)), saved['receipt_sha256'])
++            for field in ('production_enabled', 'publication_verified', 'cloud_verified', 'github_provenance_verified'):
++                self.assertFalse(result[field])
++
++    def test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged(self):
++        fields = ('transport_inputs_sha256', 'transport_plan_sha256')
++        faults = [(field, bad) for field in fields for bad in ('missing', '0' * 64, None, 17)]
++        faults.append(('both', 'missing'))
++        with self.composite():
++            for field, bad in faults:
++                with self.subTest(field=field, bad=bad):
++                    self.cloud = FakeCloud()
++                    originals = []
++                    def verifier(request):
++                        value = self.verify(request)
++                        if request['channel'] == 'stable':
++                            for key in fields if field == 'both' else [field]:
++                                if bad == 'missing': value.pop(key)
++                                else: value[key] = bad
++                            originals.append(copy.deepcopy(value))
++                        return value
++                    result = self.simulate(client_verifier=verifier)
++                    self.assertEqual('incomplete', result['status'])
++                    self.assertEqual('clients', result['stage'])
++                    self.assertIn('transport', result['error'])
++                    self.assertTrue(result['configuration']['observed_change'])
++                    self.assertEqual(canonical(originals[0]), canonical(result['clients'][-1]['receipt']))
++                    self.assertEqual(digest(canonical(originals[0])), result['clients'][-1]['receipt_sha256'])
++                    self.assertFalse(result['publication_verified'])
++
++    def test_22_same_stable_target_receipt_from_different_composite_is_rejected(self):
++        with self.composite():
++            self.write()
++            original_inputs = copy.deepcopy(self.inputs)
++            original_digests = (digest(self.path.read_bytes()),
++                                digest(canonical(self.d.P.make_plan(self.path, composite=True, test_only=True))))
++            other_preview = InputSnapshot(self.root / 'receipt-preview', audit_id=12,
++                                          version='3.1.0-rc.3', deb=b'receipt-other')
++            for change in ('preview', 'retain'):
++                with self.subTest(change=change):
++                    self.cloud = FakeCloud()
++                    self.inputs = copy.deepcopy(original_inputs)
++                    if change == 'preview':
++                        self.inputs['current']['preview']['snapshot'] = other_preview.descriptor()
++                    else:
++                        self.inputs['retain'] = []
++                    self.assertEqual(original_inputs['current']['stable'], self.inputs['current']['stable'])
++                    result = self.simulate()
++                    self.assertEqual('simulated_complete', result['status'])
++                    foreign_receipt = copy.deepcopy(result['clients'][-1]['receipt'])
++                    self.assertNotEqual(original_digests[0], foreign_receipt['transport_inputs_sha256'])
++                    self.assertNotEqual(original_digests[1], foreign_receipt['transport_plan_sha256'])
++                    self.inputs = copy.deepcopy(original_inputs)
++                    self.cloud = FakeCloud()
++                    def verifier(request):
++                        if request['channel'] == 'stable':
++                            self.assertEqual(foreign_receipt['expected_version'], request['identity']['version'])
++                            self.assertEqual(foreign_receipt['audit_release_id'], request['audit_release_id'])
++                            self.assertEqual(foreign_receipt['snapshot_sha256'], request['snapshot_sha256'])
++                            return copy.deepcopy(foreign_receipt)
++                        return self.verify(request)
++                    rejected = self.simulate(client_verifier=verifier)
++                    self.assertEqual('incomplete', rejected['status'])
++                    self.assertEqual('clients', rejected['stage'])
++                    self.assertIn('transport', rejected['error'])
++                    self.assertEqual(foreign_receipt, rejected['clients'][-1]['receipt'])
++
++    def test_output_collision_symlink_and_failures_do_not_overwrite_inputs(self):
++        args = self.kwargs(output_dir=self.preview.root)
++        with self.assertRaises((ValueError, RuntimeError)):
++            self.d.prepare_delivery(**args)
++        link = self.root / 'linked'
++        link.symlink_to(self.preview.root, target_is_directory=True)
++        with self.assertRaises((ValueError, RuntimeError)):
++            self.d.prepare_delivery(**self.kwargs(output_dir=link/'nested'))
++        args = self.kwargs(); self.d.prepare_delivery(**args)
++        before = (args['output_dir']/'delivery.json').read_bytes()
++        with self.assertRaises((ValueError, RuntimeError)):
++            self.d.prepare_delivery(**args)
++        self.assertEqual(before, (args['output_dir']/'delivery.json').read_bytes())
++
++
++if __name__ == '__main__':
++    unittest.main()

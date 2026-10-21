@@ -351,3 +351,7 @@ immutable publication and signed native-package public-client acceptance.
 - `cloud/pr1022-ci-generation-1/`, `cloud/pr1022-ci-followup/`: first Linux failures and one later scripts API convergence read; no rerun.
 - `cloud/pr1022-migration-connect-diagnosis/public-final/`: fixed three-run observation did not reproduce historical refusal; diagnosis remains bounded.
 - `packages/object-delivery-implementation/`, `packages/object-delivery-review/`: offline core v1, first-red/green evidence and separate Standards/Spec reports; two Spec findings remain under repair.
+
+- [#1022第二代提交绑定](cloud/pr1022-delivery-generation-2/commit-source-binding.json)、[迁移组合回归封存](cloud/pr1022-migration-connect-diagnosis/combined-public-final/SHA256SUMS)与[最终双轴复核](cloud/pr1022-migration-connect-diagnosis/barrier-review/combined-review-final.md)：b3fdb777，本地五拓扑55次历史校验通过；原始故障因果限制保留，新的Linux CI待完成。
+- [对象交付v2独审](packages/object-delivery-review/combined-review-v2.md)及`packages/object-delivery-repair-v2/`：两项P2已关闭，source绑定#75/eac9d252；真实云适配未启用。
+- [#75首轮CI](packages/pr75-ci-generation-1/README.md)：554+4与旧native通过；Alma A→B第34例精确版本失败，33通过、15未执行、cleanup零；全部原始收据封存，不重跑或改写失败。

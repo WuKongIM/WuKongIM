@@ -1,0 +1,27 @@
+{
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "checks": {
+    "flow-doc-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    },
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    }
+  },
+  "composite_resolution": "review-agent-check NAME -> go run ./cmd/wkreviewcheck NAME"
+}

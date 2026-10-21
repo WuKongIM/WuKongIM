@@ -1,0 +1,302 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d3cfd00c0..5bb9d2e59 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,15 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Wait for protocol readiness in original-v2 migration acceptance after the
++  first imported-history check, and retain connection-failure diagnostics.
++  / 原 v2 迁移验收先核对导入历史，再等待协议就绪后验证原凭证，保留连接失败诊断。
++
++- Preserve pending readiness when a history recovery barrier is locally durable
++  and all missing voters explicitly need replica catch-up; keep ambiguous and
++  conflicting failures closed. / 历史恢复屏障在本地已持久化且缺失副本均明确需要
++  追赶时保留未就绪状态，未知故障和冲突仍严格拒绝。
++
+ - Allow a new cloud chat-lifecycle request to lower its budget ceiling while
+   preserving the cleanup reserve through rehearsal, formal execution and remote
+   cost guards. / 新云端聊天生命周期请求可向下调整预算上限，预演、正式运行和远端
+diff --git a/pkg/channel/FLOW.md b/pkg/channel/FLOW.md
+index 254252134..d5acdc163 100644
+--- a/pkg/channel/FLOW.md
++++ b/pkg/channel/FLOW.md
+@@ -73,6 +73,8 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
+   Incomplete or unavailable quorum proofs retain public `ErrNotReady` identity
+   at Install, including across read RPCs. Local probe storage errors retain their
+   original cause; invalid proofs and configurations do not become pending recovery.
++  Barriers remain not ready only if locally durable and every missing voter has
++  a bounded NeedFrom receipt; other failures stay closed, with no added repair.
+ - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
+   only positive sequences covered by local HW and the logical retention floor.
+    Committed-read results own their payload bytes beyond store-handle closure,
+diff --git a/pkg/channel/replication/recovery_barrier.go b/pkg/channel/replication/recovery_barrier.go
+index 89df2732c..ca196e6a3 100644
+--- a/pkg/channel/replication/recovery_barrier.go
++++ b/pkg/channel/replication/recovery_barrier.go
+@@ -4,6 +4,7 @@ import (
+ 	"context"
+ 	"crypto/sha256"
+ 	"encoding/binary"
++	"errors"
+ 	"math"
+ 
+ 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+@@ -52,6 +53,19 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
+ 	}
+ 	result, err := runDurableRound(ctx, authority.Leader, authority.Voters, authority.WriteQuorum, proposal, dispatcher)
+ 	if err != nil {
++		// Only a durable local barrier with every missing vote accounted for by
++		// this round's exact NeedFrom receipts is pending recovery. Unknown,
++		// conflicting, backpressured, or locally non-durable outcomes stay closed.
++		if err == errDurableQuorumUnavailable && result.localDurable &&
++			result.durableVotes < authority.WriteQuorum &&
++			result.durableVotes+len(result.repairs) == len(authority.Voters) {
++			for _, repair := range result.repairs {
++				if repair.needFrom == 0 || repair.needFrom > proposal.last {
++					return recoveryBarrierResult{}, err
++				}
++			}
++			return recoveryBarrierResult{}, errors.Join(ch.ErrNotReady, err)
++		}
+ 		return recoveryBarrierResult{}, err
+ 	}
+ 	if !result.localDurable || result.durableVotes < authority.WriteQuorum || !result.outcome.Durable() {
+diff --git a/test/e2e/migration/ordinary_history/AGENTS.md b/test/e2e/migration/ordinary_history/AGENTS.md
+index bf8bc52b9..fe169b019 100644
+--- a/test/e2e/migration/ordinary_history/AGENTS.md
++++ b/test/e2e/migration/ordinary_history/AGENTS.md
+@@ -25,6 +25,11 @@ another append, and applicable Channel Leader failover. Each successful history
+ check logs its phase, node, row count and temporary-retry count; failures retain
+ the phase/node and existing bounded public/process diagnostics.
+ 
++After the first imported-history read, wait for the target ingress's real
++WKProto readiness before authenticating with the retained v2 credential.
++HTTP `/readyz` alone does not prove that protocol listener has started; keep
++the original credential assertion and do not retry business Connect or SEND.
++
+ Run the original regression slice with
+ `GOWORK=off go test -tags=e2e ./test/e2e/migration/ordinary_history -run '^TestOriginalOrdinaryHistoryTopology$/^1_source_nodes_to_3_target_nodes$' -count=1 -timeout=12m -p=1 -parallel=1 -json`,
+ then run the same command without `-run` for all five topology cases. Preserve
+diff --git a/test/e2e/migration/ordinary_history/ordinary_history_test.go b/test/e2e/migration/ordinary_history/ordinary_history_test.go
+index 34b3c7c9a..d5ebd3727 100644
+--- a/test/e2e/migration/ordinary_history/ordinary_history_test.go
++++ b/test/e2e/migration/ordinary_history/ordinary_history_test.go
+@@ -167,11 +167,18 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
+ 	for i := range cluster.Nodes {
+ 		check(&cluster.Nodes[i], "after-import")
+ 	}
++	// HTTP history can be ready before the WKProto listener. Preserve the cold
++	// history check above, then prove protocol readiness before using v2 credentials.
++	if err := cluster.MustNode(1).Process.WaitWKProtoReady(ctx, cluster.MustNode(1).GatewayAddr()); err != nil {
++		t.Fatalf("target ingress protocol readiness failed: %v\n%s", err, cluster.DumpDiagnostics())
++	}
+ 	// Authenticate through the real protocol using the token retained from v2.
+ 	client, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(1).GatewayAddr(), OperationTimeout: 5 * time.Second})
+ 	require.NoError(t, err)
+ 	_, err = client.Connect(ctx, wkclient.ConnectOptions{UID: "migrationalice", Token: "synthetic-migrationalice", DeviceID: "migration-history-check", DeviceFlag: frame.DeviceFlag(1)})
+-	require.NoError(t, err)
++	if err != nil {
++		t.Fatalf("retained v2 credential connection failed: %v\n%s", err, cluster.DumpDiagnostics())
++	}
+ 	ack, err := client.Send(ctx, wkclient.Message{ClientSeq: 1, ClientMsgNo: "after-original-migration", ChannelID: "migrationgroup", ChannelType: 2, Payload: []byte("protocol append")})
+ 	require.NoError(t, err)
+ 	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
+diff --git a/pkg/channel/replication/recovery_barrier_pending_test.go b/pkg/channel/replication/recovery_barrier_pending_test.go
+new file mode 100644
+index 000000000..a93695cca
+--- /dev/null
++++ b/pkg/channel/replication/recovery_barrier_pending_test.go
+@@ -0,0 +1,191 @@
++package replication
++
++import (
++	"context"
++	"errors"
++	"reflect"
++	"testing"
++	"time"
++
++	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
++	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
++)
++
++func TestQuorumLogInstallClassifiesOnlyProvedBarrierRepairPending(t *testing.T) {
++	for _, tt := range []struct {
++		name     string
++		faults   map[ch.NodeID]string
++		voters   int
++		quorum   int
++		pending  bool
++		success  bool
++		canceled bool
++	}{
++		{name: "healthy", success: true},
++		{name: "all_remote_need_from", faults: map[ch.NodeID]string{2: "need_from", 3: "need_from"}, pending: true},
++		{name: "quorum3_local_and_one_durable_rest_need_from", voters: 4, quorum: 3, faults: map[ch.NodeID]string{3: "need_from", 4: "need_from"}, pending: true},
++		{name: "one_need_from_with_healthy_quorum", faults: map[ch.NodeID]string{2: "need_from"}, success: true},
++		{name: "need_from_and_conflict", faults: map[ch.NodeID]string{2: "need_from", 3: "conflict"}},
++		{name: "need_from_and_unknown", faults: map[ch.NodeID]string{2: "need_from", 3: "unknown"}},
++		{name: "need_from_and_backpressure", faults: map[ch.NodeID]string{2: "need_from", 3: "backpressure"}},
++		{name: "need_from_and_submit_failure", faults: map[ch.NodeID]string{2: "need_from", 3: "submit_failure"}},
++		{name: "all_backpressure", faults: map[ch.NodeID]string{2: "backpressure", 3: "backpressure"}},
++		{name: "all_unknown", faults: map[ch.NodeID]string{2: "unknown", 3: "unknown"}},
++		{name: "local_unknown_remote_need_from", faults: map[ch.NodeID]string{1: "unknown", 2: "need_from", 3: "need_from"}},
++		{name: "local_not_written_remote_need_from", faults: map[ch.NodeID]string{1: "backpressure", 2: "need_from", 3: "need_from"}},
++		{name: "local_conflict_remote_need_from", faults: map[ch.NodeID]string{1: "conflict", 2: "need_from", 3: "need_from"}},
++		{name: "need_from_zero", faults: map[ch.NodeID]string{2: "need_from_zero", 3: "need_from"}},
++		{name: "need_from_beyond_barrier", faults: map[ch.NodeID]string{2: "need_from_beyond_barrier", 3: "need_from"}},
++		{name: "need_from_wrong_follower", faults: map[ch.NodeID]string{2: "need_from_wrong_follower", 3: "need_from"}},
++		{name: "need_from_wrong_cause", faults: map[ch.NodeID]string{2: "need_from_wrong_cause", 3: "need_from"}},
++		{name: "need_from_wrong_outcome", faults: map[ch.NodeID]string{2: "need_from_wrong_outcome", 3: "need_from"}},
++		{name: "canceled", canceled: true},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			if tt.voters == 0 {
++				tt.voters = 3
++			}
++			if tt.quorum == 0 {
++				tt.quorum = 2
++			}
++			voters := make([]ch.NodeID, tt.voters)
++			for i := range voters {
++				voters[i] = ch.NodeID(i + 1)
++			}
++			h := newReplicaHarness(t, voters...)
++			a := Authority{Key: "1:barrier-pending", ChannelID: ch.ChannelID{ID: "barrier-pending", Type: 1},
++				ID: AuthorityID{ChannelEpoch: 3, LeaderTerm: 6, FenceVersion: 8}, Leader: 1, Voters: voters, WriteQuorum: tt.quorum}
++			original, _ := recoveryMutationAfter(t, a.Key, a.ChannelID, 41, 0, ch.EntryIdentity{})
++			original.Committed = 1
++			stores := make(map[ch.NodeID]channelstore.ChannelStore, len(voters))
++			before := make(map[ch.NodeID]channelstore.ReadCommittedResult, len(voters))
++			for _, voter := range voters {
++				seed := h.stores[voter].Sync(context.Background(), []Mutation{original})
++				if len(seed) != 1 || !seed[0].Outcome.Durable() || seed[0].Err != nil {
++					t.Fatalf("seed voter %d: %+v", voter, seed)
++				}
++				store, err := h.stores[voter].(*storeAdapter).cfg.Factory.ChannelStore(a.Key, a.ChannelID)
++				if err != nil {
++					t.Fatal(err)
++				}
++				stores[voter] = store
++				before[voter] = barrierPendingHistory(t, store)
++				if len(before[voter].Messages) != 1 || before[voter].Messages[0].MessageID != 41 {
++					t.Fatalf("seed history voter %d: %+v", voter, before[voter])
++				}
++			}
++			dispatcher := &barrierPendingDispatcher{replicaHarness: h, faults: tt.faults}
++			log, err := newQuorumLog(quorumLogConfig{Local: 1, Store: h.stores[1], Recovery: h, Durability: dispatcher,
++				RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10, MaxChannels: 8, MaxVoters: tt.voters,
++				MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16})
++			if err != nil {
++				t.Fatal(err)
++			}
++			ctx := context.Background()
++			if tt.canceled {
++				canceled, cancel := context.WithCancel(ctx)
++				cancel()
++				ctx = canceled
++			}
++			installed, installErr := log.Install(ctx, a)
++			if (installErr == nil) != tt.success || errors.Is(installErr, ch.ErrNotReady) != tt.pending {
++				t.Errorf("Install error=%v ready=%v; want success=%v pending=%v", installErr, errors.Is(installErr, ch.ErrNotReady), tt.success, tt.pending)
++			}
++			if tt.pending && !errors.Is(installErr, errDurableQuorumUnavailable) {
++				t.Errorf("pending Install lost original quorum failure: %v", installErr)
++			}
++			if tt.canceled && !errors.Is(installErr, context.Canceled) {
++				t.Errorf("cancellation lost: %v", installErr)
++			}
++			state := log.channels[a.Key]
++			if tt.success {
++				if installed.HW != 2 || state == nil || !state.ready {
++					t.Errorf("healthy recovery did not grant exact frontier: %+v state=%+v", installed, state)
++				}
++			} else {
++				if installed != (Installed{}) || (state != nil && (state.ready || state.hw != 0 || state.frontier != (ReplicaState{}))) {
++					t.Errorf("failed barrier granted readiness/frontier: %+v state=%+v", installed, state)
++				}
++				if !tt.canceled {
++					_, err := log.Commit(context.Background(), Proposal{Key: a.Key, Expected: a.ID, CommandID: ch.CommandID{31: 99},
++						Records: []ch.Record{{ID: 99, Epoch: 3, Payload: []byte("not-admitted"), SizeBytes: 12, ServerTimestampMS: 99}}})
++					if !errors.Is(err, ch.ErrNotReady) {
++						t.Errorf("failed recovery opened business admission: %v", err)
++					}
++				}
++			}
++			for _, voter := range voters {
++				if got := barrierPendingHistory(t, stores[voter]); !reflect.DeepEqual(got, before[voter]) {
++					t.Errorf("failed/recovered attempt changed old history at voter %d: %+v", voter, got)
++				}
++			}
++			// Remove only the controlled completion fault. This checks retry safety,
++			// not follower catch-up scheduling or the cause of a real E2E failure.
++			dispatcher.faults = nil
++			recovered, err := log.Install(context.Background(), a)
++			if err != nil || recovered.HW != 2 {
++				t.Errorf("Install after removing fault: %+v err=%v", recovered, err)
++			}
++			for _, voter := range voters {
++				if got := barrierPendingHistory(t, stores[voter]); !reflect.DeepEqual(got, before[voter]) {
++					t.Errorf("recovery changed original history at voter %d: %+v", voter, got)
++				}
++			}
++		})
++	}
++}
++
++func barrierPendingHistory(t *testing.T, store channelstore.ChannelStore) channelstore.ReadCommittedResult {
++	t.Helper()
++	read, err := store.ReadCommitted(context.Background(), channelstore.ReadCommittedRequest{FromSeq: 1, MinSeq: 1, MaxSeq: 1, Limit: 2, MaxBytes: 64 << 10})
++	if err != nil {
++		t.Fatal(err)
++	}
++	return read
++}
++
++type barrierPendingDispatcher struct {
++	*replicaHarness
++	faults map[ch.NodeID]string
++}
++
++func (d *barrierPendingDispatcher) submitLocal(ctx context.Context, p durableProposal, complete func(durabilityCompletion)) error {
++	return d.submitFault(ctx, 1, p, complete)
++}
++
++func (d *barrierPendingDispatcher) submitReplica(ctx context.Context, voter ch.NodeID, p durableProposal, complete func(durabilityCompletion)) error {
++	return d.submitFault(ctx, voter, p, complete)
++}
++
++func (d *barrierPendingDispatcher) submitFault(_ context.Context, voter ch.NodeID, p durableProposal, complete func(durabilityCompletion)) error {
++	kind := d.faults[voter]
++	if kind == "" {
++		d.replicaHarness.submit(voter, p, complete)
++		return nil
++	}
++	if kind == "submit_failure" {
++		return ch.ErrBackpressured
++	}
++	c := durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: errReplicaNeedsRepair, follower: voter, needFrom: p.last}
++	switch kind {
++	case "need_from":
++	case "need_from_zero":
++		c.needFrom = 0
++	case "need_from_beyond_barrier":
++		c.needFrom = p.last + 1
++	case "need_from_wrong_follower":
++		c.follower = voter + 10
++	case "need_from_wrong_cause":
++		c.err = ch.ErrBackpressured
++	case "need_from_wrong_outcome":
++		c.outcome = ch.AppendOutcomeUnknown
++	case "conflict":
++		c = durabilityCompletion{outcome: ch.AppendOutcomeConflict, err: ch.ErrLogConflict}
++	case "unknown":
++		c = durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errPeerOutcomeUnknown}
++	case "backpressure":
++		c = durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: ch.ErrBackpressured}
++	}
++	complete(c)
++	return nil
++}

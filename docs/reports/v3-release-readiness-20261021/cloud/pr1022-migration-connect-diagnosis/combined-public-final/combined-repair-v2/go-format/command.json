@@ -1,0 +1,14 @@
+{
+  "arguments": [
+    "go",
+    "run",
+    "./cmd/wkreviewcheck",
+    "go-format"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "timeout_seconds": 300,
+  "max_output_bytes": 1048576,
+  "named_check": "go-format",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "source_freeze_sha256": "1c8a9e7a7d82360bbd95316fbe957bc11db1b73c3b39fd916ebadd7f803ef2a8"
+}

@@ -1,0 +1,182 @@
+package replication
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"testing"
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
+)
+
+// TestRecoveryBarrierDiagnosticTaxonomy is a temporary diagnostic contract.
+// It exercises real Install over a nonempty older authority, not the unknown
+// historical E2E cause. Clearing a synthetic fault is not a storage repair.
+func TestRecoveryBarrierDiagnosticTaxonomy(t *testing.T) {
+	for _, mode := range []string{"control", "remote_backpressure", "local_sync_error", "local_conflict", "remote_conflict"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := context.Background()
+			h := newReplicaHarness(t, 1, 2, 3)
+			a := Authority{Key: "1:barrier-diagnostic", ChannelID: ch.ChannelID{ID: "barrier-diagnostic", Type: 1},
+				ID: AuthorityID{ChannelEpoch: 3, LeaderTerm: 6, FenceVersion: 8}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
+			original, _ := recoveryMutationAfter(t, a.Key, a.ChannelID, 41, 0, ch.EntryIdentity{})
+			original.Committed = 1
+			if original.Manifest.LeaderTerm >= a.ID.LeaderTerm || original.Manifest.FenceVersion >= a.ID.FenceVersion {
+				t.Fatal("fixture must cross authority and exercise recovery barrier")
+			}
+			localErr := errors.New("diagnostic local sync failure")
+			fault := &barrierDiagnosticFault{mode: mode, enabled: true, localErr: localErr}
+			stores := make(map[ch.NodeID]channelstore.ChannelStore)
+			before := make(map[ch.NodeID]channelstore.ReadCommittedResult)
+			for _, voter := range a.Voters {
+				adapter := h.stores[voter].(*storeAdapter)
+				seed := adapter.Sync(ctx, []Mutation{original})
+				if len(seed) != 1 || !seed[0].Outcome.Durable() || seed[0].Err != nil {
+					t.Fatalf("seed voter %d: %+v", voter, seed)
+				}
+				store, err := adapter.cfg.Factory.ChannelStore(a.Key, a.ChannelID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stores[voter] = store
+				before[voter] = barrierDiagnosticHistory(t, store)
+				if len(before[voter].Messages) != 1 || before[voter].Messages[0].MessageID != 41 {
+					t.Fatalf("seed history voter %d: %+v", voter, before[voter])
+				}
+				h.stores[voter] = &barrierDiagnosticStore{ReplicaStore: adapter, voter: voter, fault: fault}
+			}
+			log, err := newQuorumLog(quorumLogConfig{Local: 1, Store: h.stores[1], Recovery: h, Durability: h,
+				RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10, MaxChannels: 8, MaxVoters: 3,
+				MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16})
+			if err != nil {
+				t.Fatal(err)
+			}
+			installed, installErr := log.Install(ctx, a)
+			state := log.channels[a.Key]
+			if state == nil {
+				t.Fatal("Install never reached the actual Channel state")
+			}
+			originalCause := error(nil)
+			switch mode {
+			case "remote_backpressure":
+				originalCause = ch.ErrBackpressured
+			case "local_sync_error":
+				originalCause = localErr
+			case "local_conflict", "remote_conflict":
+				originalCause = ch.ErrLogConflict
+			}
+			observation := map[string]any{"mode": mode, "error": fmt.Sprint(installErr), "original_cause_preserved": errors.Is(installErr, originalCause),
+				"not_ready": errors.Is(installErr, ch.ErrNotReady), "log_conflict": errors.Is(installErr, ch.ErrLogConflict),
+				"quorum_unavailable": errors.Is(installErr, errDurableQuorumUnavailable), "installed": installed,
+				"ready": state.ready, "hw": state.hw, "frontier": state.frontier, "faults": fault.observed}
+			if mode == "control" {
+				if installErr != nil || !state.ready || installed.HW != 2 {
+					t.Errorf("healthy authority barrier failed: %+v err=%v ready=%v", installed, installErr, state.ready)
+				}
+			} else {
+				if installErr == nil || installed != (Installed{}) || state.ready || state.hw != 0 || state.frontier != (ReplicaState{}) {
+					t.Errorf("failed barrier granted readiness/frontier: %+v error=%v state=%+v", installed, installErr, state)
+				}
+				if !errors.Is(installErr, originalCause) {
+					t.Errorf("original cause lost: error=%v want cause=%v", installErr, originalCause)
+				}
+				if errors.Is(installErr, ch.ErrNotReady) != (mode == "remote_backpressure") {
+					t.Errorf("temporary classification: error=%v notReady=%v mode=%s", installErr, errors.Is(installErr, ch.ErrNotReady), mode)
+				}
+				next := Proposal{Key: a.Key, Expected: a.ID, CommandID: ch.CommandID{31: 99},
+					Records: []ch.Record{{ID: 99, Epoch: 3, Payload: []byte("not-admitted"), SizeBytes: 12, ServerTimestampMS: 99}}}
+				_, commitErr := log.Commit(ctx, next)
+				observation["commit_before_recovery_not_ready"] = errors.Is(commitErr, ch.ErrNotReady)
+				if !errors.Is(commitErr, ch.ErrNotReady) {
+					t.Errorf("business admission opened after failed barrier: %v", commitErr)
+				}
+			}
+			historyHashes := make(map[ch.NodeID]string)
+			for _, voter := range a.Voters {
+				got := barrierDiagnosticHistory(t, stores[voter])
+				if !reflect.DeepEqual(got, before[voter]) {
+					t.Errorf("original history changed at voter %d: before=%+v after=%+v", voter, before[voter], got)
+				}
+				encoded, _ := json.Marshal(got)
+				historyHashes[voter] = fmt.Sprintf("%x", sha256.Sum256(encoded))
+			}
+			observation["history_after_first_attempt_sha256"] = historyHashes
+			if mode != "control" {
+				fault.enabled = false
+				recovered, recoveryErr := log.Install(ctx, a)
+				observation["fault_clear_recovery"] = map[string]any{"error": fmt.Sprint(recoveryErr), "installed": recovered, "ready": state.ready}
+				if recoveryErr != nil || !state.ready || recovered.HW != 2 {
+					t.Errorf("fault-clear Install failed: %+v err=%v ready=%v", recovered, recoveryErr, state.ready)
+				}
+				for _, voter := range a.Voters {
+					if got := barrierDiagnosticHistory(t, stores[voter]); !reflect.DeepEqual(got, before[voter]) {
+						t.Errorf("fault-clear recovery changed original history at voter %d: %+v", voter, got)
+					}
+				}
+			}
+			encoded, err := json.Marshal(observation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("BARRIER_DIAGNOSTIC %s", encoded)
+		})
+	}
+}
+
+func barrierDiagnosticHistory(t *testing.T, store channelstore.ChannelStore) channelstore.ReadCommittedResult {
+	t.Helper()
+	read, err := store.ReadCommitted(context.Background(), channelstore.ReadCommittedRequest{FromSeq: 1, MinSeq: 1, MaxSeq: 1, Limit: 2, MaxBytes: 64 << 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return read
+}
+
+type barrierDiagnosticFault struct {
+	mode     string
+	enabled  bool
+	localErr error
+	observed []map[string]any
+}
+
+type barrierDiagnosticStore struct {
+	ReplicaStore
+	voter ch.NodeID
+	fault *barrierDiagnosticFault
+}
+
+func (s *barrierDiagnosticStore) LookupCommands(ctx context.Context, q []CommandLookup) []CommandLookupResult {
+	return s.ReplicaStore.(commandStore).LookupCommands(ctx, q)
+}
+
+func (s *barrierDiagnosticStore) Sync(ctx context.Context, mutations []Mutation) []MutationResult {
+	results := make([]MutationResult, len(mutations))
+	for i, mutation := range mutations {
+		var injected *MutationResult
+		if s.fault.enabled && mutation.Manifest.Version == quorumlog.RecoveryBarrierProposalManifestVersion {
+			switch {
+			case s.fault.mode == "remote_backpressure" && s.voter != 1:
+				// This is the exact current ReplicateBackpressured completion, not
+				// evidence that all wire backpressure has a temporary storage cause.
+				injected = &MutationResult{Outcome: ch.AppendOutcomeDefinitelyNotWritten, Err: ch.ErrBackpressured}
+			case s.fault.mode == "local_sync_error" && s.voter == 1:
+				injected = &MutationResult{Outcome: ch.AppendOutcomeUnknown, Err: s.fault.localErr}
+			case s.fault.mode == "local_conflict" && s.voter == 1, s.fault.mode == "remote_conflict" && s.voter != 1:
+				injected = &MutationResult{Outcome: ch.AppendOutcomeConflict, Err: ch.ErrLogConflict}
+			}
+		}
+		if injected != nil {
+			results[i] = *injected
+			s.fault.observed = append(s.fault.observed, map[string]any{"voter": s.voter, "outcome": injected.Outcome, "error": injected.Err.Error(), "manifest_version": mutation.Manifest.Version})
+		} else {
+			results[i] = s.ReplicaStore.Sync(ctx, []Mutation{mutation})[0]
+		}
+	}
+	return results
+}

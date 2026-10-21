@@ -1,0 +1,141 @@
+{
+  "pr": "https://github.com/WuKongIM/packages/pull/75",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "base": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "attempt": 1,
+  "pr_draft": true,
+  "all_runs_terminal": true,
+  "all_required_checks_passed": false,
+  "pages": {
+    "run": 39631486007,
+    "job": 119330563044,
+    "conclusion": "success",
+    "python_tests": 554,
+    "skipped": 0,
+    "publication_control_tests": 4,
+    "deploy": "skipped"
+  },
+  "native": {
+    "run": 39631486744,
+    "conclusion": "failure",
+    "original_job": 119330566802,
+    "original_conclusion": "success",
+    "actual_suites": [
+      {
+        "name": "native-source-metadata",
+        "cases": 7,
+        "transport_cases": 0,
+        "cleanup": {}
+      },
+      {
+        "name": "native-local-signing",
+        "cases": 10,
+        "transport_cases": 0,
+        "cleanup": {
+          "secret_tree_removed_before_verification": true,
+          "source_inputs_unchanged": true
+        }
+      },
+      {
+        "name": "native-bootstrap-preparation",
+        "cases": 6,
+        "transport_cases": 0,
+        "cleanup": {
+          "scratch_removed": true
+        }
+      },
+      {
+        "name": "native-stable-candidate",
+        "cases": 31,
+        "transport_cases": 8,
+        "cleanup": {
+          "checked_in_control_unchanged": true,
+          "secret_tree_removed_before_verification": true,
+          "scratch_removed": true
+        }
+      }
+    ],
+    "complete_signed_repository_build_verify_install_passed": true
+  },
+  "stable": {
+    "job": 119330566284,
+    "planned_cases": 49,
+    "executed_cases": 34,
+    "passed_cases": 33,
+    "failed_cases": 1,
+    "not_reached": 15,
+    "failed_case_number": 34,
+    "failed_case": "alma-linux-9-A-to-B-request-barrier",
+    "failure": "downloaded rpm package is absent from the indexed snapshot",
+    "download_process_exit": 0,
+    "downloaded_version": "3.0.1",
+    "expected_barrier_snapshot": "A/3.0.0",
+    "http_serial": 35,
+    "command_index_zero_based": 195,
+    "baseline_installations_verified": 8,
+    "product_source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "reader_cleanup": {
+      "verified": true,
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    "cleanup": {
+      "verified": true,
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    "cache_cleanup": [
+      {
+        "cache": "cache-ubuntu-24.04",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-debian-13",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-rocky-linux-9",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-alma-linux-9",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      }
+    ],
+    "actual_job_times": {
+      "started_at": "2026-10-21T16:04:48Z",
+      "completed_at": "2026-10-21T16:13:23Z"
+    },
+    "driver_start": "2026-10-21T16:05:35Z",
+    "command_bound_seconds": 3300,
+    "kill_after_seconds": 45,
+    "job_bound_minutes": 60
+  },
+  "causal_limit": "Driver, validator, fixtures, and native workflow bytes equal accepted PR74 tip and merged base. This is not proof of infrastructure causality. Actual sequence moved from A to B signed metadata then B signed RPM; exact-A host guard rejected it. No repair or CI rerun performed.",
+  "test_only": true,
+  "published": false,
+  "public_origin_verified": false,
+  "source_provenance_verified": false,
+  "reruns_dispatched": 0,
+  "production_mutations": 0,
+  "observer_exec_sessions": "all completed before sealing"
+}

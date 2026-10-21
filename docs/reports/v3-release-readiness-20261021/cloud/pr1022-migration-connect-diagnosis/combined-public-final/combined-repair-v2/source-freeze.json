@@ -1,0 +1,25 @@
+{
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "frozen_at": "2026-10-21T16:06:47.255628+00:00",
+  "files": {
+    "CHANGELOG.md": "8c57aa80061e200f9363daa28a9ad248e1b06e3d6e74378028503a333112052e",
+    "pkg/channel/FLOW.md": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259",
+    "pkg/channel/replication/recovery_barrier.go": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "d24b12b77aadf0f356c46cff2930b2f293e8be33d645034e0118dac1eccf973c",
+    "pkg/channel/replication/recovery_barrier_pending_test.go": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d",
+    "docs/development/FLOW_INDEX.md": "4759e55986b34fb16545626db9769720ed69a0bc094450bc14509680b0eeca44"
+  },
+  "patch_sha256": "38519d247817780b633401280ffebba3433bf0f8b0bf5ee1e6bbc059a38c03b0",
+  "inputs": [
+    "../repair-v2/source-freeze.json",
+    "../barrier-repair-v1/source-freeze.json",
+    "../barrier-repair-v2/flow-only-delta.json",
+    "../combined-repair-v1/source-freeze.json"
+  ],
+  "production_changes": [
+    "pkg/channel/replication/recovery_barrier.go"
+  ],
+  "fixture_scope": "exact two previously reviewed v2 files; both changelog entries retained; no retry/timeout/assertion changes",
+  "generated_delta": "Only generated index reflects pkg/channel/FLOW.md line count 148 -> 150, after exact named gate required it."
+}

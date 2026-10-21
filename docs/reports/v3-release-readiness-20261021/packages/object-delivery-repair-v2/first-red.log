@@ -1,0 +1,304 @@
+test_01_preview_only_preserves_original_plan_and_unknown_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_01_preview_only_preserves_original_plan_and_unknown_resource) ... ok
+test_02_original_planner_rejects_schema_channel_unknown_fields (test_object_storage_delivery.ObjectStorageDeliveryTest.test_02_original_planner_rejects_schema_channel_unknown_fields) ... ok
+test_03_simulated_success_never_means_production_and_cannot_enable_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_03_simulated_success_never_means_production_and_cannot_enable_resource) ... FAIL
+test_04_input_or_archive_change_never_reuses_old_progress (test_object_storage_delivery.ObjectStorageDeliveryTest.test_04_input_or_archive_change_never_reuses_old_progress) ... ok
+test_05_composite_alias_materializes_from_original_source_and_preserves_schema (test_object_storage_delivery.ObjectStorageDeliveryTest.test_05_composite_alias_materializes_from_original_source_and_preserves_schema) ... ok
+test_05_missing_or_changed_archive_member_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_05_missing_or_changed_archive_member_is_rejected) ... ok
+test_06_plan_digest_and_materialized_generated_bytes_are_exact (test_object_storage_delivery.ObjectStorageDeliveryTest.test_06_plan_digest_and_materialized_generated_bytes_are_exact) ... ok
+test_07_conflict_and_unknown_put_success_require_actual_exact_get (test_object_storage_delivery.ObjectStorageDeliveryTest.test_07_conflict_and_unknown_put_success_require_actual_exact_get) ... ok
+test_07_get_faults_and_put_denial_keep_observed_upload_side_effects (test_object_storage_delivery.ObjectStorageDeliveryTest.test_07_get_faults_and_put_denial_keep_observed_upload_side_effects) ... ok
+test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops) ... ok
+test_09_alias_priority_and_original_snapshot_routes_are_exact (test_object_storage_delivery.ObjectStorageDeliveryTest.test_09_alias_priority_and_original_snapshot_routes_are_exact) ... ok
+test_10_root_repo_and_floating_cache_are_preserved (test_object_storage_delivery.ObjectStorageDeliveryTest.test_10_root_repo_and_floating_cache_are_preserved) ... ok
+test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed (test_object_storage_delivery.ObjectStorageDeliveryTest.test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed) ... ok
+test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops) ... ok
+test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback (test_object_storage_delivery.ObjectStorageDeliveryTest.test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback) ... ok
+test_13_configuration_or_control_drift_before_activation_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_13_configuration_or_control_drift_before_activation_stops) ... ok
+test_14_refresh_or_origin_failure_retains_activated_observation (test_object_storage_delivery.ObjectStorageDeliveryTest.test_14_refresh_or_origin_failure_retains_activated_observation) ... ok
+test_15_exact_target_cli_identity_and_all_four_receipts_are_required (test_object_storage_delivery.ObjectStorageDeliveryTest.test_15_exact_target_cli_identity_and_all_four_receipts_are_required) ... ok
+test_16_preview_only_cannot_replace_an_observed_stable_configuration (test_object_storage_delivery.ObjectStorageDeliveryTest.test_16_preview_only_cannot_replace_an_observed_stable_configuration) ... ok
+test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) ... 
+  test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={}) ... FAIL
+  test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True}) ... FAIL
+  test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True, 'activation_control_sha': None}) ... FAIL
+  test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True, 'activation_control_sha': 'invalid'}) ... FAIL
+  test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True, 'activation_control_sha': 'dddddddddddddddddddddddddddddddddddddddd'}) ... FAIL
+  test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': False, 'activation_control_sha': 'cccccccccccccccccccccccccccccccccccccccc'}) ... FAIL
+test_18_unknown_activation_control_allows_preparation_but_not_simulated_writes (test_object_storage_delivery.ObjectStorageDeliveryTest.test_18_unknown_activation_control_allows_preparation_but_not_simulated_writes) ... FAIL
+test_19_only_current_activation_control_drift_is_fenced_after_upload (test_object_storage_delivery.ObjectStorageDeliveryTest.test_19_only_current_activation_control_drift_is_fenced_after_upload) ... FAIL
+test_20_matching_current_control_and_stable_receipt_digests_preserve_original_evidence (test_object_storage_delivery.ObjectStorageDeliveryTest.test_20_matching_current_control_and_stable_receipt_digests_preserve_original_evidence) ... ERROR
+test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) ... 
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad='missing') ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad='0000000000000000000000000000000000000000000000000000000000000000') ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad=None) ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad=17) ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad='missing') ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad='0000000000000000000000000000000000000000000000000000000000000000') ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad=None) ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad=17) ... FAIL
+  test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='both', bad='missing') ... FAIL
+test_22_same_stable_target_receipt_from_different_composite_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_22_same_stable_target_receipt_from_different_composite_is_rejected) ... 
+  test_22_same_stable_target_receipt_from_different_composite_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_22_same_stable_target_receipt_from_different_composite_is_rejected) (change='preview') ... FAIL
+  test_22_same_stable_target_receipt_from_different_composite_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_22_same_stable_target_receipt_from_different_composite_is_rejected) (change='retain') ... FAIL
+test_output_collision_symlink_and_failures_do_not_overwrite_inputs (test_object_storage_delivery.ObjectStorageDeliveryTest.test_output_collision_symlink_and_failures_do_not_overwrite_inputs) ... ok
+
+======================================================================
+ERROR: test_20_matching_current_control_and_stable_receipt_digests_preserve_original_evidence (test_object_storage_delivery.ObjectStorageDeliveryTest.test_20_matching_current_control_and_stable_receipt_digests_preserve_original_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 501, in test_20_matching_current_control_and_stable_receipt_digests_preserve_original_evidence
+    self.assertEqual([self.cloud.activation_control] * 2, result['activation_control_observations'])
+                                                          ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'activation_control_observations'
+
+======================================================================
+FAIL: test_03_simulated_success_never_means_production_and_cannot_enable_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_03_simulated_success_never_means_production_and_cannot_enable_resource)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 238, in test_03_simulated_success_never_means_production_and_cannot_enable_resource
+    self.assertEqual(['preflight', 'read_activation_control', 'read_configuration'], self.cloud.events[:3])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['preflight', 'read_activation_control', 'read_configuration'] != ['preflight', 'read_configuration', ('put', 'public/apt/dists[104 chars]6b')]
+
+First differing element 1:
+'read_activation_control'
+'read_configuration'
+
+- ['preflight', 'read_activation_control', 'read_configuration']
++ ['preflight',
++  'read_configuration',
++  ('put',
++   'public/apt/dists/preview/main/binary-amd64/by-hash/SHA256/93af05b442a8b5655c2ec67faf962ef178ee1411cbd9a9eea330652c1d7e916b')]
+
+======================================================================
+FAIL: test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 452, in test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 452, in test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True, 'activation_control_sha': None})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 452, in test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True, 'activation_control_sha': 'invalid'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 452, in test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': True, 'activation_control_sha': 'dddddddddddddddddddddddddddddddddddddddd'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 452, in test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put (test_object_storage_delivery.ObjectStorageDeliveryTest.test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put) (observation={'simulated': False, 'activation_control_sha': 'cccccccccccccccccccccccccccccccccccccccc'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 452, in test_17_current_activation_control_missing_invalid_or_mismatched_stops_before_put
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_18_unknown_activation_control_allows_preparation_but_not_simulated_writes (test_object_storage_delivery.ObjectStorageDeliveryTest.test_18_unknown_activation_control_allows_preparation_but_not_simulated_writes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 464, in test_18_unknown_activation_control_allows_preparation_but_not_simulated_writes
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_19_only_current_activation_control_drift_is_fenced_after_upload (test_object_storage_delivery.ObjectStorageDeliveryTest.test_19_only_current_activation_control_drift_is_fenced_after_upload)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 476, in test_19_only_current_activation_control_drift_is_fenced_after_upload
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad='0000000000000000000000000000000000000000000000000000000000000000')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_inputs_sha256', bad=17)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad='0000000000000000000000000000000000000000000000000000000000000000')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='transport_plan_sha256', bad=17)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged (test_object_storage_delivery.ObjectStorageDeliveryTest.test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged) (field='both', bad='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 530, in test_21_stable_receipt_missing_or_wrong_input_or_plan_digest_is_rejected_unchanged
+    self.assertEqual('incomplete', result['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_22_same_stable_target_receipt_from_different_composite_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_22_same_stable_target_receipt_from_different_composite_is_rejected) (change='preview')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 570, in test_22_same_stable_target_receipt_from_different_composite_is_rejected
+    self.assertEqual('incomplete', rejected['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+======================================================================
+FAIL: test_22_same_stable_target_receipt_from_different_composite_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_22_same_stable_target_receipt_from_different_composite_is_rejected) (change='retain')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 570, in test_22_same_stable_target_receipt_from_different_composite_is_rejected
+    self.assertEqual('incomplete', rejected['status'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'incomplete' != 'simulated_complete'
+- incomplete
++ simulated_complete
+
+
+----------------------------------------------------------------------
+Ran 26 tests in 13.362s
+
+FAILED (failures=20, errors=1)

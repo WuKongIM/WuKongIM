@@ -1,0 +1,10 @@
+{
+  "reviewed_base": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "reviewed_patch_sha256": "758c319723a6ae83169ae29cab015296ba13a6f160dea46f7223b8ca978d0029",
+  "initial_local_commit": "0ff0e5823bb31de15dd4e06e6d3daf14a0490d06",
+  "base_after_same_tree_rebase": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "source_bytes_unchanged": true,
+  "clean": true
+}

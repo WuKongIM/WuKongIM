@@ -1,0 +1,38 @@
+{
+  "flow-doc-contracts": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 47312,
+    "output_bytes": 1376,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 47312,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 0.129
+  },
+  "go-format": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 47319,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 47319,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 0.944
+  }
+}

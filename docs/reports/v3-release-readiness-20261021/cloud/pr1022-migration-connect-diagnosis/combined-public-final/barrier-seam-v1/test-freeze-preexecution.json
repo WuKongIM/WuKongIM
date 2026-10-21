@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-21T15:59:13.980699+00:00",
+  "test_file": "pkg/channel/replication/recovery_barrier_diagnostic_test.go",
+  "test_sha256": "aafa9023a524f6833c7041c80b48ca2383dc3cb974a1bdfa34c86c699b154756",
+  "tracked_diff": "",
+  "status": "?? pkg/channel/replication/recovery_barrier_diagnostic_test.go\n",
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "command": [
+    "go",
+    "test",
+    "./pkg/channel/replication",
+    "-run",
+    "^TestRecoveryBarrierDiagnosticTaxonomy$",
+    "-count=1",
+    "-timeout=2m",
+    "-p=2",
+    "-json"
+  ],
+  "run_count": 1,
+  "production_changes": false,
+  "preexecution_type_correction": "ChannelStore interface exact name; no test execution before this revision"
+}

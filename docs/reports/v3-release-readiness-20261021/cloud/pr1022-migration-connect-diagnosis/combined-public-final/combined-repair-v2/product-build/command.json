@@ -1,0 +1,13 @@
+{
+  "arguments": [
+    "go",
+    "build",
+    "-tags=e2e",
+    "-o",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/wukongim-combined-darwin",
+    "./cmd/wukongim"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recovery-barrier",
+  "timeout_seconds": 720,
+  "max_output_bytes": 8388608
+}

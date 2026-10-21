@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-10-21T16:07:57.031343+00:00",
+  "base_commit": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "patch_sha256": "38519d247817780b633401280ffebba3433bf0f8b0bf5ee1e6bbc059a38c03b0",
+  "source_freeze_sha256": "1c8a9e7a7d82360bbd95316fbe957bc11db1b73c3b39fd916ebadd7f803ef2a8",
+  "binary_path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/wukongim-combined-darwin",
+  "binary_size": 92887922,
+  "binary_sha256": "8543864c52d254b50b1a585b9c4db4784defc5d5f14b8cf2fb05f51db9a751b3",
+  "build_info_sha256": "4a297b6818a600a1707d60616963714d2972d2cc7c7060b73401e233e82360b1",
+  "vcs_modified": true,
+  "source_unchanged_after_build": true,
+  "build_count": 1
+}

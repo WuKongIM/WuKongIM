@@ -1,0 +1,158 @@
+{
+  "source_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "source_tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "observed_at": "2026-10-21T15:58:18.349789+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect",
+  "rules": {
+    "AGENTS.md": {
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/FLOW.md": {
+      "size": 12263,
+      "sha256": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/reactor/FLOW.md": {
+      "size": 5783,
+      "sha256": "00c68c4f2d9f0fbee08b9c4f1d21f35d40e183700afcab3b06a48be060030f4b",
+      "matches_source_git_blob": true
+    },
+    "pkg/cluster/FLOW.md": {
+      "size": 14273,
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "matches_source_git_blob": true
+    },
+    "internal/runtime/readavailability/FLOW.md": {
+      "size": 1589,
+      "sha256": "c2377f3d87f4f1b3c5e247ff4ce6a4981e7cb71e930428b2a543e871f07a233c",
+      "matches_source_git_blob": true
+    },
+    "internal/runtime/channelappend/FLOW.md": {
+      "size": 7313,
+      "sha256": "7ae41e62c0ba2a83051d9199d963e21dc4fd9c471b611b2c5a9224cdbfa689a5",
+      "matches_source_git_blob": true
+    },
+    "internal/usecase/message/FLOW.md": {
+      "size": 9514,
+      "sha256": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348",
+      "matches_source_git_blob": true
+    },
+    "internal/access/api/FLOW.md": {
+      "size": 8815,
+      "sha256": "2af34512e6fb8cd0559ddad21c8e4d4a317b699c088ed28c0673847a2940ade9",
+      "matches_source_git_blob": true
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "size": 8612,
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "matches_source_git_blob": true
+    }
+  },
+  "sources": {
+    "pkg/channel/replication/quorum_log.go": {
+      "size": 27407,
+      "sha256": "da31a1e1d5fd4c2f8d86bde9ef9aa5639dd528aef3cd9fb676bde48f84aea4cf",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/quorum_round.go": {
+      "size": 4683,
+      "sha256": "071e016817325663043401d6521c395d052657c916bb95bea6a6000195217f7f",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/quorum_round_state.go": {
+      "size": 9566,
+      "sha256": "9a3363f2e7ac4e3b717947c10bcece9390b6d9c24eeeb2541e48a45ab1345269",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/recovery_barrier.go": {
+      "size": 5210,
+      "sha256": "b7c340d3af98b9f78fa65e4e36424e17ca64fdb9f57872e5a755a852cd9777d1",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/durability_dispatcher.go": {
+      "size": 5072,
+      "sha256": "c59e8a77cf9097ba771f5070c83424ee04640d2484c363f17e0ea4701ccb1a6b",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/runtime.go": {
+      "size": 29799,
+      "sha256": "fc78609cce23a75cf9f4bf77b7f9501800840e1c8d6e7d3faee69f75535f4712",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/peer_batcher.go": {
+      "size": 22462,
+      "sha256": "bee214df23e79acc46171ad22981d60bedad413432768a4037f1eca8533352f0",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/exchange_server.go": {
+      "size": 14116,
+      "sha256": "1f26cd903764497b927203b32efcd8311b7e4d323df6ccc04bf9f2d04cfc252a",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/store_adapter.go": {
+      "size": 26956,
+      "sha256": "175260b9bf8c326c506b555375a5ec336c92e565a49b115b818f5f81e45d12a7",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/quorum_log_recovery_error_test.go": {
+      "size": 6829,
+      "sha256": "5d322d4cd71fda5488ceb9246fc2be1ad5eb626785c1a0be5967c8771fa50486",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/replication/recovery_barrier_test.go": {
+      "size": 4840,
+      "sha256": "825f278c25640b159fac6c457628f39a6bc5727eedb5fad9d7dcdcadf8833585",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/store/channel_adapter.go": {
+      "size": 60725,
+      "sha256": "41e571d9049cc4a078e5e06c4b7511502cc1664e1a39d9da64a2acb88cbb8f1d",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/store/memory.go": {
+      "size": 28903,
+      "sha256": "7271db48487df2f5912aa9964f13c8d2508e8ac81385e430de0c1d73d1a1adf4",
+      "matches_source_git_blob": true
+    },
+    "pkg/channel/reactor/quorum_runtime.go": {
+      "size": 5536,
+      "sha256": "bacfea530adc4105e40252d15cde1dd260e16407ee1b41fd748423d16c916116",
+      "matches_source_git_blob": true
+    },
+    "pkg/cluster/channels/read_transport_error.go": {
+      "size": 1617,
+      "sha256": "2ca03d92d99f3a099b70cb9f7895f09ccc0e987f784e04ae3a172b7308ae4e78",
+      "matches_source_git_blob": true
+    },
+    "internal/runtime/readavailability/errors.go": {
+      "size": 2098,
+      "sha256": "bc809852ac409faf48c7a3bb523cc72603441b217e9fd780ee79875ec78dee8c",
+      "matches_source_git_blob": true
+    },
+    "internal/infra/cluster/error_map.go": {
+      "size": 2413,
+      "sha256": "fc1750b172289937667a5f5130ad702fc7ab63e4536e4caeca7d25f2bf608948",
+      "matches_source_git_blob": true
+    },
+    "internal/infra/cluster/message_reader.go": {
+      "size": 4642,
+      "sha256": "4908581b23040c792fcefd0449cf244e8decd7633a7b458298d621537dd17c09",
+      "matches_source_git_blob": true
+    },
+    "internal/access/api/message_read_error.go": {
+      "size": 1159,
+      "sha256": "64c975cdc6183a11bd36790efad4cf7583053b821f81fdf2ac09c78213744f2c",
+      "matches_source_git_blob": true
+    },
+    "internal/access/api/channel_messagesync.go": {
+      "size": 5023,
+      "sha256": "66836c7c16d01dd3f5adf5cf15eaa555491ca09fcb95cde85944242024973cf3",
+      "matches_source_git_blob": true
+    }
+  },
+  "read_only": true,
+  "tests_executed": false,
+  "cloud_or_ci_calls": false
+}

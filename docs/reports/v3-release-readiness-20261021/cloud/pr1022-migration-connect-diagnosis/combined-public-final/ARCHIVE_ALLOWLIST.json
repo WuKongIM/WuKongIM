@@ -1,0 +1,659 @@
+{
+  "schema": "wukongim.public_evidence_allowlist/v1",
+  "created_at": "2026-10-21T16:12:06.932330+00:00",
+  "scope": "Finite original frozen generations, first failures, named-check red/green, exact combined source and local verification; no cloud actions.",
+  "files": [
+    {
+      "path": "public-final/ARCHIVE_ALLOWLIST.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/ARCHIVE_ALLOWLIST.json",
+      "bytes": 2727,
+      "sha256": "a7108d03291815dbc388fe0e66b57598566d2f723f60dd76c2e592eea1fa80d7"
+    },
+    {
+      "path": "public-final/README.md",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/README.md",
+      "bytes": 4167,
+      "sha256": "eca75f849f4842f152c9c947ed793f13397f577658ff2a7c73478d2e14f02a2c"
+    },
+    {
+      "path": "public-final/SHA256SUMS",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/SHA256SUMS",
+      "bytes": 1462,
+      "sha256": "8154440fb1ae1e66a1dec645e6ffcd4b8b9ad45ce0924f3dd0332d1e88a9c004"
+    },
+    {
+      "path": "public-final/hypotheses-and-experiment-v1.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/hypotheses-and-experiment-v1.json",
+      "bytes": 3741,
+      "sha256": "6e70e758961d0338305c376057e4d94ee0b9971df4030c71aac40757356a9c80"
+    },
+    {
+      "path": "public-final/observation-v1/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1/command.json",
+      "bytes": 440,
+      "sha256": "ac40e8b1f73e32c3ba840d1efa1076750891f416a15fa3284502c61f577e9085"
+    },
+    {
+      "path": "public-final/observation-v1/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1/result.json",
+      "bytes": 371,
+      "sha256": "d2f7dc31c2525452827f3e102dd174d208355a6efb7d2e8f8f7aa54793c508ac"
+    },
+    {
+      "path": "public-final/observation-v1/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "public-final/observation-v1/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1/stdout.jsonl",
+      "bytes": 14324,
+      "sha256": "c06cadcde841582387267ab05b353157294999732e351219c01a5fef97931313"
+    },
+    {
+      "path": "public-final/observation-v1-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1-freeze.json",
+      "bytes": 613,
+      "sha256": "9a48ed858a7023c86d2c430dd8ca1905864207d34b368241582a51db9340d6dc"
+    },
+    {
+      "path": "public-final/observation-v1-summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1-summary.json",
+      "bytes": 5046,
+      "sha256": "05eeaa46562ff96541115a9296a703e2b5a4886ca2d6c318246134b878b60abe"
+    },
+    {
+      "path": "public-final/observation-v1.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/observation-v1.patch",
+      "bytes": 6789,
+      "sha256": "cc7e78b9ce47ef989a899594ec92f847a2e5e938738aa40e95feb13ccad9c8fe"
+    },
+    {
+      "path": "public-final/original-evidence-references.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/original-evidence-references.json",
+      "bytes": 1741,
+      "sha256": "ca1baeef85c97138c149acce4fac515720f14cc78019cc2e04e0a4444b42b293"
+    },
+    {
+      "path": "public-final/product-build-identity.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/product-build-identity.json",
+      "bytes": 682,
+      "sha256": "1de6f9b508cd326421d6e3b3bc40b04415f69441d362343e2abbe84d3557f66e"
+    },
+    {
+      "path": "public-final/product-build-info.txt",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/product-build-info.txt",
+      "bytes": 8992,
+      "sha256": "d7ebc6d17ba652f02838e12938a2f5571d8519320aafd8d782a86eafcbd62bac"
+    },
+    {
+      "path": "public-final/rules-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/rules-freeze.json",
+      "bytes": 1521,
+      "sha256": "75de68472afe4d848eceeb68e311759dc3c03ba020cfcb3c37ddaa69df6516a2"
+    },
+    {
+      "path": "public-final/source-reference-sha256.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/source-reference-sha256.json",
+      "bytes": 975,
+      "sha256": "8e877bad8f77d528721a449d2faef1d0d335678a869886f180c3853cf5bb49f8"
+    },
+    {
+      "path": "public-final/worktree-cleanup.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/worktree-cleanup.json",
+      "bytes": 504,
+      "sha256": "3d8a89bdf990bf36a4064a88f340d5ab0959d804bf4ac2df129a5378686e8ea2"
+    },
+    {
+      "path": "repair-v1/before.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/before.json",
+      "bytes": 1335,
+      "sha256": "f4bb681eb714ede5b6487d2aaa6627ecff487471d7f9cfa703852963172e3afd"
+    },
+    {
+      "path": "repair-v1/focused/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/focused/command.json",
+      "bytes": 440,
+      "sha256": "5c9f85fa2a5a25ceb17a749d4ddbdc08925a23180a5200f649bd4df2595f076a"
+    },
+    {
+      "path": "repair-v1/focused/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/focused/result.json",
+      "bytes": 370,
+      "sha256": "6edeba05366b4b910ac49e92bb46b6c9575f2aa76a56c714fc8ae3e31a31541b"
+    },
+    {
+      "path": "repair-v1/focused/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/focused/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "repair-v1/focused/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/focused/stdout.jsonl",
+      "bytes": 4376,
+      "sha256": "b4f4871fac50f5cef78ee245a86051a61bcb541c22a9d4dc60956416f4d8f0ab"
+    },
+    {
+      "path": "repair-v1/full-first-result-summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-first-result-summary.json",
+      "bytes": 3013,
+      "sha256": "c25d87fedf2ee15333c34ad3e9fbec12bc14912d818272e6c41b83eb39cdccad"
+    },
+    {
+      "path": "repair-v1/full-five-topologies/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-five-topologies/command.json",
+      "bytes": 348,
+      "sha256": "99679eb5e54be4ab5af84d3f647bef8401df60a7f0366a1ce55e0d5538638385"
+    },
+    {
+      "path": "repair-v1/full-five-topologies/failure-1to3.txt",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-five-topologies/failure-1to3.txt",
+      "bytes": 12856,
+      "sha256": "26d179a9f3d03edf12a04c911f86e3e75ba5b7e17702032963c713c4f7428417"
+    },
+    {
+      "path": "repair-v1/full-five-topologies/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-five-topologies/result.json",
+      "bytes": 372,
+      "sha256": "07f41ba7c7794f781fceae68b3e625391c1d65859c8009cff1ca6abfa4f4fab0"
+    },
+    {
+      "path": "repair-v1/full-five-topologies/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-five-topologies/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "repair-v1/full-five-topologies/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-five-topologies/stdout.jsonl",
+      "bytes": 70076,
+      "sha256": "a973dc75c18f43ff53375a1036eff5164eeb40319a084cdb4a2d3e1c5c95c405"
+    },
+    {
+      "path": "repair-v1/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/implementation.patch",
+      "bytes": 3423,
+      "sha256": "2d944abbef33ad833dae2b6d54b3b4f7968e03cbeb15ba1be7299ada3ba9c5bd"
+    },
+    {
+      "path": "repair-v1/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/source-freeze.json",
+      "bytes": 737,
+      "sha256": "ae7eb646ef9b3f3a33d30c1ec1e710dffaaccf6d596d52f678505839f968c4da"
+    },
+    {
+      "path": "repair-v2/before-review-fix.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/before-review-fix.json",
+      "bytes": 915,
+      "sha256": "f49314c531a8d1e2de71e39b830a68a0cd4623ae2688bdeb0aee4efe9818ad6d"
+    },
+    {
+      "path": "repair-v2/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/implementation.patch",
+      "bytes": 3565,
+      "sha256": "66520f2d1742d4512baf83b820fc9c0c5c5254eaa0395d0a1904a3fe9eba653a"
+    },
+    {
+      "path": "repair-v2/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/source-freeze.json",
+      "bytes": 712,
+      "sha256": "2b326e8d61b33aa567f11e22c4931f319204010aa829f68b7939e86ab5a440b5"
+    },
+    {
+      "path": "repair-v2/validation-current.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/validation-current.json",
+      "bytes": 4227,
+      "sha256": "52aaad39283fa1a018ef080b97eaf31cc68ec948ba3a6cea72667f0df07434b3"
+    },
+    {
+      "path": "restart-quorum-diagnosis/README.md",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/restart-quorum-diagnosis/README.md",
+      "bytes": 4302,
+      "sha256": "665a4c290ee236f3e2eb90124dfdc726b7e7ba375d6c1cb9321608723bcb49fa"
+    },
+    {
+      "path": "restart-quorum-diagnosis/SHA256SUMS",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/restart-quorum-diagnosis/SHA256SUMS",
+      "bytes": 246,
+      "sha256": "b0fde2321ae14a581171946e7bb201ccbd11eecb1ee56a743180aaeebd43ab37"
+    },
+    {
+      "path": "restart-quorum-diagnosis/evidence.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/restart-quorum-diagnosis/evidence.json",
+      "bytes": 1433,
+      "sha256": "b75d4e16a4a976ec82690d9add9a91e674f15ef36eca0dbe970b237f2715d56b"
+    },
+    {
+      "path": "restart-quorum-diagnosis/read-source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/restart-quorum-diagnosis/read-source-freeze.json",
+      "bytes": 2370,
+      "sha256": "f7aa0e39e7f2d7522b93c4de4bb0f67bdecb010010c30b03168de4382cca80aa"
+    },
+    {
+      "path": "barrier-seam-v1/diagnostic-test-removal.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/diagnostic-test-removal.json",
+      "bytes": 457,
+      "sha256": "9abb2ec681ff62560fe2a6b627415e52bf170dec6ad840168c971de3ecefaedb"
+    },
+    {
+      "path": "barrier-seam-v1/failure-inventory.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/failure-inventory.json",
+      "bytes": 2773,
+      "sha256": "482ac88d6ed7164e1a4f035d3d12d18da95c7c1c28001d0a910a7faa5b960cf6"
+    },
+    {
+      "path": "barrier-seam-v1/first-execution/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/first-execution/command.json",
+      "bytes": 356,
+      "sha256": "13f7bc1e3f36450833e7fe17c53cf84b9f23b140cea24fffed9218c3c6d33ca0"
+    },
+    {
+      "path": "barrier-seam-v1/first-execution/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/first-execution/result.json",
+      "bytes": 371,
+      "sha256": "9086bd8da65ab9e6d029d6afc11b7b0e511b880dd154d712f9a5d0b534878241"
+    },
+    {
+      "path": "barrier-seam-v1/first-execution/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/first-execution/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "barrier-seam-v1/first-execution/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/first-execution/stdout.jsonl",
+      "bytes": 18664,
+      "sha256": "4d2eb1f40450c1a51cd947c4ab6e2494200a322d03d3e5429973d6421934e1d8"
+    },
+    {
+      "path": "barrier-seam-v1/observations.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/observations.json",
+      "bytes": 21922,
+      "sha256": "d993efaab3d7318bce297e8de8a29b46b94881a2911d672ea4971895345e7679"
+    },
+    {
+      "path": "barrier-seam-v1/recovery_barrier_diagnostic_test-preexecution.go.source",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/recovery_barrier_diagnostic_test-preexecution.go.source",
+      "bytes": 8170,
+      "sha256": "aafa9023a524f6833c7041c80b48ca2383dc3cb974a1bdfa34c86c699b154756"
+    },
+    {
+      "path": "barrier-seam-v1/recovery_barrier_diagnostic_test.go.source",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/recovery_barrier_diagnostic_test.go.source",
+      "bytes": 8156,
+      "sha256": "cdeb1a0a15bde62e1aa206c2db48ea2348a02e0d04f8cc92d50e9142f979ba81"
+    },
+    {
+      "path": "barrier-seam-v1/summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/summary.json",
+      "bytes": 4674,
+      "sha256": "7cfb7268784a693bc80094ad6a601e6596c4a048f224d6902e319bea8afcf661"
+    },
+    {
+      "path": "barrier-seam-v1/test-freeze-preexecution.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/test-freeze-preexecution.json",
+      "bytes": 719,
+      "sha256": "7aa4aad2643c604ae727d471c1dc1fb82af72593a3c3780d0d55f2ed6ddc2941"
+    },
+    {
+      "path": "barrier-seam-v1/test-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-seam-v1/test-freeze.json",
+      "bytes": 608,
+      "sha256": "4f40d57b250428899aee65c110c41c3eb5c9999dcbef438c72f1acc6ea7b7d12"
+    },
+    {
+      "path": "barrier-repair-v1/failure-inventory.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/failure-inventory.json",
+      "bytes": 1991,
+      "sha256": "2fadd131ed3f75a6b1ecefcd1d4ee8bce877f3eb01f484ae87ca5cf2502f67fa"
+    },
+    {
+      "path": "barrier-repair-v1/flow-doc-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/command.json",
+      "bytes": 256,
+      "sha256": "ddc4fa111c687fc5237abeba8a0f02002eca94cedaaa84119e5adf41defd64fb"
+    },
+    {
+      "path": "barrier-repair-v1/flow-doc-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/result.json",
+      "bytes": 370,
+      "sha256": "83fba59dbe8aae064b0b7e7f2d2a6495396078210e3ec39b2ea690bafe933bd7"
+    },
+    {
+      "path": "barrier-repair-v1/flow-doc-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/flow-doc-contracts/stdout-stderr.log",
+      "bytes": 1389,
+      "sha256": "3dc57299fd421b03c164f8bcacf55710c1fbd130021461f772aa69cf4201521b"
+    },
+    {
+      "path": "barrier-repair-v1/focused-green/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/command.json",
+      "bytes": 379,
+      "sha256": "4117333ab3a716138c7c0a0bb1552e0fa35fb0688c57300a1ce287813341cbf6"
+    },
+    {
+      "path": "barrier-repair-v1/focused-green/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/result.json",
+      "bytes": 370,
+      "sha256": "2545fb468991dea1cac9bdec2faf180f9c9f2bf8aaf1593bd5c886282ab8974b"
+    },
+    {
+      "path": "barrier-repair-v1/focused-green/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "barrier-repair-v1/focused-green/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/focused-green/stdout.jsonl",
+      "bytes": 22769,
+      "sha256": "d98f5eea4b890903070c1c34db74ad2f9454b382bf710f17cfeacebff0a47100"
+    },
+    {
+      "path": "barrier-repair-v1/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/implementation.patch",
+      "bytes": 12282,
+      "sha256": "0be01dacb235a457cdfb54ff9bec46a2c272337008afb8c09c56b00fa4d49ed7"
+    },
+    {
+      "path": "barrier-repair-v1/named-checks-selection.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/named-checks-selection.json",
+      "bytes": 640,
+      "sha256": "b6fc19c5246ce88a87026b8d3203a4ede2f2e8c911d08658e084342fe10f3e0b"
+    },
+    {
+      "path": "barrier-repair-v1/red/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/command.json",
+      "bytes": 379,
+      "sha256": "4117333ab3a716138c7c0a0bb1552e0fa35fb0688c57300a1ce287813341cbf6"
+    },
+    {
+      "path": "barrier-repair-v1/red/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/result.json",
+      "bytes": 371,
+      "sha256": "f28d4c0d494de4372b5173ce2e872369a801990c42e8f8c90a10e2d2c9ad2ab6"
+    },
+    {
+      "path": "barrier-repair-v1/red/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "barrier-repair-v1/red/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red/stdout.jsonl",
+      "bytes": 23546,
+      "sha256": "17e459020e3a7f6ea08e25e5edcf3de5418c7aa0c2e39bcded67c577294afa94"
+    },
+    {
+      "path": "barrier-repair-v1/red-source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red-source-freeze.json",
+      "bytes": 234,
+      "sha256": "089431f821e01acd34044f28e2f9546bc210aba90b152678e4137c355fd32ebe"
+    },
+    {
+      "path": "barrier-repair-v1/red-test.go.source",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/red-test.go.source",
+      "bytes": 8502,
+      "sha256": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d"
+    },
+    {
+      "path": "barrier-repair-v1/replication-package/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/command.json",
+      "bytes": 297,
+      "sha256": "21517021c1bb25acbb4006c8dd496f6cd80198a491718b1bd1c9e757d9b8998f"
+    },
+    {
+      "path": "barrier-repair-v1/replication-package/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/result.json",
+      "bytes": 371,
+      "sha256": "76e78edff5ed82f59613e57441b48fa0a9ddc7cb475735bd1c8609e87ac329f8"
+    },
+    {
+      "path": "barrier-repair-v1/replication-package/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "barrier-repair-v1/replication-package/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/replication-package/stdout.jsonl",
+      "bytes": 261427,
+      "sha256": "bc7bf14a8c7edf2d2043c416a26397e15b1b55b2ab75a0774646ca244395d7e0"
+    },
+    {
+      "path": "barrier-repair-v1/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v1/source-freeze.json",
+      "bytes": 1065,
+      "sha256": "99419793473a18399f5ac876c39bfa6c337a58fd31103a9041381784cd1c8ce6"
+    },
+    {
+      "path": "barrier-repair-v2/flow-only-delta.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/barrier-repair-v2/flow-only-delta.json",
+      "bytes": 358,
+      "sha256": "2f7e81dda7548fe2d5be447023c19070517eb7ee781629df8f610448bef0ff99"
+    },
+    {
+      "path": "combined-repair-v1/flow-doc-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/flow-doc-contracts/command.json",
+      "bytes": 476,
+      "sha256": "ecf19877c908a7060149e32007d4ad78f4e453521ede4c5c0d394103b8e7ede3"
+    },
+    {
+      "path": "combined-repair-v1/flow-doc-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/flow-doc-contracts/result.json",
+      "bytes": 370,
+      "sha256": "1441f06ff90712231581ce59e87974765dd1e0d86ff4098a77147fb23ced7649"
+    },
+    {
+      "path": "combined-repair-v1/flow-doc-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/flow-doc-contracts/stdout-stderr.log",
+      "bytes": 1458,
+      "sha256": "f60b6c6a0507133a69fb0ae223219ade559f8a4493e6cdb5564874d4fef0f777"
+    },
+    {
+      "path": "combined-repair-v1/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/implementation.patch",
+      "bytes": 15180,
+      "sha256": "c900cf44483333033485c0047281304b1c325d9222ac52e77636326c0a7ba7c4"
+    },
+    {
+      "path": "combined-repair-v1/named-check-results.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/named-check-results.json",
+      "bytes": 432,
+      "sha256": "975e1ca77ea4c909da41d6c01a85590718dad6b259af2931cd188e80c8acdcba"
+    },
+    {
+      "path": "combined-repair-v1/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v1/source-freeze.json",
+      "bytes": 1266,
+      "sha256": "a6c14f386dfd2712b9b287dbdf42cc5eb4459643dcfb1f984ee3d2a99d5c43ed"
+    },
+    {
+      "path": "combined-repair-v2/README.md",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/README.md",
+      "bytes": 3366,
+      "sha256": "e0386bbe4dc83dab975b5e4c8591a1e5532b91ed1522e8840886b349aa51b56e"
+    },
+    {
+      "path": "combined-repair-v2/binary-build-info.txt",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/binary-build-info.txt",
+      "bytes": 9014,
+      "sha256": "4a297b6818a600a1707d60616963714d2972d2cc7c7060b73401e233e82360b1"
+    },
+    {
+      "path": "combined-repair-v2/binary-identity.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/binary-identity.json",
+      "bytes": 727,
+      "sha256": "c864cb36f180e21e99e9aa7541ac7457343986a538c363b2b39355318632e170"
+    },
+    {
+      "path": "combined-repair-v2/delivery-summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/delivery-summary.json",
+      "bytes": 4321,
+      "sha256": "2de2d7f86ce2f9b082779d9af0d20fd16b15604c86424a934e54ef3a437800fb"
+    },
+    {
+      "path": "combined-repair-v2/flow-doc-contracts/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/flow-doc-contracts/command.json",
+      "bytes": 476,
+      "sha256": "3d5ccaa6ac670e21662903c0ec46b61b228023ec085f0f8b4ffe6271ebbfbb69"
+    },
+    {
+      "path": "combined-repair-v2/flow-doc-contracts/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/flow-doc-contracts/result.json",
+      "bytes": 369,
+      "sha256": "b294b9a9cd65a8bf811c72bd2c01eac7f90611f690c078349db365dc74343ff1"
+    },
+    {
+      "path": "combined-repair-v2/flow-doc-contracts/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/flow-doc-contracts/stdout-stderr.log",
+      "bytes": 1376,
+      "sha256": "5ebe3121e5c1b878ace6159d0e34bdf5f370bc21868496383269cabcc14d408e"
+    },
+    {
+      "path": "combined-repair-v2/focused-1to3/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/focused-1to3/command.json",
+      "bytes": 439,
+      "sha256": "6bf2b78ff9f604282b6217f76a8e411297cdaa3ba244b1ae6452900e981d503b"
+    },
+    {
+      "path": "combined-repair-v2/focused-1to3/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/focused-1to3/result.json",
+      "bytes": 370,
+      "sha256": "64df7ac58094bd6c68c52273559d44c117caaa97dcdd584e11dbbc4faf449133"
+    },
+    {
+      "path": "combined-repair-v2/focused-1to3/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/focused-1to3/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "combined-repair-v2/focused-1to3/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/focused-1to3/stdout.jsonl",
+      "bytes": 7414,
+      "sha256": "acb90f89b7cd6b1e6ae5a118030d7b70c1b47b46b0dc765a6f3dd1fec4e78138"
+    },
+    {
+      "path": "combined-repair-v2/focused-summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/focused-summary.json",
+      "bytes": 4664,
+      "sha256": "36242f84ad280767c2f5b09ca03573e80fddc7bf770bbb349f9a14933614d6cd"
+    },
+    {
+      "path": "combined-repair-v2/full-five-topologies/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/full-five-topologies/command.json",
+      "bytes": 347,
+      "sha256": "04073a53b02c4c4eb23fc9e784da77b700a8e7d0facb8b2e4e3a507c69769f1b"
+    },
+    {
+      "path": "combined-repair-v2/full-five-topologies/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/full-five-topologies/result.json",
+      "bytes": 372,
+      "sha256": "279b2f2a72c0894ddb930eb51a317bec4eb058eaa585493568a504fd36762952"
+    },
+    {
+      "path": "combined-repair-v2/full-five-topologies/stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/full-five-topologies/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "combined-repair-v2/full-five-topologies/stdout.jsonl",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/full-five-topologies/stdout.jsonl",
+      "bytes": 27483,
+      "sha256": "8f5baac178a82cc6156ac656c26942a99925bdf6637ef0d88b308376d75462cb"
+    },
+    {
+      "path": "combined-repair-v2/full-summary.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/full-summary.json",
+      "bytes": 16082,
+      "sha256": "c7500f9a8b0df3d46b168aaf5460a4c39b3ccdc4f94a2aaf5d5151d1f9d9a138"
+    },
+    {
+      "path": "combined-repair-v2/go-format/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/go-format/command.json",
+      "bytes": 458,
+      "sha256": "5acfb93da1c0b98eed9c7bcacdb4dec20a0a50e41fefb50e86394038ac24a00c"
+    },
+    {
+      "path": "combined-repair-v2/go-format/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/go-format/result.json",
+      "bytes": 366,
+      "sha256": "328a14771ab7c93c3ff86ac5f89c23213c2519d233c3ff98e614c73d4ef9947d"
+    },
+    {
+      "path": "combined-repair-v2/go-format/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/go-format/stdout-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "combined-repair-v2/implementation.patch",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/implementation.patch",
+      "bytes": 17163,
+      "sha256": "38519d247817780b633401280ffebba3433bf0f8b0bf5ee1e6bbc059a38c03b0"
+    },
+    {
+      "path": "combined-repair-v2/named-check-results.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/named-check-results.json",
+      "bytes": 847,
+      "sha256": "c92af1ccb198f9bd47ffa1281f7e319d995972d662ca154c2fd58d69b8d5291b"
+    },
+    {
+      "path": "combined-repair-v2/post-test-source-check.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/post-test-source-check.json",
+      "bytes": 1496,
+      "sha256": "052d2e40d663e6d9100cce4e5727a5866718668bb7db69abffa96f150fbda5af"
+    },
+    {
+      "path": "combined-repair-v2/product-build/command.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/product-build/command.json",
+      "bytes": 382,
+      "sha256": "16832a19c436cfc13e3b920b1d8f4e1e5ec934ebfe1617be7a96527538d3b307"
+    },
+    {
+      "path": "combined-repair-v2/product-build/result.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/product-build/result.json",
+      "bytes": 367,
+      "sha256": "90da74547d3c253190c745ddcf36e12a88c28e2b4eae2e11c26fe7c40846dce7"
+    },
+    {
+      "path": "combined-repair-v2/product-build/stdout-stderr.log",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/product-build/stdout-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "combined-repair-v2/source-freeze.json",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/source-freeze.json",
+      "bytes": 1553,
+      "sha256": "1c8a9e7a7d82360bbd95316fbe957bc11db1b73c3b39fd916ebadd7f803ef2a8"
+    },
+    {
+      "path": "combined-repair-v2/summarize-e2e.py",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/combined-repair-v2/summarize-e2e.py",
+      "bytes": 1388,
+      "sha256": "d9c4a726af7cfd61b6c6ac0ca62a175c2b742363ce0a52271773e5e2316e2a7e"
+    }
+  ],
+  "exclusions": [
+    "compiled product/e2e binaries",
+    "task/global caches",
+    "DBs and runtime directories",
+    "private keys or credentials",
+    "active FLOW.md copies"
+  ],
+  "scan": {
+    "utf8_only": true,
+    "each_file_below_1MiB": true,
+    "private_key_delimiter_matches": 0,
+    "github_token_pattern_matches": 0,
+    "bearer_pattern_matches": 0,
+    "known_secret_assignment_pattern_matches": 0,
+    "limitation": "bounded pattern checks complement source allowlist; not a proof of exhaustive secret discovery"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-21T15:58:47.152673+00:00",
+  "test_file": "pkg/channel/replication/recovery_barrier_diagnostic_test.go",
+  "test_sha256": "cdeb1a0a15bde62e1aa206c2db48ea2348a02e0d04f8cc92d50e9142f979ba81",
+  "tracked_diff": "",
+  "status": "?? pkg/channel/replication/recovery_barrier_diagnostic_test.go\n",
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "command": [
+    "go",
+    "test",
+    "./pkg/channel/replication",
+    "-run",
+    "^TestRecoveryBarrierDiagnosticTaxonomy$",
+    "-count=1",
+    "-timeout=2m",
+    "-p=2",
+    "-json"
+  ],
+  "run_count": 1,
+  "production_changes": false
+}

@@ -1,0 +1,122 @@
+{
+  "base_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "frozen_at": "2026-10-21T16:00:16.712264+00:00",
+  "files": {
+    ".github/CODEOWNERS": {
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-audit-bind.yml": {
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-audit-draft.yml": {
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-cli-acceptance.yml": {
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-immutable-public-reverify.yml": {
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-publish.yml": {
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-signing-preflight.yml": {
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81",
+      "same_as_base": true
+    },
+    ".github/workflows/native-package-signing-toolchain.yml": {
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1",
+      "same_as_base": true
+    },
+    ".github/workflows/pages.yml": {
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "same_as_base": true
+    },
+    ".github/workflows/source-release-preflight.yml": {
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+      "same_as_base": true
+    },
+    "docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "same_as_base": true
+    },
+    "keys/README.md": {
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "same_as_base": true
+    },
+    "keys/apt-preview.asc": {
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "same_as_base": true
+    },
+    "keys/apt-stable.asc": {
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "same_as_base": true
+    },
+    "keys/rpm-preview.asc": {
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "same_as_base": true
+    },
+    "keys/rpm-stable.asc": {
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "same_as_base": true
+    },
+    "manifests/audit-access.json": {
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "same_as_base": true
+    },
+    "manifests/bootstrap-packages.json": {
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "same_as_base": true
+    },
+    "manifests/channels.json": {
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "same_as_base": true
+    },
+    "manifests/preview-signing.json": {
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "same_as_base": true
+    },
+    "manifests/signing-toolchain.json": {
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "same_as_base": true
+    },
+    "manifests/source-read.json": {
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "same_as_base": true
+    },
+    "manifests/stable-public-keys.json": {
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "same_as_base": true
+    },
+    "manifests/trusted-toolchain.json": {
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "same_as_base": true
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "same_as_base": true
+    },
+    "scripts/validate-control.py": {
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "same_as_base": true
+    },
+    "scripts/validate-production-package-clients.py": {
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+      "same_as_base": true
+    },
+    "scripts/verify-stable-seal-inputs.py": {
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e",
+      "same_as_base": true
+    }
+  }
+}

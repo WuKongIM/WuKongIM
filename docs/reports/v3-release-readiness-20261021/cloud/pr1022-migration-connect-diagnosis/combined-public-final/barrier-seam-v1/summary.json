@@ -1,0 +1,152 @@
+{
+  "actual_product_source_unchanged": true,
+  "result": {
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 44452,
+    "output_bytes": 18664,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 44452,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 3.069
+  },
+  "observations": [
+    {
+      "mode": "control",
+      "error": "<nil>",
+      "original_cause_preserved": true,
+      "not_ready": false,
+      "log_conflict": false,
+      "quorum_unavailable": false,
+      "ready": true,
+      "hw": 2,
+      "history_after_first_attempt_sha256": {
+        "1": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "2": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "3": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6"
+      },
+      "recovery": null
+    },
+    {
+      "mode": "remote_backpressure",
+      "error": "channel replication: durable quorum unavailable",
+      "original_cause_preserved": false,
+      "not_ready": false,
+      "log_conflict": false,
+      "quorum_unavailable": true,
+      "ready": false,
+      "hw": 0,
+      "history_after_first_attempt_sha256": {
+        "1": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "2": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "3": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6"
+      },
+      "recovery": {
+        "error": "<nil>",
+        "installed": {
+          "Authority": {
+            "ChannelEpoch": 3,
+            "LeaderTerm": 6,
+            "FenceVersion": 8
+          },
+          "LEO": 2,
+          "HW": 2
+        },
+        "ready": true
+      }
+    },
+    {
+      "mode": "local_sync_error",
+      "error": "channel replication: durable quorum unavailable",
+      "original_cause_preserved": false,
+      "not_ready": false,
+      "log_conflict": false,
+      "quorum_unavailable": true,
+      "ready": false,
+      "hw": 0,
+      "history_after_first_attempt_sha256": {
+        "1": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "2": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "3": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6"
+      },
+      "recovery": {
+        "error": "<nil>",
+        "installed": {
+          "Authority": {
+            "ChannelEpoch": 3,
+            "LeaderTerm": 6,
+            "FenceVersion": 8
+          },
+          "LEO": 2,
+          "HW": 2
+        },
+        "ready": true
+      }
+    },
+    {
+      "mode": "local_conflict",
+      "error": "channel: log conflict",
+      "original_cause_preserved": true,
+      "not_ready": false,
+      "log_conflict": true,
+      "quorum_unavailable": false,
+      "ready": false,
+      "hw": 0,
+      "history_after_first_attempt_sha256": {
+        "1": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "2": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "3": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6"
+      },
+      "recovery": {
+        "error": "<nil>",
+        "installed": {
+          "Authority": {
+            "ChannelEpoch": 3,
+            "LeaderTerm": 6,
+            "FenceVersion": 8
+          },
+          "LEO": 2,
+          "HW": 2
+        },
+        "ready": true
+      }
+    },
+    {
+      "mode": "remote_conflict",
+      "error": "channel replication: durable quorum unavailable",
+      "original_cause_preserved": false,
+      "not_ready": false,
+      "log_conflict": false,
+      "quorum_unavailable": true,
+      "ready": false,
+      "hw": 0,
+      "history_after_first_attempt_sha256": {
+        "1": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "2": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6",
+        "3": "f55b2fcfb995429aad37776f0c6a8fcd1ed51bf3461e1a8cd94304500c6302a6"
+      },
+      "recovery": {
+        "error": "<nil>",
+        "installed": {
+          "Authority": {
+            "ChannelEpoch": 3,
+            "LeaderTerm": 6,
+            "FenceVersion": 8
+          },
+          "LEO": 2,
+          "HW": 2
+        },
+        "ready": true
+      }
+    }
+  ],
+  "causal_limit": "This demonstrates error-taxonomy collapse and fail-closed frontier under injected valid outcomes, not the historical Mac cause. Remote backpressure NotReady expectation is a hypothesis and not an approved broad production contract."
+}

@@ -1,0 +1,559 @@
+{
+  "source_path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v1/full-five-topologies/stdout.jsonl",
+  "size": 70076,
+  "sha256": "a973dc75c18f43ff53375a1036eff5164eeb40319a084cdb4a2d3e1c5c95c405",
+  "selected_events": [
+    {
+      "source_line": 6,
+      "Time": "2026-10-21T23:48:51.108439+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 7,
+      "Time": "2026-10-21T23:48:51.167996+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 8,
+      "Time": "2026-10-21T23:48:55.863097+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 9,
+      "Time": "2026-10-21T23:48:55.88228+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=1 rows=5 temporary_retries=0\n"
+    },
+    {
+      "source_line": 12,
+      "Time": "2026-10-21T23:48:56.488619+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "Elapsed": 14.62
+    },
+    {
+      "source_line": 15,
+      "Time": "2026-10-21T23:49:06.584898+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 16,
+      "Time": "2026-10-21T23:49:06.58564+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 17,
+      "Time": "2026-10-21T23:49:06.586826+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 18,
+      "Time": "2026-10-21T23:49:06.773637+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 19,
+      "Time": "2026-10-21T23:49:06.774313+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 20,
+      "Time": "2026-10-21T23:49:06.77514+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 26,
+      "Time": "2026-10-21T23:49:13.386818+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tPOST http://127.0.0.1:24067/channel/messagesync returned 400: {\"msg\":\"internal/message: append failed: channel replication: durable quorum unavailable\",\"status\":400}\n"
+    },
+    {
+      "source_line": 28,
+      "Time": "2026-10-21T23:49:13.386845+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \tMessages:   \thistory phase=after-full-restart node=1 temporary_retries=0\n"
+    },
+    {
+      "source_line": 30,
+      "Time": "2026-10-21T23:49:13.386851+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \treadyz: status=200 body={\"ready\":true}\n"
+    },
+    {
+      "source_line": 31,
+      "Time": "2026-10-21T23:49:13.386869+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tprocess: pid=41246 running\n"
+    },
+    {
+      "source_line": 71,
+      "Time": "2026-10-21T23:49:13.387022+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tapp-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/logs/app.log: no such file or directory\n"
+    },
+    {
+      "source_line": 73,
+      "Time": "2026-10-21T23:49:13.387027+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \terror-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/1/logs/error.log: no such file or directory\n"
+    },
+    {
+      "source_line": 75,
+      "Time": "2026-10-21T23:49:13.387036+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \treadyz: status=200 body={\"ready\":true}\n"
+    },
+    {
+      "source_line": 76,
+      "Time": "2026-10-21T23:49:13.387039+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tprocess: pid=41247 running\n"
+    },
+    {
+      "source_line": 116,
+      "Time": "2026-10-21T23:49:13.387259+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tapp-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/logs/app.log: no such file or directory\n"
+    },
+    {
+      "source_line": 118,
+      "Time": "2026-10-21T23:49:13.387265+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \terror-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/2/logs/error.log: no such file or directory\n"
+    },
+    {
+      "source_line": 120,
+      "Time": "2026-10-21T23:49:13.38727+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \treadyz: status=200 body={\"ready\":true}\n"
+    },
+    {
+      "source_line": 121,
+      "Time": "2026-10-21T23:49:13.387273+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tprocess: pid=41248 running\n"
+    },
+    {
+      "source_line": 161,
+      "Time": "2026-10-21T23:49:13.387372+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \tapp-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/logs/app.log: no such file or directory\n"
+    },
+    {
+      "source_line": 163,
+      "Time": "2026-10-21T23:49:13.387377+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Output": "        \t            \terror-log-read-error: open /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestOriginalOrdinaryHistoryTopology1_source_nodes_to_3_target_n4061157989/001/3/logs/error.log: no such file or directory\n"
+    },
+    {
+      "source_line": 165,
+      "Time": "2026-10-21T23:49:14.419548+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "Elapsed": 17.93
+    },
+    {
+      "source_line": 168,
+      "Time": "2026-10-21T23:49:22.979442+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 169,
+      "Time": "2026-10-21T23:49:23.057057+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 170,
+      "Time": "2026-10-21T23:49:27.658191+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 171,
+      "Time": "2026-10-21T23:49:27.677147+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=1 rows=5 temporary_retries=0\n"
+    },
+    {
+      "source_line": 174,
+      "Time": "2026-10-21T23:49:28.299396+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "Elapsed": 13.88
+    },
+    {
+      "source_line": 177,
+      "Time": "2026-10-21T23:49:38.61101+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 178,
+      "Time": "2026-10-21T23:49:38.613005+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 179,
+      "Time": "2026-10-21T23:49:38.613998+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 180,
+      "Time": "2026-10-21T23:49:38.778931+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 181,
+      "Time": "2026-10-21T23:49:38.779766+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 182,
+      "Time": "2026-10-21T23:49:38.780436+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 183,
+      "Time": "2026-10-21T23:49:44.302046+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 184,
+      "Time": "2026-10-21T23:49:44.337709+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=2 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 185,
+      "Time": "2026-10-21T23:49:44.367217+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=3 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 186,
+      "Time": "2026-10-21T23:49:49.287282+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:226: history verified: phase=after-leader-stop node=1 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 187,
+      "Time": "2026-10-21T23:49:51.045597+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=1 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 188,
+      "Time": "2026-10-21T23:49:51.048197+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=2 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 189,
+      "Time": "2026-10-21T23:49:51.049661+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=3 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 192,
+      "Time": "2026-10-21T23:49:52.079893+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "Elapsed": 23.78
+    },
+    {
+      "source_line": 195,
+      "Time": "2026-10-21T23:50:02.968406+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 196,
+      "Time": "2026-10-21T23:50:03.052696+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 197,
+      "Time": "2026-10-21T23:50:03.143694+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 198,
+      "Time": "2026-10-21T23:50:03.164642+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=4 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 199,
+      "Time": "2026-10-21T23:50:03.167462+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:168: history verified: phase=after-import node=5 rows=3 temporary_retries=0\n"
+    },
+    {
+      "source_line": 200,
+      "Time": "2026-10-21T23:50:03.434398+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 201,
+      "Time": "2026-10-21T23:50:03.435211+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 202,
+      "Time": "2026-10-21T23:50:03.436059+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 203,
+      "Time": "2026-10-21T23:50:03.437009+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=4 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 204,
+      "Time": "2026-10-21T23:50:03.438255+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:187: history verified: phase=after-protocol-append node=5 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 205,
+      "Time": "2026-10-21T23:50:13.323131+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 206,
+      "Time": "2026-10-21T23:50:13.342365+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=2 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 207,
+      "Time": "2026-10-21T23:50:13.344602+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=3 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 208,
+      "Time": "2026-10-21T23:50:13.418569+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=4 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 209,
+      "Time": "2026-10-21T23:50:13.436515+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:214: history verified: phase=after-full-restart node=5 rows=4 temporary_retries=0\n"
+    },
+    {
+      "source_line": 210,
+      "Time": "2026-10-21T23:50:18.62169+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:226: history verified: phase=after-leader-stop node=1 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 211,
+      "Time": "2026-10-21T23:50:21.28693+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=1 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 212,
+      "Time": "2026-10-21T23:50:21.288473+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=2 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 213,
+      "Time": "2026-10-21T23:50:21.290146+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=3 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 214,
+      "Time": "2026-10-21T23:50:21.291277+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=4 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 215,
+      "Time": "2026-10-21T23:50:21.292469+08:00",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Output": "    ordinary_history_test.go:231: history verified: phase=final node=5 rows=6 temporary_retries=0\n"
+    },
+    {
+      "source_line": 218,
+      "Time": "2026-10-21T23:50:22.855518+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "Elapsed": 30.78
+    },
+    {
+      "source_line": 220,
+      "Time": "2026-10-21T23:50:22.855525+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Test": "TestOriginalOrdinaryHistoryTopology",
+      "Elapsed": 100.99
+    },
+    {
+      "source_line": 223,
+      "Time": "2026-10-21T23:50:22.856942+08:00",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+      "Elapsed": 101.374
+    }
+  ],
+  "interpretation": "The observed HTTP400 establishes aggregate quorum failure; no per-voter cause or barrier stack is recorded. Three readiness200/livePID observations do not prove per-channel recovered HW."
+}

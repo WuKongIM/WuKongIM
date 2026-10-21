@@ -1,0 +1,29 @@
+{
+  "previous_freeze_sha256": "ae7eb646ef9b3f3a33d30c1ec1e710dffaaccf6d596d52f678505839f968c4da",
+  "previous_patch_sha256": "2d944abbef33ad833dae2b6d54b3b4f7968e03cbeb15ba1be7299ada3ba9c5bd",
+  "review_finding": {
+    "by": "root",
+    "scope": "two newly added NoError diagnostic arguments",
+    "issue": "DumpDiagnostics arguments are eagerly evaluated even on success",
+    "fix": "evaluate bounded diagnostics only inside err != nil branch",
+    "changes_during_run": false
+  },
+  "full_run_terminal": {
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 41084,
+    "output_bytes": 70076,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 41084,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 102.62
+  }
+}

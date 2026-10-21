@@ -1,0 +1,45 @@
+{
+  "frozen_at": "2026-10-21T15:59:44.076558+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "branch": "codex/stable-object-delivery",
+  "base_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "base_tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "e8aeed28284a079b72a8cbb591a1e97921ef28cc5a1bb7b9574ca2428002cbe3",
+      "size": 3054
+    },
+    "README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "a7f50b2a86259666f0e81e942dd06dcc23a1222eb7c55a86a654f27eb6291b58",
+      "size": 8905
+    },
+    "scripts/prepare-object-storage-delivery.py": {
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "size": 26015
+    },
+    "tests/test_object_storage_delivery.py": {
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b",
+      "size": 33155
+    }
+  },
+  "patch_sha256": "758c319723a6ae83169ae29cab015296ba13a6f160dea46f7223b8ca978d0029",
+  "incremental_code_diff_sha256": "1167848c31cecc6d5c1c3d80e672c65496133b233c5b9865dd3b1c49198f415f",
+  "rules_freeze_sha256": "c28d7941f87d22a372361d441a742926d27663d2727457b0a4c470a2c77b7629",
+  "git_diff_check": true,
+  "reverse_patch_check": true,
+  "scope": "Original D offline core plus exactly the two Spec v1 P2 repairs; original client receipt/interface unchanged",
+  "local_commit_created": false,
+  "push_pr_ci_or_cloud_actions": false,
+  "review_status": "ready for independent standards/spec rereview; full suite running",
+  "validation": {
+    "first_red": "failed as expected, 26 methods / 20 assertion failures + 1 missing-observation error",
+    "first_implementation_focused": "25 of 26 methods pass; one fixture assertion corrected; no blind retry",
+    "related_storage": "75 passed, zero skips, 19.828s",
+    "contracts": "passed with 4 source-preflight tests",
+    "full_python_suite": "first run in progress; final receipt will be separate"
+  }
+}
