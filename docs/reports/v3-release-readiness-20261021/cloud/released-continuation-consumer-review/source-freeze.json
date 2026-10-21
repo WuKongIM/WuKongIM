@@ -1,0 +1,104 @@
+{
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "input_directory": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/consumers",
+  "input_manifest_sha256": "9f3a67edf7b0fb0f83fdbf11e6bea5b4bbaaced595b0a78150a914b5c18cf739",
+  "all_input_manifest_entries_verified": [
+    {
+      "path": "README.md",
+      "sha256": "9075c7ed7cba7ecc4f30dd4b0d087bf58781bd37cbf15532c0df473baaa285e5",
+      "size": 2981
+    },
+    {
+      "path": "actionlint.log",
+      "sha256": "15d5b72f0eb361662f8a688bf68333eef6fe470f60676e5d9aabefb2e486789f",
+      "size": 85
+    },
+    {
+      "path": "baseline-files.json",
+      "sha256": "8b2006a150a0126905f4b8049b66fc32f5a6d86abdab40429cd3ab07c5e3062f",
+      "size": 559
+    },
+    {
+      "path": "failure-inventory.json",
+      "sha256": "ed34d72475d6c327193eb01decdac1c17d999f17704490f36761de5a681e41da",
+      "size": 1106
+    },
+    {
+      "path": "first-red.jsonl",
+      "sha256": "68d0cbf9671119fad98f6456bdb51fbfa129c93783c4f0ca2c4926428139d816",
+      "size": 8980
+    },
+    {
+      "path": "green.jsonl",
+      "sha256": "466ca21fd6af46df5eeef3e1684c932f89cb418ac9dbe028deb0ca43abde87cd",
+      "size": 18804
+    },
+    {
+      "path": "related-contracts.jsonl",
+      "sha256": "d00faa4cd369d22622625aa2594854444cd25fe34da2bf01e8f6a9e13df48e93",
+      "size": 15972
+    },
+    {
+      "path": "source/.github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "91fc7088f634e3ab521571e468fb0526922ec1631f8c20202935cdd0139b1a3a",
+      "size": 30143
+    },
+    {
+      "path": "source/.github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a",
+      "size": 15796
+    },
+    {
+      "path": "source/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "c830cbb8387e3651b70fdb0e99af893d4dec0acecf268b131903ac18492d5587",
+      "size": 33988
+    },
+    {
+      "path": "source/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+      "sha256": "f33a1a6ce45ed6fb4574139c77213b3847ede96929876cc1e15b4e744e6cf6e5",
+      "size": 5471
+    },
+    {
+      "path": "source/scripts/chat_lifecycle_released_preclock_consumers_test.go",
+      "sha256": "74759db8e522f2097a913772c4958befb94cfa1b45cdbfb0c94dd317e0add402",
+      "size": 7054
+    },
+    {
+      "path": "validation-summary.json",
+      "sha256": "f4051bd21d74e62681ea095ce5a0918ec23822657059bbe31511bdcfcf144bf9",
+      "size": 1034
+    },
+    {
+      "path": "workflow.patch",
+      "sha256": "4ccd0768810f4acb7318ebe3dca0dd5ccd4673ded24f7ad34b9acf7aa52c88c2",
+      "size": 9430
+    }
+  ],
+  "applicable_rule_hashes_at_base": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "size": 13284
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "afe54a4b14be7ccad401fdac00234d20bd0d02181fe31228e4648d48ad6e613f",
+      "size": 80690
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f",
+      "size": 2691
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "size": 2327
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28",
+      "size": 2508
+    }
+  ]
+}

@@ -294,4 +294,7 @@ immutable publication and signed native-package public-client acceptance.
 
 - [#73 已授权合并及后置CI](packages/pr73-merge/README.md)；[#1019 已授权合并、清理及文档自动发布](cloud/pr1019-merge/README.md)。
 - [四客户端/A-B方案v2](packages/stable-public-clients-plan/generation-2/scope-proposal.md)及[独审](packages/stable-public-clients-plan-review/review.md)：开始实现，尚未完成新native验收。
-- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)：没有直接可提交的paid JSON，仍待独审。
+- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)、[方案独审](cloud/rc-next-execution-plan-review/review.md)及[第二代范围](cloud/rc-next-execution-plan-post1019/generation-2/README.md)：初稿已迭代进入实现，尚无可提交的paid JSON。
+- [Go证明输入独审](cloud/released-continuation-go-review/review.md)和[consumer独审](cloud/released-continuation-consumer-review/review.md)：分段无阻塞，最终authority helper及整体验证仍未完成；未执行云操作。
+- [native夹具独审](packages/stable-native-clients-implementation-review/fixture-freeze-v1/review.md)和[主实现首次独审](packages/stable-native-clients-implementation-review/main-v1/review.md)：保留两个P2和两类实际安装负例缺口，修复中，尚未运行新native清单。
+- `continuation-and-native-first-review-archive.json`：consumer/main首次审查原字节的公共allowlist复制收据。

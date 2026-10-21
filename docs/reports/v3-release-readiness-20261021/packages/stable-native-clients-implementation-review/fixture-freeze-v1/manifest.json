@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-10-21T11:29:31.546032+00:00",
+  "head": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "files": [
+    {
+      "path": "tests/native_source_metadata_drill.py",
+      "bytes": 12447,
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "bytes": 42889,
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58"
+    }
+  ]
+}

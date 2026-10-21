@@ -1,0 +1,171 @@
+{
+  "proof_schema_exact_field_count": 30,
+  "proof_schema_exact_field_set_matches": true,
+  "all_five_files_match_test_validation_hashes": true,
+  "passing_test_events_read": 121,
+  "top_level_passes_read": 34,
+  "fail_or_skip_events_read": 0,
+  "tests_rerun_by_reviewer": false,
+  "protected_template_provider_files_unchanged": [
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/repair-v1.json",
+      "sha256": "61fc2e2dcf8a541394ba1430ca742081711c169224aa54110204bcd685bb4093"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap.go",
+      "sha256": "87ebc090e7a414d4d9c0bd00770c3edc23ee6933bbc2c0c173ca2b54ef313846"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap_guards_contract_test.go",
+      "sha256": "85c49907aa494a83b54eabb4d7c7ab3f87443304ab076a44936edc5a67525bb8"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap_openapi.go",
+      "sha256": "e141e81b57ec381e53e21bba3932dc8bad9479de0ac075ec3e38304da46218bf"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap_openapi_contract_test.go",
+      "sha256": "261876ad78fc7e592c7cb62669aa3faa34b57047e6a7876ab364b8bdd9be3556"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap_openapi_test.go",
+      "sha256": "e0ec40495b7a9ecb28644e704723de78e312b856465e4cbb5fd9d9fd43e1dfa4"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap_test.go",
+      "sha256": "9fa68a1995788135fc2c748476b6a62a83c4a62f0a58601b7ec502e0aa58ac9d"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle.go",
+      "sha256": "ed6f46c1dc1d513facd3ea2b0b6bca2422bf2d0216095f46a5eb0713c130f1ee"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_inventory_openapi.go",
+      "sha256": "e9dfecd8086f3bee8e5964f14c7d325006f86adbfbdd05ea04122aa9a93b2fd2"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_inventory_openapi_contract_test.go",
+      "sha256": "e2218445003b83229f1e4152bd038b2473a22410daa7d46ad176e56cd4c247d0"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_list_contract_test.go",
+      "sha256": "8b72b107753b2b6d9fe90ab14ba68ca0a908b38a12336b3d2a33501d4291c47a"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_mutation_openapi_contract_test.go",
+      "sha256": "b3f783fe752be299fdd482854562c3052135b266344a7d7f2b006274fb248456"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_openapi.go",
+      "sha256": "c769a71d157465cb020a368460b801ffe5613921cf60908a865c6cf9ebfb63eb"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_openapi_helpers.go",
+      "sha256": "d623a738b85f2d0c92cc8db975f74504df5c4205f6ff23780f12e58aaaa66c81"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_openapi_test.go",
+      "sha256": "8e2ef9d661f83af7eaa8e5ef1aae3480c12b3acce19530bdcc5d6af23205649a"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_test.go",
+      "sha256": "c62cd8ad6a102c7016f2932e97cf25ab8d2258a5a5b20456945d3895e96e9da2"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi.go",
+      "sha256": "7199fc093075aba7fcb12438d4ba81756a9ab8e4ad539b32c9a57a78feff6eae"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi_boundary_contract_test.go",
+      "sha256": "fb375d667c681fbae2d350d0894e98540187982667adc149c6dca17ce36806fa"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi_integration_test.go",
+      "sha256": "c0baca00620b839afeeb78a86d03d0371a2bcaf0187e7864af397fbbf00513c2"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi_test.go",
+      "sha256": "e144a03e1bfd4a7a125cf11bb454d14f7c8c04a26c6ce3e64157650257cba6da"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi_transport_contract_test.go",
+      "sha256": "c1578d5058b615b9d0e8f5f9cd96b13afc3eae7fbc89d33abfa6a00674265814"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/provider.go",
+      "sha256": "f748431d05fd73ee5a6d115d06a239030cfd171a9666656f8f71b57c740350b8"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/provider_safety_boundaries_contract_test.go",
+      "sha256": "ee88b0ce62c42290a6179d7d81fdefe3c27050d7995b26be472d98367340768a"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/provider_test.go",
+      "sha256": "73d5a83b6272b336ad4b59177d93c1013172d6f562aaf54d7f78f3ab5d73a840"
+    }
+  ],
+  "input_evidence": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/proof-schema.json",
+      "bytes": 1440,
+      "sha256": "a58a2287a24160e973eaee6bcacf16cffe830164b5b143301b62a4da3eb1d856"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/go-seam-contract.md",
+      "bytes": 2001,
+      "sha256": "b0dae176829c3b765c169b75c430f9a56d1fc71bc5735cd60eaa7ac5eea85796"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/validation.json",
+      "bytes": 1756,
+      "sha256": "bb8bd320b1e03054e2cc4f4d81e324721ecbb82788d0e02aab0a0bb3b0628681"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/failure-inventory.json",
+      "bytes": 908,
+      "sha256": "6a6baaf156dccea133d6e33fedd57942ee007c02a854fdc76fd04bc97ec9993f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/01-cli-red.log",
+      "bytes": 313,
+      "sha256": "0ecda8a0dfcc16d30e1d9ea12fb7c5b9444371d85ae6fc1d8c167f7d7efa54d0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/02-materialize-red.log",
+      "bytes": 1234,
+      "sha256": "6bbfb669c41cf545d545f15b16bee90dcbd39dbd2e9e407d1cb8388f8b959b30"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/03-focused-green.log",
+      "bytes": 10188,
+      "sha256": "9cd8e65d5f10dffab628caf4b006464672e103ac455ca0d747534131b9fbff60"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/05-case-alias-red.log",
+      "bytes": 2645,
+      "sha256": "928af4465f198814e02cad500b5bf89e5b6646810cdd49034ae7707d94fdf758"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/06-related-regression.jsonl",
+      "bytes": 128215,
+      "sha256": "9fa177f26d95bb405157b4a3b32493e01e0922998ab080bbe3cd75a866b6b009"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-implementation/root-go/07-focused-vet.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

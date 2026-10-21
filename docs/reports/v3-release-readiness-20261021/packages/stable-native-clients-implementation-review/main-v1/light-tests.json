@@ -1,0 +1,41 @@
+{
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_native_stable_clients_drill.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "elapsed": 0.21672399999806657
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_installed_cli_acceptance.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "elapsed": 0.10618166701169685
+    }
+  ],
+  "previous_validation_suite": {
+    "command": "python3 -m unittest discover -s tests -p test_validate_production_package_clients.py -v",
+    "returncode": 0,
+    "tests": 34,
+    "tool_output_id": "fdaed8",
+    "seconds": 0.636
+  }
+}

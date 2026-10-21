@@ -1,0 +1,61 @@
+{
+  "schema": "small-evidence-manifest/v1",
+  "files": [
+    {
+      "path": "files/cmd/wkchatlifecycle/main.go",
+      "bytes": 16336,
+      "sha256": "e9166cd98f03fbda72f47b20e7c4b7ec056ae1004a208d81df73a6de76f51b76"
+    },
+    {
+      "path": "files/cmd/wkchatlifecycle/main_test.go",
+      "bytes": 23252,
+      "sha256": "a5a30a6b5b85fcbcfa2e385da9f0278030fb440c04055160a1cfd3848e4fbe4d"
+    },
+    {
+      "path": "files/internal/usecase/chatlifecyclerun/FLOW.md",
+      "bytes": 3510,
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba"
+    },
+    {
+      "path": "files/internal/usecase/chatlifecyclerun/run.go",
+      "bytes": 24992,
+      "sha256": "90b90cd3b1ad0151d8a02459731d796228e9ce2eb34a7ea2cd6b2fbca8cf43c5"
+    },
+    {
+      "path": "files/internal/usecase/chatlifecyclerun/run_test.go",
+      "bytes": 20748,
+      "sha256": "bc0e30941705f7e2d7bc40789e2a2eecd613ae5229513546d7491ac4df4398a5"
+    },
+    {
+      "path": "review.md",
+      "bytes": 3021,
+      "sha256": "dc5b80913c5ab8ab69511ba659abe8590c2faad61d5c9acc99d182d9127eae01"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 991,
+      "sha256": "283e6adc1ec8a31ae3d6f08c302c600d1d76f1dbfa7db23c5e51b64f7a4832c2"
+    },
+    {
+      "path": "static-checks.json",
+      "bytes": 7426,
+      "sha256": "7d4e696e70899880a61da35f75dd9c5d99c8f48c241bcf385b94d3601e0a089c"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 377,
+      "sha256": "4961d36cf0e737459f973328f43b02b007eb7b134851254583ee49aa68c83900"
+    },
+    {
+      "path": "ARCHIVE_ALLOWLIST",
+      "bytes": 310,
+      "sha256": "a8e35e4935d50210dec4fc87db606be5aa40298f8e8c5af9b48b6fed4e75f3ec"
+    },
+    {
+      "path": "SHA256SUMS",
+      "bytes": 959,
+      "sha256": "402c156378a7cda43ee64abb9bc0816047601fc5cb0e160312c8791835d2f152"
+    }
+  ],
+  "total_bytes": 101922
+}

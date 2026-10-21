@@ -1,0 +1,156 @@
+{
+  "observed_at": "2026-10-21T11:23:19.515973+00:00",
+  "method": "GET",
+  "items": [
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39581355444",
+      "run_count": null,
+      "selected": [
+        {
+          "id": 39581355444,
+          "workflow_id": 329938003,
+          "run_number": 32,
+          "run_attempt": 1,
+          "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+          "head_branch": "main",
+          "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "failure",
+          "display_title": "Chat Lifecycle Rehearsal chat-20261021T095421Z-cf11d65c",
+          "created_at": "2026-10-21T10:00:35Z",
+          "updated_at": "2026-10-21T10:19:39Z",
+          "repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          },
+          "head_repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          }
+        }
+      ]
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/329938003/runs?per_page=5",
+      "run_count": 32,
+      "selected": [
+        {
+          "id": 39581355444,
+          "workflow_id": 329938003,
+          "run_number": 32,
+          "run_attempt": 1,
+          "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+          "head_branch": "main",
+          "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "failure",
+          "display_title": "Chat Lifecycle Rehearsal chat-20261021T095421Z-cf11d65c",
+          "created_at": "2026-10-21T10:00:35Z",
+          "updated_at": "2026-10-21T10:19:39Z",
+          "repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          },
+          "head_repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          }
+        },
+        {
+          "id": 32570533158,
+          "workflow_id": 329938003,
+          "run_number": 31,
+          "run_attempt": 1,
+          "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+          "head_branch": "main",
+          "head_sha": "1dbe159926bccc63fded3f632c8164ad98345c6f",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "success",
+          "display_title": "Chat Lifecycle Rehearsal chat-20260822T113033Z-8d3c0c7a",
+          "created_at": "2026-08-22T11:31:56Z",
+          "updated_at": "2026-08-22T12:00:25Z",
+          "repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          },
+          "head_repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          }
+        },
+        {
+          "id": 32562363507,
+          "workflow_id": 329938003,
+          "run_number": 30,
+          "run_attempt": 1,
+          "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+          "head_branch": "main",
+          "head_sha": "22fd8a2c2a6c5fd1b042aed6f8882f202f80a389",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "success",
+          "display_title": "Chat Lifecycle Rehearsal chat-20260822T082549Z-359126e0",
+          "created_at": "2026-08-22T08:28:13Z",
+          "updated_at": "2026-08-22T08:54:22Z",
+          "repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          },
+          "head_repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          }
+        },
+        {
+          "id": 32557438916,
+          "workflow_id": 329938003,
+          "run_number": 29,
+          "run_attempt": 1,
+          "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+          "head_branch": "main",
+          "head_sha": "072831275a8cc2f03c758b7f9ffd321bbb2b3e0d",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "success",
+          "display_title": "Chat Lifecycle Rehearsal chat-20260822T063603Z-45db6ea8",
+          "created_at": "2026-08-22T06:37:09Z",
+          "updated_at": "2026-08-22T07:04:42Z",
+          "repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          },
+          "head_repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          }
+        },
+        {
+          "id": 32544524141,
+          "workflow_id": 329938003,
+          "run_number": 28,
+          "run_attempt": 1,
+          "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+          "head_branch": "main",
+          "head_sha": "87a1de78063d7d01ca35c0873b368073a05befa7",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "success",
+          "display_title": "Chat Lifecycle Rehearsal chat-20260822T014848Z-398fd3ab",
+          "created_at": "2026-08-22T01:49:18Z",
+          "updated_at": "2026-08-22T02:17:33Z",
+          "repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          },
+          "head_repository": {
+            "id": 638054601,
+            "full_name": "WuKongIM/WuKongIM"
+          }
+        }
+      ]
+    }
+  ]
+}

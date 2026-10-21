@@ -1,0 +1,1 @@
+First reviewer probe invocation hit an incorrect reviewer-only assertion: fault B-export-copy was checked for substring export while injected error says copy. Corrected expected failure check; no shipping source change and no implementation finding inferred.

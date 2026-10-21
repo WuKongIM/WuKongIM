@@ -1,0 +1,16 @@
+{
+  "reviewed_at": "2026-10-21T11:33:18.710166+00:00",
+  "base": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "scope": "two frozen test fixture files only",
+  "blocking_findings": [],
+  "native_executed": false,
+  "heavy_tests_executed": false,
+  "independent_lightweight_probes": [
+    "default_staging_equivalence_two_inputs",
+    "successful_stub_export",
+    "B_verify_failure_no_export",
+    "B_copy_failure_rollback"
+  ],
+  "protected_files_unchanged": 31,
+  "full_driver_validator_ci_review_pending": true
+}

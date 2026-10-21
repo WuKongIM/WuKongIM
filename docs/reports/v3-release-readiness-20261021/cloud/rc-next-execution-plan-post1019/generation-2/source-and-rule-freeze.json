@@ -1,0 +1,117 @@
+{
+  "head": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "tree": "0acb67250313fc81a463941295082c828a46124c",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-released-continuation",
+  "branch": "codex/v3-rc-released-continuation",
+  "clean": true,
+  "applicable_rules": [
+    "AGENTS.md",
+    "internal/usecase/chatlifecyclerun/FLOW.md"
+  ],
+  "additional_readonly_navigation": [
+    "internal/usecase/cloudlease/FLOW.md"
+  ],
+  "no_more_specific_agents_or_script_cmd_flow": true,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "bytes": 2691,
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f"
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "bytes": 2327,
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 80690,
+      "sha256": "afe54a4b14be7ccad401fdac00234d20bd0d02181fe31228e4648d48ad6e613f"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+      "bytes": 2322,
+      "sha256": "fbd72cff0f2d7345693882321a4ff9156475390b2411837befbaa30a7f4b6b38"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "bytes": 9024,
+      "sha256": "a3fcf2d1cf07ec21b99a42745e1b75a477493f03c9c5efc7ae19e109d436c274"
+    },
+    {
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "bytes": 3105,
+      "sha256": "8e3b3c34e345ec5633f698fe73fee248bda6bb1005dc11a9bb52bef1f70b2477"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "bytes": 47065,
+      "sha256": "81876a76e2b114b8a209c1c1f74cbb9a4b5470483e0aaa2e37aa09eae25cbc7d"
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "bytes": 15849,
+      "sha256": "448e079f061c70575a17b3a97d3b0690e3778f1a248c0291b3c121fb26a7077f"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "bytes": 17330,
+      "sha256": "db0e076554cc78b2203df272c4aca26024eb2e1b448a1d8d3abf1bb11ed0fb51"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "bytes": 32176,
+      "sha256": "2181d008be6273e6d8b6c2bf30f77c5934de2bdf515bddf0f24659cbe3c0bb1c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "bytes": 15609,
+      "sha256": "d400211c3ec827e02dc8efc85e6a2151310cf85bcd50cce0610dac888ed6270c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "bytes": 28906,
+      "sha256": "3b4bcdffd747ba0839b52557849bdc4c9bfc530ad4381f79fffeda3999e5448f"
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main_test.go",
+      "bytes": 19460,
+      "sha256": "2f6f4d9b238638131de86d1eafd70c75015282b018575c30fcebd10289bd638e"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run_test.go",
+      "bytes": 11676,
+      "sha256": "801e0c60b3333813e9d4aef51dbb205d91d17b1e8cedaa38e74f4c2e014e5bcd"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "23affeede85be6556acb955558ba6d000a1b6ea1b9e1202dfda16cbbc70f524d"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 141385,
+      "sha256": "b9fbf5700f09e6d30e13897c80b95c553c2e816af1618c3a5ec3c1ea0be9df2f"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 188656,
+      "sha256": "da6d660d0eb3dc8b08a2ab130acaae5f9ea4fc137164d2ae74524ec3c52539e8"
+    }
+  ]
+}

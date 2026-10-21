@@ -1,0 +1,29 @@
+{
+  "observed_at": "2026-10-21T11:23:19Z",
+  "sources": [
+    {
+      "url": "https://docs.github.com/en/actions/reference/workflows-and-actions/variables",
+      "facts": [
+        "GITHUB_RUN_NUMBER is unique for each run of a particular workflow, increases for each new run, and is unchanged on re-run.",
+        "GITHUB_RUN_ATTEMPT begins at one and increases on re-run."
+      ]
+    },
+    {
+      "url": "https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run",
+      "facts": [
+        "Exact run GET exposes id, workflow_id, run_number, run_attempt, repository, branch, head and event metadata."
+      ]
+    }
+  ],
+  "direct_quotes_used": false,
+  "inference": "For a fixed numeric workflow ID, equality current.run_number = predecessor.run_number + 1 admits at most one new run; deletion does not supply a distinct new run with the same unique sequence number. This is inferred from the documented unique monotonic numbering, not a separate documented delete/reset guarantee.",
+  "fresh_prior": {
+    "id": 39581355444,
+    "workflow_id": 329938003,
+    "run_number": 32,
+    "run_attempt": 1
+  },
+  "next_only_eligible_number": 33,
+  "a_gap_consumes_this_narrow_option": true,
+  "predecessor_must_be_original_attempt_one_with_zero_prior_and_no_continuation": true
+}

@@ -1,0 +1,33 @@
+{
+  "native_commands_executed": false,
+  "cryptographic_or_package_validation_claimed": false,
+  "results": [
+    {
+      "case": "none",
+      "passed": true,
+      "private_removed": true,
+      "output_generations": [
+        "A",
+        "B"
+      ],
+      "failure": null,
+      "environment_restored": true
+    },
+    {
+      "case": "B-verification",
+      "passed": true,
+      "private_removed": true,
+      "output_generations": [],
+      "failure": "injected B verification failure",
+      "environment_restored": true
+    },
+    {
+      "case": "B-export-copy",
+      "passed": true,
+      "private_removed": true,
+      "output_generations": [],
+      "failure": "injected copy failure",
+      "environment_restored": true
+    }
+  ]
+}

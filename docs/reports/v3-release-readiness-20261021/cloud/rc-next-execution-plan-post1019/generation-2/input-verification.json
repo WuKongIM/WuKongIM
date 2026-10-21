@@ -1,0 +1,37 @@
+{
+  "observed_at": "2026-10-21T11:30:04.791627+00:00",
+  "independent_review_all9_entries_verified": true,
+  "v1_untouched": true,
+  "files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-next-execution-plan-post1019/SHA256SUMS",
+      "sha256": "6672726184ffda776fd63b38cdc281d5f46bba5254bfe65b570968fa12503349",
+      "bytes": 612
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-next-execution-plan-review/archive-sha256.json",
+      "sha256": "51cbfd24de5a1eb9c064a410f4ba8d1013e1bbc0b6914efa3846afe5fb797d92",
+      "bytes": 1487
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-next-execution-plan-review/review.md",
+      "sha256": "f229dd5592ea2dd48aac252fb26772c8738bcaa56e0f2e1c5ea3e776d290bd8a",
+      "bytes": 10083
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-next-execution-plan-review/workflow-run-sequence-readonly.json",
+      "sha256": "b100b3168a1f68878bc60e9b6a2e36bc254d444ef1e206bcf91f2b731f2938ea",
+      "bytes": 5353
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-next-execution-plan-review/public-cost-boundary-review.json",
+      "sha256": "4b139de3be4c1581c19ee9be276fbeb590bd4b99bd2ccfdd4e46d764f2cc2ead",
+      "bytes": 1970
+    },
+    {
+      "path": "/Users/tt/.agents/skills/tdd/SKILL.md",
+      "sha256": "6cfc6a5920744e55861b9b6176e12597d0c09345ea077bddc44c0d60712f2a0f",
+      "bytes": 3543
+    }
+  ]
+}

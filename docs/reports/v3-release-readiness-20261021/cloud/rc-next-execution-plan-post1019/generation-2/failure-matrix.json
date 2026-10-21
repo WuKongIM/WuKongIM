@@ -1,0 +1,142 @@
+{
+  "status": "inventory_only_no_tests_written",
+  "seams": [
+    "readonly helper CLI with fixed GitHub API/ZIP fixtures",
+    "real stage shell black-box side-effect counters",
+    "Materialize public function and CLI",
+    "formal/finalizer command boundary",
+    "workflow static contract"
+  ],
+  "cases": [
+    {
+      "id": "sequence_positive",
+      "input": "old32/current33 same numericworkflow and API/env attempt1",
+      "expected": "accept only one single procurement generation2; no cloud in fixture"
+    },
+    {
+      "id": "sequence_gap",
+      "input": "old32/current34 including deleted/failed/canceled33",
+      "expected": "reject: nonadjacent_run before bundle/key/Quote/Acquire"
+    },
+    {
+      "id": "rerun",
+      "input": "old attempt2 or current attempt2",
+      "expected": "reject: rerun_not_supported"
+    },
+    {
+      "id": "api_identity",
+      "input": "cross numericworkflow/repo/headrepo/path/main/event/current env IDs/control",
+      "expected": "reject: producer_identity"
+    },
+    {
+      "id": "api_unavailable",
+      "input": "missing fields/malformed exact GET/API error",
+      "expected": "reject: authority_unavailable_or_invalid; no fallback"
+    },
+    {
+      "id": "chain_predecessor",
+      "input": "prior is33/attempt2/nonzero prior/sidecar/formal",
+      "expected": "reject: predecessor_not_original_rehearsal"
+    },
+    {
+      "id": "first_start_replay",
+      "input": "no input plus authenticated exact-request cleanup or complete",
+      "expected": "reject: request_already_spent; prior never reset0"
+    },
+    {
+      "id": "first_start_compatible",
+      "input": "genuine first request with complete inventory and no authenticated prior",
+      "expected": "preserve original attempt1/prior0; unchanged four-input behavior"
+    },
+    {
+      "id": "inventory_incomplete",
+      "input": "page bound exceeded/missing page/API failure/invalid metadata",
+      "expected": "reject: inventory_incomplete; not empty history"
+    },
+    {
+      "id": "forged_history",
+      "input": "lookalike artifact from wrong producer",
+      "expected": "do not trust it as prior; authority errors fail closed; authenticated valid history still blocks default"
+    },
+    {
+      "id": "child_identity",
+      "input": "wrong Acquire/Release workflow/head/attempt/status/association",
+      "expected": "reject: child_producer_identity"
+    },
+    {
+      "id": "artifact_bytes",
+      "input": "id/run/size/digest mismatch or unsafe ZIP/path/bounds",
+      "expected": "reject: artifact_integrity; no arbitrary extraction"
+    },
+    {
+      "id": "binding",
+      "input": "request/source/diagnostic key/Plan/Quote/Receipt/selector/account differ",
+      "expected": "reject: prior_identity_mismatch"
+    },
+    {
+      "id": "zero_scope",
+      "input": "absent zero/pending/residual/1scope/missing/duplicate/extra scopes",
+      "expected": "reject: zero_incomplete; exact12 required"
+    },
+    {
+      "id": "known_runtime",
+      "input": "known runtime/correctness terminal or accepted run-start/measured/formal evidence",
+      "expected": "reject: measured_or_runtime_predecessor"
+    },
+    {
+      "id": "unknown_honesty",
+      "input": "legacy missing accepted run-start/unknown initial cause",
+      "expected": "preserve unclassified_before_accepted_run_start; never label preflight fixed; explicit start mode required"
+    },
+    {
+      "id": "stop",
+      "input": "authenticated request stop or incomplete stop authority",
+      "expected": "reject: stopped_or_stop_unverified"
+    },
+    {
+      "id": "quote_reserve",
+      "input": "authenticated original exact cost model",
+      "expected": "reserve74477600 from lines; no invoice claim, no numeric operator override"
+    },
+    {
+      "id": "cost_boundary",
+      "input": "price expiry/cost sum/creation-zero/resource/EIP model not closed or overflow",
+      "expected": "reject: cost_coverage_unproven; never fallback0/28939800"
+    },
+    {
+      "id": "materialize_no_proof",
+      "input": "attempt2/nonzero prior supplied without proof",
+      "expected": "reject: invalid trusted context; existing first-start contract remains"
+    },
+    {
+      "id": "materialize_bound_proof",
+      "input": "well-formed proof bound to request/source/key/current run; all auth fixtures pass",
+      "expected": "one rehearsal2 distinct lease; prior74477600; budgets1500000000/1350000000 unchanged"
+    },
+    {
+      "id": "remaining_quote",
+      "input": "new quote over1275522400",
+      "expected": "existing Quote gate rejects; reserve cannot be reduced"
+    },
+    {
+      "id": "formal_carry",
+      "input": "new real rehearsal_pass transition prior+currentcost",
+      "expected": "preserve full oldreserve, sidecar/evidence and original source/new chain bundle"
+    },
+    {
+      "id": "formal_tamper",
+      "input": "nonzero prior missing proof, sidecar/old evidence digest or reserve mismatch",
+      "expected": "reject before formal procurement"
+    },
+    {
+      "id": "terminal_failure",
+      "input": "Issue/artifact/diagnostic failures after acquire",
+      "expected": "original cleanup and failure remain; no third lease or retry chance"
+    },
+    {
+      "id": "retention",
+      "input": "handoff removed but authenticated90-day complete+cleanup retained",
+      "expected": "can reconstruct full prior proof only if required original bytes available; missing proof rejects"
+    }
+  ]
+}

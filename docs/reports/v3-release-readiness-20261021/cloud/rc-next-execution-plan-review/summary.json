@@ -1,0 +1,55 @@
+{
+  "schema": "wukongim.readonly_plan_review/v1",
+  "reviewed_at": "2026-10-21T11:26:41.373423+00:00",
+  "source_sha": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "implementation_review": false,
+  "tests_executed": false,
+  "cloud_or_dispatch_actions": false,
+  "decision": "accept_narrow_v2_direction_subject_to_explicit_boundaries_and_test_first_implementation",
+  "existing_safe_same_request_new_lease_entrypoint": false,
+  "recommended_once_fence": {
+    "old_run_id": 39581355444,
+    "workflow_id": 329938003,
+    "old_run_number": 32,
+    "only_next_number": 33,
+    "both_run_attempts": 1,
+    "forbid_chained_predecessor": true,
+    "preserve_global_paid_lock_stop_and_zero": true
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "status": "v2_design_resolution",
+      "subject": "replace history enumeration with exact adjacent monotonic run number and original-attempt-one predicate"
+    },
+    {
+      "id": "R2",
+      "status": "implementation_required",
+      "subject": "existing producer/zero helpers are insufficient alone; authenticate exact child/assets/12 scopes/cost identities"
+    },
+    {
+      "id": "R3",
+      "status": "v2_design_resolution_implementation_required",
+      "subject": "root accepted existing bounded artifact inventory guard: authenticated prior cleanup/complete rejects same-request default start without predecessor"
+    },
+    {
+      "id": "R4",
+      "status": "implementation_required",
+      "subject": "unknown failure must remain unclassified and known runtime/correctness/measurement/stop must reject"
+    },
+    {
+      "id": "R5",
+      "status": "implementation_required",
+      "subject": "full admitted Quote reserve is conditional model upper bound, preserve nonzero prior with independently bound downstream evidence"
+    }
+  ],
+  "cost_micros": {
+    "full_quote_reserve": 74477600,
+    "elapsed_estimate_not_invoice": 28939800,
+    "remaining_operational": 1275522400,
+    "remaining_hard": 1425522400
+  },
+  "actual_invoice_verified": false,
+  "no_additional_general_ledger_lock_tag_or_retry_framework": true,
+  "all_changes_preparatory_no_procurement": true
+}

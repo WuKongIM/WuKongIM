@@ -1,0 +1,106 @@
+{
+  "tests_first_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/README.md",
+      "bytes": 4592,
+      "sha256": "1da5aaa07d0745a48630775118f010133d46f0d827c2904eb281a854889f270b"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/failure-inventory.md",
+      "bytes": 1706,
+      "sha256": "6e384fd5e579f1ffba79b002948294b6f0e75e55471ea1e6ad03d571b444013e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/source-freeze.json",
+      "bytes": 621,
+      "sha256": "4ea677512912aef373ae82e3a4c3a116e7a0f18403156666bf281354cb163391"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/01-payload-red.log",
+      "bytes": 1077,
+      "sha256": "dd69dd2d0dddb7cdfd90567c9223f08b3a58eda745789721b571a2973583a6f2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/02-payload-green.log",
+      "bytes": 260,
+      "sha256": "5ddbb9f52779b7a0b984ef75c365e426d63863e25761823dbbddd7eefa67f35e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/03-invalid-input-red.log",
+      "bytes": 21482,
+      "sha256": "2183ffd9bb9272f64569048bd2cd8730ce2728b602d705c12fed7b251ced1239"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/04-invalid-input-green.log",
+      "bytes": 400,
+      "sha256": "6d9e6645eff2215a9322f36a1543020de73320dd6fab9c3b854958079a46bd47"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/05-export-red.log",
+      "bytes": 1330,
+      "sha256": "092c755a1bb86361fa6ce2f72e6a9db56e18cca72d6699a9845826fd13da4ddf"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/06-export-source-green.log",
+      "bytes": 557,
+      "sha256": "139c065002f9664dbd0dc26d609e08cf23f28140dd88ea3643778f54b16ec6ab"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/07-export-preflight-red.log",
+      "bytes": 6226,
+      "sha256": "251cda53eac3e1143da6729983a95f46b53e01e1b116198ab51521025be1c862"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/08-export-preflight-green.log",
+      "bytes": 879,
+      "sha256": "65c1e1a70403e0140ee0819889864ebe734ad3dd2262d1e8e46b409c9923ccd4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/09-export-native-boundary-red.log",
+      "bytes": 2065,
+      "sha256": "308a013ed6f80568bd3d8486fd4d852d0b0a5ec2bae2561496e550f49d5fb655"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/10-export-native-boundary-green.log",
+      "bytes": 1052,
+      "sha256": "4d82b8aa71606c1ae5227b9eaa9de0a5fd43da9dfc60937a54c76037701b3009"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/11-existing-candidate-unit.log",
+      "bytes": 3107,
+      "sha256": "ee5d6504fab14af1914b277303420a4147bab2f26a579e1d08d8cd138d1e7851"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/12-default-equivalence.json",
+      "bytes": 1172,
+      "sha256": "a3994e4ec196f0e5bb1c393e12c19c5b9148562500aa43295d06c039ea3a0fae"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation/fixture/13-portability.json",
+      "bytes": 621,
+      "sha256": "7b4fdf9f5d731e23b453384ee6c0c25c4d24e4406dd807873d47ec3c1b59ba90"
+    }
+  ],
+  "rules_read": [
+    {
+      "path": "docs/release-contract.md",
+      "source": "335cd2569d2b62de577916ed86c097fd3a22547e",
+      "sha256": "dcf3a282a0c93cd87ead65d6637550d461c11c77f0a54d4645b98597f47c1bcb"
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "source": "335cd2569d2b62de577916ed86c097fd3a22547e",
+      "sha256": "9aacf50ccf447afe21942d6aa46d3da0a2b63c2aa997cffcbe8cbcf04332a01f"
+    },
+    {
+      "path": "docs/object-storage-planning.md",
+      "source": "335cd2569d2b62de577916ed86c097fd3a22547e",
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "no_package_specific_agents_or_flow": true
+}

@@ -1,0 +1,11 @@
+{
+  "reviewed_at": "2026-10-21T11:41:03.709915+00:00",
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "scope": "five frozen Go/test/FLOW files only",
+  "blocking_findings": [],
+  "source_identity_matches_prior_test_results": true,
+  "tests_rerun": false,
+  "network_or_cloud_actions": false,
+  "helper_consumers_reviewed": false,
+  "full_slice_checks_pending": true
+}

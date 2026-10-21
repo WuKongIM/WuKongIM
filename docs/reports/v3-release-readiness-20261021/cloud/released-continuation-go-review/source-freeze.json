@@ -1,0 +1,31 @@
+{
+  "captured_at": "2026-10-21T11:39:44.156719+00:00",
+  "head": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "files": [
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "sha256": "e9166cd98f03fbda72f47b20e7c4b7ec056ae1004a208d81df73a6de76f51b76",
+      "bytes": 16336
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main_test.go",
+      "sha256": "a5a30a6b5b85fcbcfa2e385da9f0278030fb440c04055160a1cfd3848e4fbe4d",
+      "bytes": 23252
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "90b90cd3b1ad0151d8a02459731d796228e9ce2eb34a7ea2cd6b2fbca8cf43c5",
+      "bytes": 24992
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run_test.go",
+      "sha256": "bc0e30941705f7e2d7bc40789e2a2eecd613ae5229513546d7491ac4df4398a5",
+      "bytes": 20748
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "bytes": 3510
+    }
+  ]
+}

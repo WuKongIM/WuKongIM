@@ -1,0 +1,32 @@
+{
+  "first-red": {
+    "test_events": {
+      "pass": 0,
+      "fail": 7,
+      "skip": 0
+    },
+    "package_result": [
+      "fail"
+    ]
+  },
+  "green": {
+    "test_events": {
+      "pass": 17,
+      "fail": 0,
+      "skip": 0
+    },
+    "package_result": [
+      "pass"
+    ]
+  },
+  "related-contracts": {
+    "test_events": {
+      "pass": 16,
+      "fail": 0,
+      "skip": 0
+    },
+    "package_result": [
+      "pass"
+    ]
+  }
+}

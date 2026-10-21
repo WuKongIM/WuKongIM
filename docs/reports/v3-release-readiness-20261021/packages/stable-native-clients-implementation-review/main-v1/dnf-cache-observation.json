@@ -1,0 +1,27 @@
+{
+  "read_at": "2026-10-21T11:45:30.487987+00:00",
+  "official_sources": [
+    "https://dnf.readthedocs.io/en/latest/command_ref.html#options",
+    "https://raw.githubusercontent.com/rpm-software-management/dnf/4.14.0/dnf/cli/cli.py",
+    "https://raw.githubusercontent.com/rpm-software-management/dnf/4.14.0/dnf/conf/config.py"
+  ],
+  "source_functions": [
+    "Cli._read_conf_file",
+    "MainConf.prepend_installroot",
+    "MainConf._prepend_installroot_path"
+  ],
+  "installroot": "/tmp/client-root",
+  "configured_paths": [
+    "/tmp/dnf-cache",
+    "/tmp/dnf-state"
+  ],
+  "driver_mounts": [
+    "/tmp/dnf-cache",
+    "/tmp/dnf-state"
+  ],
+  "effective_paths": [
+    "/tmp/client-root/tmp/dnf-cache",
+    "/tmp/client-root/tmp/dnf-state"
+  ],
+  "finding_basis": "Official DNF semantics plus reviewed source arguments/mounts; pinned image not run."
+}

@@ -1,0 +1,40 @@
+{
+  "source_revision": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "files": [
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+    ".github/workflows/chat-lifecycle-formal.yml",
+    ".github/workflows/chat-lifecycle-formal-finalize.yml",
+    "scripts/chat_lifecycle_released_preclock_consumers_test.go",
+    "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go"
+  ],
+  "tests": {
+    "first-red": {
+      "tests_pass": 0,
+      "tests_fail": 7,
+      "skips": 0,
+      "package_result": [
+        "fail"
+      ]
+    },
+    "green": {
+      "tests_pass": 17,
+      "tests_fail": 0,
+      "skips": 0,
+      "package_result": [
+        "pass"
+      ]
+    },
+    "related-contracts": {
+      "tests_pass": 16,
+      "tests_fail": 0,
+      "skips": 0,
+      "package_result": [
+        "pass"
+      ]
+    }
+  },
+  "actionlint_exit": 0,
+  "diff_check_exit": 0,
+  "authority_helper": "stubbed only in workflow shell integration; actual helper semantic coverage owned by parent",
+  "cloud_actions": false
+}

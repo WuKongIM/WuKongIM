@@ -1,0 +1,116 @@
+{
+  "frozen_shell_sha256": "3ac5c688575b65141d475a61a67390a4529bdc99a516301575a37395fb8bde19",
+  "cleanup_steps_exactly_unchanged": [
+    {
+      "stage": "rehearsal",
+      "unchanged_step": "release"
+    },
+    {
+      "stage": "rehearsal",
+      "unchanged_step": "cleanup"
+    },
+    {
+      "stage": "rehearsal",
+      "unchanged_step": "Delete released encrypted deployment handoff"
+    },
+    {
+      "stage": "rehearsal",
+      "unchanged_step": "Upload zero-inventory proof"
+    },
+    {
+      "stage": "rehearsal",
+      "unchanged_step": "Upload rehearsal cleanup-pending continuation"
+    },
+    {
+      "stage": "formal",
+      "unchanged_step": "release"
+    },
+    {
+      "stage": "formal",
+      "unchanged_step": "cleanup"
+    },
+    {
+      "stage": "formal",
+      "unchanged_step": "Delete released encrypted deployment handoff"
+    },
+    {
+      "stage": "formal",
+      "unchanged_step": "Upload formal zero-inventory proof"
+    },
+    {
+      "stage": "formal",
+      "unchanged_step": "Upload formal cleanup-pending continuation"
+    }
+  ],
+  "retention_days_unchanged": 90,
+  "permissions_and_concurrency_unchanged": true,
+  "formal_cost_binding_cases": [
+    {
+      "case": "matching",
+      "previous_terminal": false,
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "handoff_prior_dropped",
+      "previous_terminal": false,
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "selected_terminal_prior_dropped",
+      "previous_terminal": false,
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "authority_rejected",
+      "previous_terminal": false,
+      "expected_exit": 19,
+      "actual_exit": 19,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "matching",
+      "previous_terminal": true,
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "handoff_prior_dropped",
+      "previous_terminal": true,
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "selected_terminal_prior_dropped",
+      "previous_terminal": true,
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "authority_rejected",
+      "previous_terminal": true,
+      "expected_exit": 19,
+      "actual_exit": 19,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "uses_real_bash_and_jq": true,
+  "authority_stubbed": true,
+  "github_or_cloud_called": false
+}

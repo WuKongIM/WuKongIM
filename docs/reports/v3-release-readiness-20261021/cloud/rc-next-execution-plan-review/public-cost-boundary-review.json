@@ -1,0 +1,52 @@
+{
+  "inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/run-plan.json",
+      "bytes": 2361,
+      "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/receipt.json",
+      "bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/zero-inventory.json",
+      "bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/cleanup.json",
+      "bytes": 172,
+      "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+    }
+  ],
+  "resource_counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "total_resources": 28,
+  "quote_equals_receipt_quote": true,
+  "proposed_nonrefundable_prior_reserve_micros": 74477600,
+  "older_elapsed_formula_estimate_micros": 28939800,
+  "whole_request_stop_micros": 1350000000,
+  "whole_request_hard_micros": 1500000000,
+  "remaining_stop_envelope_micros": 1275522400,
+  "remaining_hard_envelope_micros": 1425522400,
+  "actual_provider_invoice_verified": false,
+  "independent_postdeletion_bandwidth_measurement": false,
+  "model_coverage_requires_authenticated_inputs": true
+}

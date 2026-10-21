@@ -1,0 +1,230 @@
+{
+  "observed_at": "2026-10-21T11:46:40Z",
+  "public_only": true,
+  "native_executed": false,
+  "cloud_dispatched": false,
+  "files": [
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/allowlist.txt",
+      "path": "cloud/released-continuation-consumer-review/allowlist.txt",
+      "bytes": 478,
+      "sha256": "425b57df6d64d126f97e462828e9698155bcfb93fd396171461e105f5753f921"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/evidence-log-counts.json",
+      "path": "cloud/released-continuation-consumer-review/evidence-log-counts.json",
+      "bytes": 438,
+      "sha256": "1a3c2b00dee1d0bc619bea7d843c574bcfd9f8155b18129ff7f18cbbba1068bb"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/independent-probe-results.json",
+      "path": "cloud/released-continuation-consumer-review/independent-probe-results.json",
+      "bytes": 2673,
+      "sha256": "43c7eba3f147bad8d02c33b0222e096eb85ad2a6e1da418e92bd5f9acef40d3e"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/probe.py",
+      "path": "cloud/released-continuation-consumer-review/probe.py",
+      "bytes": 3950,
+      "sha256": "e0475ef645ea693af796891368be7b93434e4e6eb3e1770ca00961d6960a048c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/review.md",
+      "path": "cloud/released-continuation-consumer-review/review.md",
+      "bytes": 3603,
+      "sha256": "33bbb58f7762865a9d32b6a4b3b386c83f2e74f44b7f13a2dffd374e5fe340ea"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/source-freeze.json",
+      "path": "cloud/released-continuation-consumer-review/source-freeze.json",
+      "bytes": 3520,
+      "sha256": "fa67344fa61cbe8ebed0550b5779430f9a457c007e54547e7f4898d8f7f109c7"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/source/.github/workflows/chat-lifecycle-formal-finalize.yml",
+      "path": "cloud/released-continuation-consumer-review/source/.github/workflows/chat-lifecycle-formal-finalize.yml",
+      "bytes": 30143,
+      "sha256": "91fc7088f634e3ab521571e468fb0526922ec1631f8c20202935cdd0139b1a3a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/source/.github/workflows/chat-lifecycle-formal.yml",
+      "path": "cloud/released-continuation-consumer-review/source/.github/workflows/chat-lifecycle-formal.yml",
+      "bytes": 15796,
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/source/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "path": "cloud/released-continuation-consumer-review/source/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "bytes": 33988,
+      "sha256": "c830cbb8387e3651b70fdb0e99af893d4dec0acecf268b131903ac18492d5587"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/source/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+      "path": "cloud/released-continuation-consumer-review/source/scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+      "bytes": 5471,
+      "sha256": "f33a1a6ce45ed6fb4574139c77213b3847ede96929876cc1e15b4e744e6cf6e5"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/source/scripts/chat_lifecycle_released_preclock_consumers_test.go",
+      "path": "cloud/released-continuation-consumer-review/source/scripts/chat_lifecycle_released_preclock_consumers_test.go",
+      "bytes": 7054,
+      "sha256": "74759db8e522f2097a913772c4958befb94cfa1b45cdbfb0c94dd317e0add402"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/summary.json",
+      "path": "cloud/released-continuation-consumer-review/summary.json",
+      "bytes": 753,
+      "sha256": "b132f92307cadcc2eded25306141423b4d10ab345f2cb5b6b27e44fa8cfd1a48"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/validation-summary.json",
+      "path": "cloud/released-continuation-consumer-review/validation-summary.json",
+      "bytes": 1034,
+      "sha256": "f4051bd21d74e62681ea095ce5a0918ec23822657059bbe31511bdcfcf144bf9"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/workflow.patch",
+      "path": "cloud/released-continuation-consumer-review/workflow.patch",
+      "bytes": 9430,
+      "sha256": "4ccd0768810f4acb7318ebe3dca0dd5ccd4673ded24f7ad34b9acf7aa52c88c2"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/released-continuation-consumer-review/SHA256SUMS",
+      "path": "cloud/released-continuation-consumer-review/SHA256SUMS",
+      "bytes": 1402,
+      "sha256": "64deccf07934b509ad2bb856f06c011890d0cf02ced58295a8ec18037beec324"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/dnf-cache-observation.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/dnf-cache-observation.json",
+      "bytes": 855,
+      "sha256": "635651bc41db45d96df1cf09d55722993fc701b1e31724c4944d1e8bfddf5f9a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/input-freeze.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/input-freeze.json",
+      "bytes": 10222,
+      "sha256": "88e3cfb7e27b340eab43281491e01b88adfa12f4d8b142cda1746943ca7c7c6b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/light-tests.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/light-tests.json",
+      "bytes": 811,
+      "sha256": "6919bb9480feab8a2b372eef5cb04338e15914e940bb9e68c2375976d4d70815"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/preview-ast-result.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/preview-ast-result.json",
+      "bytes": 181,
+      "sha256": "8f3a1e554071ea075c9c6cb027cda9b14cdf7e3f83c303d15a2f9a84f6c6ae43"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/probe.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/probe.py",
+      "bytes": 3150,
+      "sha256": "adc1956bb4f92d86d94c2a956b7f362c3e2e318ae6285301151874db229b523d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/review.md",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/review.md",
+      "bytes": 5980,
+      "sha256": "b08f07a70cbd57348da3a6be6bbf478eb20cde2822884facf05ecfb1a0f0a320"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/rules.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/rules.json",
+      "bytes": 326,
+      "sha256": "b8721bc1bd5235e489e9993ed44d2dc5f7838bee071341a95590e2fc9bea9f25"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/.github/workflows/native-package-repository-drill.yml",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 15073,
+      "sha256": "4591f042b5f3bd4d51aee77913fca9901d899bb77ca0e6f5e7967e552c0041e8"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/CHANGELOG.md",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/CHANGELOG.md",
+      "bytes": 2052,
+      "sha256": "d3dddcc8c2757ed0c4ac7856c78a8fc5cff4c91dba51e88c55e9701620e4b442"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/docs/release-contract.md",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/docs/stable-audit-transport.md",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/docs/stable-audit-transport.md",
+      "bytes": 9119,
+      "sha256": "1858d6c92cb8adec5462b57f98f95ede2ddda0e8f57761a5d4f93e5540de626f"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/scripts/validate-production-package-clients.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/scripts/validate-production-package-clients.py",
+      "bytes": 87886,
+      "sha256": "9b9f59878a3c26ce2413490ec68bc831e052ea9b348a2a3f1d74e0c384aa05dd"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/tests/native_source_metadata_drill.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/tests/native_source_metadata_drill.py",
+      "bytes": 12447,
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/tests/native_stable_candidate_drill.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/tests/native_stable_candidate_drill.py",
+      "bytes": 42889,
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/tests/native_stable_clients_drill.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/tests/native_stable_clients_drill.py",
+      "bytes": 47021,
+      "sha256": "cbded82e01dd49e6bc8f9951f6dc3f09a03773135f6a55f48a3f9bc1e2ebcc24"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/tests/test_native_stable_clients_drill.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/tests/test_native_stable_clients_drill.py",
+      "bytes": 14692,
+      "sha256": "803d16e7fd1ecd274e4fb70c3361395963af25c5e9bfa12f61d96c0bf3159fe7"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/source/tests/test_validate_production_package_clients.py",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/source/tests/test_validate_production_package_clients.py",
+      "bytes": 67130,
+      "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_installed_cli_acceptance.py.log",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/test_installed_cli_acceptance.py.log",
+      "bytes": 2279,
+      "sha256": "7a60cb1c9536b268c292b2181945be4553ff56fa6664984fd3b0f6dfb499148a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/test_native_stable_clients_drill.py.log",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/test_native_stable_clients_drill.py.log",
+      "bytes": 1945,
+      "sha256": "865686290986eb1ea2f6f52b5882143dba4f486745ba50d07ba32b9ff55bfde4"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/uncertain-create-result.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/uncertain-create-result.json",
+      "bytes": 625,
+      "sha256": "488aad43639eed89183011208119a7802d6a264358364447a8b3b4e5bf9f919b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/manifest.json",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/manifest.json",
+      "bytes": 3133,
+      "sha256": "67e1974ea3f97e49f064a1d11928edded49dc67d11b3bb2bca13fa0588f1baa4"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/packages/stable-native-clients-implementation-review/main-v1/SHA256SUMS",
+      "path": "packages/stable-native-clients-implementation-review/main-v1/SHA256SUMS",
+      "bytes": 2068,
+      "sha256": "87d11a60b40d83d1fa1dd597db74a50cd42b4a2d24c859fa0da089ba5e0e365a"
+    }
+  ]
+}

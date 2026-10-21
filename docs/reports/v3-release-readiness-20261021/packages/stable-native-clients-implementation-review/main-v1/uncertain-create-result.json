@@ -1,0 +1,21 @@
+{
+  "scope": "Actual exercise/create/cleanup code; only native commands, build and platform are substituted. No Docker or GPG invoked.",
+  "failure": "simulated TERM after daemon creation before client ID capture",
+  "daemon_created": [
+    {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "name": "wk-scl-review-uncertain-create-1",
+      "label": "wk-stable-client-run=review-uncertain-create"
+    }
+  ],
+  "recorded_ids": [],
+  "cleanup_commands": [],
+  "cleanup": {
+    "verified": true,
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "errors": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "reviewed_at_utc": "2026-10-21T11:45:11.341191+00:00",
+  "decision": "no_blocking_findings_in_frozen_consumer_scope",
+  "base": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "input_manifest_sha256": "9f3a67edf7b0fb0f83fdbf11e6bea5b4bbaaced595b0a78150a914b5c18cf739",
+  "reviewed_source_files": 5,
+  "unchanged_cleanup_steps": 10,
+  "independent_shell_probe_cases": 8,
+  "findings": [],
+  "external_or_cloud_actions": false,
+  "authority_helper_reviewed": false,
+  "source_modified": false,
+  "validation_limits": [
+    "Authority helper replaced by exit-code stub only for independent shell probe.",
+    "No GitHub workflow execution or real procurement.",
+    "Final helper default-mode and authentication semantics require separate review."
+  ]
+}

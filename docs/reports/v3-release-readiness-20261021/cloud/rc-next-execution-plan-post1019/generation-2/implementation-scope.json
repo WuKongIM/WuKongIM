@@ -1,0 +1,104 @@
+{
+  "status": "proposed_not_modified",
+  "paths": [
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "purpose": "optional released_preclock_run_id; current API/environment identity; before-purchase helper wiring; unchanged permissions/lock"
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.sh",
+      "purpose": "new single narrow GitHub read-only authority/bytes/zero/cost/one-shot verifier; no provider and no arbitrary amount"
+    },
+    {
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "purpose": "optional third metadata output reuses already bounded inventory; default behavior/output unchanged"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "purpose": "read approved proof before bundle/key/Quote; single attempt2 and nonzero prior; preserve sidecar and generation-specific issue dedupe"
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "purpose": "strict local --released-preclock-proof decoding for materialize"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "purpose": "optional typed TrustedContext proof and exact one-use rehearsal2 validation; normal/formal semantics unchanged"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "purpose": "carry sidecar+old public evidence to terminal/transition; existing prior+current formula"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "purpose": "verify inherited sidecar/old evidence against prior; no new operator interface or transition schema"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "purpose": "retain prior failure/zero/reserve proof in final90-day chain"
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_test.go",
+      "purpose": "new static/JSON/public-CLI no-background contracts"
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_integration_test.go",
+      "purpose": "new tagged real shell+API/SSH stubs; zero external writes; consumer/sidecar failures"
+    },
+    {
+      "path": "scripts/chat_lifecycle_released_preclock_workflow_test.go",
+      "purpose": "new workflow permissions/input/order/default-compatibility contracts"
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main_test.go",
+      "purpose": "CLI proof acceptance/rejection contracts before implementation"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run_test.go",
+      "purpose": "Materialize public seam failure matrix before implementation"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "purpose": "one explicit released-preclock exception; no arbitrary repeat"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "purpose": "only generated row if scoped FLOW summary requires update; do not hand-edit unrelated rows"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "purpose": "fifth optional input/once-only source-budget-tracking semantics"
+    },
+    {
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+      "purpose": "distinguish same-live-Lease repair from reviewed explicit released-preclock continuation"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "purpose": "concise operator invariant and historical unknown boundary"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "purpose": "user/operator-facing behavior"
+    }
+  ],
+  "excluded": [
+    "product runtime",
+    "internal/usecase/cloudlease",
+    "internal/infra/cloudlease",
+    "Run Plan templates and thresholds",
+    "Issue/Review Agent control files/policy",
+    "permissions/roles/Secrets/keys",
+    "new ledger/lock/tag",
+    "cross-request history scheduler"
+  ],
+  "named_checks": [
+    "go-unit",
+    "go-vet",
+    "go-format",
+    "go-mod-tidy",
+    "scripts-integration",
+    "workflow-contracts",
+    "flow-doc-contracts"
+  ]
+}
