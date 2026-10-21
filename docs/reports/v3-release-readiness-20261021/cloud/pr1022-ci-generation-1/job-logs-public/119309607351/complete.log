@@ -1,0 +1,879 @@
+﻿2026-10-21T15:25:27.2324543Z Current runner version: '2.338.0'
+2026-10-21T15:25:27.2361119Z ##[group]Runner Image Provisioner
+2026-10-21T15:25:27.2362967Z Hosted Compute Agent
+2026-10-21T15:25:27.2363947Z Version: 20261015.610
+2026-10-21T15:25:27.2365128Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-21T15:25:27.2366336Z Build Date: 2026-10-14T17:06:54Z
+2026-10-21T15:25:27.2367897Z Worker ID: {efd7af12-330a-435d-9ec9-bb09f32e3c48}
+2026-10-21T15:25:27.2369299Z Region: eastus2
+2026-10-21T15:25:27.2370165Z Cloud: Azure
+2026-10-21T15:25:27.2371271Z ##[endgroup]
+2026-10-21T15:25:27.2373476Z ##[group]Operating System
+2026-10-21T15:25:27.2374639Z Ubuntu
+2026-10-21T15:25:27.2375597Z 24.04.5
+2026-10-21T15:25:27.2376419Z LTS
+2026-10-21T15:25:27.2377592Z ##[endgroup]
+2026-10-21T15:25:27.2378525Z ##[group]Runner Image
+2026-10-21T15:25:27.2379703Z Image: ubuntu-24.04
+2026-10-21T15:25:27.2380672Z Version: 20261018.339.1
+2026-10-21T15:25:27.2382762Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T15:25:27.2385475Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T15:25:27.2387598Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:27.2392600Z Contents: read
+2026-10-21T15:25:27.2393551Z Metadata: read
+2026-10-21T15:25:27.2394518Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:27.2399495Z Cache mode: write
+2026-10-21T15:25:27.2400615Z Prepare workflow directory
+2026-10-21T15:25:27.2870171Z Prepare all required actions
+2026-10-21T15:25:27.2940164Z Getting action download info
+2026-10-21T15:25:27.5562771Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-10-21T15:25:27.6515748Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-21T15:25:27.8600680Z Download action repository 'actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38' (SHA:249970729cb0ef3589644e2896645e5dc5ba9c38)
+2026-10-21T15:25:27.9374522Z Download action repository 'actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3' (SHA:cf277c60eb25467037889841efdb72551f06f6c3)
+2026-10-21T15:25:28.2120728Z Download action repository 'reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed' (SHA:1dcd0090116d15e7c562f8db72807de5e036a4ed)
+2026-10-21T15:25:28.5756321Z Complete job name: Android Maven Central 1.0.5
+2026-10-21T15:25:28.6895213Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-10-21T15:25:28.6897037Z with:
+2026-10-21T15:25:28.6898193Z   repository: WuKongIM/WuKongIM
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:28.6907920Z   ssh-strict: true
+2026-10-21T15:25:28.6908811Z   ssh-user: git
+2026-10-21T15:25:28.6909718Z   persist-credentials: true
+2026-10-21T15:25:28.6910704Z   clean: true
+2026-10-21T15:25:28.6911605Z   sparse-checkout-cone-mode: true
+2026-10-21T15:25:28.6912703Z   fetch-depth: 1
+2026-10-21T15:25:28.6913581Z   fetch-tags: false
+2026-10-21T15:25:28.6914487Z   show-progress: true
+2026-10-21T15:25:28.6915399Z   lfs: false
+2026-10-21T15:25:28.6916254Z   submodules: false
+2026-10-21T15:25:28.6917287Z   set-safe-directory: true
+2026-10-21T15:25:28.6918338Z   allow-unsafe-pr-checkout: false
+2026-10-21T15:25:28.6919710Z ##[endgroup]
+2026-10-21T15:25:28.7947941Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T15:25:28.7950818Z ##[group]Getting Git version info
+2026-10-21T15:25:28.7952406Z Working directory is '/home/runner/work/WuKongIM/WuKongIM'
+2026-10-21T15:25:28.7954607Z [command]/usr/bin/git version
+2026-10-21T15:25:28.8033283Z git version 2.55.0
+2026-10-21T15:25:28.8055474Z ##[endgroup]
+2026-10-21T15:25:28.8065599Z Temporarily overriding HOME='/home/runner/work/_temp/d39eb968-3e59-44ff-85de-1dbfbaf05a43' before making global git config changes
+2026-10-21T15:25:28.8070319Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:25:28.8074122Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:25:28.8124276Z Deleting the contents of '/home/runner/work/WuKongIM/WuKongIM'
+2026-10-21T15:25:28.8128230Z ##[group]Determining repository object format
+2026-10-21T15:25:28.8130337Z ##[endgroup]
+2026-10-21T15:25:28.8131941Z ##[group]Initializing the repository
+2026-10-21T15:25:28.8134102Z [command]/usr/bin/git init /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:25:28.8285313Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T15:25:28.8288959Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T15:25:28.8292162Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T15:25:28.8293732Z hint: call:
+2026-10-21T15:25:28.8294564Z hint:
+2026-10-21T15:25:28.8295607Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T15:25:28.8296888Z hint:
+2026-10-21T15:25:28.8299044Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T15:25:28.8301426Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T15:25:28.8302974Z hint:
+2026-10-21T15:25:28.8303850Z hint: 	git branch -m <name>
+2026-10-21T15:25:28.8304896Z hint:
+2026-10-21T15:25:28.8306362Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T15:25:28.8308793Z Initialized empty Git repository in /home/runner/work/WuKongIM/WuKongIM/.git/
+2026-10-21T15:25:28.8312019Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T15:25:28.8352761Z ##[endgroup]
+2026-10-21T15:25:28.8354494Z ##[group]Disabling automatic garbage collection
+2026-10-21T15:25:28.8356518Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T15:25:28.8389339Z ##[endgroup]
+2026-10-21T15:25:28.8391531Z ##[group]Setting up auth
+2026-10-21T15:25:28.8392972Z Removing SSH command configuration
+2026-10-21T15:25:28.8394725Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:25:28.8427118Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:25:28.8791402Z Removing HTTP extra header
+2026-10-21T15:25:28.8796481Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:25:28.8838957Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:25:28.9064302Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:25:28.9069103Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:25:28.9105952Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:28.9377890Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path /home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:25:28.9409951Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:25:28.9447846Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:25:28.9479336Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:25:28.9510050Z ##[endgroup]
+2026-10-21T15:25:28.9511725Z ##[group]Fetching the repository
+2026-10-21T15:25:28.9515714Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +8e8c0ab3321affc8655fb720a308e50bfaca15ca:refs/remotes/pull/1022/merge
+2026-10-21T15:25:33.2688889Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T15:25:33.2690811Z  * [new ref]         8e8c0ab3321affc8655fb720a308e50bfaca15ca -> pull/1022/merge
+2026-10-21T15:25:33.2704802Z ##[endgroup]
+2026-10-21T15:25:33.2705688Z ##[group]Determining the checkout info
+2026-10-21T15:25:33.2706613Z ##[endgroup]
+2026-10-21T15:25:33.2707458Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T15:25:33.2767944Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T15:25:33.2801274Z ##[group]Checking out the ref
+2026-10-21T15:25:33.2804445Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1022/merge
+2026-10-21T15:25:34.1115192Z Note: switching to 'refs/remotes/pull/1022/merge'.
+2026-10-21T15:25:34.1115694Z 
+2026-10-21T15:25:34.1116042Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T15:25:34.1116918Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T15:25:34.1118076Z state without impacting any branches by switching back to a branch.
+2026-10-21T15:25:34.1118575Z 
+2026-10-21T15:25:34.1118992Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T15:25:34.1119819Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T15:25:34.1120307Z 
+2026-10-21T15:25:34.1120511Z   git switch -c <new-branch-name>
+2026-10-21T15:25:34.1120840Z 
+2026-10-21T15:25:34.1121056Z Or undo this operation with:
+2026-10-21T15:25:34.1121509Z 
+2026-10-21T15:25:34.1121690Z   git switch -
+2026-10-21T15:25:34.1121965Z 
+2026-10-21T15:25:34.1122907Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T15:25:34.1124293Z 
+2026-10-21T15:25:34.1124954Z HEAD is now at 8e8c0ab Merge 9a4900dc67ac674791edba11ea9a719cd91ec570 into aeb45c2164b6a50214928f520edd2a8815b7a976
+2026-10-21T15:25:34.1150271Z ##[endgroup]
+2026-10-21T15:25:34.1201699Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T15:25:34.1231094Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca
+2026-10-21T15:25:34.1515642Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-21T15:25:34.1516066Z with:
+2026-10-21T15:25:34.1516288Z   go-version-file: go.mod
+2026-10-21T15:25:34.1516525Z   cache: true
+2026-10-21T15:25:34.1516741Z   check-latest: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:34.1519669Z ##[endgroup]
+2026-10-21T15:25:34.2800470Z Setup go version spec 1.25.11
+2026-10-21T15:25:34.2824127Z Attempting to download 1.25.11...
+2026-10-21T15:25:34.8618395Z matching 1.25.11...
+2026-10-21T15:25:34.8667019Z Acquiring 1.25.11 from https://github.com/actions/go-versions/releases/download/1.25.11-26891828414/go-1.25.11-linux-x64.tar.gz
+2026-10-21T15:25:35.3521721Z Extracting Go...
+2026-10-21T15:25:35.3652689Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/34c7bb0a-0976-49fa-89d3-1ca56c091c34 -f /home/runner/work/_temp/19a34a84-9803-4713-9d49-430935872e75
+2026-10-21T15:25:36.8262887Z Successfully extracted go to /home/runner/work/_temp/34c7bb0a-0976-49fa-89d3-1ca56c091c34
+2026-10-21T15:25:36.8263626Z Adding to the cache ...
+2026-10-21T15:25:41.4025309Z Successfully cached go to /opt/hostedtoolcache/go/1.25.11/x64
+2026-10-21T15:25:41.4027023Z Added go to the path
+2026-10-21T15:25:41.4029766Z Successfully set up Go version 1.25.11
+2026-10-21T15:25:41.4254518Z [command]/opt/hostedtoolcache/go/1.25.11/x64/bin/go env GOMODCACHE
+2026-10-21T15:25:41.4291780Z [command]/opt/hostedtoolcache/go/1.25.11/x64/bin/go env GOCACHE
+2026-10-21T15:25:41.4331736Z /home/runner/go/pkg/mod
+2026-10-21T15:25:41.4352107Z /home/runner/.cache/go-build
+2026-10-21T15:25:41.5723171Z Cache hit for: setup-go-Linux-x64-ubuntu24-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4
+2026-10-21T15:25:42.6131616Z Received 201326592 of 486784433 (41.4%), 191.8 MBs/sec
+2026-10-21T15:25:43.6183720Z Received 419430400 of 486784433 (86.2%), 199.2 MBs/sec
+2026-10-21T15:25:43.8387526Z Received 486784433 of 486784433 (100.0%), 208.4 MBs/sec
+2026-10-21T15:25:43.8389219Z Cache Size: ~464 MB (486784433 B)
+2026-10-21T15:25:43.8424033Z [command]/usr/bin/tar -xf /home/runner/work/_temp/92941a32-d03f-4f00-8aa6-a79555c53e18/cache.tzst -P -C /home/runner/work/WuKongIM/WuKongIM --use-compress-program unzstd
+2026-10-21T15:25:47.6658937Z Cache restored successfully
+2026-10-21T15:25:47.6869846Z Cache restored from key: setup-go-Linux-x64-ubuntu24-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4
+2026-10-21T15:25:47.6893840Z go version go1.25.11 linux/amd64
+2026-10-21T15:25:47.6894088Z 
+2026-10-21T15:25:47.6894398Z ##[group]go env
+2026-10-21T15:25:47.7145972Z AR='ar'
+2026-10-21T15:25:47.7146352Z CC='gcc'
+2026-10-21T15:25:47.7146754Z CGO_CFLAGS='-O2 -g'
+2026-10-21T15:25:47.7147402Z CGO_CPPFLAGS=''
+2026-10-21T15:25:47.7147744Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T15:25:47.7148142Z CGO_ENABLED='1'
+2026-10-21T15:25:47.7148534Z CGO_FFLAGS='-O2 -g'
+2026-10-21T15:25:47.7148933Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T15:25:47.7149342Z CXX='g++'
+2026-10-21T15:25:47.7149734Z GCCGO='gccgo'
+2026-10-21T15:25:47.7150121Z GO111MODULE=''
+2026-10-21T15:25:47.7150505Z GOAMD64='v1'
+2026-10-21T15:25:47.7150872Z GOARCH='amd64'
+2026-10-21T15:25:47.7151258Z GOAUTH='netrc'
+2026-10-21T15:25:47.7152195Z GOBIN=''
+2026-10-21T15:25:47.7152611Z GOCACHE='/home/runner/.cache/go-build'
+2026-10-21T15:25:47.7153129Z GOCACHEPROG=''
+2026-10-21T15:25:47.7153801Z GODEBUG=''
+2026-10-21T15:25:47.7154192Z GOENV='/home/runner/.config/go/env'
+2026-10-21T15:25:47.7154662Z GOEXE=''
+2026-10-21T15:25:47.7155025Z GOEXPERIMENT=''
+2026-10-21T15:25:47.7155429Z GOFIPS140='off'
+2026-10-21T15:25:47.7155794Z GOFLAGS=''
+2026-10-21T15:25:47.7156974Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build1550838816=/tmp/go-build -gno-record-gcc-switches'
+2026-10-21T15:25:47.7158466Z GOHOSTARCH='amd64'
+2026-10-21T15:25:47.7158859Z GOHOSTOS='linux'
+2026-10-21T15:25:47.7159229Z GOINSECURE=''
+2026-10-21T15:25:47.7159902Z GOMOD='/home/runner/work/WuKongIM/WuKongIM/go.mod'
+2026-10-21T15:25:47.7160276Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-10-21T15:25:47.7160562Z GONOPROXY=''
+2026-10-21T15:25:47.7160764Z GONOSUMDB=''
+2026-10-21T15:25:47.7160955Z GOOS='linux'
+2026-10-21T15:25:47.7161171Z GOPATH='/home/runner/go'
+2026-10-21T15:25:47.7161405Z GOPRIVATE=''
+2026-10-21T15:25:47.7161677Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T15:25:47.7162045Z GOROOT='/opt/hostedtoolcache/go/1.25.11/x64'
+2026-10-21T15:25:47.7162362Z GOSUMDB='sum.golang.org'
+2026-10-21T15:25:47.7162608Z GOTELEMETRY='local'
+2026-10-21T15:25:47.7162894Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-10-21T15:25:47.7163205Z GOTMPDIR=''
+2026-10-21T15:25:47.7163408Z GOTOOLCHAIN='local'
+2026-10-21T15:25:47.7163744Z GOTOOLDIR='/opt/hostedtoolcache/go/1.25.11/x64/pkg/tool/linux_amd64'
+2026-10-21T15:25:47.7164109Z GOVCS=''
+2026-10-21T15:25:47.7164311Z GOVERSION='go1.25.11'
+2026-10-21T15:25:47.7164527Z GOWORK=''
+2026-10-21T15:25:47.7164743Z PKG_CONFIG='pkg-config'
+2026-10-21T15:25:47.7164886Z 
+2026-10-21T15:25:47.7165235Z ##[endgroup]
+2026-10-21T15:25:47.7619336Z ##[group]Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+2026-10-21T15:25:47.7619747Z with:
+2026-10-21T15:25:47.7619963Z   node-version: 22.12.0
+2026-10-21T15:25:47.7620209Z   cache: npm
+2026-10-21T15:25:47.7620535Z   cache-dependency-path: test/easysdk-release/peer/package-lock.json
+2026-10-21T15:25:47.7620924Z   check-latest: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:47.7623585Z   package-manager-cache: true
+2026-10-21T15:25:47.7623833Z env:
+2026-10-21T15:25:47.7624235Z   GOTOOLCHAIN: local
+2026-10-21T15:25:47.7624458Z ##[endgroup]
+2026-10-21T15:25:47.9009948Z Attempting to download 22.12.0...
+2026-10-21T15:25:48.4386782Z Acquiring 22.12.0 - x64 from https://github.com/actions/node-versions/releases/download/22.12.0-12152383658/node-22.12.0-linux-x64.tar.gz
+2026-10-21T15:25:48.8855114Z Extracting ...
+2026-10-21T15:25:48.8981193Z [command]/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/b9bfe950-401e-4e31-a948-65b701fcde9c -f /home/runner/work/_temp/b4df9478-08a5-4eaf-8137-e14beef43fb4
+2026-10-21T15:25:50.0468073Z Adding to the cache ...
+2026-10-21T15:25:52.9932875Z ##[group]Environment details
+2026-10-21T15:25:53.2275708Z node: v22.12.0
+2026-10-21T15:25:53.2276175Z npm: 10.9.0
+2026-10-21T15:25:53.2276542Z yarn: 1.22.22
+2026-10-21T15:25:53.2277780Z ##[endgroup]
+2026-10-21T15:25:53.2301659Z [command]/opt/hostedtoolcache/node/22.12.0/x64/bin/npm config get cache
+2026-10-21T15:25:53.3260120Z /home/runner/.npm
+2026-10-21T15:25:53.4411071Z Cache hit for: node-cache-Linux-x64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac
+2026-10-21T15:25:53.5654710Z Received 70728 of 70728 (100.0%), 1.2 MBs/sec
+2026-10-21T15:25:53.5655311Z Cache Size: ~0 MB (70728 B)
+2026-10-21T15:25:53.5680580Z [command]/usr/bin/tar -xf /home/runner/work/_temp/7a8796a6-bc19-459e-88fd-5883a16d57b9/cache.tzst -P -C /home/runner/work/WuKongIM/WuKongIM --use-compress-program unzstd
+2026-10-21T15:25:53.5751463Z Cache restored successfully
+2026-10-21T15:25:53.5756061Z Cache restored from key: node-cache-Linux-x64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac
+2026-10-21T15:25:53.5969164Z ##[group]Run actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+2026-10-21T15:25:53.5969586Z with:
+2026-10-21T15:25:53.5969806Z   distribution: temurin
+2026-10-21T15:25:53.5970046Z   java-version: 17
+2026-10-21T15:25:53.5970265Z   java-package: jdk
+2026-10-21T15:25:53.5970500Z   check-latest: false
+2026-10-21T15:25:53.5970738Z   server-id: github
+2026-10-21T15:25:53.5970958Z   server-username: GITHUB_ACTOR
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:53.5971482Z   overwrite-settings: true
+2026-10-21T15:25:53.5971721Z   job-status: success
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:53.5974376Z env:
+2026-10-21T15:25:53.5974574Z   GOTOOLCHAIN: local
+2026-10-21T15:25:53.5974801Z ##[endgroup]
+2026-10-21T15:25:53.7719264Z ##[warning]setup-java v4 is deprecated and will no longer receive updates. Please migrate to actions/setup-java@v5.
+2026-10-21T15:25:53.7730638Z ##[group]Installed distributions
+2026-10-21T15:25:53.7781710Z Resolved Java 17.0.20+1 from tool-cache
+2026-10-21T15:25:53.7782174Z Setting Java 17.0.20+1 as the default
+2026-10-21T15:25:53.7788056Z (node:2452) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T15:25:53.7788957Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T15:25:53.7792048Z Creating toolchains.xml for JDK version 17 from temurin
+2026-10-21T15:25:53.7869611Z Writing to /home/runner/.m2/toolchains.xml
+2026-10-21T15:25:53.7870017Z 
+2026-10-21T15:25:53.7870252Z Java configuration:
+2026-10-21T15:25:53.7870742Z   Distribution: temurin
+2026-10-21T15:25:53.7871213Z   Version: 17.0.20+1
+2026-10-21T15:25:53.7871990Z   Path: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:25:53.7872518Z 
+2026-10-21T15:25:53.7872982Z ##[endgroup]
+2026-10-21T15:25:53.7876300Z Creating settings.xml with server-id: github
+2026-10-21T15:25:53.7913572Z Writing to /home/runner/.m2/settings.xml
+2026-10-21T15:25:53.8088150Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-10-21T15:25:53.8088896Z with:
+2026-10-21T15:25:53.8089216Z   repository: WuKongIM/WuKongEasySDK-Android
+2026-10-21T15:25:53.8089519Z   ref: v1.0.5
+2026-10-21T15:25:53.8089727Z   path: release-sdk
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:53.8092373Z   ssh-strict: true
+2026-10-21T15:25:53.8092791Z   ssh-user: git
+2026-10-21T15:25:53.8093020Z   persist-credentials: true
+2026-10-21T15:25:53.8093265Z   clean: true
+2026-10-21T15:25:53.8093495Z   sparse-checkout-cone-mode: true
+2026-10-21T15:25:53.8093761Z   fetch-depth: 1
+2026-10-21T15:25:53.8093974Z   fetch-tags: false
+2026-10-21T15:25:53.8094194Z   show-progress: true
+2026-10-21T15:25:53.8094410Z   lfs: false
+2026-10-21T15:25:53.8094610Z   submodules: false
+2026-10-21T15:25:53.8094823Z   set-safe-directory: true
+2026-10-21T15:25:53.8095074Z   allow-unsafe-pr-checkout: false
+2026-10-21T15:25:53.8095329Z env:
+2026-10-21T15:25:53.8095548Z   GOTOOLCHAIN: local
+2026-10-21T15:25:53.8095882Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:25:53.8096386Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:25:53.8096768Z ##[endgroup]
+2026-10-21T15:25:53.8940572Z Syncing repository: WuKongIM/WuKongEasySDK-Android
+2026-10-21T15:25:53.8946723Z ##[group]Getting Git version info
+2026-10-21T15:25:53.8948026Z Working directory is '/home/runner/work/WuKongIM/WuKongIM/release-sdk'
+2026-10-21T15:25:53.8981731Z [command]/usr/bin/git version
+2026-10-21T15:25:53.9022240Z git version 2.55.0
+2026-10-21T15:25:53.9044109Z ##[endgroup]
+2026-10-21T15:25:53.9053460Z Temporarily overriding HOME='/home/runner/work/_temp/424b51e7-a400-4797-a0d6-cc615b053ed2' before making global git config changes
+2026-10-21T15:25:53.9054421Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:25:53.9060431Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM/release-sdk
+2026-10-21T15:25:53.9094786Z ##[group]Determining repository object format
+2026-10-21T15:25:54.1557493Z ##[endgroup]
+2026-10-21T15:25:54.1558636Z ##[group]Initializing the repository
+2026-10-21T15:25:54.1569269Z [command]/usr/bin/git init /home/runner/work/WuKongIM/WuKongIM/release-sdk
+2026-10-21T15:25:54.1648543Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T15:25:54.1663747Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T15:25:54.1665371Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T15:25:54.1666537Z hint: call:
+2026-10-21T15:25:54.1667425Z hint:
+2026-10-21T15:25:54.1668323Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T15:25:54.1669132Z hint:
+2026-10-21T15:25:54.1670107Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T15:25:54.1671475Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T15:25:54.1672479Z hint:
+2026-10-21T15:25:54.1673163Z hint: 	git branch -m <name>
+2026-10-21T15:25:54.1673871Z hint:
+2026-10-21T15:25:54.1675018Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T15:25:54.1676844Z Initialized empty Git repository in /home/runner/work/WuKongIM/WuKongIM/release-sdk/.git/
+2026-10-21T15:25:54.1680012Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongEasySDK-Android
+2026-10-21T15:25:54.1729311Z ##[endgroup]
+2026-10-21T15:25:54.1730299Z ##[group]Disabling automatic garbage collection
+2026-10-21T15:25:54.1733385Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T15:25:54.1802626Z ##[endgroup]
+2026-10-21T15:25:54.1803916Z ##[group]Setting up auth
+2026-10-21T15:25:54.1805077Z Removing SSH command configuration
+2026-10-21T15:25:54.1818728Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:25:54.1873898Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:25:54.2185119Z Removing HTTP extra header
+2026-10-21T15:25:54.2192924Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:25:54.2239889Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:25:54.2491281Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:25:54.2515267Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:25:54.2537389Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:54.2818118Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path /home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:25:54.2853112Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:25:54.2890157Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/release-sdk/.git.path /github/runner_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:25:54.2926388Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path /github/runner_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:25:54.2958867Z ##[endgroup]
+2026-10-21T15:25:54.2959517Z ##[group]Fetching the repository
+2026-10-21T15:25:54.2965882Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/v1.0.5*:refs/remotes/origin/v1.0.5* +refs/tags/v1.0.5*:refs/tags/v1.0.5*
+2026-10-21T15:25:54.6498130Z From https://github.com/WuKongIM/WuKongEasySDK-Android
+2026-10-21T15:25:54.6499031Z  * [new tag]         v1.0.5     -> v1.0.5
+2026-10-21T15:25:54.6504230Z ##[endgroup]
+2026-10-21T15:25:54.6504943Z ##[group]Determining the checkout info
+2026-10-21T15:25:54.6511778Z [command]/usr/bin/git branch --list --remote origin/v1.0.5
+2026-10-21T15:25:54.6554132Z [command]/usr/bin/git tag --list v1.0.5
+2026-10-21T15:25:54.6582591Z v1.0.5
+2026-10-21T15:25:54.6586426Z ##[endgroup]
+2026-10-21T15:25:54.6591729Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T15:25:54.6640105Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T15:25:54.6673255Z ##[group]Checking out the ref
+2026-10-21T15:25:54.6677005Z [command]/usr/bin/git checkout --progress --force refs/tags/v1.0.5
+2026-10-21T15:25:54.6782725Z Note: switching to 'refs/tags/v1.0.5'.
+2026-10-21T15:25:54.6783136Z 
+2026-10-21T15:25:54.6783713Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T15:25:54.6784816Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T15:25:54.6785887Z state without impacting any branches by switching back to a branch.
+2026-10-21T15:25:54.6786387Z 
+2026-10-21T15:25:54.6786912Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T15:25:54.6788172Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T15:25:54.6788643Z 
+2026-10-21T15:25:54.6788837Z   git switch -c <new-branch-name>
+2026-10-21T15:25:54.6789043Z 
+2026-10-21T15:25:54.6789197Z Or undo this operation with:
+2026-10-21T15:25:54.6789378Z 
+2026-10-21T15:25:54.6789724Z   git switch -
+2026-10-21T15:25:54.6789878Z 
+2026-10-21T15:25:54.6790218Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T15:25:54.6790543Z 
+2026-10-21T15:25:54.6790834Z HEAD is now at 61ae6dc chore: prepare WuKongEasySDK Android 1.0.5 (#6)
+2026-10-21T15:25:54.6798774Z ##[endgroup]
+2026-10-21T15:25:54.6841724Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T15:25:54.6871808Z 61ae6dc6d0077b15e47cda1fd530296b97a06a7a
+2026-10-21T15:25:54.7046338Z ##[group]Run test/easysdk-release/android/prepare-release-example.sh release-sdk
+2026-10-21T15:25:54.7047024Z [36;1mtest/easysdk-release/android/prepare-release-example.sh release-sdk[0m
+2026-10-21T15:25:54.7047804Z [36;1minstall -D \[0m
+2026-10-21T15:25:54.7048138Z [36;1m  test/easysdk-release/android/ReleaseSmokeTest.kt \[0m
+2026-10-21T15:25:54.7048720Z [36;1m  release-sdk/example/src/androidTest/java/com/githubim/easysdk/example/ReleaseSmokeTest.kt[0m
+2026-10-21T15:25:54.7049317Z [36;1mrelease-sdk/gradlew -p release-sdk :example:dependencies \[0m
+2026-10-21T15:25:54.7049871Z [36;1m  --configuration debugRuntimeClasspath >"${RUNNER_TEMP}/android-dependencies.txt"[0m
+2026-10-21T15:25:54.7050398Z [36;1mgrep -F 'com.githubim:easysdk-android:1.0.5' \[0m
+2026-10-21T15:25:54.7050775Z [36;1m  "${RUNNER_TEMP}/android-dependencies.txt"[0m
+2026-10-21T15:25:54.7221058Z shell: /usr/bin/bash -e {0}
+2026-10-21T15:25:54.7221352Z env:
+2026-10-21T15:25:54.7221596Z   GOTOOLCHAIN: local
+2026-10-21T15:25:54.7221961Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:25:54.7222481Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:25:54.7222873Z ##[endgroup]
+2026-10-21T15:26:35.2066539Z +--- com.githubim:easysdk-android:1.0.5
+2026-10-21T15:26:35.2105879Z ##[group]Run test/easysdk-release/start-runtime.sh android
+2026-10-21T15:26:35.2106364Z [36;1mtest/easysdk-release/start-runtime.sh android[0m
+2026-10-21T15:26:35.2157915Z shell: /usr/bin/bash -e {0}
+2026-10-21T15:26:35.2158186Z env:
+2026-10-21T15:26:35.2158388Z   GOTOOLCHAIN: local
+2026-10-21T15:26:35.2158732Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:26:35.2159245Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:26:35.2159636Z ##[endgroup]
+2026-10-21T15:27:02.3080988Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:27:03.3167031Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:27:04.3244733Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:27:07.9186990Z 
+2026-10-21T15:27:07.9188251Z added 2 packages in 339ms
+2026-10-21T15:27:08.9323239Z RUNTIME_READY platform=android server_source=8e8c0ab3321affc8655fb720a308e50bfaca15ca
+2026-10-21T15:27:08.9331486Z PEER_READY package=easyjssdk@2.0.4
+2026-10-21T15:27:08.9370423Z ##[group]Run echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+2026-10-21T15:27:08.9371041Z [36;1mecho 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \[0m
+2026-10-21T15:27:08.9371507Z [36;1m  | sudo tee /etc/udev/rules.d/99-kvm4all.rules[0m
+2026-10-21T15:27:08.9371860Z [36;1msudo udevadm control --reload-rules[0m
+2026-10-21T15:27:08.9372189Z [36;1msudo udevadm trigger --name-match=kvm[0m
+2026-10-21T15:27:08.9423160Z shell: /usr/bin/bash -e {0}
+2026-10-21T15:27:08.9423430Z env:
+2026-10-21T15:27:08.9423631Z   GOTOOLCHAIN: local
+2026-10-21T15:27:08.9423977Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:27:08.9424497Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:27:08.9424903Z   ACCEPTANCE_PLATFORM: android
+2026-10-21T15:27:08.9425260Z   ACCEPTANCE_ROOT: /home/runner/work/_temp/easysdk-release-android
+2026-10-21T15:27:08.9425696Z   ALICE_UID: release-android-alice-39625524550-1
+2026-10-21T15:27:08.9426031Z   BOB_UID: release-android-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:27:08.9426825Z   ALICE_TO_BOB_TEXT: android-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:27:08.9427577Z   BOB_TO_ALICE_TEXT: android-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:27:08.9427981Z   WUKONGIM_PID: 3224
+2026-10-21T15:27:08.9428401Z   PEER_PID: 3267
+2026-10-21T15:27:08.9428620Z ##[endgroup]
+2026-10-21T15:27:08.9570730Z KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
+2026-10-21T15:27:09.0011469Z ##[group]Run reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed
+2026-10-21T15:27:09.0012373Z with:
+2026-10-21T15:27:09.0012743Z   api-level: 34
+2026-10-21T15:27:09.0013125Z   arch: x86_64
+2026-10-21T15:27:09.0013504Z   profile: pixel_6
+2026-10-21T15:27:09.0013926Z   working-directory: release-sdk
+2026-10-21T15:27:09.0015013Z   script: "${GITHUB_WORKSPACE}/test/easysdk-release/android/run-release-smoke.sh"
+"${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+
+2026-10-21T15:27:09.0016132Z   target: default
+2026-10-21T15:27:09.0016508Z   cores: 2
+2026-10-21T15:27:09.0016851Z   avd-name: test
+2026-10-21T15:27:09.0017528Z   force-avd-creation: true
+2026-10-21T15:27:09.0017915Z   emulator-boot-timeout: 600
+2026-10-21T15:27:09.0018289Z   emulator-port: 5554
+2026-10-21T15:27:09.0018951Z   emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+2026-10-21T15:27:09.0019671Z   disable-animations: true
+2026-10-21T15:27:09.0020099Z   disable-spellchecker: false
+2026-10-21T15:27:09.0020541Z   disable-linux-hw-accel: auto
+2026-10-21T15:27:09.0020917Z   enable-hw-keyboard: false
+2026-10-21T15:27:09.0021276Z   channel: stable
+2026-10-21T15:27:09.0021590Z env:
+2026-10-21T15:27:09.0021887Z   GOTOOLCHAIN: local
+2026-10-21T15:27:09.0022485Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:27:09.0023375Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:27:09.0024092Z   ACCEPTANCE_PLATFORM: android
+2026-10-21T15:27:09.0024722Z   ACCEPTANCE_ROOT: /home/runner/work/_temp/easysdk-release-android
+2026-10-21T15:27:09.0025448Z   ALICE_UID: release-android-alice-39625524550-1
+2026-10-21T15:27:09.0026068Z   BOB_UID: release-android-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:27:09.0027825Z   ALICE_TO_BOB_TEXT: android-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:27:09.0028775Z   BOB_TO_ALICE_TEXT: android-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:27:09.0029490Z   WUKONGIM_PID: 3224
+2026-10-21T15:27:09.0029906Z   PEER_PID: 3267
+2026-10-21T15:27:09.0030282Z ##[endgroup]
+2026-10-21T15:27:09.0640055Z ##[group]Configure emulator
+2026-10-21T15:27:09.0643139Z API level: 34
+2026-10-21T15:27:09.0643736Z System image API level: 34
+2026-10-21T15:27:09.0644280Z target: default
+2026-10-21T15:27:09.0644968Z CPU architecture: x86_64
+2026-10-21T15:27:09.0645660Z Hardware profile: pixel_6
+2026-10-21T15:27:09.0646270Z Cores: 2
+2026-10-21T15:27:09.0646776Z RAM size: 
+2026-10-21T15:27:09.0647578Z Heap size: 
+2026-10-21T15:27:09.0648314Z SD card path or size: 
+2026-10-21T15:27:09.0648964Z Disk size: 
+2026-10-21T15:27:09.0649521Z AVD name: test
+2026-10-21T15:27:09.0650132Z force avd creation: true
+2026-10-21T15:27:09.0650838Z Emulator boot timeout: 600
+2026-10-21T15:27:09.0651498Z emulator port: 5554
+2026-10-21T15:27:09.0652674Z emulator options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+2026-10-21T15:27:09.0653786Z disable animations: true
+2026-10-21T15:27:09.0654397Z disable spellchecker: false
+2026-10-21T15:27:09.0655153Z disable Linux hardware acceleration: false
+2026-10-21T15:27:09.0656010Z enable hardware keyboard: false
+2026-10-21T15:27:09.0656814Z custom working directory: release-sdk
+2026-10-21T15:27:09.0658265Z Channel: 0 (stable)
+2026-10-21T15:27:09.0658695Z Script:
+2026-10-21T15:27:09.0659437Z "${GITHUB_WORKSPACE}/test/easysdk-release/android/run-release-smoke.sh"
+2026-10-21T15:27:09.0660446Z "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+2026-10-21T15:27:09.0661368Z Pre emulator launch script:
+2026-10-21T15:27:09.0662054Z ##[endgroup]
+2026-10-21T15:27:09.0662740Z ##[group]Install Android SDK
+2026-10-21T15:27:09.0733189Z [command]/usr/bin/sh -c \yes | sdkmanager --licenses > /dev/null
+2026-10-21T15:27:15.1715312Z Installing latest build tools, platform tools, and platform.
+2026-10-21T15:27:15.1734581Z [command]/usr/bin/sh -c \sdkmanager --install 'build-tools;35.0.0' platform-tools 'platforms;android-34'> /dev/null
+2026-10-21T15:27:16.7564810Z Installing latest emulator.
+2026-10-21T15:27:16.7584045Z [command]/usr/bin/sh -c \sdkmanager --install emulator --channel=0 > /dev/null
+2026-10-21T15:27:25.5293414Z Installing system images.
+2026-10-21T15:27:25.5311371Z [command]/usr/bin/sh -c \sdkmanager --install 'system-images;android-34;default;x86_64' --channel=0 > /dev/null
+2026-10-21T15:27:40.4723956Z ##[endgroup]
+2026-10-21T15:27:40.4728272Z ##[group]Launch Emulator
+2026-10-21T15:27:40.4728693Z Creating AVD.
+2026-10-21T15:27:40.4750837Z [command]/usr/bin/sh -c \echo no | avdmanager create avd --force -n test --abi 'default/x86_64' --package 'system-images;android-34;default;x86_64' --device 'pixel_6'
+2026-10-21T15:27:41.3449505Z Loading local repository...                                                     
+2026-10-21T15:27:41.3460991Z [=========                              ] 25% Loading local repository...       
+2026-10-21T15:27:41.3478794Z [=========                              ] 25% Fetch remote repository...        
+2026-10-21T15:27:41.3481451Z [=======================================] 100% Fetch remote repository...       
+2026-10-21T15:27:41.8826338Z [command]/usr/bin/sh -c \printf 'hw.cpu.ncore=2
+2026-10-21T15:27:41.8826949Z ' >> /home/runner/.android/avd/test.avd/config.ini
+2026-10-21T15:27:41.8853022Z Starting emulator.
+2026-10-21T15:27:41.8869676Z [command]/usr/bin/sh -c \/usr/local/lib/android/sdk/emulator/emulator -port 5554 -avd test -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim &
+2026-10-21T15:27:41.8998419Z INFO         | Android emulator version 37.2.12.0 (build_id 16428233) (CL:N/A)
+2026-10-21T15:27:41.8999293Z INFO         | Graphics backend: gfxstream
+2026-10-21T15:27:41.9000387Z INFO         | Found systemPath /usr/local/lib/android/sdk/system-images/android-34/default/x86_64/
+2026-10-21T15:27:42.5695648Z INFO         | Saving last run QEMU version for the AVD to 2
+2026-10-21T15:27:42.5696531Z INFO         | Increasing RAM size to 2560MB
+2026-10-21T15:27:42.5697524Z ##############################################################################
+2026-10-21T15:27:42.5698416Z ##                        WARNING - ACTION REQUIRED                         ##
+2026-10-21T15:27:42.5699413Z ##  Consider using the '-metrics-collection' flag to help improve the       ##
+2026-10-21T15:27:42.5700474Z ##  emulator by sending anonymized usage data. Or use the '-no-metrics'     ##
+2026-10-21T15:27:42.5701523Z ##  flag to bypass this warning and turn off the metrics collection.        ##
+2026-10-21T15:27:42.5702568Z ##  In a future release this warning will turn into a one-time blocking     ##
+2026-10-21T15:27:42.5703609Z ##  prompt to ask for explicit user input regarding metrics collection.     ##
+2026-10-21T15:27:42.5704496Z ##                                                                          ##
+2026-10-21T15:27:42.5705435Z ##  Please see '-help-metrics-collection' for more details. You can use     ##
+2026-10-21T15:27:42.5706481Z ##  '-metrics-to-file' or '-metrics-to-console' flags to see what type of   ##
+2026-10-21T15:27:42.5707698Z ##  data is being collected by emulator as part of usage statistics.        ##
+2026-10-21T15:27:42.5708614Z ##############################################################################
+2026-10-21T15:27:42.5709339Z INFO         | Guest GLES Driver: Auto (ext controls)
+2026-10-21T15:27:42.5710362Z INFO         | emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-21T15:27:42.5711287Z INFO         | Checking system compatibility:
+2026-10-21T15:27:42.5711972Z INFO         |   Checking: hasSufficientDiskSpace
+2026-10-21T15:27:42.5712787Z INFO         |      Ok: Disk space requirements to run avd: `test` are met
+2026-10-21T15:27:42.5713542Z INFO         |   Checking: hasSufficientHwGpu
+2026-10-21T15:27:42.5714713Z INFO         |      Ok: Hardware GPU compatibility checks are not required
+2026-10-21T15:27:42.5715728Z INFO         |   Checking: hasSufficientSystem
+2026-10-21T15:27:42.5716531Z INFO         |      Ok: System requirements to run avd: `test` are met
+2026-10-21T15:27:42.5718754Z WARNING      | Feature QuickbootFileBacked is disabled due to stability issues, if you really want that, the environment variable ANDROID_EMU_FORCE_QUICKBOOT_FILE_BACKED need to set to 1
+2026-10-21T15:27:42.5720295Z ERROR        | Unable to connect to adb daemon on port: 5037
+2026-10-21T15:27:42.5732267Z INFO         | Storing crashdata in: /tmp/android-runner/emu-crash-37.2.12.db, detection is enabled for process: 3607
+2026-10-21T15:27:42.5733387Z INFO         | Initializing gfxstream backend
+2026-10-21T15:27:42.5744494Z INFO         | startOpenglesRendererImpl: gpu info
+2026-10-21T15:27:42.5745493Z INFO         | 
+2026-10-21T15:27:42.5747884Z INFO         | initIcdPaths: ICD set to 'swiftshader', using Swiftshader ICD
+2026-10-21T15:27:42.5749545Z INFO         | Setting ICD filenames for the loader = /usr/local/lib/android/sdk/emulator/lib64/vulkan/vk_swiftshader_icd.json
+2026-10-21T15:27:42.5751613Z INFO         | SharedLibrary::open for [/usr/local/lib/android/sdk/emulator/qemu/linux-x86_64/lib64/vulkan/libvulkan.so]
+2026-10-21T15:27:42.5753483Z INFO         | SharedLibrary::open for [/usr/local/lib/android/sdk/emulator/qemu/linux-x86_64/lib64/vulkan/libvulkan.so.1]
+2026-10-21T15:27:42.5755109Z INFO         | SharedLibrary::open for [/usr/local/lib/android/sdk/emulator/lib64/vulkan/libvulkan.so]
+2026-10-21T15:27:42.5756409Z INFO         | Added library: /usr/local/lib/android/sdk/emulator/lib64/vulkan/libvulkan.so
+2026-10-21T15:27:42.5806353Z INFO         | Selecting Vulkan device: SwiftShader Device (Subzero), Version: 1.3.0
+2026-10-21T15:27:42.5807727Z INFO         | Using Vulkan externalMemoryMode: OpaqueFd for VkEmulation
+2026-10-21T15:27:42.6505864Z INFO         | Format VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16 does not support YCbCr sampler conversion
+2026-10-21T15:27:42.6538301Z INFO         | SharedLibrary::open for [libX11]
+2026-10-21T15:27:42.6542345Z WARNING      | Could not open libX11.so, try libX11.so.6
+2026-10-21T15:27:42.6542901Z INFO         | SharedLibrary::open for [libX11.so.6]
+2026-10-21T15:27:42.6543523Z INFO         | SharedLibrary::open for [libX11-xcb]
+2026-10-21T15:27:42.6544426Z WARNING      | Could not open libX11-xcb.so, try libX11-xcb.so.1
+2026-10-21T15:27:42.6545341Z INFO         | SharedLibrary::open for [libX11-xcb.so.1]
+2026-10-21T15:27:42.6628461Z INFO         | Initializing VkEmulation features:
+2026-10-21T15:27:42.6629237Z INFO         |     glInteropSupported: false
+2026-10-21T15:27:42.6630056Z INFO         |     useDeferredCommands: true
+2026-10-21T15:27:42.6630832Z INFO         |     createResourceWithRequirements: true
+2026-10-21T15:27:42.6631539Z INFO         |     useVulkanComposition: false
+2026-10-21T15:27:42.6632230Z INFO         |     useVulkanNativeSwapchain: false
+2026-10-21T15:27:42.6632942Z INFO         |     enable guestRenderDoc: false
+2026-10-21T15:27:42.6633591Z INFO         |     ASTC LDR emulation mode: Gpu
+2026-10-21T15:27:42.6634252Z INFO         |     enable ETC2 emulation: true
+2026-10-21T15:27:42.6634899Z INFO         |     enable Ycbcr emulation: false
+2026-10-21T15:27:42.6635539Z INFO         |     guestVulkanOnly: false
+2026-10-21T15:27:42.6636143Z INFO         |     useDedicatedAllocations: false
+2026-10-21T15:27:42.6636571Z INFO         |     guestVulkanMaxApiVersion: 1.3.0
+2026-10-21T15:27:42.6637405Z INFO         |     enableProtectedMemoryEmulation: false
+2026-10-21T15:27:42.6638242Z INFO         | Graphics Adapter Vendor Google (Google Inc.)
+2026-10-21T15:27:42.6639239Z INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (Google SwiftShader)
+2026-10-21T15:27:42.6640029Z INFO         | Graphics API Version OpenGL ES 3.0 (OpenGL ES 3.0 SwiftShader 4.0.0.1)
+2026-10-21T15:27:42.6645418Z INFO         | Graphics API Extensions GL_OES_EGL_sync GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_depth24 GL_OES_depth32 GL_OES_element_index_uint GL_OES_texture_float GL_OES_texture_float_linear GL_OES_compressed_paletted_texture GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth_texture GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_packed_depth_stencil GL_OES_vertex_half_float GL_OES_standard_derivatives GL_OES_texture_npot GL_OES_rgb8_rgba8 GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_EXT_texture_format_BGRA8888 GL_APPLE_texture_format_BGRA8888 
+2026-10-21T15:27:42.6649930Z INFO         | Graphics Device Extensions N/A
+2026-10-21T15:27:42.6650649Z INFO         | Disabling sparse binding feature support
+2026-10-21T15:27:42.6748205Z INFO         | Sending adb public key [QAAAALnImWp3QuRIPgqy+zhNUX4vwr4y6hrCusxE7M7VB1NvhehGz05Cv6ptyk5k1QrR3ExwB7/wVLfD2Gn0J/HtYYlNHODnz4C/czADMsptYWn6LbhHyoV0SWS1PI0OGiuiYV/04X5LYXyZuWRh0qGgvIpguQA23+/QGEszMoCloXiTThIbEIgDk30+Ip7iMzmBrs6qKxqutc/TPjoZpLLhBArqJFIHx98CFU1FXMsffH0JSVdAHaMKKt/cEYSqCvU9Td/pC1gMZMzTIopCDwflvthKN6b6M7gpI2wcrY7h3FkK1CYd1Axcrr/bKaLGEY3ldUVh8/3fgUthAliVEZkWEasU2Oy6ijPjTKQSblz0Na2OopJ2bd65sqIzgq4uhqVTFeLTYqX0GB7ochzL8nf3pN3Ba6LX4JwTVgqVKn0yPNpEQreROibULc0jq2BlGnwRS3OJvyJzNXtkTkYhJ+EambQyc2b3mYHEm229gBOThuOEudVCE4/0u+baHiRPlcFGP99e8PNYxcz1lLRzK013A17W64KiVUIbMTS8i0Jj+qxUvkzZiK5mVPi1fGTZBgOxwRMLZhwA/A7L7qpnxOR5h78Ys5L2S67IipHwkl6l1REbR8opxFCugdlf1ZItthlHMENDr2/YYtb8p6bNJA5FUBHW4ULP4IXcatDHRSeQORZDTzybjwEAAQA= runner@unknown]
+2026-10-21T15:27:42.6751718Z INFO         | Userspace boot properties:
+2026-10-21T15:27:42.6752341Z INFO         |   androidboot.boot_devices=pci0000:00/0000:00:03.0 pci0000:00/0000:00:06.0
+2026-10-21T15:27:42.6752900Z INFO         |   androidboot.dalvik.vm.heapsize=576m
+2026-10-21T15:27:42.6753355Z INFO         |   androidboot.debug.hwui.renderer=skiagl
+2026-10-21T15:27:42.6753823Z INFO         |   androidboot.debug.sf.nobootanimation=1
+2026-10-21T15:27:42.6754241Z INFO         |   androidboot.hardware=ranchu
+2026-10-21T15:27:42.6754669Z INFO         |   androidboot.hardware.gltransport=pipe
+2026-10-21T15:27:42.6755098Z INFO         |   androidboot.hardware.vulkan=ranchu
+2026-10-21T15:27:42.6755495Z INFO         |   androidboot.logcat=*:V
+2026-10-21T15:27:42.6755891Z INFO         |   androidboot.opengles.version=196608
+2026-10-21T15:27:42.6756268Z INFO         |   androidboot.qemu=1
+2026-10-21T15:27:42.6760839Z INFO         |   androidboot.qemu.adb.pubkey=QAAAALnImWp3QuRIPgqy+zhNUX4vwr4y6hrCusxE7M7VB1NvhehGz05Cv6ptyk5k1QrR3ExwB7/wVLfD2Gn0J/HtYYlNHODnz4C/czADMsptYWn6LbhHyoV0SWS1PI0OGiuiYV/04X5LYXyZuWRh0qGgvIpguQA23+/QGEszMoCloXiTThIbEIgDk30+Ip7iMzmBrs6qKxqutc/TPjoZpLLhBArqJFIHx98CFU1FXMsffH0JSVdAHaMKKt/cEYSqCvU9Td/pC1gMZMzTIopCDwflvthKN6b6M7gpI2wcrY7h3FkK1CYd1Axcrr/bKaLGEY3ldUVh8/3fgUthAliVEZkWEasU2Oy6ijPjTKQSblz0Na2OopJ2bd65sqIzgq4uhqVTFeLTYqX0GB7ochzL8nf3pN3Ba6LX4JwTVgqVKn0yPNpEQreROibULc0jq2BlGnwRS3OJvyJzNXtkTkYhJ+EambQyc2b3mYHEm229gBOThuOEudVCE4/0u+baHiRPlcFGP99e8PNYxcz1lLRzK013A17W64KiVUIbMTS8i0Jj+qxUvkzZiK5mVPi1fGTZBgOxwRMLZhwA/A7L7qpnxOR5h78Ys5L2S67IipHwkl6l1REbR8opxFCugdlf1ZItthlHMENDr2/YYtb8p6bNJA5FUBHW4ULP4IXcatDHRSeQORZDTzybjwEAAQA= runner@unknown
+2026-10-21T15:27:42.6764415Z INFO         |   androidboot.qemu.avd_name=test
+2026-10-21T15:27:42.6765004Z INFO         |   androidboot.qemu.camera_hq_edge_processing=0
+2026-10-21T15:27:42.6765469Z INFO         |   androidboot.qemu.camera_protocol_ver=1
+2026-10-21T15:27:42.6765925Z INFO         |   androidboot.qemu.cpuvulkan.version=4206592
+2026-10-21T15:27:42.6766428Z INFO         |   androidboot.qemu.gltransport.drawFlushInterval=800
+2026-10-21T15:27:42.6766918Z INFO         |   androidboot.qemu.gltransport.name=pipe
+2026-10-21T15:27:42.6767635Z INFO         |   androidboot.qemu.hwcodec.avcdec=2
+2026-10-21T15:27:42.6768059Z INFO         |   androidboot.qemu.hwcodec.hevcdec=2
+2026-10-21T15:27:42.6768469Z INFO         |   androidboot.qemu.hwcodec.vpxdec=2
+2026-10-21T15:27:42.6769024Z INFO         |   androidboot.qemu.settings.system.screen_off_timeout=2147483647
+2026-10-21T15:27:42.6769961Z INFO         |   androidboot.qemu.skin=1080x2400
+2026-10-21T15:27:42.6770358Z INFO         |   androidboot.qemu.virtiowifi=1
+2026-10-21T15:27:42.6770906Z INFO         |   androidboot.qemu.vsync=60
+2026-10-21T15:27:42.6771322Z INFO         |   androidboot.serialno=EMULATOR37X2X12X0
+2026-10-21T15:27:42.6772171Z INFO         |   androidboot.vbmeta.digest=8bee4f6105b6acd7de887b1ee6629ab07066df02ee9bbca07663adffdad97fc1
+2026-10-21T15:27:42.6772791Z INFO         |   androidboot.vbmeta.hash_alg=sha256
+2026-10-21T15:27:42.6773191Z INFO         |   androidboot.vbmeta.size=6656
+2026-10-21T15:27:42.6773583Z INFO         |   androidboot.veritymode=enforcing
+2026-10-21T15:27:42.6968699Z WARNING: cannnot unmap ptr 0x7f1437801000 as it is in the protected range from 0x7f1397800000 to 0x7f1437a00000
+2026-10-21T15:27:42.7251279Z INFO         | Monitoring duration of emulator setup.
+2026-10-21T15:27:43.7106653Z INFO         | Successfully initialized netsim WiFi
+2026-10-21T15:27:43.7107691Z INFO         | Activated packet streamer for bluetooth emulation
+2026-10-21T15:27:43.7169996Z INFO         | Setting display: 0 configuration to: 1080x2400, dpi: 420x420 
+2026-10-21T15:27:43.7171109Z INFO         | setDisplayActiveConfig: id:0, 1080x2400
+2026-10-21T15:27:43.7172153Z INFO         | emulatorSetupEnvironment: Environment scene is not required
+2026-10-21T15:27:43.7249307Z USER_INFO    | Emulator is performing a full startup. This may take upto two minutes, or more.
+2026-10-21T15:27:43.7250962Z WARNING      | Failed to process .ini file /home/runner/.android/emu-update-last-check.ini for reading.
+2026-10-21T15:27:43.8213751Z WARNING      | Failed to process .ini file /home/runner/.android/emu-update-last-check.ini for reading.
+2026-10-21T15:27:51.8929621Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:27:51.8970048Z * daemon not running; starting now at tcp:5037
+2026-10-21T15:27:52.0093321Z * daemon started successfully
+2026-10-21T15:27:52.0108194Z The process '/usr/local/lib/android/sdk/platform-tools/adb' failed with exit code 1
+2026-10-21T15:27:52.0123664Z adb: device offline
+2026-10-21T15:27:54.0143892Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:27:54.0186873Z adb: device offline
+2026-10-21T15:27:54.0194899Z The process '/usr/local/lib/android/sdk/platform-tools/adb' failed with exit code 1
+2026-10-21T15:27:56.0289558Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:27:56.0563521Z 
+2026-10-21T15:27:58.0604944Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:27:58.0827865Z 
+2026-10-21T15:28:00.0939055Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:00.1185063Z 
+2026-10-21T15:28:02.1323769Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:02.1673028Z 
+2026-10-21T15:28:04.1743907Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:04.2133181Z 
+2026-10-21T15:28:06.2210143Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:06.2592147Z 
+2026-10-21T15:28:08.2649184Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:08.2890700Z 
+2026-10-21T15:28:10.2964224Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:10.3272283Z 
+2026-10-21T15:28:11.8678765Z INFO         | Boot completed in 29940 ms
+2026-10-21T15:28:11.8686418Z INFO         | Increasing screen off timeout, logcat buffer size to 2M.
+2026-10-21T15:28:12.3372080Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell getprop sys.boot_completed
+2026-10-21T15:28:12.4013537Z 1
+2026-10-21T15:28:12.4058103Z Emulator booted.
+2026-10-21T15:28:12.4139164Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell input keyevent 82
+2026-10-21T15:28:15.1848731Z Disabling animations.
+2026-10-21T15:28:15.1929005Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell settings put global window_animation_scale 0.0
+2026-10-21T15:28:15.6751672Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell settings put global transition_animation_scale 0.0
+2026-10-21T15:28:16.7286106Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 shell settings put global animator_duration_scale 0.0
+2026-10-21T15:28:16.9504302Z ##[endgroup]
+2026-10-21T15:28:16.9572341Z [command]/usr/bin/sh -c "${GITHUB_WORKSPACE}/test/easysdk-release/android/run-release-smoke.sh"
+2026-10-21T15:28:18.8407772Z 
+2026-10-21T15:28:18.8468461Z > Configure project :
+2026-10-21T15:28:18.8499884Z Passing custom test runner argument android.testInstrumentationRunnerArguments.bobToAliceText from gradle.properties or command line is not compatible with configuration caching. Please specify this argument using android gradle dsl.
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:28:18.8661496Z Passing custom test runner argument android.testInstrumentationRunnerArguments.bobUid from gradle.properties or command line is not compatible with configuration caching. Please specify this argument using android gradle dsl.
+2026-10-21T15:28:18.8739581Z Passing custom test runner argument android.testInstrumentationRunnerArguments.aliceUid from gradle.properties or command line is not compatible with configuration caching. Please specify this argument using android gradle dsl.
+2026-10-21T15:28:18.8829608Z Passing custom test runner argument android.testInstrumentationRunnerArguments.aliceToBobText from gradle.properties or command line is not compatible with configuration caching. Please specify this argument using android gradle dsl.
+2026-10-21T15:28:18.8888456Z ❌ Signing disabled: GPG signing properties not found
+2026-10-21T15:28:18.8948170Z 🔍 Debug information:
+2026-10-21T15:28:18.9008082Z    - SIGNING_KEY_ID: missing
+[redacted authentication-related line; original hash retained]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:28:18.9180565Z 📋 Available environment variables:
+2026-10-21T15:28:22.9428903Z Checking the license for package Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/licenses
+2026-10-21T15:28:22.9472389Z License for package Android SDK Build-Tools 33.0.1 accepted.
+2026-10-21T15:28:22.9490805Z Preparing "Install Android SDK Build-Tools 33.0.1 v.33.0.1".
+2026-10-21T15:28:24.3348817Z "Install Android SDK Build-Tools 33.0.1 v.33.0.1" ready.
+2026-10-21T15:28:24.3350573Z Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-tools/33.0.1
+2026-10-21T15:28:24.3352047Z "Install Android SDK Build-Tools 33.0.1 v.33.0.1" complete.
+2026-10-21T15:28:24.5358672Z "Install Android SDK Build-Tools 33.0.1 v.33.0.1" finished.
+2026-10-21T15:28:25.0381498Z 
+2026-10-21T15:28:25.0408644Z > Task :example:preBuild UP-TO-DATE
+2026-10-21T15:28:25.0444242Z > Task :example:preDebugBuild UP-TO-DATE
+2026-10-21T15:28:27.2351463Z > Task :example:generateDebugResValues
+2026-10-21T15:28:27.2353421Z > Task :example:checkDebugAarMetadata
+2026-10-21T15:28:27.4337118Z > Task :example:mapDebugSourceSetPaths
+2026-10-21T15:28:27.4368347Z > Task :example:generateDebugResources
+2026-10-21T15:28:29.0339149Z > Task :example:packageDebugResources
+2026-10-21T15:28:30.2339016Z > Task :example:mergeDebugResources
+2026-10-21T15:28:30.3352699Z > Task :example:createDebugCompatibleScreenManifests
+2026-10-21T15:28:30.3400087Z > Task :example:extractDeepLinksDebug
+2026-10-21T15:28:30.5334680Z > Task :example:parseDebugLocalResources
+2026-10-21T15:28:30.7335903Z > Task :example:processDebugMainManifest
+2026-10-21T15:28:30.8339008Z > Task :example:processDebugManifest
+2026-10-21T15:28:30.8342462Z > Task :example:preDebugAndroidTestBuild SKIPPED
+2026-10-21T15:28:30.8343519Z > Task :example:javaPreCompileDebug
+2026-10-21T15:28:31.3340675Z > Task :example:checkDebugAndroidTestAarMetadata
+2026-10-21T15:28:31.3341812Z > Task :example:generateDebugAndroidTestResValues
+2026-10-21T15:28:31.3342860Z > Task :example:mapDebugAndroidTestSourceSetPaths
+2026-10-21T15:28:31.3343784Z > Task :example:generateDebugAndroidTestResources
+2026-10-21T15:28:31.4338392Z > Task :example:mergeDebugAndroidTestResources
+2026-10-21T15:28:31.4348328Z > Task :example:processDebugAndroidTestManifest
+2026-10-21T15:28:32.0438804Z > Task :example:processDebugManifestForPackage
+2026-10-21T15:28:32.6339633Z > Task :example:processDebugAndroidTestResources
+2026-10-21T15:28:32.7352165Z > Task :example:javaPreCompileDebugAndroidTest
+2026-10-21T15:28:32.7379501Z > Task :example:mergeDebugShaders
+2026-10-21T15:28:32.7417004Z > Task :example:compileDebugShaders NO-SOURCE
+2026-10-21T15:28:32.7427712Z > Task :example:generateDebugAssets UP-TO-DATE
+2026-10-21T15:28:32.8338492Z > Task :example:mergeDebugAssets
+2026-10-21T15:28:32.8357952Z > Task :example:compressDebugAssets
+2026-10-21T15:28:33.6384770Z > Task :example:processDebugResources
+2026-10-21T15:28:33.7347970Z > Task :example:checkDebugDuplicateClasses
+2026-10-21T15:28:34.8378626Z > Task :example:desugarDebugFileDependencies
+2026-10-21T15:29:03.2359477Z 
+2026-10-21T15:29:03.2378474Z > Task :example:compileDebugKotlin
+2026-10-21T15:29:03.2410143Z w: file:///home/runner/work/WuKongIM/WuKongIM/release-sdk/example/src/main/java/com/githubim/easysdk/example/MainActivity.kt:123:34 The corresponding parameter in the supertype 'WuKongEventListener' is named 'data'. This may cause problems when calling this function with named arguments.
+2026-10-21T15:29:03.2431431Z w: file:///home/runner/work/WuKongIM/WuKongIM/release-sdk/example/src/main/java/com/githubim/easysdk/example/MainActivity.kt:138:34 The corresponding parameter in the supertype 'WuKongEventListener' is named 'data'. This may cause problems when calling this function with named arguments.
+2026-10-21T15:29:03.2470016Z w: file:///home/runner/work/WuKongIM/WuKongIM/release-sdk/example/src/main/java/com/githubim/easysdk/example/MainActivity.kt:155:34 The corresponding parameter in the supertype 'WuKongEventListener' is named 'data'. This may cause problems when calling this function with named arguments.
+2026-10-21T15:29:03.2476664Z w: file:///home/runner/work/WuKongIM/WuKongIM/release-sdk/example/src/main/java/com/githubim/easysdk/example/MainActivity.kt:178:34 The corresponding parameter in the supertype 'WuKongEventListener' is named 'data'. This may cause problems when calling this function with named arguments.
+2026-10-21T15:29:08.1338402Z 
+2026-10-21T15:29:08.1358494Z > Task :example:mergeExtDexDebug
+2026-10-21T15:29:18.4355175Z > Task :example:compileDebugJavaWithJavac NO-SOURCE
+2026-10-21T15:29:18.5368803Z > Task :example:bundleDebugClassesToCompileJar
+2026-10-21T15:29:18.5398238Z > Task :example:processDebugJavaRes
+2026-10-21T15:29:21.5348585Z > Task :example:mergeLibDexDebug
+2026-10-21T15:29:21.5386963Z > Task :example:compileDebugAndroidTestKotlin
+2026-10-21T15:29:21.6336961Z > Task :example:mergeDebugJavaResource
+2026-10-21T15:29:22.2372986Z > Task :example:dexBuilderDebug
+2026-10-21T15:29:22.2448368Z > Task :example:compileDebugAndroidTestJavaWithJavac NO-SOURCE
+2026-10-21T15:29:22.2478244Z > Task :example:mergeDebugJniLibFolders
+2026-10-21T15:29:22.5358517Z > Task :example:mergeDebugNativeLibs NO-SOURCE
+2026-10-21T15:29:22.5388232Z > Task :example:stripDebugDebugSymbols NO-SOURCE
+2026-10-21T15:29:22.6348436Z > Task :example:mergeProjectDexDebug
+2026-10-21T15:29:24.1367868Z > Task :example:validateSigningDebug
+2026-10-21T15:29:24.1368746Z > Task :example:writeDebugAppMetadata
+2026-10-21T15:29:24.2358599Z > Task :example:writeDebugSigningConfigVersions
+2026-10-21T15:29:24.2380871Z > Task :example:mergeDebugAndroidTestShaders
+2026-10-21T15:29:24.2388002Z > Task :example:compileDebugAndroidTestShaders NO-SOURCE
+2026-10-21T15:29:24.2418477Z > Task :example:generateDebugAndroidTestAssets UP-TO-DATE
+2026-10-21T15:29:24.2433019Z > Task :example:mergeDebugAndroidTestAssets
+2026-10-21T15:29:24.2458110Z > Task :example:compressDebugAndroidTestAssets
+2026-10-21T15:29:24.2468306Z > Task :example:processDebugAndroidTestJavaRes
+2026-10-21T15:29:24.3350397Z > Task :example:mergeDebugAndroidTestJniLibFolders
+2026-10-21T15:29:24.4350065Z > Task :example:mergeDebugAndroidTestJavaResource
+2026-10-21T15:29:24.4378196Z > Task :example:mergeDebugAndroidTestNativeLibs NO-SOURCE
+2026-10-21T15:29:24.5339173Z > Task :example:checkDebugAndroidTestDuplicateClasses
+2026-10-21T15:29:24.7438652Z > Task :example:desugarDebugAndroidTestFileDependencies
+2026-10-21T15:29:27.4358401Z > Task :example:packageDebug
+2026-10-21T15:29:27.4388286Z > Task :example:createDebugApkListingFileRedirect
+2026-10-21T15:29:27.4418073Z > Task :example:mergeLibDexDebugAndroidTest
+2026-10-21T15:29:27.8341924Z > Task :example:dexBuilderDebugAndroidTest
+2026-10-21T15:29:27.8348375Z > Task :example:validateSigningDebugAndroidTest
+2026-10-21T15:29:27.8352612Z > Task :example:writeDebugAndroidTestSigningConfigVersions
+2026-10-21T15:29:27.8354007Z > Task :example:mergeExtDexDebugAndroidTest
+2026-10-21T15:29:27.8358732Z > Task :example:mergeProjectDexDebugAndroidTest
+2026-10-21T15:29:27.9333449Z > Task :example:packageDebugAndroidTest
+2026-10-21T15:29:28.0347978Z > Task :example:createDebugAndroidTestApkListingFileRedirect
+2026-10-21T15:29:33.3333447Z [EmulatorConsole]: Failed to start Emulator console for 5554
+2026-10-21T15:29:43.9333158Z 
+2026-10-21T15:29:43.9333731Z > Task :example:connectedDebugAndroidTest
+2026-10-21T15:29:43.9334289Z Starting 1 tests on emulator-5554 - 14
+2026-10-21T15:29:46.2051679Z 
+2026-10-21T15:29:46.2060254Z BUILD SUCCESSFUL in 1m 29s
+2026-10-21T15:29:46.2061297Z 57 actionable tasks: 57 executed
+2026-10-21T15:29:46.5337034Z [command]/usr/bin/sh -c "${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"
+2026-10-21T15:29:46.5414070Z PEER_READY package=easyjssdk@2.0.4
+2026-10-21T15:29:46.5415120Z PEER_PASS alice-to-bob=true bob-to-alice-ack=true
+2026-10-21T15:29:46.5422294Z ##[group]Terminate Emulator
+2026-10-21T15:29:46.5465164Z [command]/usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 emu kill
+2026-10-21T15:29:46.5499014Z OK: killing emulator, bye bye
+2026-10-21T15:29:46.5499324Z OK
+2026-10-21T15:29:46.5504555Z INFO         | Wait for emulator (pid 3607) 20 seconds to shutdown gracefully before kill;you can set environment variable ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL(in seconds) to change the default value (20 seconds)
+2026-10-21T15:29:46.5505329Z 
+2026-10-21T15:29:46.5505716Z ##[endgroup]
+2026-10-21T15:29:46.5728191Z USER_INFO    | Snapshots have been disabled by the user, save request is ignored.
+2026-10-21T15:29:46.5728971Z INFO         | Saving snapshot 'default_boot' took 1 ms
+2026-10-21T15:29:46.8384286Z ERROR        | stop: Not implemented
+2026-10-21T15:29:46.8385861Z WARNING      | Emulator client has not yet been configured.. Call configure me first!
+2026-10-21T15:29:46.8529951Z INFO         | removeAll
+2026-10-21T15:29:46.8893674Z WARNING      | Netsim Wifi dns:///localhost:38751 is gone due to Stream removed (CANCELLED)
+2026-10-21T15:29:47.3464060Z ##[group]Run test/easysdk-release/cleanup-runtime.sh
+2026-10-21T15:29:47.3464525Z [36;1mtest/easysdk-release/cleanup-runtime.sh[0m
+2026-10-21T15:29:47.3544339Z shell: /usr/bin/bash -e {0}
+2026-10-21T15:29:47.3544619Z env:
+2026-10-21T15:29:47.3544820Z   GOTOOLCHAIN: local
+2026-10-21T15:29:47.3545175Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:29:47.3545690Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-21T15:29:47.3546105Z   ACCEPTANCE_PLATFORM: android
+2026-10-21T15:29:47.3546462Z   ACCEPTANCE_ROOT: /home/runner/work/_temp/easysdk-release-android
+2026-10-21T15:29:47.3547073Z   ALICE_UID: release-android-alice-39625524550-1
+2026-10-21T15:29:47.3547783Z   BOB_UID: release-android-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:29:47.3548587Z   ALICE_TO_BOB_TEXT: android-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:29:47.3549131Z   BOB_TO_ALICE_TEXT: android-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:29:47.3549510Z   WUKONGIM_PID: 3224
+2026-10-21T15:29:47.3549729Z   PEER_PID: 3267
+2026-10-21T15:29:47.3549975Z   ANDROID_AVD_HOME: /home/runner/.android/avd
+2026-10-21T15:29:47.3550268Z   JOB_STATUS: success
+2026-10-21T15:29:47.3550487Z ##[endgroup]
+2026-10-21T15:29:47.3757608Z Post job cleanup.
+2026-10-21T15:29:47.4924574Z [command]/usr/bin/git version
+2026-10-21T15:29:47.4971210Z git version 2.55.0
+2026-10-21T15:29:47.5008600Z Temporarily overriding HOME='/home/runner/work/_temp/a702bccb-2f7f-40b2-b172-7794c0df6e36' before making global git config changes
+2026-10-21T15:29:47.5010270Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:29:47.5015925Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM/release-sdk
+2026-10-21T15:29:47.5050501Z Removing SSH command configuration
+2026-10-21T15:29:47.5057766Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:29:47.5099398Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:29:47.5360778Z Removing HTTP extra header
+2026-10-21T15:29:47.5369372Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:29:47.5410350Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:29:47.5671822Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:29:47.5690223Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:29:47.5742482Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path
+2026-10-21T15:29:47.5744208Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path
+2026-10-21T15:29:47.5745652Z includeif.gitdir:/github/workspace/release-sdk/.git.path
+2026-10-21T15:29:47.5746860Z includeif.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path
+2026-10-21T15:29:47.5753800Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path
+2026-10-21T15:29:47.5786087Z /home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.5800558Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path /home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.5853052Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path
+2026-10-21T15:29:47.5882197Z /home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.5890966Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.5934207Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/release-sdk/.git.path
+2026-10-21T15:29:47.5960712Z /github/runner_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.5968802Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/release-sdk/.git.path /github/runner_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.6003905Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path
+2026-10-21T15:29:47.6030567Z /github/runner_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.6037036Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path /github/runner_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config
+2026-10-21T15:29:47.6075678Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T15:29:47.6324579Z Removing credentials config '/home/runner/work/_temp/git-credentials-b9af2a59-ef0c-4d3f-be33-a8e57bb96e7b.config'
+2026-10-21T15:29:47.6528592Z Post job cleanup.
+2026-10-21T15:29:47.8073258Z (node:4348) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T15:29:47.8075256Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T15:29:47.8251030Z Post job cleanup.
+2026-10-21T15:29:47.9568710Z Cache hit occurred on the primary key node-cache-Linux-x64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac, not saving cache.
+2026-10-21T15:29:47.9721174Z Post job cleanup.
+2026-10-21T15:29:48.1049963Z [command]/opt/hostedtoolcache/go/1.25.11/x64/bin/go env GOMODCACHE
+2026-10-21T15:29:48.1096694Z [command]/opt/hostedtoolcache/go/1.25.11/x64/bin/go env GOCACHE
+2026-10-21T15:29:48.1128341Z /home/runner/go/pkg/mod
+2026-10-21T15:29:48.1151618Z /home/runner/.cache/go-build
+2026-10-21T15:29:48.1158246Z Cache hit occurred on the primary key setup-go-Linux-x64-ubuntu24-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4, not saving cache.
+2026-10-21T15:29:48.1302751Z Post job cleanup.
+2026-10-21T15:29:48.2221632Z [command]/usr/bin/git version
+2026-10-21T15:29:48.2265490Z git version 2.55.0
+2026-10-21T15:29:48.2303592Z Temporarily overriding HOME='/home/runner/work/_temp/e58e33f5-af33-47fd-a623-37126a8f0be5' before making global git config changes
+2026-10-21T15:29:48.2305201Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:29:48.2309958Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:29:48.2344417Z Removing SSH command configuration
+2026-10-21T15:29:48.2351222Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:29:48.2389079Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:29:48.2638201Z Removing HTTP extra header
+2026-10-21T15:29:48.2645716Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:29:48.2686905Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:29:48.2930955Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:29:48.2937660Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:29:48.2966397Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T15:29:48.2967567Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T15:29:48.2968535Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T15:29:48.2969379Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T15:29:48.2976844Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T15:29:48.3002247Z /home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3013453Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path /home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3058702Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T15:29:48.3083442Z /home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3092924Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3128740Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T15:29:48.3151767Z /github/runner_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3173150Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3198921Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T15:29:48.3223526Z /github/runner_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3231233Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config
+2026-10-21T15:29:48.3265450Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T15:29:48.3513254Z Removing credentials config '/home/runner/work/_temp/git-credentials-dca2afd3-eba6-4556-9e23-aa1c24c01619.config'
+2026-10-21T15:29:48.3678518Z Cleaning up orphan processes
+2026-10-21T15:29:48.4184795Z Terminate orphan process: pid (2647) (java)
+2026-10-21T15:29:48.4367456Z Terminate orphan process: pid (3771) (adb)
+2026-10-21T15:29:48.4464666Z Terminate orphan process: pid (4062) (java)
+2026-10-21T15:29:48.4534711Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3, reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

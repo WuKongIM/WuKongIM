@@ -1,0 +1,9 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119309607829",
+  "at": "2026-10-21T15:39:13.912529+00:00",
+  "exit_code": 0,
+  "raw_bytes": 2984,
+  "raw_sha256": "4188c662833a6454f4916a6ff116f179b791640f342312d17c02e1d0c2705401",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

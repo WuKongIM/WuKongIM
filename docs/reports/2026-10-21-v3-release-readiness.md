@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 15:42Z（北京时间23:42）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 15:53Z（北京时间23:53）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 迁移修复及候选 Linux 性能/功能验收已完成；产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。云续跑的 systemd 空 `Job` 控制脚本缺陷已修复，原资源全部释放；完整预演及72小时长稳尚未完成。packages #74 第六代49项真实客户端场景已全部通过并获准合并，生产stable仍关闭。向下预算修复#1022首次Linux的默认和完整scripts通过，但1→1迁移后的协议连接拒绝导致E2E失败，正在诊断；对象存储/CDN交付核心已完成本地窄实现，待独立复核。没有正式tag或正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 先前迁移修复及固定候选 Linux 性能/功能验收已完成；产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。但当前 #1022 首次 Linux 在迁移连接与 Rocky 环境引导两处失败；协议就绪窄修的本地完整回归又捕获1→3重启历史读取返回400的独立失败，尚未修复。完整云预演及72小时长稳、生产stable公网交付仍未完成；对象存储离线核心的需求复核发现两项P2，正在修复。没有正式tag或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -206,6 +206,12 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 [#74合并及后置检查](v3-release-readiness-20261021/packages/pr74-merge/README.md)已完整冻结：自然push run39626500979 attempt1再次528项零skip与4合同通过，配置/上传/部署均跳过。15:34Z后的[对象存储只读补查](v3-release-readiness-20261021/packages/storage-readonly-followup/README.md)确认packages仍指向GitHub Pages、现有CDN清单无该域名；RAM角色页主体未加载，不能推断权限存在或缺失。
 
 #1022 [首次候选CI39625524702](https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702)的新失败已保留：Linux完整scripts一次通过（499.409秒、exit0、cleanup完整/remaining=[]），默认219个测试包通过；ordinary_history的1→1在HTTP历史3rows验证后首次WKProto Connect遭connection refused，尚未Send。其余1→3/3→1/3→3/3→5通过；ordinary_history整体exit1、102.556秒、cleanup无残留，后续cross_node_delivery/self_chat为not_run。原制品全SHA/CRC已验证，原日志没有该node的运行时日志或退出事实，当前不能归因为产品退出或监听时序；独立临时诊断worktree开始固定次数有界观察，不重跑原CI。
+
+[#1022首轮完整归档](v3-release-readiness-20261021/cloud/pr1022-ci-generation-1/README.md)已经终态：候选和native为failure，三节点、SDK与两signal为success，均attempt1。Rocky的28MB AppStream元数据下载耗4分46秒，300秒bootstrap期限到时还在安装依赖，未进入产品systemd生命周期；其余三系统lifecycle通过。不据此猜测底层网络故障或放宽期限。[后续一次API读回](v3-release-readiness-20261021/cloud/pr1022-ci-followup/README.md)确认scripts job已completed/success，状态滞后消除，原归档不覆盖。
+
+[连接拒绝有界观测](v3-release-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/public-final/README.md)固定三轮全部通过而未复现，故历史初因仍unknown；静态证据确认HTTP ready不保证协议监听。最窄fixture变更保留首次导入历史冷读，再调用已有WKProto readiness，原凭证Connect和Send仍单次。root复核指出v1诊断被成功路径提前求值，v2改为仅失败取诊断；独立标准/需求复核均0发现，v2尚未执行。v1 focused1→1通过，但完整五拓扑首次在1→3全重启后遇到HTTP400 durable quorum unavailable，其余四通过；这是新阻塞证据，不计完整通过。正在追查恢复barrier与HTTP错误分类，尚未证明具体副本失败原因。
+
+对象存储离线实现的[独立复核](v3-release-readiness-20261021/packages/object-delivery-review/combined-review-v1.md)为Standards0、Spec2项P2：当前activation-control没有独立fake观察/fence；stable客户端回执未绑定原transport inputs/plan摘要。原五文件冻结与20/69项通过结果保留；两项修复正按tests-first进行，不启用真实云适配。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

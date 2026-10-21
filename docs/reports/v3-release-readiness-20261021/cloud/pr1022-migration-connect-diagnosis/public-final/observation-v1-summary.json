@@ -1,0 +1,102 @@
+{
+  "schema": "wukongim.migration-connect-diagnosis/v1",
+  "observed_at": "2026-10-21T15:45:24.636950+00:00",
+  "source": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "original_ci_failure_preserved": true,
+  "local_experiment": {
+    "platform": "darwin/arm64",
+    "fixed_count": 3,
+    "completed_count": 3,
+    "failed_count": 0,
+    "observations": [
+      {
+        "api_addr": "127.0.0.1:28429",
+        "connect_error": "",
+        "dial_duration_ns": 762209,
+        "dial_error": "",
+        "dial_finish_at": "2026-10-21T15:43:42.668688Z",
+        "dial_start_at": "2026-10-21T15:43:42.667926Z",
+        "gateway_addr": "127.0.0.1:28426",
+        "http_ready_return_at": "2026-10-21T15:43:42.663415Z",
+        "pid": 40459,
+        "process_exit_error_before_probe": "",
+        "process_exited_before_probe": false,
+        "ready_to_dial_ns": 4511333,
+        "schema": "wukongim.migration-connect-diagnostic/v1",
+        "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes"
+      },
+      {
+        "api_addr": "127.0.0.1:28435",
+        "connect_error": "",
+        "dial_duration_ns": 491334,
+        "dial_error": "",
+        "dial_finish_at": "2026-10-21T15:43:57.22227Z",
+        "dial_start_at": "2026-10-21T15:43:57.221778Z",
+        "gateway_addr": "127.0.0.1:28432",
+        "http_ready_return_at": "2026-10-21T15:43:57.217728Z",
+        "pid": 40522,
+        "process_exit_error_before_probe": "",
+        "process_exited_before_probe": false,
+        "ready_to_dial_ns": 4050666,
+        "schema": "wukongim.migration-connect-diagnostic/v1",
+        "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes"
+      },
+      {
+        "api_addr": "127.0.0.1:28441",
+        "connect_error": "",
+        "dial_duration_ns": 259584,
+        "dial_error": "",
+        "dial_finish_at": "2026-10-21T15:44:11.962011Z",
+        "dial_start_at": "2026-10-21T15:44:11.961751Z",
+        "gateway_addr": "127.0.0.1:28438",
+        "http_ready_return_at": "2026-10-21T15:44:11.957577Z",
+        "pid": 40583,
+        "process_exit_error_before_probe": "",
+        "process_exited_before_probe": false,
+        "ready_to_dial_ns": 4174708,
+        "schema": "wukongim.migration-connect-diagnostic/v1",
+        "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes"
+      }
+    ],
+    "test_package_seconds": [
+      46.357
+    ],
+    "wrapper_result": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 40182,
+      "output_bytes": 14324,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 40182,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 51.167
+    },
+    "live_session_members_after_terminal": [],
+    "reproduced_original_refusal": false,
+    "verdict": "inconclusive; do not increase count",
+    "extra_success_connections": 0,
+    "failure_probes_run": 0,
+    "raw_node_log_directory_created": false
+  },
+  "supported_static_fact": "Fixture /readyz wait proves HTTP/cluster write routing, not WKProto listener/handshake. Product startup opens API before Manager/Prometheus/Gateway. No Connect failure diagnostics retained in the original CI artifact.",
+  "historical_root_cause": "unknown; H1 structurally plausible, H2/H3 not excluded without original process logs",
+  "proposed_minimum_fix_not_implemented": {
+    "scope": [
+      "test/e2e/migration/ordinary_history/ordinary_history_test.go",
+      "test/e2e/migration/ordinary_history/AGENTS.md if contract needs clarification",
+      "CHANGELOG.md/knowledge as root requires"
+    ],
+    "behavior": "Keep initial HTTP readiness and first imported-history assertions. Immediately before first retained-token protocol Connect, call existing node1 Process.WaitWKProtoReady(ctx,node.GatewayAddr()). Preserve original retained-token Connect/SEND assertions; attach existing bounded cluster.DumpDiagnostics only when that connection fails.",
+    "reason_to_prefer_protocol_only_at_this_point": "This uses only the node whose protocol is actually exercised and preserves the first cold imported-history HTTP observation. Dedicated readiness token has a distinct e2e-ready UID; migrated credential test remains unchanged.",
+    "regression_seam": "The original real-process migration test already failed at this exact Connect. Re-run that original scenario against any proposed fix with its normal assertion/limits and full5 topology verification; a new source-contract test alone would not prove the race. Existing harness protocol-readiness tests can corroborate helper semantics, not historical Linux cause.",
+    "limits": "This would close a confirmed fixture readiness gap, not establish the exact historical cause or change product readyz semantics. Keep original failure and seek first Linux exact-source validation. No fix applied pending parent decision."
+  }
+}

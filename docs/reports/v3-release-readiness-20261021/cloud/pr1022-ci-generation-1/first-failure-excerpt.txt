@@ -1,0 +1,76 @@
+=== RUN   TestOriginalOrdinaryHistoryTopology
+=== RUN   TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes
+    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0
+    ordinary_history_test.go:174: 
+        	Error Trace:	/home/runner/work/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history/ordinary_history_test.go:174
+        	            				/home/runner/work/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history/ordinary_history_test.go:47
+        	Error:      	Received unexpected error:
+        	            	dial tcp 127.0.0.1:27802: connect: connection refused
+        	Test:       	TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes
+--- FAIL: TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes (16.57s)
+=== RUN   TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes
+    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:223: history verified: phase=after-leader-stop node=2 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=1 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=2 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=3 rows=6 temporary_retries=0
+    ordinary_history_test.go:230: original 1-node source -> 3-node cluster: history, credentials, appends, idempotency, full restart and applicable leader failover passed
+--- PASS: TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes (17.10s)
+=== RUN   TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes
+    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=1 rows=5 temporary_retries=0
+    ordinary_history_test.go:230: original 3-node source -> 1-node cluster: history, credentials, appends, idempotency, full restart and applicable leader failover passed
+--- PASS: TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes (12.66s)
+=== RUN   TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes
+    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=1
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:223: history verified: phase=after-leader-stop node=2 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=1 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=2 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=3 rows=6 temporary_retries=0
+    ordinary_history_test.go:230: original 3-node source -> 3-node cluster: history, credentials, appends, idempotency, full restart and applicable leader failover passed
+--- PASS: TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes (18.09s)
+=== RUN   TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes
+    ordinary_history_test.go:168: history verified: phase=after-import node=1 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=2 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=3 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=4 rows=3 temporary_retries=0
+    ordinary_history_test.go:168: history verified: phase=after-import node=5 rows=3 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=4 rows=4 temporary_retries=0
+    ordinary_history_test.go:184: history verified: phase=after-protocol-append node=5 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=1 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=2 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=3 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=4 rows=4 temporary_retries=0
+    ordinary_history_test.go:211: history verified: phase=after-full-restart node=5 rows=4 temporary_retries=0
+    ordinary_history_test.go:223: history verified: phase=after-leader-stop node=1 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=1 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=2 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=3 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=4 rows=6 temporary_retries=0
+    ordinary_history_test.go:228: history verified: phase=final node=5 rows=6 temporary_retries=0
+    ordinary_history_test.go:230: original 3-node source -> 5-node cluster: history, credentials, appends, idempotency, full restart and applicable leader failover passed
+--- PASS: TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes (18.10s)
+--- FAIL: TestOriginalOrdinaryHistoryTopology (82.52s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history	82.533s

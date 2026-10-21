@@ -1,0 +1,156 @@
+diff --git a/test/e2e/migration/ordinary_history/ordinary_history_test.go b/test/e2e/migration/ordinary_history/ordinary_history_test.go
+index 34b3c7c9a..9740f3eb1 100644
+--- a/test/e2e/migration/ordinary_history/ordinary_history_test.go
++++ b/test/e2e/migration/ordinary_history/ordinary_history_test.go
+@@ -102,7 +102,9 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
+ 		suite.RunMigrationCLI(t, ctx, cli, phase, "--plan", planPath, "--workspace", workspace, "--archive", archive)
+ 	}
+ 	cluster := s.StartPreparedCluster(specs)
+-	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
++	readyErr := cluster.WaitHTTPReady(ctx)
++	httpReadyAt := time.Now()
++	require.NoError(t, readyErr, cluster.DumpDiagnostics())
+ 	provenance := "original-v2-ordinary-api.json"
+ 	if sourceCount == 3 {
+ 		provenance = "original-v2-three-api.json"
+@@ -168,9 +170,11 @@ func runHistory(t *testing.T, sourceCount, targetCount int) {
+ 		check(&cluster.Nodes[i], "after-import")
+ 	}
+ 	// Authenticate through the real protocol using the token retained from v2.
+-	client, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(1).GatewayAddr(), OperationTimeout: 5 * time.Second})
++	probeDialer := &migrationConnectDiagnosticDialer{}
++	client, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(1).GatewayAddr(), OperationTimeout: 5 * time.Second, Dialer: probeDialer})
+ 	require.NoError(t, err)
+ 	_, err = client.Connect(ctx, wkclient.ConnectOptions{UID: "migrationalice", Token: "synthetic-migrationalice", DeviceID: "migration-history-check", DeviceFlag: frame.DeviceFlag(1)})
++	recordMigrationConnectDiagnostic(t, cluster.MustNode(1), httpReadyAt, probeDialer, err)
+ 	require.NoError(t, err)
+ 	ack, err := client.Send(ctx, wkclient.Message{ClientSeq: 1, ClientMsgNo: "after-original-migration", ChannelID: "migrationgroup", ChannelType: 2, Payload: []byte("protocol append")})
+ 	require.NoError(t, err)
+diff --git a/test/e2e/migration/ordinary_history/connect_diagnostic_test.go b/test/e2e/migration/ordinary_history/connect_diagnostic_test.go
+new file mode 100644
+index 000000000..b1df77a95
+--- /dev/null
++++ b/test/e2e/migration/ordinary_history/connect_diagnostic_test.go
+@@ -0,0 +1,122 @@
++//go:build e2e
++
++package ordinary_history
++
++import (
++	"context"
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"fmt"
++	"io"
++	"net"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
++)
++
++// TEMPORARY DIAGNOSTIC ONLY: this forwards the original single dial unchanged.
++type migrationConnectDiagnosticDialer struct {
++	started, finished time.Time
++	err               error
++}
++
++func (d *migrationConnectDiagnosticDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
++	d.started = time.Now()
++	conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
++	d.finished, d.err = time.Now(), err
++	return conn, err
++}
++
++func recordMigrationConnectDiagnostic(t *testing.T, node *suite.StartedNode, readyAt time.Time, dial *migrationConnectDiagnosticDialer, connectErr error) {
++	t.Helper()
++	exitErr, exited := node.Process.ExitResult()
++	observation := map[string]any{
++		"schema": "wukongim.migration-connect-diagnostic/v1", "test": t.Name(),
++		"pid": node.Process.Cmd.Process.Pid, "api_addr": node.APIAddr(), "gateway_addr": node.GatewayAddr(),
++		"http_ready_return_at": readyAt.UTC(), "dial_start_at": dial.started.UTC(), "dial_finish_at": dial.finished.UTC(),
++		"ready_to_dial_ns": dial.started.Sub(readyAt).Nanoseconds(), "dial_duration_ns": dial.finished.Sub(dial.started).Nanoseconds(),
++		"dial_error": migrationDiagnosticError(dial.err), "connect_error": migrationDiagnosticError(connectErr),
++		"process_exited_before_probe": exited, "process_exit_error_before_probe": migrationDiagnosticError(exitErr),
++	}
++	if connectErr != nil {
++		start := time.Now()
++		deadline := start.Add(time.Second)
++		attempts, listenerOpened := 0, false
++		for time.Now().Before(deadline) {
++			remaining := time.Until(deadline)
++			if remaining > 20*time.Millisecond {
++				remaining = 20 * time.Millisecond
++			}
++			conn, err := net.DialTimeout("tcp", node.GatewayAddr(), remaining)
++			attempts++
++			if err == nil {
++				_ = conn.Close()
++				listenerOpened = true
++				break
++			}
++			if !node.Process.Running() || time.Until(deadline) < 20*time.Millisecond {
++				break
++			}
++			time.Sleep(20 * time.Millisecond)
++		}
++		observation["failure_probe"] = map[string]any{"attempts": attempts, "elapsed_ns": time.Since(start).Nanoseconds(), "listener_opened": listenerOpened, "original_pid_still_running": node.Process.Running()}
++		exitErr, exited = node.Process.ExitResult()
++		observation["process_exited_after_probe"] = exited
++		observation["process_exit_error_after_probe"] = migrationDiagnosticError(exitErr)
++		observation["private_log_receipts"] = retainMigrationDiagnosticLogs(node)
++	}
++	raw, marshalErr := json.Marshal(observation)
++	if marshalErr != nil {
++		t.Logf("[DEBUG-rc1022-connect-v1] collector_error=%q", marshalErr.Error())
++		return
++	}
++	t.Logf("[DEBUG-rc1022-connect-v1] %s", raw)
++}
++
++func migrationDiagnosticError(err error) string {
++	if err == nil {
++		return ""
++	}
++	return err.Error()
++}
++
++// Raw bounded logs stay private; only their byte counts and digests enter JSONL.
++func retainMigrationDiagnosticLogs(node *suite.StartedNode) []map[string]any {
++	base := os.Getenv("WK_E2E_MIGRATION_CONNECT_DIAG_DIR")
++	if base == "" {
++		return []map[string]any{{"collector_error": "private diagnostic directory missing"}}
++	}
++	dir := filepath.Join(base, fmt.Sprintf("pid-%d-%d", node.Process.Cmd.Process.Pid, time.Now().UnixNano()))
++	if err := os.MkdirAll(dir, 0700); err != nil {
++		return []map[string]any{{"collector_error": "private diagnostic directory unavailable"}}
++	}
++	var receipts []map[string]any
++	for _, item := range []struct{ name, path string }{
++		{"stdout.log", node.Spec.StdoutPath}, {"stderr.log", node.Spec.StderrPath},
++		{"app.log", filepath.Join(node.Spec.RootDir, "logs", "app.log")}, {"error.log", filepath.Join(node.Spec.RootDir, "logs", "error.log")},
++	} {
++		receipt := map[string]any{"name": item.name}
++		f, err := os.Open(item.path)
++		if err != nil {
++			receipt["readable"] = false
++			receipts = append(receipts, receipt)
++			continue
++		}
++		raw, readErr := io.ReadAll(io.LimitReader(f, 1024*1024+1))
++		_ = f.Close()
++		receipt["readable"] = readErr == nil
++		receipt["truncated"] = len(raw) > 1024*1024
++		if len(raw) > 1024*1024 {
++			raw = raw[:1024*1024]
++		}
++		h := sha256.Sum256(raw)
++		receipt["bytes"], receipt["sha256"] = len(raw), hex.EncodeToString(h[:])
++		receipt["saved"] = os.WriteFile(filepath.Join(dir, item.name), raw, 0600) == nil
++		receipts = append(receipts, receipt)
++	}
++	return receipts
++}

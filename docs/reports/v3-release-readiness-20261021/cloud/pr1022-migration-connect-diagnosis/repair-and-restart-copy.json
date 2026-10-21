@@ -1,0 +1,97 @@
+{
+  "files": [
+    {
+      "path": "repair-v1/implementation.patch",
+      "sha256": "2d944abbef33ad833dae2b6d54b3b4f7968e03cbeb15ba1be7299ada3ba9c5bd",
+      "bytes": 3423
+    },
+    {
+      "path": "repair-v1/source-freeze.json",
+      "sha256": "ae7eb646ef9b3f3a33d30c1ec1e710dffaaccf6d596d52f678505839f968c4da",
+      "bytes": 737
+    },
+    {
+      "path": "repair-v1/before.json",
+      "sha256": "f4bb681eb714ede5b6487d2aaa6627ecff487471d7f9cfa703852963172e3afd",
+      "bytes": 1335
+    },
+    {
+      "path": "repair-v1/focused/command.json",
+      "sha256": "5c9f85fa2a5a25ceb17a749d4ddbdc08925a23180a5200f649bd4df2595f076a",
+      "bytes": 440
+    },
+    {
+      "path": "repair-v1/focused/result.json",
+      "sha256": "6edeba05366b4b910ac49e92bb46b6c9575f2aa76a56c714fc8ae3e31a31541b",
+      "bytes": 370
+    },
+    {
+      "path": "repair-v1/focused/stdout.jsonl",
+      "sha256": "b4f4871fac50f5cef78ee245a86051a61bcb541c22a9d4dc60956416f4d8f0ab",
+      "bytes": 4376
+    },
+    {
+      "path": "repair-v1/focused/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "repair-v1/full-five-topologies/command.json",
+      "sha256": "99679eb5e54be4ab5af84d3f647bef8401df60a7f0366a1ce55e0d5538638385",
+      "bytes": 348
+    },
+    {
+      "path": "repair-v1/full-five-topologies/result.json",
+      "sha256": "07f41ba7c7794f781fceae68b3e625391c1d65859c8009cff1ca6abfa4f4fab0",
+      "bytes": 372
+    },
+    {
+      "path": "repair-v1/full-five-topologies/stdout.jsonl",
+      "sha256": "a973dc75c18f43ff53375a1036eff5164eeb40319a084cdb4a2d3e1c5c95c405",
+      "bytes": 70076
+    },
+    {
+      "path": "repair-v1/full-five-topologies/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "repair-v2/implementation.patch",
+      "sha256": "66520f2d1742d4512baf83b820fc9c0c5c5254eaa0395d0a1904a3fe9eba653a",
+      "bytes": 3565
+    },
+    {
+      "path": "repair-v2/source-freeze.json",
+      "sha256": "2b326e8d61b33aa567f11e22c4931f319204010aa829f68b7939e86ab5a440b5",
+      "bytes": 712
+    },
+    {
+      "path": "repair-v2/validation-current.json",
+      "sha256": "52aaad39283fa1a018ef080b97eaf31cc68ec948ba3a6cea72667f0df07434b3",
+      "bytes": 4227
+    },
+    {
+      "path": "restart-quorum-diagnosis/README.md",
+      "sha256": "665a4c290ee236f3e2eb90124dfdc726b7e7ba375d6c1cb9321608723bcb49fa",
+      "bytes": 4302
+    },
+    {
+      "path": "restart-quorum-diagnosis/evidence.json",
+      "sha256": "b75d4e16a4a976ec82690d9add9a91e674f15ef36eca0dbe970b237f2715d56b",
+      "bytes": 1433
+    },
+    {
+      "path": "restart-quorum-diagnosis/read-source-freeze.json",
+      "sha256": "f7aa0e39e7f2d7522b93c4de4bb0f67bdecb010010c30b03168de4382cca80aa",
+      "bytes": 2370
+    },
+    {
+      "path": "restart-quorum-diagnosis/SHA256SUMS",
+      "sha256": "b0fde2321ae14a581171946e7bb201ccbd11eecb1ee56a743180aaeebd43ab37",
+      "bytes": 246
+    }
+  ],
+  "v1_full_failed": true,
+  "v2_not_executed": true,
+  "product_root_cause_unknown": true
+}

@@ -1,0 +1,2 @@
+First green attempt: 4 composite route-collision errors; one negative CLI test used 000... which equals existing preview fixture source SHA (source_release_id=110). Changed only that negative value to ddd... before the next run. No acceptance expectation was relaxed. Original tests preserved in first-red-tests.py.txt.
+Second green attempt exposed only a test selector typo: existing canonical product RPM uses wukongim_3.0.0_linux_amd64.rpm, not wukongim-3.0.0-. Corrected the selector; source ID, destination ID and byte comparison assertions are unchanged.

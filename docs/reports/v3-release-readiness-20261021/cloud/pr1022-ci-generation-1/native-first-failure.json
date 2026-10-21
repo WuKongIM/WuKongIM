@@ -1,0 +1,21 @@
+{
+  "run_id": 39625524544,
+  "job_id": 119318017429,
+  "attempt": 1,
+  "test": "TestNativePackageLifecycle",
+  "test_elapsed_seconds": 306.17,
+  "source": "scripts/native_package_lifecycle_integration_test.go:43",
+  "first_error": "package bootstrap and systemd did not reach running or degraded state within 300 seconds",
+  "stage": "package-install before systemd PID1 and product service lifecycle",
+  "observed_appstream_metadata": {
+    "size": "28 MB",
+    "speed": "100 kB/s",
+    "duration": "04:46"
+  },
+  "observed_terminal": "DNF transaction ongoing; systemd has not been booted as PID1",
+  "classification": "infrastructure/bootstrap admission deadline failure; no product-runtime failure established",
+  "root_cause_limit": "Slow repository metadata download is directly logged; no claim about the underlying network/mirror cause or counterfactual success after a longer deadline.",
+  "cleanup_limit": "Workflow diagnostics/cleanup ran; no standalone Docker zero-inventory receipt is emitted by this existing workflow.",
+  "log_sha256": "0067f5899ae966f801fca4f334237079c3a8d0e0bcd63376ad6c5fa01daacdb2",
+  "rerun": false
+}

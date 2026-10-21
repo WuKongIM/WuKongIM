@@ -1,0 +1,113 @@
+{
+  "at": "2026-10-21T15:54:02.896779+00:00",
+  "source": {
+    "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "frozen_at": "2026-10-21T15:51:20.007430+00:00",
+    "files": {
+      "CHANGELOG.md": "83a5cce4f1e57e5f8a6f022ff5d4e63dd647bdce2a22a13aa8b0f24fc9c07b76",
+      "test/e2e/migration/ordinary_history/AGENTS.md": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+      "test/e2e/migration/ordinary_history/ordinary_history_test.go": "d24b12b77aadf0f356c46cff2930b2f293e8be33d645034e0118dac1eccf973c"
+    },
+    "patch_sha256": "66520f2d1742d4512baf83b820fc9c0c5c5254eaa0395d0a1904a3fe9eba653a",
+    "review_fix": "new diagnostics only on failure",
+    "validation_status": "v1 focused passed/full failed after restart; v2 not executed pending diagnosis"
+  },
+  "source_hashes_unchanged": {
+    "CHANGELOG.md": true,
+    "test/e2e/migration/ordinary_history/AGENTS.md": true,
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": true
+  },
+  "shipping_head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "shipping_status": "",
+  "validation": {
+    "v1_focused": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 40950,
+      "output_bytes": 4376,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 40950,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 16.725
+    },
+    "v1_full": {
+      "status": "failed",
+      "exit_code": 1,
+      "session_id": 41084,
+      "output_bytes": 70076,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 41084,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "failed",
+      "wrapper_exit_code": 1,
+      "elapsed_seconds": 102.62
+    },
+    "v2": "not_run; directed diagnosis first by parent instruction",
+    "terminals": [
+      {
+        "Time": "2026-10-21T23:48:56.488619+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+        "Elapsed": 14.62
+      },
+      {
+        "Time": "2026-10-21T23:49:14.419548+08:00",
+        "Action": "fail",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+        "Elapsed": 17.93
+      },
+      {
+        "Time": "2026-10-21T23:49:28.299396+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+        "Elapsed": 13.88
+      },
+      {
+        "Time": "2026-10-21T23:49:52.079893+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+        "Elapsed": 23.78
+      },
+      {
+        "Time": "2026-10-21T23:50:22.855518+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+        "Elapsed": 30.78
+      },
+      {
+        "Time": "2026-10-21T23:50:22.855525+08:00",
+        "Action": "fail",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Test": "TestOriginalOrdinaryHistoryTopology",
+        "Elapsed": 100.99
+      },
+      {
+        "Time": "2026-10-21T23:50:22.856942+08:00",
+        "Action": "fail",
+        "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+        "Elapsed": 101.374
+      }
+    ]
+  },
+  "root_cause": "Original Linux refusal unproven; new fullrestart quorum error cause unproven; exact source classification gap documented",
+  "no_commit_push_ci_rerun": true
+}

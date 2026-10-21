@@ -1,0 +1,13 @@
+{
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "created_at": "2026-10-21T15:43:25.838732+00:00",
+  "sha256": {
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "e363f7ede51545f57be38693eb2d5ea88851881c339c1d4deb32ce0637edcc06",
+    "test/e2e/migration/ordinary_history/connect_diagnostic_test.go": "3ec164983c6816e73c4b0a66ccead25532de877e872a7bf161916671702ba40b"
+  },
+  "patch_sha256": "cc7e78b9ce47ef989a899594ec92f847a2e5e938738aa40e95feb13ccad9c8fe",
+  "original_assertion_retained": true,
+  "count": 3,
+  "success_extra_connection": false,
+  "failure_probe_limit_seconds": 1
+}

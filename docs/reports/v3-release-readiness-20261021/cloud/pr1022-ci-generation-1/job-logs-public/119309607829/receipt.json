@@ -1,0 +1,17 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119309607829/logs",
+  "at": "2026-10-21T15:39:16.567651+00:00",
+  "exit_code": 0,
+  "raw_bytes": 85365,
+  "raw_sha256": "c652cb27dfe905dc261c8e9f856c15b4f4e5249834b8c7021658b768fe3c743d",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "public_sha256": "c9bdc47670213e7bc333167f7174a1eb3e6faf4d090e87a49cf2e4de30b103fc",
+  "job_id": 119309607829,
+  "run_id": 39625524702,
+  "api_status_at_log_read": "in_progress",
+  "api_conclusion_at_log_read": null,
+  "all_steps_success": true,
+  "command_result_artifact_id": 12357946122,
+  "note": "Complete public job log was available although job/check API still showed in_progress; do not infer terminal API conclusion."
+}

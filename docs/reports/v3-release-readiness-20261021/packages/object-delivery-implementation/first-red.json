@@ -1,0 +1,19 @@
+{
+  "started_at": "2026-10-21T15:31:54.260571+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery.py",
+    "-v"
+  ],
+  "exit_code": 1,
+  "implementation_existed": false,
+  "test_sha256": "4c02feef10d9c016fd4acd47b9cc7b006ce3c68e1023ea2bd9b1ed9e59e8cea2",
+  "test_methods": 20,
+  "failure_inventory_sha256": "e46e78947c06290a6e6289e70a003d318b128b050c10997b506529200728f301"
+}

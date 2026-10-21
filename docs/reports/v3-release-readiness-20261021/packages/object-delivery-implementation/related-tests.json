@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*storage*.py",
+    "-v"
+  ],
+  "exit_code": 0,
+  "duration_seconds": 12.813
+}

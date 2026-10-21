@@ -1,0 +1,2 @@
+792072ff5439fb97b14103ea528f8703718dcd767178d7f9c42e03c63c9a4b78  wukongim_3.0.0-beta.24-SNAPSHOT-8e8c0ab33_linux_amd64.deb
+db0eae4cc2274a3fe661c3b9472a414f43400169e138a80d2fa7a3eca21ffc6b  wukongim_3.0.0-beta.24-SNAPSHOT-8e8c0ab33_linux_amd64.rpm

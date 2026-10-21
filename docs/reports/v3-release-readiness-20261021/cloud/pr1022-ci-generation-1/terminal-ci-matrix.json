@@ -1,0 +1,2042 @@
+{
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "base": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "checkout": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+  "tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "runs": [
+    {
+      "id": 39625524544,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:47:39Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544"
+    },
+    {
+      "id": 39625578509,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:43Z",
+      "updated_at": "2026-10-21T15:25:49Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625578509"
+    },
+    {
+      "id": 39625524702,
+      "name": "V3 Candidate Regression pull_request 1022 attempt 1",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:36:28Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702"
+    },
+    {
+      "id": 39625524550,
+      "name": "Safety Automation - EasySDK Released Package Acceptance",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:41:37Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524550"
+    },
+    {
+      "id": 39625524864,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1022 attempt 1",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:31:12Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864"
+    },
+    {
+      "id": 39625524596,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:25:31Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524596"
+    }
+  ],
+  "jobs": [
+    {
+      "id": 119309609807,
+      "run_id": 39625524864,
+      "name": "PR three-node correctness",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:27Z",
+      "completed_at": "2026-10-21T15:30:28Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309609807",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:29Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:29Z",
+          "completed_at": "2026-10-21T15:25:39Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:39Z",
+          "completed_at": "2026-10-21T15:25:55Z"
+        },
+        {
+          "name": "Prepare isolated PR evidence root",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:25:55Z",
+          "completed_at": "2026-10-21T15:25:55Z"
+        },
+        {
+          "name": "Run bounded three-node 500 QPS correctness smoke",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:25:55Z",
+          "completed_at": "2026-10-21T15:30:07Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:30:07Z",
+          "completed_at": "2026-10-21T15:30:07Z"
+        },
+        {
+          "name": "Upload PR regression evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:30:07Z",
+          "completed_at": "2026-10-21T15:30:24Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:30:24Z",
+          "completed_at": "2026-10-21T15:30:24Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:30:24Z",
+          "completed_at": "2026-10-21T15:30:24Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:30:24Z",
+          "completed_at": "2026-10-21T15:30:24Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309610215,
+      "run_id": 39625524864,
+      "name": "PR performance baseline evidence",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:26Z",
+      "completed_at": "2026-10-21T15:25:41Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309610215",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:27Z"
+        },
+        {
+          "name": "Checkout exact candidate without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:38Z"
+        },
+        {
+          "name": "Check identical-input successful main baseline",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:38Z",
+          "completed_at": "2026-10-21T15:25:39Z"
+        },
+        {
+          "name": "Post Checkout exact candidate without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:25:39Z",
+          "completed_at": "2026-10-21T15:25:39Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:25:39Z",
+          "completed_at": "2026-10-21T15:25:39Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309610338,
+      "run_id": 39625524864,
+      "name": "PR messaging unit and race",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:26Z",
+      "completed_at": "2026-10-21T15:28:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309610338",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:27Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:37Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:37Z",
+          "completed_at": "2026-10-21T15:25:52Z"
+        },
+        {
+          "name": "Run focused unit and race gates",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:25:52Z",
+          "completed_at": "2026-10-21T15:28:09Z"
+        },
+        {
+          "name": "Exercise bounded arrival saturation under race detection",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:28:09Z",
+          "completed_at": "2026-10-21T15:28:20Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:28:20Z",
+          "completed_at": "2026-10-21T15:28:21Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:28:21Z",
+          "completed_at": "2026-10-21T15:28:21Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T15:28:21Z",
+          "completed_at": "2026-10-21T15:28:21Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:28:21Z",
+          "completed_at": "2026-10-21T15:28:21Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309612112,
+      "run_id": 39625524864,
+      "name": "Fixed Linux SEND diagnosis",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T15:25:24Z",
+      "completed_at": "2026-10-21T15:25:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309612112",
+      "steps": []
+    },
+    {
+      "id": 119309612278,
+      "run_id": 39625524864,
+      "name": "Nightly direct 500 QPS qualification",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T15:25:24Z",
+      "completed_at": "2026-10-21T15:25:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309612278",
+      "steps": []
+    },
+    {
+      "id": 119309777913,
+      "run_id": 39625524864,
+      "name": "PR 500 QPS / channel-append",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:43Z",
+      "completed_at": "2026-10-21T15:30:30Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309777913",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:44Z",
+          "completed_at": "2026-10-21T15:25:45Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:45Z",
+          "completed_at": "2026-10-21T15:25:57Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:57Z",
+          "completed_at": "2026-10-21T15:26:09Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:26:09Z",
+          "completed_at": "2026-10-21T15:30:25Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:30:25Z",
+          "completed_at": "2026-10-21T15:30:25Z"
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:30:25Z",
+          "completed_at": "2026-10-21T15:30:26Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:30:26Z",
+          "completed_at": "2026-10-21T15:30:27Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T15:30:27Z",
+          "completed_at": "2026-10-21T15:30:27Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:30:27Z",
+          "completed_at": "2026-10-21T15:30:27Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309778053,
+      "run_id": 39625524864,
+      "name": "PR 500 QPS / tcp-sendack",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:43Z",
+      "completed_at": "2026-10-21T15:30:23Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309778053",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:44Z",
+          "completed_at": "2026-10-21T15:25:46Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:46Z",
+          "completed_at": "2026-10-21T15:25:55Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:55Z",
+          "completed_at": "2026-10-21T15:26:10Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:26:10Z",
+          "completed_at": "2026-10-21T15:30:19Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:30:19Z",
+          "completed_at": "2026-10-21T15:30:19Z"
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:30:19Z",
+          "completed_at": "2026-10-21T15:30:20Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:30:20Z",
+          "completed_at": "2026-10-21T15:30:20Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T15:30:20Z",
+          "completed_at": "2026-10-21T15:30:20Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:30:20Z",
+          "completed_at": "2026-10-21T15:30:20Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309778089,
+      "run_id": 39625524864,
+      "name": "PR 500 QPS / mixed-send",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:43Z",
+      "completed_at": "2026-10-21T15:31:05Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309778089",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:44Z",
+          "completed_at": "2026-10-21T15:25:45Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:45Z",
+          "completed_at": "2026-10-21T15:25:55Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:55Z",
+          "completed_at": "2026-10-21T15:26:10Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:26:10Z",
+          "completed_at": "2026-10-21T15:31:00Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:31:00Z",
+          "completed_at": "2026-10-21T15:31:01Z"
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:31:01Z",
+          "completed_at": "2026-10-21T15:31:02Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:31:02Z",
+          "completed_at": "2026-10-21T15:31:02Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T15:31:02Z",
+          "completed_at": "2026-10-21T15:31:02Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:31:02Z",
+          "completed_at": "2026-10-21T15:31:02Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309606802,
+      "run_id": 39625524596,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:26Z",
+      "completed_at": "2026-10-21T15:25:30Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524596/job/119309606802",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:27Z"
+        },
+        {
+          "name": "Record trusted event kind",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:28Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:28Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": false
+    },
+    {
+      "id": 119309607567,
+      "run_id": 39625524702,
+      "name": "Candidate default suite (go-unit)",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:27Z",
+      "completed_at": "2026-10-21T15:32:50Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702/job/119309607567",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:29Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:29Z",
+          "completed_at": "2026-10-21T15:25:42Z"
+        },
+        {
+          "name": "Freeze source and named-check authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:42Z",
+          "completed_at": "2026-10-21T15:25:42Z"
+        },
+        {
+          "name": "Validate workflow static contracts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:25:42Z",
+          "completed_at": "2026-10-21T15:25:42Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:25:42Z",
+          "completed_at": "2026-10-21T15:25:49Z"
+        },
+        {
+          "name": "Run frozen go-unit named check once",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:25:49Z",
+          "completed_at": "2026-10-21T15:32:47Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:32:47Z",
+          "completed_at": "2026-10-21T15:32:47Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T15:32:47Z",
+          "completed_at": "2026-10-21T15:32:48Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:32:48Z",
+          "completed_at": "2026-10-21T15:32:48Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T15:32:48Z",
+          "completed_at": "2026-10-21T15:32:48Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T15:32:48Z",
+          "completed_at": "2026-10-21T15:32:48Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309607829,
+      "run_id": 39625524702,
+      "name": "Candidate scripts integration",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-21T15:25:26Z",
+      "completed_at": null,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702/job/119309607829",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:28Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:37Z"
+        },
+        {
+          "name": "Freeze source and named-check authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:37Z",
+          "completed_at": "2026-10-21T15:25:38Z"
+        },
+        {
+          "name": "Validate workflow static contracts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:25:38Z",
+          "completed_at": "2026-10-21T15:25:38Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:25:38Z",
+          "completed_at": "2026-10-21T15:25:45Z"
+        },
+        {
+          "name": "Run frozen scripts-integration named check once",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:25:45Z",
+          "completed_at": "2026-10-21T15:34:04Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:34:04Z",
+          "completed_at": "2026-10-21T15:34:04Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T15:34:04Z",
+          "completed_at": "2026-10-21T15:34:05Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:34:05Z",
+          "completed_at": "2026-10-21T15:34:05Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T15:34:05Z",
+          "completed_at": "2026-10-21T15:34:05Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T15:34:05Z",
+          "completed_at": "2026-10-21T15:34:05Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309605565,
+      "run_id": 39625524544,
+      "name": "Build and install deb/rpm preview",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:26Z",
+      "completed_at": "2026-10-21T15:41:12Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544/job/119309605565",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:28Z"
+        },
+        {
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:38Z"
+        },
+        {
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:38Z",
+          "completed_at": "2026-10-21T15:25:56Z"
+        },
+        {
+          "name": "Run package and CLI contracts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:25:56Z",
+          "completed_at": "2026-10-21T15:26:59Z"
+        },
+        {
+          "name": "Run single-node cluster SEND integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:26:59Z",
+          "completed_at": "2026-10-21T15:27:11Z"
+        },
+        {
+          "name": "Build deb and rpm preview",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:27:11Z",
+          "completed_at": "2026-10-21T15:29:39Z"
+        },
+        {
+          "name": "Validate signed repository metadata closure",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:29:39Z",
+          "completed_at": "2026-10-21T15:31:37Z"
+        },
+        {
+          "name": "Inspect package metadata",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T15:31:37Z",
+          "completed_at": "2026-10-21T15:31:43Z"
+        },
+        {
+          "name": "Install on Ubuntu 24.04",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T15:31:43Z",
+          "completed_at": "2026-10-21T15:32:05Z"
+        },
+        {
+          "name": "Install on Debian 12",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T15:32:05Z",
+          "completed_at": "2026-10-21T15:32:16Z"
+        },
+        {
+          "name": "Install on Rocky Linux 9",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:32:16Z",
+          "completed_at": "2026-10-21T15:40:34Z"
+        },
+        {
+          "name": "Install on AlmaLinux 9",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T15:40:34Z",
+          "completed_at": "2026-10-21T15:41:04Z"
+        },
+        {
+          "name": "Upload preview packages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:41:04Z",
+          "completed_at": "2026-10-21T15:41:08Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:41:08Z",
+          "completed_at": "2026-10-21T15:41:08Z"
+        },
+        {
+          "name": "Post Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-10-21T15:41:08Z",
+          "completed_at": "2026-10-21T15:41:08Z"
+        },
+        {
+          "name": "Post Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-10-21T15:41:08Z",
+          "completed_at": "2026-10-21T15:41:08Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-10-21T15:41:08Z",
+          "completed_at": "2026-10-21T15:41:08Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309606830,
+      "run_id": 39625524550,
+      "name": "Flutter pub.dev 1.1.0 on iOS",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:29Z",
+      "completed_at": "2026-10-21T15:41:35Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524550/job/119309606830",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:31Z",
+          "completed_at": "2026-10-21T15:25:34Z"
+        },
+        {
+          "name": "Check out WuKongIM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:34Z",
+          "completed_at": "2026-10-21T15:25:42Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:42Z",
+          "completed_at": "2026-10-21T15:26:22Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:26:22Z",
+          "completed_at": "2026-10-21T15:26:31Z"
+        },
+        {
+          "name": "Set up Flutter",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:26:31Z",
+          "completed_at": "2026-10-21T15:28:20Z"
+        },
+        {
+          "name": "Check out Flutter release source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:28:20Z",
+          "completed_at": "2026-10-21T15:28:22Z"
+        },
+        {
+          "name": "Point the official example at pub.dev",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:28:22Z",
+          "completed_at": "2026-10-21T15:28:25Z"
+        },
+        {
+          "name": "Start WuKongIM and released Web peer",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T15:28:25Z",
+          "completed_at": "2026-10-21T15:29:03Z"
+        },
+        {
+          "name": "Boot iOS Simulator",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T15:29:03Z",
+          "completed_at": "2026-10-21T15:32:08Z"
+        },
+        {
+          "name": "Run released Flutter package on iOS",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T15:32:08Z",
+          "completed_at": "2026-10-21T15:41:09Z"
+        },
+        {
+          "name": "Clean up runtime",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:41:09Z",
+          "completed_at": "2026-10-21T15:41:09Z"
+        },
+        {
+          "name": "Post Check out Flutter release source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-21T15:41:09Z",
+          "completed_at": "2026-10-21T15:41:11Z"
+        },
+        {
+          "name": "Post Set up Flutter",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-21T15:41:11Z",
+          "completed_at": "2026-10-21T15:41:13Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-21T15:41:13Z",
+          "completed_at": "2026-10-21T15:41:13Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-21T15:41:13Z",
+          "completed_at": "2026-10-21T15:41:13Z"
+        },
+        {
+          "name": "Post Check out WuKongIM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-21T15:41:13Z",
+          "completed_at": "2026-10-21T15:41:14Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-21T15:41:14Z",
+          "completed_at": "2026-10-21T15:41:31Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309607308,
+      "run_id": 39625524550,
+      "name": "iOS CocoaPods 1.1.1",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:29Z",
+      "completed_at": "2026-10-21T15:32:44Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524550/job/119309607308",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:30Z",
+          "completed_at": "2026-10-21T15:25:33Z"
+        },
+        {
+          "name": "Check out WuKongIM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:33Z",
+          "completed_at": "2026-10-21T15:25:39Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:39Z",
+          "completed_at": "2026-10-21T15:26:11Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:26:11Z",
+          "completed_at": "2026-10-21T15:26:19Z"
+        },
+        {
+          "name": "Set up Ruby",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:26:19Z",
+          "completed_at": "2026-10-21T15:26:19Z"
+        },
+        {
+          "name": "Install CocoaPods",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:26:19Z",
+          "completed_at": "2026-10-21T15:26:21Z"
+        },
+        {
+          "name": "Resolve the exact CocoaPods package",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:26:21Z",
+          "completed_at": "2026-10-21T15:26:28Z"
+        },
+        {
+          "name": "Start WuKongIM and released Web peer",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T15:26:28Z",
+          "completed_at": "2026-10-21T15:27:10Z"
+        },
+        {
+          "name": "Boot iOS Simulator",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T15:27:10Z",
+          "completed_at": "2026-10-21T15:28:39Z"
+        },
+        {
+          "name": "Build and run the CocoaPods app",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T15:28:40Z",
+          "completed_at": "2026-10-21T15:32:03Z"
+        },
+        {
+          "name": "Clean up runtime",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:32:03Z",
+          "completed_at": "2026-10-21T15:32:05Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-21T15:32:05Z",
+          "completed_at": "2026-10-21T15:32:07Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-21T15:32:07Z",
+          "completed_at": "2026-10-21T15:32:08Z"
+        },
+        {
+          "name": "Post Check out WuKongIM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-21T15:32:08Z",
+          "completed_at": "2026-10-21T15:32:11Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-21T15:32:11Z",
+          "completed_at": "2026-10-21T15:32:38Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309607351,
+      "run_id": 39625524550,
+      "name": "Android Maven Central 1.0.5",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:26Z",
+      "completed_at": "2026-10-21T15:29:50Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524550/job/119309607351",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:27Z",
+          "completed_at": "2026-10-21T15:25:28Z"
+        },
+        {
+          "name": "Check out WuKongIM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:28Z",
+          "completed_at": "2026-10-21T15:25:34Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:34Z",
+          "completed_at": "2026-10-21T15:25:47Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:25:47Z",
+          "completed_at": "2026-10-21T15:25:53Z"
+        },
+        {
+          "name": "Set up Java",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:25:53Z",
+          "completed_at": "2026-10-21T15:25:53Z"
+        },
+        {
+          "name": "Check out Android release source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:25:53Z",
+          "completed_at": "2026-10-21T15:25:54Z"
+        },
+        {
+          "name": "Point the official example at Maven Central",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:25:54Z",
+          "completed_at": "2026-10-21T15:26:35Z"
+        },
+        {
+          "name": "Start WuKongIM and released Web peer",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T15:26:35Z",
+          "completed_at": "2026-10-21T15:27:08Z"
+        },
+        {
+          "name": "Enable KVM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T15:27:08Z",
+          "completed_at": "2026-10-21T15:27:08Z"
+        },
+        {
+          "name": "Run released Android package on API 34",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T15:27:08Z",
+          "completed_at": "2026-10-21T15:29:47Z"
+        },
+        {
+          "name": "Clean up runtime",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T15:29:47Z",
+          "completed_at": "2026-10-21T15:29:47Z"
+        },
+        {
+          "name": "Post Check out Android release source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-21T15:29:47Z",
+          "completed_at": "2026-10-21T15:29:47Z"
+        },
+        {
+          "name": "Post Set up Java",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-21T15:29:47Z",
+          "completed_at": "2026-10-21T15:29:47Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-21T15:29:47Z",
+          "completed_at": "2026-10-21T15:29:47Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-21T15:29:47Z",
+          "completed_at": "2026-10-21T15:29:48Z"
+        },
+        {
+          "name": "Post Check out WuKongIM",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-21T15:29:48Z",
+          "completed_at": "2026-10-21T15:29:48Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-21T15:29:48Z",
+          "completed_at": "2026-10-21T15:29:48Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119309799068,
+      "run_id": 39625578509,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:25:45Z",
+      "completed_at": "2026-10-21T15:25:48Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625578509/job/119309799068",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:25:46Z",
+          "completed_at": "2026-10-21T15:25:46Z"
+        },
+        {
+          "name": "Record trusted event kind",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:25:46Z",
+          "completed_at": "2026-10-21T15:25:46Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:25:46Z",
+          "completed_at": "2026-10-21T15:25:46Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": false
+    },
+    {
+      "id": 119312720625,
+      "run_id": 39625524864,
+      "name": "PR three-node regression",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:31:07Z",
+      "completed_at": "2026-10-21T15:31:11Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119312720625",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:31:08Z",
+          "completed_at": "2026-10-21T15:31:09Z"
+        },
+        {
+          "name": "Require every independent check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:31:09Z",
+          "completed_at": "2026-10-21T15:31:09Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:31:09Z",
+          "completed_at": "2026-10-21T15:31:09Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": false
+    },
+    {
+      "id": 119313591454,
+      "run_id": 39625524702,
+      "name": "Candidate migration and messaging E2E",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-21T15:32:52Z",
+      "completed_at": "2026-10-21T15:36:27Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702/job/119313591454",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:32:53Z",
+          "completed_at": "2026-10-21T15:32:54Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:32:54Z",
+          "completed_at": "2026-10-21T15:33:03Z"
+        },
+        {
+          "name": "Record exact source and initial case state",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:33:03Z",
+          "completed_at": "2026-10-21T15:33:04Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:33:04Z",
+          "completed_at": "2026-10-21T15:33:10Z"
+        },
+        {
+          "name": "Build once and run migration, cross-node delivery, and self-chat serially",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-10-21T15:33:10Z",
+          "completed_at": "2026-10-21T15:36:23Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:36:23Z",
+          "completed_at": "2026-10-21T15:36:23Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:36:23Z",
+          "completed_at": "2026-10-21T15:36:24Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-10-21T15:36:24Z",
+          "completed_at": "2026-10-21T15:36:24Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:36:24Z",
+          "completed_at": "2026-10-21T15:36:24Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:36:24Z",
+          "completed_at": "2026-10-21T15:36:24Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119318017429,
+      "run_id": 39625524544,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-21T15:41:15Z",
+      "completed_at": "2026-10-21T15:47:38Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544/job/119318017429",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:41:16Z",
+          "completed_at": "2026-10-21T15:41:17Z"
+        },
+        {
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:41:17Z",
+          "completed_at": "2026-10-21T15:41:29Z"
+        },
+        {
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:41:29Z",
+          "completed_at": "2026-10-21T15:41:46Z"
+        },
+        {
+          "name": "Download the exact preview packages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:41:46Z",
+          "completed_at": "2026-10-21T15:41:50Z"
+        },
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:41:50Z",
+          "completed_at": "2026-10-21T15:41:51Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 6,
+          "started_at": "2026-10-21T15:41:51Z",
+          "completed_at": "2026-10-21T15:47:34Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:47:34Z",
+          "completed_at": "2026-10-21T15:47:35Z"
+        },
+        {
+          "name": "Post Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-10-21T15:47:35Z",
+          "completed_at": "2026-10-21T15:47:35Z"
+        },
+        {
+          "name": "Post Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:47:35Z",
+          "completed_at": "2026-10-21T15:47:35Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:47:35Z",
+          "completed_at": "2026-10-21T15:47:35Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119318017747,
+      "run_id": 39625524544,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:41:14Z",
+      "completed_at": "2026-10-21T15:42:57Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544/job/119318017747",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:41:15Z",
+          "completed_at": "2026-10-21T15:41:16Z"
+        },
+        {
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:41:16Z",
+          "completed_at": "2026-10-21T15:41:25Z"
+        },
+        {
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:41:25Z",
+          "completed_at": "2026-10-21T15:41:39Z"
+        },
+        {
+          "name": "Download the exact preview packages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:41:39Z",
+          "completed_at": "2026-10-21T15:41:41Z"
+        },
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:41:41Z",
+          "completed_at": "2026-10-21T15:41:41Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:41:41Z",
+          "completed_at": "2026-10-21T15:42:54Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:42:54Z",
+          "completed_at": "2026-10-21T15:42:54Z"
+        },
+        {
+          "name": "Post Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:42:54Z",
+          "completed_at": "2026-10-21T15:42:55Z"
+        },
+        {
+          "name": "Post Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:42:55Z",
+          "completed_at": "2026-10-21T15:42:55Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:42:55Z",
+          "completed_at": "2026-10-21T15:42:55Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119318017761,
+      "run_id": 39625524544,
+      "name": "Exercise Debian 12 package lifecycle",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:41:14Z",
+      "completed_at": "2026-10-21T15:43:06Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544/job/119318017761",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:41:15Z",
+          "completed_at": "2026-10-21T15:41:17Z"
+        },
+        {
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:41:17Z",
+          "completed_at": "2026-10-21T15:41:34Z"
+        },
+        {
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:41:34Z",
+          "completed_at": "2026-10-21T15:41:49Z"
+        },
+        {
+          "name": "Download the exact preview packages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:41:49Z",
+          "completed_at": "2026-10-21T15:41:51Z"
+        },
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:41:51Z",
+          "completed_at": "2026-10-21T15:41:51Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:41:51Z",
+          "completed_at": "2026-10-21T15:43:03Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:43:03Z",
+          "completed_at": "2026-10-21T15:43:03Z"
+        },
+        {
+          "name": "Post Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:43:03Z",
+          "completed_at": "2026-10-21T15:43:03Z"
+        },
+        {
+          "name": "Post Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:43:03Z",
+          "completed_at": "2026-10-21T15:43:03Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:43:03Z",
+          "completed_at": "2026-10-21T15:43:04Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    },
+    {
+      "id": 119318017816,
+      "run_id": 39625524544,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T15:41:14Z",
+      "completed_at": "2026-10-21T15:42:54Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544/job/119318017816",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T15:41:15Z",
+          "completed_at": "2026-10-21T15:41:16Z"
+        },
+        {
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T15:41:16Z",
+          "completed_at": "2026-10-21T15:41:24Z"
+        },
+        {
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T15:41:24Z",
+          "completed_at": "2026-10-21T15:41:37Z"
+        },
+        {
+          "name": "Download the exact preview packages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T15:41:37Z",
+          "completed_at": "2026-10-21T15:41:40Z"
+        },
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T15:41:40Z",
+          "completed_at": "2026-10-21T15:41:40Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T15:41:40Z",
+          "completed_at": "2026-10-21T15:42:51Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T15:42:51Z",
+          "completed_at": "2026-10-21T15:42:52Z"
+        },
+        {
+          "name": "Post Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T15:42:52Z",
+          "completed_at": "2026-10-21T15:42:52Z"
+        },
+        {
+          "name": "Post Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T15:42:52Z",
+          "completed_at": "2026-10-21T15:42:52Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T15:42:52Z",
+          "completed_at": "2026-10-21T15:42:52Z"
+        }
+      ],
+      "checkout_sha_occurs_in_complete_log": true
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12357985232,
+      "name": "500qps-channel-append-8e8c0ab3321affc8655fb720a308e50bfaca15ca-1",
+      "size_in_bytes": 25718,
+      "digest": "sha256:5d1bc8a25d07a2acd3cbcb22a27fda197ea2480464c48f7e7077f68100ecf4ab"
+    },
+    {
+      "id": 12357161437,
+      "name": "three-node-pr-1022-8e8c0ab3321affc8655fb720a308e50bfaca15ca-1",
+      "size_in_bytes": 230318380,
+      "digest": "sha256:2921d35d2185da52d9cd943ee6e2ce5d36142667e66889d56d1b71f65c09620f"
+    },
+    {
+      "id": 12356519903,
+      "name": "500qps-tcp-sendack-8e8c0ab3321affc8655fb720a308e50bfaca15ca-1",
+      "size_in_bytes": 8239,
+      "digest": "sha256:d6fcfeaec3ae75221e15be4ef17b4d18cbc9546b4a3ef3c2064b7b1a82de0e04"
+    },
+    {
+      "id": 12356269271,
+      "name": "500qps-mixed-send-8e8c0ab3321affc8655fb720a308e50bfaca15ca-1",
+      "size_in_bytes": 229551,
+      "digest": "sha256:1e4fee130568256894c664e2902816c638cc5267661a1fb7d44e2964a6f4a84a"
+    },
+    {
+      "id": 12357915885,
+      "name": "v3-candidate-default-39625524702-1",
+      "size_in_bytes": 8249,
+      "digest": "sha256:f7fb2fb227bc2d2c8c829a17ade6ec1aafd4cf4ad72f47027dd46d3f31fd9ac4"
+    },
+    {
+      "id": 12357946122,
+      "name": "v3-candidate-scripts-39625524702-1",
+      "size_in_bytes": 116960,
+      "digest": "sha256:7e3beaa532a763111bac1799aa09a811a2ed746df9f746228c8d521844fbcf74"
+    },
+    {
+      "id": 12356928133,
+      "name": "v3-candidate-e2e-39625524702-1",
+      "size_in_bytes": 11463,
+      "digest": "sha256:9410e3e064d015a7c2ab7bd32ab26e3f4480f863783328278f6a49150760d1ed"
+    },
+    {
+      "id": 12358417202,
+      "name": "wukongim-native-package-preview-39625524544",
+      "size_in_bytes": 77866290,
+      "digest": "sha256:bb3127d2c7cb55b69d5884d0eab14ebe211c5ee0b18aa085d64b7e5d1a6fef0a"
+    }
+  ]
+}

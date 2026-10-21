@@ -1,0 +1,22 @@
+[
+  {
+    "path": "AGENTS.md",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "role": "repository/workflow monitoring"
+  },
+  {
+    "path": ".github/workflows/README.md",
+    "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    "role": "repository/workflow monitoring"
+  },
+  {
+    "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+    "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf",
+    "role": "changed package FLOW; no package implementation analysis performed"
+  },
+  {
+    "path": "internal/usecase/clouddeploy/FLOW.md",
+    "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711",
+    "role": "changed package FLOW; no package implementation analysis performed"
+  }
+]

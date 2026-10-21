@@ -1,0 +1,11 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119309605565/logs",
+  "read_utc": "2026-10-21T15:41:08.912599+00:00",
+  "exit_code": 1,
+  "stdout_bytes": 215,
+  "stdout_sha256": "68a12d6942f9ccc26457f11c8891ac7430ca8555d23e4067b91a32d005da4da5",
+  "stderr_bytes": 13,
+  "stderr_sha256": "6c5ec582d3b25e97273d17fd4088d0e13837c8384ee94aba555afc35856ec3ae",
+  "purpose": "One bounded read of pending job log; HTTP unavailability is not workflow failure.",
+  "result": "log not available from job log endpoint"
+}

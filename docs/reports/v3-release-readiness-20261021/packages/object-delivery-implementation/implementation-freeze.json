@@ -1,0 +1,52 @@
+{
+  "frozen_at": "2026-10-21T15:40:39.539946+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "branch": "codex/stable-object-delivery",
+  "base_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "base_tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "217ba4f44bd887fd8dde4588c980db5152678646ff140c1a4b15ef681d7fe0cc",
+      "size": 2967
+    },
+    "README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "f3b5ac68431f0f11ccde87a8bdb6be2e5547d60170a2b9a0f574e2ad6137715a",
+      "size": 7932
+    },
+    "scripts/prepare-object-storage-delivery.py": {
+      "sha256": "edf90960ae44e29529e9c3e1d717cc9ce961ad492891aa5da2248062fc254037",
+      "size": 24620
+    },
+    "tests/test_object_storage_delivery.py": {
+      "sha256": "f0d6f33d5955b5197a4628fd0440232e012263d0cdf1c6a5da9f2dd027146061",
+      "size": 23623
+    }
+  },
+  "patch_sha256": "0d1cf456a61d59072264efaf7b1a4b282089ec6807d9c58b8b0f702c5e9b6f0b",
+  "git_diff_check": true,
+  "existing_producer_control_channel_trust_workflow_bytes_unchanged": true,
+  "local_commit_created": false,
+  "push_pr_ci_or_cloud_actions": false,
+  "tests": {
+    "focused": {
+      "tests": 20,
+      "result": "passed",
+      "log": "focused-green.log"
+    },
+    "related_storage": {
+      "tests": 69,
+      "result": "passed",
+      "log": "related-tests.log"
+    },
+    "contract": {
+      "tests": 4,
+      "result": "passed",
+      "log": "contracts.log"
+    }
+  },
+  "review_status": "awaiting independent standards/spec review"
+}

@@ -1,0 +1,29 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119309799068/logs",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T15:27:44.840087+00:00",
+  "job_id": 119309799068,
+  "run_id": 39625578509,
+  "conclusion": "success",
+  "raw_bytes": 2091,
+  "raw_sha256": "baf579257eb36faeaca7cc67beb4dcd18298e5cc518fd6d213c7f89f316ca747",
+  "public_bytes": 2102,
+  "public_sha256": "e19711105768683ee7efdc19067fbaf777e228da38547dd87098a795a4210846",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "size": 63,
+      "sha256": "81b13f7481e4a56e01228b3ffd2b15adeadfe34a984b6db4dcd0bf22d495ec60"
+    },
+    {
+      "line": 25,
+      "size": 52,
+      "sha256": "8be45dc763d6da0771ec538d61599439109a7bcb5688da308f2e37829eff60db"
+    }
+  ],
+  "synthetic_sha_present": false,
+  "head_sha_present": false
+}

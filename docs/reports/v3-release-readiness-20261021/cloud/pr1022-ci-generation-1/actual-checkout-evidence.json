@@ -1,0 +1,319 @@
+[
+  {
+    "job_id": 119309605565,
+    "job_name": "Build and install deb/rpm preview",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 603,
+        "text": "2026-10-21T15:25:38.5118158Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309606802,
+    "job_name": "Emit credential-free wake-up",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [],
+    "checkout_not_required": true
+  },
+  {
+    "job_id": 119309606830,
+    "job_name": "Flutter pub.dev 1.1.0 on iOS",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 151,
+        "text": "2026-10-21T15:25:42.0437090Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 625,
+        "text": "2026-10-21T15:29:03.9316960Z RUNTIME_READY platform=flutter server_source=8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309607308,
+    "job_name": "iOS CocoaPods 1.1.1",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 145,
+        "text": "2026-10-21T15:25:39.7629600Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 373,
+        "text": "2026-10-21T15:27:10.2135730Z RUNTIME_READY platform=ios server_source=8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309607351,
+    "job_name": "Android Maven Central 1.0.5",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 134,
+        "text": "2026-10-21T15:25:34.1231094Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 412,
+        "text": "2026-10-21T15:27:08.9323239Z RUNTIME_READY platform=android server_source=8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309607567,
+    "job_name": "Candidate default suite (go-unit)",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 37,
+        "text": "2026-10-21T15:25:29.1760971Z   ref: 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 577,
+        "text": "2026-10-21T15:25:40.8996202Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 581,
+        "text": "2026-10-21T15:25:41.0825218Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 588,
+        "text": "2026-10-21T15:25:41.0926820Z [command]/usr/bin/git checkout --progress --force 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 609,
+        "text": "2026-10-21T15:25:41.9745946Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 659,
+        "text": "2026-10-21T15:25:42.1463376Z   SOURCE_SHA: 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309607829,
+    "job_name": "Candidate scripts integration",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 37,
+        "text": "2026-10-21T15:25:28.8747040Z   ref: 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 577,
+        "text": "2026-10-21T15:25:36.8822655Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 581,
+        "text": "2026-10-21T15:25:37.2179158Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 588,
+        "text": "2026-10-21T15:25:37.2369601Z [command]/usr/bin/git checkout --progress --force 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 609,
+        "text": "2026-10-21T15:25:37.8717409Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 658,
+        "text": "2026-10-21T15:25:38.0085943Z   SOURCE_SHA: 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309609807,
+    "job_name": "PR three-node correctness",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 602,
+        "text": "2026-10-21T15:25:38.9909054Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309610215,
+    "job_name": "PR performance baseline evidence",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 598,
+        "text": "2026-10-21T15:25:38.0520280Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309610338,
+    "job_name": "PR messaging unit and race",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 601,
+        "text": "2026-10-21T15:25:37.8443464Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309777913,
+    "job_name": "PR 500 QPS / channel-append",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 604,
+        "text": "2026-10-21T15:25:57.1248674Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309778053,
+    "job_name": "PR 500 QPS / tcp-sendack",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 604,
+        "text": "2026-10-21T15:25:55.2012058Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309778089,
+    "job_name": "PR 500 QPS / mixed-send",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 604,
+        "text": "2026-10-21T15:25:55.7440203Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119309799068,
+    "job_name": "Emit credential-free wake-up",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [],
+    "checkout_not_required": true
+  },
+  {
+    "job_id": 119312720625,
+    "job_name": "PR three-node regression",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [],
+    "checkout_not_required": true
+  },
+  {
+    "job_id": 119313591454,
+    "job_name": "Candidate migration and messaging E2E",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 37,
+        "text": "2026-10-21T15:32:54.5187542Z   ref: 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 576,
+        "text": "2026-10-21T15:33:02.6094150Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 580,
+        "text": "2026-10-21T15:33:02.9173510Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 587,
+        "text": "2026-10-21T15:33:02.9268339Z [command]/usr/bin/git checkout --progress --force 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 608,
+        "text": "2026-10-21T15:33:03.6152713Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      },
+      {
+        "line": 655,
+        "text": "2026-10-21T15:33:03.7382525Z   SOURCE_SHA: 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119318017429,
+    "job_name": "Exercise Rocky Linux 9 package lifecycle",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 606,
+        "text": "2026-10-21T15:41:28.9853893Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119318017747,
+    "job_name": "Exercise Ubuntu 24.04 package lifecycle",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 606,
+        "text": "2026-10-21T15:41:25.5809875Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119318017761,
+    "job_name": "Exercise Debian 12 package lifecycle",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 606,
+        "text": "2026-10-21T15:41:34.2776403Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  },
+  {
+    "job_id": 119318017816,
+    "job_name": "Exercise AlmaLinux 9 package lifecycle",
+    "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "run_attempt": 1,
+    "checkout_log_evidence": [
+      {
+        "line": 606,
+        "text": "2026-10-21T15:41:24.7874688Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca"
+      }
+    ],
+    "checkout_not_required": false
+  }
+]

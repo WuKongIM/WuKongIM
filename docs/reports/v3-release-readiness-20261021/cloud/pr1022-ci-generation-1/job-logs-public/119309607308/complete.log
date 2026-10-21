@@ -1,0 +1,622 @@
+﻿2026-10-21T15:25:30.4637600Z Current runner version: '2.338.0'
+2026-10-21T15:25:30.4656270Z ##[group]Runner Image Provisioner
+2026-10-21T15:25:30.4657080Z Hosted Compute Agent
+2026-10-21T15:25:30.4657530Z Version: 20260828.587
+2026-10-21T15:25:30.4658020Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-21T15:25:30.4658780Z Build Date: 2026-08-28T16:44:25Z
+2026-10-21T15:25:30.4659290Z Worker ID: {05d12402-2344-4712-95d0-3e98d589614d}
+2026-10-21T15:25:30.4659830Z Azure Region: westus
+2026-10-21T15:25:30.4660250Z ##[endgroup]
+2026-10-21T15:25:30.4661500Z ##[group]Operating System
+2026-10-21T15:25:30.4662120Z macOS
+2026-10-21T15:25:30.4662510Z 15.7.9
+2026-10-21T15:25:30.4662900Z 24G830
+2026-10-21T15:25:30.4663260Z ##[endgroup]
+2026-10-21T15:25:30.4663620Z ##[group]Runner Image
+2026-10-21T15:25:30.4664040Z Image: macos-15-arm64
+2026-10-21T15:25:30.4664600Z Version: 20260907.0337.1
+2026-10-21T15:25:30.4666160Z Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260907.0337/images/macos/macos-15-arm64-Readme.md
+2026-10-21T15:25:30.4668040Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260907.0337
+2026-10-21T15:25:30.4668950Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:30.4671390Z Contents: read
+2026-10-21T15:25:30.4671850Z Metadata: read
+2026-10-21T15:25:30.4672280Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:30.4678040Z Cache mode: write
+2026-10-21T15:25:30.4678670Z Prepare workflow directory
+2026-10-21T15:25:30.5164340Z Prepare all required actions
+2026-10-21T15:25:30.5220630Z Getting action download info
+2026-10-21T15:25:30.9882280Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-10-21T15:25:31.3980830Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-21T15:25:32.8125720Z Download action repository 'actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38' (SHA:249970729cb0ef3589644e2896645e5dc5ba9c38)
+2026-10-21T15:25:32.9496530Z Download action repository 'ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b' (SHA:95ef2b042f9d7a56d8268cba8559e2842e2ad01b)
+2026-10-21T15:25:33.5671990Z Complete job name: iOS CocoaPods 1.1.1
+2026-10-21T15:25:33.6357250Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-10-21T15:25:33.6357870Z with:
+2026-10-21T15:25:33.6358070Z   repository: WuKongIM/WuKongIM
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:33.6365910Z   ssh-strict: true
+2026-10-21T15:25:33.6366100Z   ssh-user: git
+2026-10-21T15:25:33.6366290Z   persist-credentials: true
+2026-10-21T15:25:33.6366520Z   clean: true
+2026-10-21T15:25:33.6366710Z   sparse-checkout-cone-mode: true
+2026-10-21T15:25:33.6366940Z   fetch-depth: 1
+2026-10-21T15:25:33.6367130Z   fetch-tags: false
+2026-10-21T15:25:33.6367340Z   show-progress: true
+2026-10-21T15:25:33.6367530Z   lfs: false
+2026-10-21T15:25:33.6368110Z   submodules: false
+2026-10-21T15:25:33.6368870Z   set-safe-directory: true
+2026-10-21T15:25:33.6369110Z   allow-unsafe-pr-checkout: false
+2026-10-21T15:25:33.6369870Z env:
+2026-10-21T15:25:33.6370040Z   LANG: en_US.UTF-8
+2026-10-21T15:25:33.6370220Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:25:33.6370450Z ##[endgroup]
+2026-10-21T15:25:34.0926660Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T15:25:34.0927920Z ##[group]Getting Git version info
+2026-10-21T15:25:34.0928300Z Working directory is '/Users/runner/work/WuKongIM/WuKongIM'
+2026-10-21T15:25:34.0928790Z [command]/opt/homebrew/bin/git version
+2026-10-21T15:25:34.1727250Z git version 2.55.0
+2026-10-21T15:25:34.1747800Z ##[endgroup]
+2026-10-21T15:25:34.1756400Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/ca8a36d1-9d99-4f06-bd5e-03e6c831d703/.gitconfig'
+2026-10-21T15:25:34.1766550Z Temporarily overriding HOME='/Users/runner/work/_temp/ca8a36d1-9d99-4f06-bd5e-03e6c831d703' before making global git config changes
+2026-10-21T15:25:34.1768050Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:25:34.1813450Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:25:34.1941870Z Deleting the contents of '/Users/runner/work/WuKongIM/WuKongIM'
+2026-10-21T15:25:34.1943840Z ##[group]Determining repository object format
+2026-10-21T15:25:34.1945950Z ##[endgroup]
+2026-10-21T15:25:34.1946450Z ##[group]Initializing the repository
+2026-10-21T15:25:34.1950770Z [command]/opt/homebrew/bin/git init /Users/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:25:34.2253130Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T15:25:34.2255870Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T15:25:34.2256800Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T15:25:34.2257760Z hint: call:
+2026-10-21T15:25:34.2258570Z hint:
+2026-10-21T15:25:34.2259270Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T15:25:34.2260590Z hint:
+2026-10-21T15:25:34.2262060Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T15:25:34.2262560Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T15:25:34.2264530Z hint:
+2026-10-21T15:25:34.2266880Z hint: 	git branch -m <name>
+2026-10-21T15:25:34.2267200Z hint:
+2026-10-21T15:25:34.2267520Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T15:25:34.2268190Z Initialized empty Git repository in /Users/runner/work/WuKongIM/WuKongIM/.git/
+2026-10-21T15:25:34.2286560Z [command]/opt/homebrew/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T15:25:34.2423580Z ##[endgroup]
+2026-10-21T15:25:34.2425090Z ##[group]Disabling automatic garbage collection
+2026-10-21T15:25:34.2432190Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-21T15:25:34.2535020Z ##[endgroup]
+2026-10-21T15:25:34.2535520Z ##[group]Setting up auth
+2026-10-21T15:25:34.2536020Z Removing SSH command configuration
+2026-10-21T15:25:34.2540510Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:25:34.2610910Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:25:34.4690970Z Removing HTTP extra header
+2026-10-21T15:25:34.4692880Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:25:34.4762290Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:25:34.5719950Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:25:34.5727100Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:25:34.5923070Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:34.7155300Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path /Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:25:34.7222230Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:25:34.7298190Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:25:34.7361640Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:25:34.7440940Z ##[endgroup]
+2026-10-21T15:25:34.7441300Z ##[group]Fetching the repository
+2026-10-21T15:25:34.7454900Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +8e8c0ab3321affc8655fb720a308e50bfaca15ca:refs/remotes/pull/1022/merge
+2026-10-21T15:25:38.0159800Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T15:25:38.0161190Z  * [new ref]         8e8c0ab3321affc8655fb720a308e50bfaca15ca -> pull/1022/merge
+2026-10-21T15:25:38.0163970Z ##[endgroup]
+2026-10-21T15:25:38.0164750Z ##[group]Determining the checkout info
+2026-10-21T15:25:38.0165690Z ##[endgroup]
+2026-10-21T15:25:38.0166630Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-21T15:25:38.0315720Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T15:25:38.0370060Z ##[group]Checking out the ref
+2026-10-21T15:25:38.0374890Z [command]/opt/homebrew/bin/git checkout --progress --force refs/remotes/pull/1022/merge
+2026-10-21T15:25:39.1403030Z Updating files:  76% (5957/7815)
+2026-10-21T15:25:39.1557830Z Updating files:  77% (6018/7815)
+2026-10-21T15:25:39.1757440Z Updating files:  78% (6096/7815)
+2026-10-21T15:25:39.1828360Z Updating files:  79% (6174/7815)
+2026-10-21T15:25:39.1928830Z Updating files:  80% (6252/7815)
+2026-10-21T15:25:39.2012990Z Updating files:  81% (6331/7815)
+2026-10-21T15:25:39.2089900Z Updating files:  82% (6409/7815)
+2026-10-21T15:25:39.2187080Z Updating files:  83% (6487/7815)
+2026-10-21T15:25:39.2285310Z Updating files:  84% (6565/7815)
+2026-10-21T15:25:39.2371490Z Updating files:  85% (6643/7815)
+2026-10-21T15:25:39.2927930Z Updating files:  86% (6721/7815)
+2026-10-21T15:25:39.3075050Z Updating files:  87% (6800/7815)
+2026-10-21T15:25:39.3189380Z Updating files:  88% (6878/7815)
+2026-10-21T15:25:39.5741380Z Updating files:  89% (6956/7815)
+2026-10-21T15:25:39.5918900Z Updating files:  90% (7034/7815)
+2026-10-21T15:25:39.6043030Z Updating files:  91% (7112/7815)
+2026-10-21T15:25:39.6169940Z Updating files:  92% (7190/7815)
+2026-10-21T15:25:39.6333760Z Updating files:  93% (7268/7815)
+2026-10-21T15:25:39.6542150Z Updating files:  94% (7347/7815)
+2026-10-21T15:25:39.6617960Z Updating files:  95% (7425/7815)
+2026-10-21T15:25:39.6810620Z Updating files:  96% (7503/7815)
+2026-10-21T15:25:39.6914700Z Updating files:  97% (7581/7815)
+2026-10-21T15:25:39.7021950Z Updating files:  98% (7659/7815)
+2026-10-21T15:25:39.7188240Z Updating files:  99% (7737/7815)
+2026-10-21T15:25:39.7258600Z Updating files: 100% (7815/7815)
+2026-10-21T15:25:39.7259020Z Updating files: 100% (7815/7815), done.
+2026-10-21T15:25:39.7357430Z HEAD is now at 8e8c0ab Merge 9a4900dc67ac674791edba11ea9a719cd91ec570 into aeb45c2164b6a50214928f520edd2a8815b7a976
+2026-10-21T15:25:39.7384110Z ##[endgroup]
+2026-10-21T15:25:39.7535360Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-21T15:25:39.7629600Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca
+2026-10-21T15:25:39.8042400Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-21T15:25:39.8042700Z with:
+2026-10-21T15:25:39.8042850Z   go-version-file: go.mod
+2026-10-21T15:25:39.8043050Z   cache: true
+2026-10-21T15:25:39.8043310Z   check-latest: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:39.8046710Z env:
+2026-10-21T15:25:39.8046870Z   LANG: en_US.UTF-8
+2026-10-21T15:25:39.8047090Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:25:39.8047270Z ##[endgroup]
+2026-10-21T15:25:39.9733380Z Setup go version spec 1.25.11
+2026-10-21T15:25:39.9766940Z Attempting to download 1.25.11...
+2026-10-21T15:25:40.6832540Z matching 1.25.11...
+2026-10-21T15:25:40.6898850Z Acquiring 1.25.11 from https://github.com/actions/go-versions/releases/download/1.25.11-26891828414/go-1.25.11-darwin-arm64.tar.gz
+2026-10-21T15:25:41.4364370Z Extracting Go...
+2026-10-21T15:25:41.4570230Z [command]/usr/bin/tar xz -C /Users/runner/work/_temp/8160727f-a678-4f9d-8c02-8b4f005bc988 -f /Users/runner/work/_temp/9eaa09dc-f619-4af2-b8e3-0e41336974ce
+2026-10-21T15:25:44.4890380Z Successfully extracted go to /Users/runner/work/_temp/8160727f-a678-4f9d-8c02-8b4f005bc988
+2026-10-21T15:25:44.4895590Z Adding to the cache ...
+2026-10-21T15:25:54.7949630Z Successfully cached go to /Users/runner/hostedtoolcache/go/1.25.11/arm64
+2026-10-21T15:25:54.7953920Z Added go to the path
+2026-10-21T15:25:54.7962210Z Successfully set up Go version 1.25.11
+2026-10-21T15:25:54.9596270Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOMODCACHE
+2026-10-21T15:25:54.9618250Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOCACHE
+2026-10-21T15:25:54.9728850Z /Users/runner/Library/Caches/go-build
+2026-10-21T15:25:54.9730880Z /Users/runner/go/pkg/mod
+2026-10-21T15:25:55.2981760Z Cache hit for: setup-go-macOS-arm64-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4
+2026-10-21T15:25:56.6045240Z Received 0 of 382487116 (0.0%), 0.0 MBs/sec
+2026-10-21T15:25:57.6148520Z Received 54525952 of 382487116 (14.3%), 25.8 MBs/sec
+2026-10-21T15:25:58.6163520Z Received 130023424 of 382487116 (34.0%), 41.1 MBs/sec
+2026-10-21T15:25:59.6187160Z Received 184549376 of 382487116 (48.2%), 43.8 MBs/sec
+2026-10-21T15:26:00.6233780Z Received 251658240 of 382487116 (65.8%), 47.8 MBs/sec
+2026-10-21T15:26:01.6210170Z Received 289406976 of 382487116 (75.7%), 45.8 MBs/sec
+2026-10-21T15:26:02.6242730Z Received 365709900 of 382487116 (95.6%), 49.7 MBs/sec
+2026-10-21T15:26:03.0689270Z Received 382487116 of 382487116 (100.0%), 48.8 MBs/sec
+2026-10-21T15:26:03.0850670Z Cache Size: ~365 MB (382487116 B)
+2026-10-21T15:26:03.0950280Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/1d01881a-a429-408b-bfd1-4c8748920087/cache.tzst -P -C /Users/runner/work/WuKongIM/WuKongIM --delay-directory-restore --use-compress-program unzstd
+2026-10-21T15:26:10.0619360Z Cache restored successfully
+2026-10-21T15:26:10.0697440Z Cache restored from key: setup-go-macOS-arm64-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4
+2026-10-21T15:26:10.0790980Z go version go1.25.11 darwin/arm64
+2026-10-21T15:26:10.0791240Z 
+2026-10-21T15:26:10.0792260Z ##[group]go env
+2026-10-21T15:26:11.7967070Z AR='ar'
+2026-10-21T15:26:11.7967520Z CC='clang'
+2026-10-21T15:26:11.7968240Z CGO_CFLAGS='-O2 -g'
+2026-10-21T15:26:11.7968620Z CGO_CPPFLAGS=''
+2026-10-21T15:26:11.7968930Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T15:26:11.7969270Z CGO_ENABLED='1'
+2026-10-21T15:26:11.7969510Z CGO_FFLAGS='-O2 -g'
+2026-10-21T15:26:11.7969860Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T15:26:11.7970170Z CXX='clang++'
+2026-10-21T15:26:11.7970390Z GCCGO='gccgo'
+2026-10-21T15:26:11.7970660Z GO111MODULE=''
+2026-10-21T15:26:11.7970950Z GOARCH='arm64'
+2026-10-21T15:26:11.7971360Z GOARM64='v8.0'
+2026-10-21T15:26:11.7971840Z GOAUTH='netrc'
+2026-10-21T15:26:11.7972160Z GOBIN=''
+2026-10-21T15:26:11.7972480Z GOCACHE='/Users/runner/Library/Caches/go-build'
+2026-10-21T15:26:11.7972930Z GOCACHEPROG=''
+2026-10-21T15:26:11.7973280Z GODEBUG=''
+2026-10-21T15:26:11.7978290Z GOENV='/Users/runner/Library/Application Support/go/env'
+2026-10-21T15:26:11.7978850Z GOEXE=''
+2026-10-21T15:26:11.7979100Z GOEXPERIMENT=''
+2026-10-21T15:26:11.7979460Z GOFIPS140='off'
+2026-10-21T15:26:11.7979760Z GOFLAGS=''
+2026-10-21T15:26:11.7980790Z GOGCCFLAGS='-fPIC -arch arm64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -ffile-prefix-map=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/go-build3853814697=/tmp/go-build -gno-record-gcc-switches -fno-common'
+2026-10-21T15:26:11.7982090Z GOHOSTARCH='arm64'
+2026-10-21T15:26:11.7982500Z GOHOSTOS='darwin'
+2026-10-21T15:26:11.7982830Z GOINSECURE=''
+2026-10-21T15:26:11.7983230Z GOMOD='/Users/runner/work/WuKongIM/WuKongIM/go.mod'
+2026-10-21T15:26:11.7983650Z GOMODCACHE='/Users/runner/go/pkg/mod'
+2026-10-21T15:26:11.7993560Z GONOPROXY=''
+2026-10-21T15:26:11.7993890Z GONOSUMDB=''
+2026-10-21T15:26:11.7994100Z GOOS='darwin'
+2026-10-21T15:26:11.7994380Z GOPATH='/Users/runner/go'
+2026-10-21T15:26:11.7995400Z GOPRIVATE=''
+2026-10-21T15:26:11.7996020Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T15:26:11.7996490Z GOROOT='/Users/runner/hostedtoolcache/go/1.25.11/arm64'
+2026-10-21T15:26:11.7997060Z GOSUMDB='sum.golang.org'
+2026-10-21T15:26:11.7997420Z GOTELEMETRY='local'
+2026-10-21T15:26:11.7997900Z GOTELEMETRYDIR='/Users/runner/Library/Application Support/go/telemetry'
+2026-10-21T15:26:11.7998530Z GOTMPDIR=''
+2026-10-21T15:26:11.7998870Z GOTOOLCHAIN='local'
+2026-10-21T15:26:11.7999590Z GOTOOLDIR='/Users/runner/hostedtoolcache/go/1.25.11/arm64/pkg/tool/darwin_arm64'
+2026-10-21T15:26:11.8000160Z GOVCS=''
+2026-10-21T15:26:11.8000430Z GOVERSION='go1.25.11'
+2026-10-21T15:26:11.8000890Z GOWORK=''
+2026-10-21T15:26:11.8001260Z PKG_CONFIG='pkg-config'
+2026-10-21T15:26:11.8001430Z 
+2026-10-21T15:26:11.8002060Z ##[endgroup]
+2026-10-21T15:26:11.8521120Z ##[group]Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+2026-10-21T15:26:11.8521470Z with:
+2026-10-21T15:26:11.8521660Z   node-version: 22.12.0
+2026-10-21T15:26:11.8521920Z   cache: npm
+2026-10-21T15:26:11.8522220Z   cache-dependency-path: test/easysdk-release/peer/package-lock.json
+2026-10-21T15:26:11.8522580Z   check-latest: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:26:11.8524840Z   package-manager-cache: true
+2026-10-21T15:26:11.8525110Z env:
+2026-10-21T15:26:11.8525290Z   LANG: en_US.UTF-8
+2026-10-21T15:26:11.8525540Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:11.8525850Z   GOTOOLCHAIN: local
+2026-10-21T15:26:11.8526060Z ##[endgroup]
+2026-10-21T15:26:12.0425640Z Attempting to download 22.12.0...
+2026-10-21T15:26:12.7180400Z Acquiring 22.12.0 - arm64 from https://github.com/actions/node-versions/releases/download/22.12.0-12152383658/node-22.12.0-darwin-arm64.tar.gz
+2026-10-21T15:26:13.3762500Z Extracting ...
+2026-10-21T15:26:13.3984290Z [command]/usr/bin/tar xz --strip 1 -C /Users/runner/work/_temp/252b639c-41d3-49d3-9cd1-bb8c9c8d99cc -f /Users/runner/work/_temp/6e875211-18a2-4f9b-94d9-c4b59aedfae8
+2026-10-21T15:26:14.9577880Z Adding to the cache ...
+2026-10-21T15:26:17.5996150Z ##[group]Environment details
+2026-10-21T15:26:18.0407930Z node: v22.12.0
+2026-10-21T15:26:18.0408990Z npm: 10.9.0
+2026-10-21T15:26:18.0409370Z yarn: 1.22.22
+2026-10-21T15:26:18.0410310Z ##[endgroup]
+2026-10-21T15:26:18.0433290Z [command]/Users/runner/hostedtoolcache/node/22.12.0/arm64/bin/npm config get cache
+2026-10-21T15:26:18.2157990Z /Users/runner/.npm
+2026-10-21T15:26:18.5045480Z Cache hit for: node-cache-macOS-arm64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac
+2026-10-21T15:26:19.2457950Z Received 71329 of 71329 (100.0%), 0.2 MBs/sec
+2026-10-21T15:26:19.2461750Z Cache Size: ~0 MB (71329 B)
+2026-10-21T15:26:19.2517240Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/41877585-e32d-4a59-bc8a-9b1db4992d22/cache.tzst -P -C /Users/runner/work/WuKongIM/WuKongIM --delay-directory-restore --use-compress-program unzstd
+2026-10-21T15:26:19.2793210Z Cache restored successfully
+2026-10-21T15:26:19.2900760Z Cache restored from key: node-cache-macOS-arm64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac
+2026-10-21T15:26:19.3125770Z ##[group]Run ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b
+2026-10-21T15:26:19.3126210Z with:
+2026-10-21T15:26:19.3126470Z   ruby-version: 3.3
+2026-10-21T15:26:19.3126700Z   bundler-cache: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:26:19.3129200Z env:
+2026-10-21T15:26:19.3130440Z   LANG: en_US.UTF-8
+2026-10-21T15:26:19.3131300Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:19.3131790Z   GOTOOLCHAIN: local
+2026-10-21T15:26:19.3132240Z ##[endgroup]
+2026-10-21T15:26:19.5202140Z ##[group]Modifying PATH
+2026-10-21T15:26:19.5211860Z Entries removed from PATH to avoid conflicts with default Ruby:
+2026-10-21T15:26:19.5215360Z   /opt/homebrew/lib/ruby/gems/3.3.0/bin
+2026-10-21T15:26:19.5217210Z   /opt/homebrew/opt/ruby@3.3/bin
+2026-10-21T15:26:19.5219260Z Entries added to PATH to use selected Ruby:
+2026-10-21T15:26:19.5220700Z   /Users/runner/hostedtoolcache/Ruby/3.3.12/arm64/bin
+2026-10-21T15:26:19.5222290Z ##[endgroup]
+2026-10-21T15:26:19.5225350Z ##[group]Print Ruby version
+2026-10-21T15:26:19.5273240Z [command]/Users/runner/hostedtoolcache/Ruby/3.3.12/arm64/bin/ruby --version
+2026-10-21T15:26:19.6015370Z ruby 3.3.12 (2026-07-16 revision 0581089df9) [arm64-darwin23]
+2026-10-21T15:26:19.6030980Z Took   0.08 seconds
+2026-10-21T15:26:19.6032590Z ##[endgroup]
+2026-10-21T15:26:19.6034390Z ##[group]Installing Bundler
+2026-10-21T15:26:19.6035100Z Using Bundler shipped with ruby-3.3.12
+2026-10-21T15:26:19.6035850Z Took   0.00 seconds
+2026-10-21T15:26:19.6063230Z ##[endgroup]
+2026-10-21T15:26:19.6149520Z ##[group]Run gem install cocoapods -v 1.16.2 --no-document
+2026-10-21T15:26:19.6150810Z [36;1mgem install cocoapods -v 1.16.2 --no-document[0m
+2026-10-21T15:26:19.7497660Z shell: /bin/bash -e {0}
+2026-10-21T15:26:19.7497910Z env:
+2026-10-21T15:26:19.7498120Z   LANG: en_US.UTF-8
+2026-10-21T15:26:19.7498310Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:19.7498530Z   GOTOOLCHAIN: local
+2026-10-21T15:26:19.7500350Z   PATH: /Users/runner/hostedtoolcache/node/22.12.0/arm64/bin:/Users/runner/go/bin:/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-10-21T15:26:19.7504530Z ##[endgroup]
+2026-10-21T15:26:21.4314350Z Successfully installed nanaimo-0.4.0
+2026-10-21T15:26:21.4314860Z Successfully installed colored2-3.1.2
+2026-10-21T15:26:21.4315230Z Successfully installed claide-1.1.0
+2026-10-21T15:26:21.4315670Z Successfully installed CFPropertyList-3.0.8
+2026-10-21T15:26:21.4316180Z Successfully installed atomos-0.1.3
+2026-10-21T15:26:21.4316530Z Successfully installed xcodeproj-1.28.1
+2026-10-21T15:26:21.4316870Z Successfully installed ruby-macho-2.5.1
+2026-10-21T15:26:21.4317200Z Successfully installed nap-1.1.0
+2026-10-21T15:26:21.4317530Z Successfully installed molinillo-0.8.0
+2026-10-21T15:26:21.4317860Z Successfully installed gh_inspector-1.1.3
+2026-10-21T15:26:21.4318320Z Successfully installed fourflusher-2.3.1
+2026-10-21T15:26:21.4318690Z Successfully installed escape-0.0.4
+2026-10-21T15:26:21.4319100Z Successfully installed cocoapods-try-1.2.0
+2026-10-21T15:26:21.4319470Z Successfully installed netrc-0.11.0
+2026-10-21T15:26:21.4319900Z Successfully installed cocoapods-trunk-1.6.0
+2026-10-21T15:26:21.4320330Z Successfully installed cocoapods-search-1.0.1
+2026-10-21T15:26:21.4320860Z Successfully installed cocoapods-plugins-1.0.0
+2026-10-21T15:26:21.4321290Z Successfully installed cocoapods-downloader-2.1
+2026-10-21T15:26:21.4321700Z Successfully installed cocoapods-deintegrate-1.0.5
+2026-10-21T15:26:21.4322100Z Successfully installed ffi-1.17.4-arm64-darwin
+2026-10-21T15:26:21.4322440Z Successfully installed ethon-0.18.0
+2026-10-21T15:26:21.4322830Z Successfully installed typhoeus-1.6.0
+2026-10-21T15:26:21.4341700Z Successfully installed public_suffix-4.0.7
+2026-10-21T15:26:21.4342520Z Successfully installed fuzzy_match-2.0.4
+2026-10-21T15:26:21.4343500Z Successfully installed concurrent-ruby-1.3.8
+2026-10-21T15:26:21.4343880Z Successfully installed httpclient-2.9.0
+2026-10-21T15:26:21.4344830Z A new major version is available for Algolia! Please now use the https://rubygems.org/gems/algolia gem to get the latest features.
+2026-10-21T15:26:21.4345610Z Successfully installed algoliasearch-1.27.5
+2026-10-21T15:26:21.4345960Z Successfully installed addressable-2.9.0
+2026-10-21T15:26:21.4346330Z Successfully installed tzinfo-2.0.6
+2026-10-21T15:26:21.4346640Z Successfully installed i18n-1.15.2
+2026-10-21T15:26:21.4347290Z Successfully installed connection_pool-2.5.5
+2026-10-21T15:26:21.4347690Z Successfully installed activesupport-7.2.4
+2026-10-21T15:26:21.4348110Z Successfully installed cocoapods-core-1.16.2
+2026-10-21T15:26:21.4348530Z Successfully installed cocoapods-1.16.2
+2026-10-21T15:26:21.4348790Z 34 gems installed
+2026-10-21T15:26:21.4382360Z ##[group]Run ruby generate_project.rb
+2026-10-21T15:26:21.4382720Z [36;1mruby generate_project.rb[0m
+2026-10-21T15:26:21.4382960Z [36;1mpod install --repo-update[0m
+2026-10-21T15:26:21.4383300Z [36;1mgrep -F -- '- WuKongEasySDK (1.1.1)' Podfile.lock[0m
+2026-10-21T15:26:21.4818840Z shell: /bin/bash -e {0}
+2026-10-21T15:26:21.4819120Z env:
+2026-10-21T15:26:21.4819300Z   LANG: en_US.UTF-8
+2026-10-21T15:26:21.4819490Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:21.4819700Z   GOTOOLCHAIN: local
+2026-10-21T15:26:21.4821630Z   PATH: /Users/runner/hostedtoolcache/node/22.12.0/arm64/bin:/Users/runner/go/bin:/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-10-21T15:26:21.4823580Z ##[endgroup]
+2026-10-21T15:26:22.5725250Z Updating local specs repositories
+2026-10-21T15:26:22.5725910Z Adding spec repo `trunk` with CDN `https://cdn.cocoapods.org/`
+2026-10-21T15:26:27.4359850Z Analyzing dependencies
+2026-10-21T15:26:27.4360220Z Downloading dependencies
+2026-10-21T15:26:27.4360560Z Installing Starscream (4.0.8)
+2026-10-21T15:26:28.0950110Z Installing WuKongEasySDK (1.1.1)
+2026-10-21T15:26:28.8429010Z Generating Pods project
+2026-10-21T15:26:28.8430850Z Integrating client project
+2026-10-21T15:26:28.8431170Z 
+2026-10-21T15:26:28.8432340Z [!] Please close any current Xcode sessions and use `ReleaseSmoke.xcworkspace` for this project from now on.
+2026-10-21T15:26:28.8433270Z Pod installation complete! There is 1 dependency from the Podfile and 2 total pods installed.
+2026-10-21T15:26:28.8562170Z   - WuKongEasySDK (1.1.1):
+2026-10-21T15:26:28.8598920Z ##[group]Run test/easysdk-release/start-runtime.sh ios
+2026-10-21T15:26:28.8599320Z [36;1mtest/easysdk-release/start-runtime.sh ios[0m
+2026-10-21T15:26:28.8633400Z shell: /bin/bash -e {0}
+2026-10-21T15:26:28.8633670Z env:
+2026-10-21T15:26:28.8633830Z   LANG: en_US.UTF-8
+2026-10-21T15:26:28.8634020Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:28.8634200Z   GOTOOLCHAIN: local
+2026-10-21T15:26:28.8635910Z   PATH: /Users/runner/hostedtoolcache/node/22.12.0/arm64/bin:/Users/runner/go/bin:/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-10-21T15:26:28.8637860Z ##[endgroup]
+2026-10-21T15:27:02.5945370Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:27:03.6871490Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:27:09.1660640Z 
+2026-10-21T15:27:09.1666640Z added 2 packages in 1s
+2026-10-21T15:27:10.2135730Z RUNTIME_READY platform=ios server_source=8e8c0ab3321affc8655fb720a308e50bfaca15ca
+2026-10-21T15:27:10.2252720Z PEER_READY package=easyjssdk@2.0.4
+2026-10-21T15:27:10.2362460Z ##[group]Run test/easysdk-release/boot-ios-simulator.sh
+2026-10-21T15:27:10.2362970Z [36;1mtest/easysdk-release/boot-ios-simulator.sh[0m
+2026-10-21T15:27:10.2601910Z shell: /bin/bash -e {0}
+2026-10-21T15:27:10.2602440Z env:
+2026-10-21T15:27:10.2602650Z   LANG: en_US.UTF-8
+2026-10-21T15:27:10.2602980Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:27:10.2603320Z   GOTOOLCHAIN: local
+2026-10-21T15:27:10.2605160Z   PATH: /Users/runner/hostedtoolcache/node/22.12.0/arm64/bin:/Users/runner/go/bin:/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-10-21T15:27:10.2607200Z   ACCEPTANCE_PLATFORM: ios
+2026-10-21T15:27:10.2607650Z   ACCEPTANCE_ROOT: /Users/runner/work/_temp/easysdk-release-ios
+2026-10-21T15:27:10.2608110Z   ALICE_UID: release-ios-alice-39625524550-1
+2026-10-21T15:27:10.2608440Z   BOB_UID: release-ios-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:27:10.2609360Z   ALICE_TO_BOB_TEXT: ios-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:27:10.2609850Z   BOB_TO_ALICE_TEXT: ios-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:27:10.2610370Z   WUKONGIM_PID: 1887
+2026-10-21T15:27:10.2610720Z   PEER_PID: 1944
+2026-10-21T15:27:10.2610940Z ##[endgroup]
+2026-10-21T15:28:06.7653410Z Monitoring boot status for iPhone 16 Pro (DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9).
+2026-10-21T15:28:06.7661240Z [2026-10-21 15:28:06 +0000] Status=2, isTerminal=NO, Elapsed=00:44.
+2026-10-21T15:28:06.7662800Z 	Waiting on Data Migration
+2026-10-21T15:28:06.7670650Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:06.7672350Z 		Migration Elapsed:00:37 seconds
+2026-10-21T15:28:06.7672890Z 
+2026-10-21T15:28:07.7638510Z [2026-10-21 15:28:07 +0000] Status=2, isTerminal=NO, Elapsed=00:45.
+2026-10-21T15:28:07.7644380Z 	Waiting on Data Migration
+2026-10-21T15:28:07.7657400Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:07.7662110Z 		Migration Elapsed:00:38 seconds
+2026-10-21T15:28:07.7663180Z 
+2026-10-21T15:28:08.7807750Z [2026-10-21 15:28:08 +0000] Status=2, isTerminal=NO, Elapsed=00:46.
+2026-10-21T15:28:08.7829950Z 	Waiting on Data Migration
+2026-10-21T15:28:08.7861190Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:08.7922000Z 		Migration Elapsed:00:39 seconds
+2026-10-21T15:28:08.7922660Z 
+2026-10-21T15:28:09.7870020Z [2026-10-21 15:28:09 +0000] Status=2, isTerminal=NO, Elapsed=00:47.
+2026-10-21T15:28:09.7889570Z 	Waiting on Data Migration
+2026-10-21T15:28:09.8002530Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:09.8017580Z 		Migration Elapsed:00:40 seconds
+2026-10-21T15:28:09.8022910Z 
+2026-10-21T15:28:10.7734220Z [2026-10-21 15:28:10 +0000] Status=2, isTerminal=NO, Elapsed=00:48.
+2026-10-21T15:28:10.7736330Z 	Waiting on Data Migration
+2026-10-21T15:28:10.7737340Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:10.7738040Z 		Migration Elapsed:00:41 seconds
+2026-10-21T15:28:10.7738480Z 
+2026-10-21T15:28:11.7717350Z [2026-10-21 15:28:11 +0000] Status=2, isTerminal=NO, Elapsed=00:49.
+2026-10-21T15:28:11.7832220Z 	Waiting on Data Migration
+2026-10-21T15:28:11.7934250Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:11.7951950Z 		Migration Elapsed:00:42 seconds
+2026-10-21T15:28:11.7971310Z 
+2026-10-21T15:28:12.8036130Z [2026-10-21 15:28:12 +0000] Status=2, isTerminal=NO, Elapsed=00:50.
+2026-10-21T15:28:12.8122880Z 	Waiting on Data Migration
+2026-10-21T15:28:12.8127720Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:12.8128620Z 		Migration Elapsed:00:43 seconds
+2026-10-21T15:28:12.8128850Z 
+2026-10-21T15:28:13.7604110Z [2026-10-21 15:28:13 +0000] Status=2, isTerminal=NO, Elapsed=00:51.
+2026-10-21T15:28:13.7605500Z 	Waiting on Data Migration
+2026-10-21T15:28:13.7606640Z 		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+2026-10-21T15:28:13.7607730Z 		Migration Elapsed:00:44 seconds
+2026-10-21T15:28:13.7608050Z 
+2026-10-21T15:28:17.8520270Z [2026-10-21 15:28:17 +0000] Status=2, isTerminal=NO, Elapsed=00:55.
+2026-10-21T15:28:17.8522040Z 	Waiting on Data Migration
+2026-10-21T15:28:17.9332190Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:18.0145920Z 		Migration Elapsed:00:45 seconds
+2026-10-21T15:28:18.0984680Z 
+2026-10-21T15:28:19.0816580Z [2026-10-21 15:28:18 +0000] Status=2, isTerminal=NO, Elapsed=00:56.
+2026-10-21T15:28:19.0832710Z 	Waiting on Data Migration
+2026-10-21T15:28:19.1649890Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:19.2464780Z 		Migration Elapsed:00:48 seconds
+2026-10-21T15:28:19.3276420Z 
+2026-10-21T15:28:19.4105510Z [2026-10-21 15:28:19 +0000] Status=2, isTerminal=NO, Elapsed=00:57.
+2026-10-21T15:28:19.5726780Z 	Waiting on Data Migration
+2026-10-21T15:28:19.5727850Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:19.6534950Z 		Migration Elapsed:00:49 seconds
+2026-10-21T15:28:19.7341690Z 
+2026-10-21T15:28:19.8181220Z [2026-10-21 15:28:19 +0000] Status=2, isTerminal=NO, Elapsed=00:57.
+2026-10-21T15:28:19.8997250Z 	Waiting on Data Migration
+2026-10-21T15:28:19.9795430Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:20.0608230Z 		Migration Elapsed:00:50 seconds
+2026-10-21T15:28:20.2226560Z 
+2026-10-21T15:28:21.6892180Z [2026-10-21 15:28:21 +0000] Status=2, isTerminal=NO, Elapsed=00:59.
+2026-10-21T15:28:21.8510560Z 	Waiting on Data Migration
+2026-10-21T15:28:21.8522340Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:21.9340970Z 		Migration Elapsed:00:51 seconds
+2026-10-21T15:28:22.0160230Z 
+2026-10-21T15:28:22.6681680Z [2026-10-21 15:28:22 +0000] Status=2, isTerminal=NO, Elapsed=01:00.
+2026-10-21T15:28:22.7509110Z 	Waiting on Data Migration
+2026-10-21T15:28:22.8323520Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:22.9116210Z 		Migration Elapsed:00:52 seconds
+2026-10-21T15:28:22.9956590Z 
+2026-10-21T15:28:23.2461620Z [2026-10-21 15:28:22 +0000] Status=2, isTerminal=NO, Elapsed=01:00.
+2026-10-21T15:28:23.2799840Z 	Waiting on Data Migration
+2026-10-21T15:28:23.2942670Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:23.3212250Z 		Migration Elapsed:00:53 seconds
+2026-10-21T15:28:23.3374960Z 
+2026-10-21T15:28:24.0466890Z [2026-10-21 15:28:23 +0000] Status=2, isTerminal=NO, Elapsed=01:01.
+2026-10-21T15:28:24.0577080Z 	Waiting on Data Migration
+2026-10-21T15:28:24.0757810Z 		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+2026-10-21T15:28:24.0760320Z 		Migration Elapsed:00:54 seconds
+2026-10-21T15:28:24.0893970Z 
+2026-10-21T15:28:24.7788790Z [2026-10-21 15:28:24 +0000] Status=2, isTerminal=NO, Elapsed=01:02.
+2026-10-21T15:28:24.7955580Z 	Waiting on Data Migration
+2026-10-21T15:28:24.8097750Z 		Reason:Running plugin com.apple.MobileGestalt.MobileGestaltMigrator (MobileGestaltMigrator.migrator, user-agnostic)
+2026-10-21T15:28:24.8241300Z 		Migration Elapsed:00:55 seconds
+2026-10-21T15:28:24.8349440Z 
+2026-10-21T15:28:26.0274510Z [2026-10-21 15:28:26 +0000] Status=2, isTerminal=NO, Elapsed=01:03.
+2026-10-21T15:28:26.0439960Z 	Waiting on Data Migration
+2026-10-21T15:28:26.0544890Z 		Reason:Running plugin com.apple.facetime.migrator (FaceTimeMigrator.migrator)
+2026-10-21T15:28:26.0658240Z 		Migration Elapsed:00:56 seconds
+2026-10-21T15:28:26.0760400Z 
+2026-10-21T15:28:26.9275870Z [2026-10-21 15:28:26 +0000] Status=2, isTerminal=NO, Elapsed=01:04.
+2026-10-21T15:28:26.9378280Z 	Waiting on Data Migration
+2026-10-21T15:28:26.9496450Z 		Reason:Running plugin com.apple.PreferencesMigrator (PreferencesMigrator.migrator)
+2026-10-21T15:28:26.9595540Z 		Migration Elapsed:00:57 seconds
+2026-10-21T15:28:26.9595750Z 
+2026-10-21T15:28:28.5805080Z [2026-10-21 15:28:28 +0000] Status=4, isTerminal=NO, Elapsed=01:06.
+2026-10-21T15:28:28.9238740Z 	Waiting on System App
+2026-10-21T15:28:29.3399550Z 
+2026-10-21T15:28:29.4206320Z [2026-10-21 15:28:29 +0000] Status=4, isTerminal=NO, Elapsed=01:06.
+2026-10-21T15:28:29.5084660Z 	Waiting on System App
+2026-10-21T15:28:29.5919520Z 
+2026-10-21T15:28:30.4105890Z [2026-10-21 15:28:30 +0000] Status=4, isTerminal=NO, Elapsed=01:08.
+2026-10-21T15:28:30.4908140Z 	Waiting on System App
+2026-10-21T15:28:30.4908400Z 
+2026-10-21T15:28:32.5676160Z [2026-10-21 15:28:31 +0000] Status=4, isTerminal=NO, Elapsed=01:09.
+2026-10-21T15:28:32.7755630Z 	Waiting on System App
+2026-10-21T15:28:32.7918260Z 
+2026-10-21T15:28:36.5343880Z [2026-10-21 15:28:36 +0000] Status=4294967295, isTerminal=YES, Elapsed=01:13.
+2026-10-21T15:28:36.9472350Z 	Finished
+2026-10-21T15:28:37.9478020Z 
+2026-10-21T15:28:38.6299980Z IOS_SIMULATOR_READY id=DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+2026-10-21T15:28:40.2832060Z ##[group]Run xcodebuild \
+2026-10-21T15:28:40.2832720Z [36;1mxcodebuild \[0m
+2026-10-21T15:28:40.2833030Z [36;1m  -quiet \[0m
+2026-10-21T15:28:40.2833340Z [36;1m  -workspace ReleaseSmoke.xcworkspace \[0m
+2026-10-21T15:28:40.2833880Z [36;1m  -scheme ReleaseSmoke \[0m
+2026-10-21T15:28:40.2834380Z [36;1m  -destination "platform=iOS Simulator,id=${SIMULATOR_ID}" \[0m
+2026-10-21T15:28:40.2835180Z [36;1m  -derivedDataPath "${RUNNER_TEMP}/ios-derived" \[0m
+2026-10-21T15:28:40.2835560Z [36;1m  CODE_SIGNING_ALLOWED=NO \[0m
+2026-10-21T15:28:40.2835900Z [36;1m  build[0m
+2026-10-21T15:28:40.2836180Z [36;1m[0m
+2026-10-21T15:28:40.2836570Z [36;1mapp_path="${RUNNER_TEMP}/ios-derived/Build/Products/Debug-iphonesimulator/ReleaseSmoke.app"[0m
+2026-10-21T15:28:40.2837220Z [36;1mxcrun simctl install "${SIMULATOR_ID}" "${app_path}"[0m
+2026-10-21T15:28:40.2837670Z [36;1mSIMCTL_CHILD_ALICE_UID="${ALICE_UID}" \[0m
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:28:40.2839000Z [36;1mSIMCTL_CHILD_BOB_UID="${BOB_UID}" \[0m
+2026-10-21T15:28:40.2839460Z [36;1mSIMCTL_CHILD_ALICE_TO_BOB_TEXT="${ALICE_TO_BOB_TEXT}" \[0m
+2026-10-21T15:28:40.2839930Z [36;1mSIMCTL_CHILD_BOB_TO_ALICE_TEXT="${BOB_TO_ALICE_TEXT}" \[0m
+2026-10-21T15:28:40.2840440Z [36;1m  xcrun simctl launch "${SIMULATOR_ID}" com.wukongim.easysdk.release-smoke[0m
+2026-10-21T15:28:40.2840960Z [36;1m[0m
+2026-10-21T15:28:40.2841320Z [36;1mcontainer="$(xcrun simctl get_app_container \[0m
+2026-10-21T15:28:40.2841750Z [36;1m  "${SIMULATOR_ID}" com.wukongim.easysdk.release-smoke data)"[0m
+2026-10-21T15:28:40.2842310Z [36;1mreceipt="${container}/Documents/release-smoke.json"[0m
+2026-10-21T15:28:40.2842710Z [36;1mfor _ in $(seq 1 60); do[0m
+2026-10-21T15:28:40.2843020Z [36;1m  if [[ -f "${receipt}" ]]; then[0m
+2026-10-21T15:28:40.2843290Z [36;1m    break[0m
+2026-10-21T15:28:40.2843590Z [36;1m  fi[0m
+2026-10-21T15:28:40.2843860Z [36;1m  sleep 1[0m
+2026-10-21T15:28:40.2844120Z [36;1mdone[0m
+2026-10-21T15:28:40.2847050Z [36;1mtest -f "${receipt}"[0m
+2026-10-21T15:28:40.2848620Z [36;1mcat "${receipt}"[0m
+2026-10-21T15:28:40.2849110Z [36;1mpython3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["status"] == "PASS"' \[0m
+2026-10-21T15:28:40.2849650Z [36;1m  "${receipt}"[0m
+2026-10-21T15:28:40.2850050Z [36;1m"${GITHUB_WORKSPACE}/test/easysdk-release/verify-peer.sh"[0m
+2026-10-21T15:28:40.3940630Z shell: /bin/bash -e {0}
+2026-10-21T15:28:40.3942450Z env:
+2026-10-21T15:28:40.3943990Z   LANG: en_US.UTF-8
+2026-10-21T15:28:40.3944990Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:28:40.3945920Z   GOTOOLCHAIN: local
+2026-10-21T15:28:40.3959680Z   PATH: /Users/runner/hostedtoolcache/node/22.12.0/arm64/bin:/Users/runner/go/bin:/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-10-21T15:28:40.3961960Z   ACCEPTANCE_PLATFORM: ios
+2026-10-21T15:28:40.3962400Z   ACCEPTANCE_ROOT: /Users/runner/work/_temp/easysdk-release-ios
+2026-10-21T15:28:40.3966050Z   ALICE_UID: release-ios-alice-39625524550-1
+2026-10-21T15:28:40.3966990Z   BOB_UID: release-ios-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:28:40.3969450Z   ALICE_TO_BOB_TEXT: ios-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:28:40.3970040Z   BOB_TO_ALICE_TEXT: ios-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:28:40.3970420Z   WUKONGIM_PID: 1887
+2026-10-21T15:28:40.3970740Z   PEER_PID: 1944
+2026-10-21T15:28:40.3971100Z   SIMULATOR_ID: DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+2026-10-21T15:28:40.3972270Z ##[endgroup]
+2026-10-21T15:29:27.6216790Z --- xcodebuild: WARNING: Using the first of multiple matching destinations:
+2026-10-21T15:29:27.6221910Z { platform:iOS Simulator, arch:arm64, id:DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9, OS:18.5, name:iPhone 16 Pro }
+2026-10-21T15:29:27.6223350Z { platform:iOS Simulator, arch:x86_64, id:DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9, OS:18.5, name:iPhone 16 Pro }
+2026-10-21T15:31:57.0210650Z com.wukongim.easysdk.release-smoke: 10743
+2026-10-21T15:32:03.4368100Z {"aliceToBob":true,"bobToAlice":true,"disconnected":true,"package":"WuKongEasySDK CocoaPods 1.1.1","platform":"iOS Simulator","status":"PASS"}PEER_READY package=easyjssdk@2.0.4
+2026-10-21T15:32:03.4473120Z PEER_PASS alice-to-bob=true bob-to-alice-ack=true
+2026-10-21T15:32:03.5080270Z ##[group]Run test/easysdk-release/cleanup-runtime.sh
+2026-10-21T15:32:03.5081940Z [36;1mtest/easysdk-release/cleanup-runtime.sh[0m
+2026-10-21T15:32:04.7965480Z shell: /bin/bash -e {0}
+2026-10-21T15:32:04.7966820Z env:
+2026-10-21T15:32:04.7968190Z   LANG: en_US.UTF-8
+2026-10-21T15:32:04.7969620Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:32:04.7970020Z   GOTOOLCHAIN: local
+2026-10-21T15:32:04.7972090Z   PATH: /Users/runner/hostedtoolcache/node/22.12.0/arm64/bin:/Users/runner/go/bin:/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-10-21T15:32:04.7977030Z   ACCEPTANCE_PLATFORM: ios
+2026-10-21T15:32:04.7977580Z   ACCEPTANCE_ROOT: /Users/runner/work/_temp/easysdk-release-ios
+2026-10-21T15:32:04.7978010Z   ALICE_UID: release-ios-alice-39625524550-1
+2026-10-21T15:32:04.7978430Z   BOB_UID: release-ios-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:32:04.7981740Z   ALICE_TO_BOB_TEXT: ios-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:32:04.7983010Z   BOB_TO_ALICE_TEXT: ios-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:32:04.7983940Z   WUKONGIM_PID: 1887
+2026-10-21T15:32:04.7984960Z   PEER_PID: 1944
+2026-10-21T15:32:04.8026820Z   SIMULATOR_ID: DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+2026-10-21T15:32:04.8027840Z   JOB_STATUS: success
+2026-10-21T15:32:04.8029740Z ##[endgroup]
+2026-10-21T15:32:05.1379850Z Post job cleanup.
+2026-10-21T15:32:07.9622970Z Cache hit occurred on the primary key node-cache-macOS-arm64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac, not saving cache.
+2026-10-21T15:32:07.9784030Z Post job cleanup.
+2026-10-21T15:32:08.2411180Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOMODCACHE
+2026-10-21T15:32:08.2518710Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOCACHE
+2026-10-21T15:32:08.4446120Z /Users/runner/go/pkg/mod
+2026-10-21T15:32:08.4615100Z /Users/runner/Library/Caches/go-build
+2026-10-21T15:32:08.4866230Z Cache hit occurred on the primary key setup-go-macOS-arm64-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4, not saving cache.
+2026-10-21T15:32:09.5508440Z Post job cleanup.
+2026-10-21T15:32:09.9147320Z [command]/opt/homebrew/bin/git version
+2026-10-21T15:32:09.9832350Z git version 2.55.0
+2026-10-21T15:32:10.0340180Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/28ca27e6-b5aa-4b74-a86f-3dbc852a9e71/.gitconfig'
+2026-10-21T15:32:10.0442080Z Temporarily overriding HOME='/Users/runner/work/_temp/28ca27e6-b5aa-4b74-a86f-3dbc852a9e71' before making global git config changes
+2026-10-21T15:32:10.0443060Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:32:10.0544920Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:32:10.0871050Z Removing SSH command configuration
+2026-10-21T15:32:10.0984570Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:32:10.1313190Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:32:10.5549120Z Removing HTTP extra header
+2026-10-21T15:32:10.5613490Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:32:10.5807940Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:32:10.7763700Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:32:10.7771400Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:32:10.7850370Z includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T15:32:10.7854370Z includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T15:32:10.7857320Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T15:32:10.7858970Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T15:32:10.7868330Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T15:32:10.7973850Z /Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.7981970Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path /Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8058740Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T15:32:10.8120140Z /Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8127000Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8198560Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T15:32:10.8262850Z /github/runner_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8268250Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8471180Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T15:32:10.8528690Z /github/runner_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8533930Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config
+2026-10-21T15:32:10.8637590Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T15:32:11.0552970Z Removing credentials config '/Users/runner/work/_temp/git-credentials-6cf7e1c4-cfc5-444d-8b80-9215c60f098b.config'
+2026-10-21T15:32:11.1002050Z Cleaning up orphan processes

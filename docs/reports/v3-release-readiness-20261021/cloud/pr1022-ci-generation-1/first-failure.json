@@ -1,0 +1,56 @@
+{
+  "observed_utc": "2026-10-21T15:38:02.146563+00:00",
+  "run": 39625524702,
+  "job": 119313591454,
+  "attempt": 1,
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "checkout": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+  "first_failed_test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+  "source": "test/e2e/migration/ordinary_history/ordinary_history_test.go:174",
+  "error": "dial tcp 127.0.0.1:27802: connect: connection refused",
+  "failure_time": "2026-10-21T15:35:16.874576226Z",
+  "previous_success": "after-import history node1 rows3 temporary_retries0",
+  "other_four_topologies": "pass",
+  "unexecuted_packages": [
+    "cross_node_delivery",
+    "self_chat"
+  ],
+  "original_result": {
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 7738,
+    "output_bytes": 28032,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 7738,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 102.556
+  },
+  "binary_sha256": "e0c44e2cbc3f9456097183fabb00f60a35aed21bc56aa577c9240028cf9d66b0",
+  "classification": "connection failure; product/infrastructure/harness cause not established by this CI evidence",
+  "rerun_performed": false,
+  "evidence": [
+    {
+      "path": "artifacts-public/12356928133/members/ordinary_history/stdout.jsonl",
+      "size": 27770,
+      "sha256": "236e117584f33e9a5cac9e2dd826a71b8297998c314b79ba882166c7a798f9c2"
+    },
+    {
+      "path": "artifacts-public/12356928133/members/ordinary_history/result.json",
+      "size": 371,
+      "sha256": "7d93d4018cbc18540e4233f619630969b31b6e5c5955c633f54fc8aad7f0235a"
+    },
+    {
+      "path": "job-logs-public/119313591454/complete.log",
+      "size": 84306,
+      "sha256": "59d439f06f18beaa3c530c0c3ee4190235c36f96127f46d890edea20657bed2a"
+    }
+  ]
+}

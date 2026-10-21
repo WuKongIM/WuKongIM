@@ -1,0 +1,56 @@
+goos: linux
+goarch: amd64
+pkg: github.com/WuKongIM/WuKongIM/internal/app
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkThreeNodeMixedSendPath500QPS-4   	WuKongIM · Starting node 3...
+
+WuKongIM · Starting node 1...
+
+WuKongIM · Starting node 2...
+
+WuKongIM
+
+Node       1 · multi-node cluster
+Cluster    three-node-mixed-send · 127.0.0.1:46107
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       /home/runner/work/_temp/500qps-mixed-send/data/BenchmarkThreeNodeMixedSendPath500QPS4089227894/001
+
+✓ Ready in 8.299s
+WuKongIM
+
+Node       3 · multi-node cluster
+Cluster    three-node-mixed-send · 127.0.0.1:45031
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       /home/runner/work/_temp/500qps-mixed-send/data/BenchmarkThreeNodeMixedSendPath500QPS4089227894/003
+
+✓ Ready in 8.6s
+WuKongIM
+
+Node       2 · multi-node cluster
+Cluster    three-node-mixed-send · 127.0.0.1:41589
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       /home/runner/work/_temp/500qps-mixed-send/data/BenchmarkThreeNodeMixedSendPath500QPS4089227894/002
+
+✓ Ready in 8.606s
+   90000	   2000052 ns/op	         0 all-over-200ms-pct	        18.91 all-p99-ms	         2.461 arrival-queue-p99-ms	         0.04038 channel-meta_apply-avg-ms	         0.5000 channel-meta_apply-p99-upper-ms	     86629 channel-meta_apply-samples	         0.003671 channel-meta_resolve-avg-ms	         0.5000 channel-meta_resolve-p99-upper-ms	    176629 channel-meta_resolve-samples	         2.998 channel-runtime_append-avg-ms	        10.00 channel-runtime_append-p99-upper-ms	     86629 channel-runtime_append-samples	         0.001659 channel-runtime_append_reserve_wait-avg-ms	         0.5000 channel-runtime_append_reserve_wait-p99-upper-ms	     86629 channel-runtime_append_reserve_wait-samples	         0.004430 channel-runtime_append_submit-avg-ms	         0.5000 channel-runtime_append_submit-p99-upper-ms	     86629 channel-runtime_append_submit-samples	         2.989 channel-runtime_append_wait-avg-ms	        10.00 channel-runtime_append_wait-p99-upper-ms	     86629 channel-runtime_append_wait-samples	         0 hot-over-200ms-pct	        18.91 hot-p99-ms	       217.0 meta-create-batches	         2.765 meta-create-items/batch	       500.0 offered-msg/s	         1.440 person-directory-drain-ms	        23.53 scheduled-p99-ms	         2.503 stage-permission-avg-ms	        10.00 stage-permission-p99-upper-ms	     90000 stage-permission-samples	         0.0004538 stage-pre_append-avg-ms	         0.5000 stage-pre_append-p99-upper-ms	     90000 stage-pre_append-samples	         4.350 stage-submitter-avg-ms	        25.00 stage-submitter-p99-upper-ms	     90000 stage-submitter-samples	  290230 B/op	    2265 allocs/op
+--- BENCH: BenchmarkThreeNodeMixedSendPath500QPS-4
+    three_node_mixed_send_benchmark_integration_test.go:151: warmup window 1: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:14.756054 QueueP99MS:1.328709 ServiceP99MS:13.359988}
+    three_node_mixed_send_benchmark_integration_test.go:171: arrival window 1: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:17.112098 QueueP99MS:1.458587 ServiceP99MS:15.393146}
+    three_node_mixed_send_benchmark_integration_test.go:171: arrival window 2: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:21.316979 QueueP99MS:1.846615 ServiceP99MS:19.717525}
+    three_node_mixed_send_benchmark_integration_test.go:171: arrival window 3: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:23.525536 QueueP99MS:2.461384 ServiceP99MS:22.000416}
+PASS

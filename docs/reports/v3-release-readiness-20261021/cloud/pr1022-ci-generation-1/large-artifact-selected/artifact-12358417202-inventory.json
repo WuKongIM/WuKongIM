@@ -1,0 +1,17 @@
+[
+  {
+    "path": "checksums.txt",
+    "size": 248,
+    "compressed_size": 158
+  },
+  {
+    "path": "wukongim_3.0.0-beta.24-SNAPSHOT-8e8c0ab33_linux_amd64.deb",
+    "size": 39056536,
+    "compressed_size": 38928903
+  },
+  {
+    "path": "wukongim_3.0.0-beta.24-SNAPSHOT-8e8c0ab33_linux_amd64.rpm",
+    "size": 39062451,
+    "compressed_size": 38936677
+  }
+]

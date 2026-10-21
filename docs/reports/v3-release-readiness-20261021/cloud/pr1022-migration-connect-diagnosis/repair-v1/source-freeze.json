@@ -1,0 +1,13 @@
+{
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "frozen_at": "2026-10-21T15:48:14.210591+00:00",
+  "files": {
+    "CHANGELOG.md": "83a5cce4f1e57e5f8a6f022ff5d4e63dd647bdce2a22a13aa8b0f24fc9c07b76",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "79a8214098aa3b959ed4a9c161f27a56b19c2775bcffbd451e336ff676c36b7b"
+  },
+  "patch_sha256": "2d944abbef33ad833dae2b6d54b3b4f7968e03cbeb15ba1be7299ada3ba9c5bd",
+  "product_sources_unchanged": true,
+  "frozen_product_identity": "../product-build-identity.json",
+  "expected_test_scope": "focused1to1 then full5, each once, original timeouts"
+}

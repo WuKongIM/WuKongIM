@@ -1,0 +1,12 @@
+{
+  "base": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "frozen_at": "2026-10-21T15:51:20.007430+00:00",
+  "files": {
+    "CHANGELOG.md": "83a5cce4f1e57e5f8a6f022ff5d4e63dd647bdce2a22a13aa8b0f24fc9c07b76",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "d24b12b77aadf0f356c46cff2930b2f293e8be33d645034e0118dac1eccf973c"
+  },
+  "patch_sha256": "66520f2d1742d4512baf83b820fc9c0c5c5254eaa0395d0a1904a3fe9eba653a",
+  "review_fix": "new diagnostics only on failure",
+  "validation_status": "v1 focused passed/full failed after restart; v2 not executed pending diagnosis"
+}

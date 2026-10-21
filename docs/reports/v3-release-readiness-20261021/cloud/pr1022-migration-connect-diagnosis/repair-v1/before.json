@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-10-21T15:47:51.523893+00:00",
+  "source": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "files": {
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": "5b71f5467b8f7de9104bca5da932efbe74ed28c4ec54af9ad7ae05e63a402a11",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "bb88da9005b7447e75a688e0afd7880a50e916a824320c80e89a6ee32a428e74",
+    "CHANGELOG.md": "08b72a286da96b76da68c1752eb544dee72e825becee4d4de49283d2de52fac1"
+  },
+  "regression_red": "Original Linux run39625524702 ordinary_history first1to1 Connect refused, before repair. Full authenticated artifact references are frozen in ../original-evidence-references.json.",
+  "local_probe": "Exactly3 unchanged-verdict diagnostic rounds passed; original cause remains unknown.",
+  "failure_inventory": [
+    "HTTP ready must not substitute for protocol ready",
+    "Protocol readiness must remain after first cold imported-history read",
+    "Readiness must use same process/address and existing deadline",
+    "Retained migrated credentials must still authenticate independently",
+    "Original Connect/Send/history/idempotency/restart/failover assertions remain",
+    "Readiness or Connect failure must retain bounded process diagnostics",
+    "No unconditional sleep, business retry, extra timeout, or product readyz change"
+  ]
+}

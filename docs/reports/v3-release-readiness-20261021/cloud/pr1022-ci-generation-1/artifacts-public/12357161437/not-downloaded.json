@@ -1,0 +1,23 @@
+{
+  "artifact": {
+    "id": 12357161437,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM1NzE2MTQzNw==",
+    "name": "three-node-pr-1022-8e8c0ab3321affc8655fb720a308e50bfaca15ca-1",
+    "size_in_bytes": 230318380,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12357161437",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12357161437/zip",
+    "expired": false,
+    "digest": "sha256:2921d35d2185da52d9cd943ee6e2ce5d36142667e66889d56d1b71f65c09620f",
+    "created_at": "2026-10-21T15:30:24Z",
+    "updated_at": "2026-10-21T15:30:24Z",
+    "expires_at": "2026-10-28T15:30:07Z",
+    "workflow_run": {
+      "id": 39625524864,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-budget-downward",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570"
+    }
+  },
+  "reason": "exceeds full-download bound; requires selected-member decision"
+}

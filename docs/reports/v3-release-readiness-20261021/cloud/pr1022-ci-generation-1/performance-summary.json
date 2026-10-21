@@ -1,0 +1,140 @@
+{
+  "tcp-sendack": {
+    "result": {
+      "status": "pass"
+    },
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.043645,
+        "scheduled_to_start_p99_ms": 1.064826,
+        "service_p99_ms": 177.366316
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.103257,
+        "scheduled_to_start_p99_ms": 1.061719,
+        "service_p99_ms": 177.370559
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.065154,
+        "scheduled_to_start_p99_ms": 1.063724,
+        "service_p99_ms": 177.346284
+      }
+    ],
+    "maximum_second_p99_ms": 178.527855
+  },
+  "channel-append": {
+    "result": {
+      "status": "pass"
+    },
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 13.710448,
+        "scheduled_to_start_p99_ms": 1.065081,
+        "service_p99_ms": 13.272108
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 6.470452,
+        "scheduled_to_start_p99_ms": 1.066981,
+        "service_p99_ms": 4.478475
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 10.102904,
+        "scheduled_to_start_p99_ms": 1.084117,
+        "service_p99_ms": 8.286291
+      }
+    ],
+    "maximum_second_p99_ms": 46.747869
+  },
+  "mixed-send": {
+    "result": {
+      "status": "pass"
+    },
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 17.112098,
+        "scheduled_to_start_p99_ms": 1.458587,
+        "service_p99_ms": 15.393146
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 21.316979,
+        "scheduled_to_start_p99_ms": 1.846615,
+        "service_p99_ms": 19.717525
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 23.525536,
+        "scheduled_to_start_p99_ms": 2.461384,
+        "service_p99_ms": 22.000416
+      }
+    ],
+    "maximum_second_p99_ms": 124.191714
+  }
+}

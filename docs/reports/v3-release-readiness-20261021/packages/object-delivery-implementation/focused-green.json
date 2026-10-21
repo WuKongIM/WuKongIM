@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-21T15:37:58.373124+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery.py",
+    "-v"
+  ],
+  "exit_code": 0,
+  "duration_seconds": 7.304,
+  "test_sha256": "f0d6f33d5955b5197a4628fd0440232e012263d0cdf1c6a5da9f2dd027146061",
+  "implementation_sha256": "edf90960ae44e29529e9c3e1d717cc9ce961ad492891aa5da2248062fc254037"
+}

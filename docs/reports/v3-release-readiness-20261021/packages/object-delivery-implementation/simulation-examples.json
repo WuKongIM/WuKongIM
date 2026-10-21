@@ -1,0 +1,125 @@
+{
+  "boundary": "SIMULATED ONLY; no GitHub/native/client/cloud verification; original composite native-verification fixture seam substituted",
+  "preview_complete": {
+    "schema": "wukongim.object_storage_delivery_simulation/v1",
+    "status": "simulated_complete",
+    "stage": "complete",
+    "production_enabled": false,
+    "publication_verified": false,
+    "cloud_verified": false,
+    "input_sha256": "3c62edb32c8397557cae6c90d867f484a027b9267e54b714342093e68f7b5ef4",
+    "plan_schema": "wukongim.object_storage_publication_plan/v1",
+    "plan_sha256": "02b4d19fd378958b0a756c26b0edcebf64f6e3542912b2d8ee03fc31ae33aa51",
+    "object_count": 49,
+    "readback_verified_count": 49,
+    "configuration_write_attempted": true,
+    "configuration_observed_change": true,
+    "rollback_performed": false,
+    "configuration_before_sha256": "a90c0f9033b9bdd360bcb5ac3e03e84e9fb550b7f7a7bc3ffa5b12de5aeb9138",
+    "configuration_after_sha256": "e84ab97effbd804aede1f0ee6f0b09d50a4139c573242bd525c24dfcb251aa5a",
+    "clients": [
+      {
+        "channel": "preview",
+        "receipt_sha256": "dad71259036c5aae33660c65584a7af4b25d17891bb43bf27d67c5c26581af90",
+        "publication_verified": false,
+        "github_provenance_verified": false
+      }
+    ],
+    "error": null
+  },
+  "partial_activation": {
+    "schema": "wukongim.object_storage_delivery_simulation/v1",
+    "status": "incomplete",
+    "stage": "activation",
+    "production_enabled": false,
+    "publication_verified": false,
+    "cloud_verified": false,
+    "input_sha256": "3c62edb32c8397557cae6c90d867f484a027b9267e54b714342093e68f7b5ef4",
+    "plan_schema": "wukongim.object_storage_publication_plan/v1",
+    "plan_sha256": "02b4d19fd378958b0a756c26b0edcebf64f6e3542912b2d8ee03fc31ae33aa51",
+    "object_count": 49,
+    "readback_verified_count": 49,
+    "configuration_write_attempted": true,
+    "configuration_observed_change": true,
+    "rollback_performed": false,
+    "configuration_before_sha256": "a90c0f9033b9bdd360bcb5ac3e03e84e9fb550b7f7a7bc3ffa5b12de5aeb9138",
+    "configuration_after_sha256": "e22171f3903b34747afef843715af26f32af94082a808771849084419cb18ba5",
+    "clients": [],
+    "error": "simulated partial activation"
+  },
+  "composite_complete": {
+    "schema": "wukongim.object_storage_delivery_simulation/v1",
+    "status": "simulated_complete",
+    "stage": "complete",
+    "production_enabled": false,
+    "publication_verified": false,
+    "cloud_verified": false,
+    "input_sha256": "add9664db99854671a0cb9efee55d46491c141b79292b17535958ad0373df9b6",
+    "plan_schema": "wukongim.object_storage_publication_plan/v2",
+    "plan_sha256": "3a366fe01434c56887a428081e5583612b0d0a5643a6fd657eed8061753e76fe",
+    "object_count": 154,
+    "readback_verified_count": 154,
+    "configuration_write_attempted": true,
+    "configuration_observed_change": true,
+    "rollback_performed": false,
+    "configuration_before_sha256": "a90c0f9033b9bdd360bcb5ac3e03e84e9fb550b7f7a7bc3ffa5b12de5aeb9138",
+    "configuration_after_sha256": "2c9ae8c425fadcce37fd15cb2cd7dd84f011bedca0a7ce7e8861f7b2b86f9bda",
+    "clients": [
+      {
+        "channel": "preview",
+        "receipt_sha256": "dad71259036c5aae33660c65584a7af4b25d17891bb43bf27d67c5c26581af90",
+        "publication_verified": false,
+        "github_provenance_verified": false
+      },
+      {
+        "channel": "stable",
+        "receipt_sha256": "6de2d96314128450749982116eb333330b0e31d4d0299ec698ce9f207da17c39",
+        "publication_verified": false,
+        "github_provenance_verified": false
+      }
+    ],
+    "error": null
+  },
+  "cross_generation_aliases": [
+    {
+      "object_key": "public/snapshots/stable/r4242-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "sha256": "ae6bdd4c26388c07e2445bd58561286cba17a8893d51746a1a875fb412e60ed4",
+      "size": 23,
+      "source": {
+        "audit_release_id": 4243,
+        "channel": "stable",
+        "member": "site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm"
+      }
+    },
+    {
+      "object_key": "public/snapshots/stable/r4242-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "sha256": "3d1d5ed066a69c12d0fc87293b9985b33ee0ca36d4ba6d1d1319fe67a23d1306",
+      "size": 12,
+      "source": {
+        "audit_release_id": 4243,
+        "channel": "stable",
+        "member": "site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm"
+      }
+    },
+    {
+      "object_key": "public/snapshots/stable/r4243-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.0.0-1.noarch.rpm",
+      "sha256": "ae6bdd4c26388c07e2445bd58561286cba17a8893d51746a1a875fb412e60ed4",
+      "size": 23,
+      "source": {
+        "audit_release_id": 4242,
+        "channel": "stable",
+        "member": "site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.0.0-1.noarch.rpm"
+      }
+    },
+    {
+      "object_key": "public/snapshots/stable/r4243-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "sha256": "a2f382a4e60fe06e56c2a0c2fc1a1ea31fd7deac0aade31977e3b0a289eb39fa",
+      "size": 13,
+      "source": {
+        "audit_release_id": 4242,
+        "channel": "stable",
+        "member": "site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm"
+      }
+    }
+  ]
+}

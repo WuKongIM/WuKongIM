@@ -1,0 +1,15 @@
+{
+  "sealed_utc": "2026-10-21T15:49:49.529200+00:00",
+  "public_boundary_scan": "pass",
+  "excluded_private_directory": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-private",
+  "all_workflow_runs_terminal": true,
+  "job_states": {
+    "success": 17,
+    "skipped": 2,
+    "None": 1,
+    "failure": 2
+  },
+  "remaining_api_inconsistency_job": 119309607829,
+  "local_active_exec_sessions": [],
+  "root_authorized_handoff": true
+}

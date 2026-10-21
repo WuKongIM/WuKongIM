@@ -1,0 +1,132 @@
+{
+  "review_axis": "standards",
+  "reviewed_at": "2026-10-21T15:52:02.695239+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "base_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "head_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "base_tree": "7a498c42b4f5b0e6f86a524878fde651d7301371",
+  "branch_commits": [],
+  "scope_commands": [
+    "git diff HEAD --binary",
+    "git ls-files --others --exclude-standard",
+    "git diff --no-index --binary -- /dev/null <each untracked path>"
+  ],
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "217ba4f44bd887fd8dde4588c980db5152678646ff140c1a4b15ef681d7fe0cc",
+      "size": 2967
+    },
+    "README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "f3b5ac68431f0f11ccde87a8bdb6be2e5547d60170a2b9a0f574e2ad6137715a",
+      "size": 7932
+    },
+    "scripts/prepare-object-storage-delivery.py": {
+      "sha256": "edf90960ae44e29529e9c3e1d717cc9ce961ad492891aa5da2248062fc254037",
+      "size": 24620
+    },
+    "tests/test_object_storage_delivery.py": {
+      "sha256": "f0d6f33d5955b5197a4628fd0440232e012263d0cdf1c6a5da9f2dd027146061",
+      "size": 23623
+    }
+  },
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/implementation.patch",
+    "sha256": "0d1cf456a61d59072264efaf7b1a4b282089ec6807d9c58b8b0f702c5e9b6f0b",
+    "exact_reconstruction_verified": true
+  },
+  "freeze_artifact": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/implementation-freeze.json",
+    "sha256": "ced81328c3127b940e01918e9c5293a8f867ad3903143b967c20f906a9bc1ffd"
+  },
+  "standards_sources": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "source_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+      "source_revision_bytes_verified": true
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "revision": "reviewed working copy"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/object-storage-planning.md": {
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+      "revision": "983e567f155a982c45ca066e4dc67d33851f0d24"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/stable-audit-transport.md": {
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+      "revision": "983e567f155a982c45ca066e4dc67d33851f0d24"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "revision": "983e567f155a982c45ca066e4dc67d33851f0d24"
+    }
+  },
+  "package_rule_inventory": [],
+  "evidence": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/rules-freeze.json": {
+      "sha256": "edf1c5e8560f4e8aafad505b969acc4ceaf49b4e1f9a507ed02963d5a193df32",
+      "size": 1289
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/failure-inventory.md": {
+      "sha256": "e46e78947c06290a6e6289e70a003d318b128b050c10997b506529200728f301",
+      "size": 2971
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/first-red.json": {
+      "sha256": "1a135f9809477e8e06014dd115e778b37c76f65ee13881cb279356232500de1a",
+      "size": 471
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/first-red.log": {
+      "sha256": "10f14d920d5093ff114961f28a7ab726b24b5c6a7d8e6153b1aeb46149c72405",
+      "size": 19433
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/first-red-tests.py.txt": {
+      "sha256": "4c02feef10d9c016fd4acd47b9cc7b006ce3c68e1023ea2bd9b1ed9e59e8cea2",
+      "size": 23608
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/fixture-correction.txt": {
+      "sha256": "cf8f2b73342657d7c0e5016b2277b280f4b8dcc7d393c9465a8da26de3fa5cb3",
+      "size": 561
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/focused-green.json": {
+      "sha256": "0506ee338eb33545f62964bed7095b27578bf1e56f2f6eacdf541050cb8d3db4",
+      "size": 441
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/related-tests.json": {
+      "sha256": "1a8394824b8a1b9960937f9e6e263326a58cbe20a0a5891479be56fd4eb1bdb2",
+      "size": 195
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/object-delivery-implementation/contracts.json": {
+      "sha256": "c1cb42ad1d33168bbb0b38a5758d6ffa25c377025d57336b98b71538edd3355c",
+      "size": 106
+    }
+  },
+  "test_first_observation": {
+    "preserved_test_sha256_matches_first_red": true,
+    "changed_test_lines_after_first_red": 2,
+    "changes": "documented RPM filename selector and incorrect negative SHA fixture values only"
+  },
+  "smell_baseline_reviewed": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "hard_findings": 0,
+  "heuristic_findings": 0,
+  "tests_executed_by_reviewer": false,
+  "implementation_modified": false,
+  "external_actions": false,
+  "report_word_count": 249
+}

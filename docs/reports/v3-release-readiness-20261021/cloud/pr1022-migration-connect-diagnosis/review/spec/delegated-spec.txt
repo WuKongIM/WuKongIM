@@ -1,0 +1,1 @@
+原首次after-import完整历史冷读取保持在前；随后仅使用现有 node1 WaitWKProtoReady 辅助账号握手前提，再用原 retained-v2凭证业务Connect/Send；无新Connect/Send重试或产品readyz变化；仅failure取bounded diagnostics。保留每项原业务断言/原context/deadline。原Linux拒绝根因unknown、本地3观测未复现；v1 full首次1→3重启HTTP400新失败正在另行诊断，不能计全pass。scope只看冻结v2，不运行测试/改源。

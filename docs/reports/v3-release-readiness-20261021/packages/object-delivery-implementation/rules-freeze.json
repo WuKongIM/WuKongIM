@@ -1,0 +1,24 @@
+{
+  "frozen_at": "2026-10-21T15:29:14.513955+00:00",
+  "packages_source_sha": "983e567f155a982c45ca066e4dc67d33851f0d24",
+  "packages_branch": "codex/stable-object-delivery",
+  "packages_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "repository_rules": [],
+  "enclosing_repository_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "applicable_rule_sha256": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "scope_files_sha256": {
+    "README.md": "6a760804843d85fc77e8b7aab3e923ef086486ae77913a152d6e138d5a516976",
+    "failure-inventory.md": "e46e78947c06290a6e6289e70a003d318b128b050c10997b506529200728f301"
+  },
+  "test_seams": [
+    "original v1/v2 planner CLI/API inputs and digests",
+    "exact local archive/object materialization",
+    "function-level fake Put/Get and activation observations",
+    "exact route request table and configuration diff",
+    "existing client verifier request/receipt boundary"
+  ],
+  "tdd_deviation": "User/parent explicitly requires all related failure tests and first red before implementation; follows that instruction over skill default vertical slicing.",
+  "production_actions_authorized": false
+}

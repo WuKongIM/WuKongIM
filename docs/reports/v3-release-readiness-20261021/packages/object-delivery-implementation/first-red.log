@@ -1,0 +1,205 @@
+test_01_preview_only_preserves_original_plan_and_unknown_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_01_preview_only_preserves_original_plan_and_unknown_resource) ... FAIL
+test_02_original_planner_rejects_schema_channel_unknown_fields (test_object_storage_delivery.ObjectStorageDeliveryTest.test_02_original_planner_rejects_schema_channel_unknown_fields) ... FAIL
+test_03_simulated_success_never_means_production_and_cannot_enable_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_03_simulated_success_never_means_production_and_cannot_enable_resource) ... FAIL
+test_04_input_or_archive_change_never_reuses_old_progress (test_object_storage_delivery.ObjectStorageDeliveryTest.test_04_input_or_archive_change_never_reuses_old_progress) ... FAIL
+test_05_composite_alias_materializes_from_original_source_and_preserves_schema (test_object_storage_delivery.ObjectStorageDeliveryTest.test_05_composite_alias_materializes_from_original_source_and_preserves_schema) ... FAIL
+test_05_missing_or_changed_archive_member_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_05_missing_or_changed_archive_member_is_rejected) ... FAIL
+test_06_plan_digest_and_materialized_generated_bytes_are_exact (test_object_storage_delivery.ObjectStorageDeliveryTest.test_06_plan_digest_and_materialized_generated_bytes_are_exact) ... FAIL
+test_07_conflict_and_unknown_put_success_require_actual_exact_get (test_object_storage_delivery.ObjectStorageDeliveryTest.test_07_conflict_and_unknown_put_success_require_actual_exact_get) ... FAIL
+test_07_get_faults_and_put_denial_keep_observed_upload_side_effects (test_object_storage_delivery.ObjectStorageDeliveryTest.test_07_get_faults_and_put_denial_keep_observed_upload_side_effects) ... FAIL
+test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops) ... FAIL
+test_09_alias_priority_and_original_snapshot_routes_are_exact (test_object_storage_delivery.ObjectStorageDeliveryTest.test_09_alias_priority_and_original_snapshot_routes_are_exact) ... FAIL
+test_10_root_repo_and_floating_cache_are_preserved (test_object_storage_delivery.ObjectStorageDeliveryTest.test_10_root_repo_and_floating_cache_are_preserved) ... FAIL
+test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed (test_object_storage_delivery.ObjectStorageDeliveryTest.test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed) ... FAIL
+test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops) ... FAIL
+test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback (test_object_storage_delivery.ObjectStorageDeliveryTest.test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback) ... FAIL
+test_13_configuration_or_control_drift_before_activation_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_13_configuration_or_control_drift_before_activation_stops) ... FAIL
+test_14_refresh_or_origin_failure_retains_activated_observation (test_object_storage_delivery.ObjectStorageDeliveryTest.test_14_refresh_or_origin_failure_retains_activated_observation) ... FAIL
+test_15_exact_target_cli_identity_and_all_four_receipts_are_required (test_object_storage_delivery.ObjectStorageDeliveryTest.test_15_exact_target_cli_identity_and_all_four_receipts_are_required) ... FAIL
+test_16_preview_only_cannot_replace_an_observed_stable_configuration (test_object_storage_delivery.ObjectStorageDeliveryTest.test_16_preview_only_cannot_replace_an_observed_stable_configuration) ... FAIL
+test_output_collision_symlink_and_failures_do_not_overwrite_inputs (test_object_storage_delivery.ObjectStorageDeliveryTest.test_output_collision_symlink_and_failures_do_not_overwrite_inputs) ... FAIL
+
+======================================================================
+FAIL: test_01_preview_only_preserves_original_plan_and_unknown_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_01_preview_only_preserves_original_plan_and_unknown_resource)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_02_original_planner_rejects_schema_channel_unknown_fields (test_object_storage_delivery.ObjectStorageDeliveryTest.test_02_original_planner_rejects_schema_channel_unknown_fields)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_03_simulated_success_never_means_production_and_cannot_enable_resource (test_object_storage_delivery.ObjectStorageDeliveryTest.test_03_simulated_success_never_means_production_and_cannot_enable_resource)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_04_input_or_archive_change_never_reuses_old_progress (test_object_storage_delivery.ObjectStorageDeliveryTest.test_04_input_or_archive_change_never_reuses_old_progress)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_05_composite_alias_materializes_from_original_source_and_preserves_schema (test_object_storage_delivery.ObjectStorageDeliveryTest.test_05_composite_alias_materializes_from_original_source_and_preserves_schema)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_05_missing_or_changed_archive_member_is_rejected (test_object_storage_delivery.ObjectStorageDeliveryTest.test_05_missing_or_changed_archive_member_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_06_plan_digest_and_materialized_generated_bytes_are_exact (test_object_storage_delivery.ObjectStorageDeliveryTest.test_06_plan_digest_and_materialized_generated_bytes_are_exact)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_07_conflict_and_unknown_put_success_require_actual_exact_get (test_object_storage_delivery.ObjectStorageDeliveryTest.test_07_conflict_and_unknown_put_success_require_actual_exact_get)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_07_get_faults_and_put_denial_keep_observed_upload_side_effects (test_object_storage_delivery.ObjectStorageDeliveryTest.test_07_get_faults_and_put_denial_keep_observed_upload_side_effects)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_08_preflight_missing_stale_versioning_or_resource_mismatch_stops)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_09_alias_priority_and_original_snapshot_routes_are_exact (test_object_storage_delivery.ObjectStorageDeliveryTest.test_09_alias_priority_and_original_snapshot_routes_are_exact)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_10_root_repo_and_floating_cache_are_preserved (test_object_storage_delivery.ObjectStorageDeliveryTest.test_10_root_repo_and_floating_cache_are_preserved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed (test_object_storage_delivery.ObjectStorageDeliveryTest.test_11_route_cap_and_nearby_encoded_or_traversal_paths_fail_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_12_old_managed_routes_need_explicit_removal_and_unmanaged_stops)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback (test_object_storage_delivery.ObjectStorageDeliveryTest.test_12_partial_activation_is_not_reported_as_no_side_effects_or_rollback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_13_configuration_or_control_drift_before_activation_stops (test_object_storage_delivery.ObjectStorageDeliveryTest.test_13_configuration_or_control_drift_before_activation_stops)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_14_refresh_or_origin_failure_retains_activated_observation (test_object_storage_delivery.ObjectStorageDeliveryTest.test_14_refresh_or_origin_failure_retains_activated_observation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_15_exact_target_cli_identity_and_all_four_receipts_are_required (test_object_storage_delivery.ObjectStorageDeliveryTest.test_15_exact_target_cli_identity_and_all_four_receipts_are_required)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_16_preview_only_cannot_replace_an_observed_stable_configuration (test_object_storage_delivery.ObjectStorageDeliveryTest.test_16_preview_only_cannot_replace_an_observed_stable_configuration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+======================================================================
+FAIL: test_output_collision_symlink_and_failures_do_not_overwrite_inputs (test_object_storage_delivery.ObjectStorageDeliveryTest.test_output_collision_symlink_and_failures_do_not_overwrite_inputs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py", line 131, in setUp
+    self.assertTrue(SCRIPT.exists(), 'offline delivery implementation is missing')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : offline delivery implementation is missing
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.001s
+
+FAILED (failures=20)

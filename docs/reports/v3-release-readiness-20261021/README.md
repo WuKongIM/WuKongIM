@@ -347,3 +347,7 @@ immutable publication and signed native-package public-client acceptance.
 - [只读CDN/DNS补查](packages/storage-readonly-followup/README.md)：packages仍指向Pages，CDN目标域名未创建，RAM角色主体未加载；没有云写入或费用批准。
 
 - `checkpoint-after-pr74/`: named FLOW check passed with original limits; wrapper-path launch error retained separately.
+
+- `cloud/pr1022-ci-generation-1/`, `cloud/pr1022-ci-followup/`: first Linux failures and one later scripts API convergence read; no rerun.
+- `cloud/pr1022-migration-connect-diagnosis/public-final/`: fixed three-run observation did not reproduce historical refusal; diagnosis remains bounded.
+- `packages/object-delivery-implementation/`, `packages/object-delivery-review/`: offline core v1, first-red/green evidence and separate Standards/Spec reports; two Spec findings remain under repair.

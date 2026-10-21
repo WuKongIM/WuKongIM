@@ -1,0 +1,19 @@
+goos: linux
+goarch: amd64
+pkg: github.com/WuKongIM/WuKongIM/pkg/client
+cpu: AMD EPYC 9V45 96-Core Processor                
+BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS-4   	[gnet] 2026-10-21T15:26:18.020041942Z	INFO	logging/logger.go:256	Launching gnet with 1 event-loops, listening on: tcp://127.0.0.1:0
+   90000	   2001933 ns/op	         1.065 arrival-queue-p99-ms	         0 gateway-dispatch-wait-over-200ms-pct	         0 gateway-dispatch-wait-over-400ms-pct	         0.02277 gateway-dispatch-wait-p99-ms	         0.2956 gateway-handler-over-200ms-pct	         0 gateway-handler-over-400ms-pct	       176.0 gateway-handler-p99-ms	         0 pending-to-write-over-200ms-pct	         0 pending-to-write-over-400ms-pct	         1.626 pending-to-write-p99-ms	        18.02 recv-writes/op	        18.02 recvacks/op	       178.1 scheduled-p99-ms	         0.2956 send-over-200ms-pct	         0 send-over-400ms-pct	       177.4 send-p99-ms	         0 sendack-transport-write-over-200ms-pct	         0 sendack-transport-write-over-400ms-pct	         0.1627 sendack-transport-write-p99-ms	         0.2956 write-to-ack-over-200ms-pct	         0 write-to-ack-over-400ms-pct	       176.1 write-to-ack-p99-ms	  123922 B/op	     927 allocs/op
+--- BENCH: BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS-4
+    send_paced_benchmark_integration_test.go:149: warmup window 1: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:178.055039 QueueP99MS:1.082593 ServiceP99MS:177.394756}
+    send_paced_benchmark_integration_test.go:173: arrival window 1: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:178.043645 QueueP99MS:1.064826 ServiceP99MS:177.366316}
+    send_paced_benchmark_integration_test.go:173: arrival window 2: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:178.103257 QueueP99MS:1.061719 ServiceP99MS:177.370559}
+    send_paced_benchmark_integration_test.go:173: arrival window 3: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:178.065154 QueueP99MS:1.063724 ServiceP99MS:177.346284}
+    send_paced_benchmark_integration_test.go:175: send latency: p99=177.350009ms over_400ms=0.000%
+    send_paced_benchmark_integration_test.go:176: pending-to-write latency: p99=1.625527ms over_400ms=0.000%
+    send_paced_benchmark_integration_test.go:177: write-to-ack latency: p99=176.116753ms over_400ms=0.000%
+    send_paced_benchmark_integration_test.go:179: gateway-handler latency: p99=175.971138ms over_400ms=0.000%
+    send_paced_benchmark_integration_test.go:180: gateway-dispatch-wait latency: p99=22.774µs over_400ms=0.000%
+    send_paced_benchmark_integration_test.go:181: sendack-transport-write latency: p99=162.66µs over_400ms=0.000%
+	... [output truncated]
+PASS

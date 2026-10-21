@@ -1,0 +1,22 @@
+{
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "observed_at": "2026-10-21T15:42:02.904760+00:00",
+  "paths": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "test/e2e/AGENTS.md": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603",
+    "test/e2e/migration/AGENTS.md": "ada2ef6c7b39c62b09e7d5d26a9d6f2ddf2de344765d09ae9fa34490cf2d15c6",
+    "test/e2e/migration/ordinary_history/AGENTS.md": "bb88da9005b7447e75a688e0afd7880a50e916a824320c80e89a6ee32a428e74",
+    "test/e2e/suite/FLOW.md": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+    "internal/app/FLOW.md": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+    "pkg/client/FLOW.md": "401df3fb9feb42b6c5ea97ee098a8664e7bc77eaf9ba3b7c8ca5eeb127008508",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    ".github/workflows/README.md": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    "docs/adr/0025-start-workload-only-after-cluster-readiness.md": "9b6c59c078f4b75baad46257937a24a59b32c09b96ed9ab01b44b25c3c9dae3e"
+  },
+  "skill": {
+    "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  },
+  "adr_scope": "ADR0025 cloud bootstrap gate context only; it does not change this local E2E contract."
+}

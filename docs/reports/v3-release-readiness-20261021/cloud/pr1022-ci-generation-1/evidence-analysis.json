@@ -1,0 +1,1564 @@
+{
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "base": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "actual_checkout": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+  "tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "attempt": 1,
+  "candidate_passed": false,
+  "release_ready": false,
+  "failure": {
+    "observed_utc": "2026-10-21T15:38:02.146563+00:00",
+    "run": 39625524702,
+    "job": 119313591454,
+    "attempt": 1,
+    "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+    "checkout": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+    "first_failed_test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+    "source": "test/e2e/migration/ordinary_history/ordinary_history_test.go:174",
+    "error": "dial tcp 127.0.0.1:27802: connect: connection refused",
+    "failure_time": "2026-10-21T15:35:16.874576226Z",
+    "previous_success": "after-import history node1 rows3 temporary_retries0",
+    "other_four_topologies": "pass",
+    "unexecuted_packages": [
+      "cross_node_delivery",
+      "self_chat"
+    ],
+    "original_result": {
+      "status": "failed",
+      "exit_code": 1,
+      "session_id": 7738,
+      "output_bytes": 28032,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 7738,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "failed",
+      "wrapper_exit_code": 1,
+      "elapsed_seconds": 102.556
+    },
+    "binary_sha256": "e0c44e2cbc3f9456097183fabb00f60a35aed21bc56aa577c9240028cf9d66b0",
+    "classification": "connection failure; product/infrastructure/harness cause not established by this CI evidence",
+    "rerun_performed": false,
+    "evidence": [
+      {
+        "path": "artifacts-public/12356928133/members/ordinary_history/stdout.jsonl",
+        "size": 27770,
+        "sha256": "236e117584f33e9a5cac9e2dd826a71b8297998c314b79ba882166c7a798f9c2"
+      },
+      {
+        "path": "artifacts-public/12356928133/members/ordinary_history/result.json",
+        "size": 371,
+        "sha256": "7d93d4018cbc18540e4233f619630969b31b6e5c5955c633f54fc8aad7f0235a"
+      },
+      {
+        "path": "job-logs-public/119313591454/complete.log",
+        "size": 84306,
+        "sha256": "59d439f06f18beaa3c530c0c3ee4190235c36f96127f46d890edea20657bed2a"
+      }
+    ]
+  },
+  "local_scripts_timeout_is_retained": true,
+  "candidate": {
+    "default": {
+      "artifact_id": 12357915885,
+      "identity": {
+        "source_sha": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+        "policy_sha": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39625524702",
+        "run_attempt": "1"
+      },
+      "results": {
+        "result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2526,
+          "output_bytes": 22029,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2526,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 417.516
+        }
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "./cmd/...",
+          "./internal/...",
+          "./pkg/...",
+          "./scripts/...",
+          "./docker/...",
+          "-count=1"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 1800,
+        "max_output_bytes": 8388608,
+        "named_check": "go-unit",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2"
+        }
+      },
+      "tested_packages": 219,
+      "packages_without_tests": 15
+    },
+    "scripts": {
+      "artifact_id": 12357946122,
+      "identity": {
+        "source_sha": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+        "policy_sha": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39625524702",
+        "run_attempt": "1"
+      },
+      "results": {
+        "result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2301,
+          "output_bytes": 1493329,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2301,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 499.409
+        }
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "-tags=integration",
+          "./scripts/...",
+          "-count=1",
+          "-timeout=9m",
+          "-parallel=2"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 600,
+        "max_output_bytes": 8388608,
+        "named_check": "scripts-integration",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2 -json"
+        }
+      },
+      "tests": {
+        "source_sha": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+        "source_tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+        "artifact_id": 12357946122,
+        "root_count": 15,
+        "expected_roots": [
+          "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+          "TestChatLifecycleDownwardBudgetCannotResetSpentRequest",
+          "TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority",
+          "TestChatLifecycleDownwardBudgetDocuments",
+          "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+          "TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification",
+          "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+          "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell",
+          "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+          "TestChatLifecycleDownwardBudgetInput",
+          "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+          "TestChatLifecycleDownwardBudgetRehearsalWiring",
+          "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+          "TestChatLifecycleDownwardBudgetTransitionSelector",
+          "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure"
+        ],
+        "actual_budget_events": [
+          {
+            "Time": "2026-10-21T15:27:25.739933902Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority",
+            "Elapsed": 0
+          },
+          {
+            "Time": "2026-10-21T15:27:25.741029514Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification",
+            "Elapsed": 0
+          },
+          {
+            "Time": "2026-10-21T15:27:25.741716085Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/rehearsal",
+            "Elapsed": 0
+          },
+          {
+            "Time": "2026-10-21T15:27:25.742818036Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/formal",
+            "Elapsed": 0
+          },
+          {
+            "Time": "2026-10-21T15:27:25.742829123Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure",
+            "Elapsed": 0
+          },
+          {
+            "Time": "2026-10-21T15:27:25.762400205Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+            "Elapsed": 0.02
+          },
+          {
+            "Time": "2026-10-21T15:27:25.80161496Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1500000000_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:25.841515699Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1351044800_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:25.880997617Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/150000001_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:25.920227926Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1500000000_100",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:25.96074252Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1351044800_100",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:25.999600387Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/0_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.036162473Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/-1_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.071744376Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/150000000_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.110480289Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1500000001_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.148924819Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/9223372036854775808_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.189535268Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1351044800.0_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.231515632Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1e9_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.274167729Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/+1351044800_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.31637145Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/01351044800_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.358386186Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/_1351044800_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.399960498Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/1351044800__",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.438897384Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput/_",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.438909472Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetInput",
+            "Elapsed": 0.68
+          },
+          {
+            "Time": "2026-10-21T15:27:26.484394048Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/lower",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:27:26.525482919Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/default",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.56956414Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/root-stop",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.612052379Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/missing-root",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.651067664Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/currency",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.692407592Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/float-limit",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.739194682Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/boolean-prior",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:27:26.778710762Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/raised-pair",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.819551668Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/missing-cap",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.862687204Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-cap",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.903476232Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:26.950934297Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-prior",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:27:26.994304947Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-identity",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:27.037245499Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/deployment-stop",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:27.079910965Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/deployment-schema",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:27.120677279Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments/proof-attempt-lower",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:27:27.120688136Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetDocuments",
+            "Elapsed": 0.68
+          },
+          {
+            "Time": "2026-10-21T15:27:27.272791624Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+            "Elapsed": 0.15
+          },
+          {
+            "Time": "2026-10-21T15:27:27.272884975Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalWiring",
+            "Elapsed": 0
+          },
+          {
+            "Time": "2026-10-21T15:33:58.512732458Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetTransitionSelector/1201044799",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:33:58.524342889Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetTransitionSelector/1201044800",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:33:58.535408306Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetTransitionSelector/1201044801",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:33:58.535421246Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetTransitionSelector",
+            "Elapsed": 0.03
+          },
+          {
+            "Time": "2026-10-21T15:33:58.679907511Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/stop_minus_one",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:33:58.808801035Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/at_stop",
+            "Elapsed": 0.13
+          },
+          {
+            "Time": "2026-10-21T15:33:58.943865287Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/above_stop",
+            "Elapsed": 0.13
+          },
+          {
+            "Time": "2026-10-21T15:33:59.08882472Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/default",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:33:59.237923642Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/stop_minus_one",
+            "Elapsed": 0.15
+          },
+          {
+            "Time": "2026-10-21T15:33:59.377417877Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/at_stop",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:33:59.513928405Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/above_stop",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:33:59.653380647Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/default",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:33:59.653394858Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+            "Elapsed": 1.12
+          },
+          {
+            "Time": "2026-10-21T15:33:59.798606471Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/hard_minus_one",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:33:59.940631264Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/at_hard",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:34:00.078957185Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/above_hard",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:34:00.162746764Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:00.212869676Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/handoff_receipt",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:00.225936532Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/default",
+            "Elapsed": 0.15
+          },
+          {
+            "Time": "2026-10-21T15:34:00.262036828Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/handoff_deployment",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:00.346041331Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_receipt",
+            "Elapsed": 0.08
+          },
+          {
+            "Time": "2026-10-21T15:34:00.373165707Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/hard_minus_one",
+            "Elapsed": 0.15
+          },
+          {
+            "Time": "2026-10-21T15:34:00.431878006Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_deployment",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:00.527568824Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_higher",
+            "Elapsed": 0.1
+          },
+          {
+            "Time": "2026-10-21T15:34:00.527747163Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/at_hard",
+            "Elapsed": 0.15
+          },
+          {
+            "Time": "2026-10-21T15:34:00.581357623Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/rehearsal_receipt",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:00.594122003Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/sidecar_authority",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:34:00.683646517Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:00.684096595Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/above_hard",
+            "Elapsed": 0.16
+          },
+          {
+            "Time": "2026-10-21T15:34:00.735501129Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/handoff_receipt",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:00.787359117Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/handoff_deployment",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:00.845153072Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/default",
+            "Elapsed": 0.16
+          },
+          {
+            "Time": "2026-10-21T15:34:00.845167964Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+            "Elapsed": 1.19
+          },
+          {
+            "Time": "2026-10-21T15:34:00.882634289Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_receipt",
+            "Elapsed": 0.1
+          },
+          {
+            "Time": "2026-10-21T15:34:00.90416955Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetCannotResetSpentRequest",
+            "Elapsed": 0.06
+          },
+          {
+            "Time": "2026-10-21T15:34:00.94854578Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/#00",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:34:00.976992449Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_deployment",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:00.993065796Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/1500000001",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:34:01.035786995Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/1351044800100",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:34:01.072919837Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_higher",
+            "Elapsed": 0.1
+          },
+          {
+            "Time": "2026-10-21T15:34:01.07895904Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/150000000",
+            "Elapsed": 0.04
+          },
+          {
+            "Time": "2026-10-21T15:34:01.078975695Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+            "Elapsed": 0.17
+          },
+          {
+            "Time": "2026-10-21T15:34:01.125139156Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/rehearsal_receipt",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:01.13949837Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/sidecar_authority",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:34:01.282138531Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/",
+            "Elapsed": 0.14
+          },
+          {
+            "Time": "2026-10-21T15:34:01.372964472Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/handoff_receipt",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:01.462010875Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/handoff_deployment",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:01.581808481Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_receipt",
+            "Elapsed": 0.12
+          },
+          {
+            "Time": "2026-10-21T15:34:01.701407718Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_deployment",
+            "Elapsed": 0.12
+          },
+          {
+            "Time": "2026-10-21T15:34:01.827363516Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_higher",
+            "Elapsed": 0.13
+          },
+          {
+            "Time": "2026-10-21T15:34:01.878183202Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/rehearsal_receipt",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:01.889760102Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/sidecar_authority",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:34:02.013439636Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/",
+            "Elapsed": 0.12
+          },
+          {
+            "Time": "2026-10-21T15:34:02.096222368Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/handoff_receipt",
+            "Elapsed": 0.08
+          },
+          {
+            "Time": "2026-10-21T15:34:02.18217438Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/handoff_deployment",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:02.304611544Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_receipt",
+            "Elapsed": 0.12
+          },
+          {
+            "Time": "2026-10-21T15:34:02.424456581Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_deployment",
+            "Elapsed": 0.12
+          },
+          {
+            "Time": "2026-10-21T15:34:02.550684636Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_higher",
+            "Elapsed": 0.13
+          },
+          {
+            "Time": "2026-10-21T15:34:02.5998576Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/rehearsal_receipt",
+            "Elapsed": 0.05
+          },
+          {
+            "Time": "2026-10-21T15:34:02.610581481Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/sidecar_authority",
+            "Elapsed": 0.01
+          },
+          {
+            "Time": "2026-10-21T15:34:02.610599398Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+            "Elapsed": 2.54
+          },
+          {
+            "Time": "2026-10-21T15:34:03.338580428Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/lower",
+            "Elapsed": 0.11
+          },
+          {
+            "Time": "2026-10-21T15:34:03.448587088Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/default",
+            "Elapsed": 0.11
+          },
+          {
+            "Time": "2026-10-21T15:34:03.565483483Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/stop_minus_one",
+            "Elapsed": 0.12
+          },
+          {
+            "Time": "2026-10-21T15:34:03.652268882Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/at_stop",
+            "Elapsed": 0.09
+          },
+          {
+            "Time": "2026-10-21T15:34:03.718840773Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/above_stop",
+            "Elapsed": 0.07
+          },
+          {
+            "Time": "2026-10-21T15:34:03.776495924Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/missing_plan_cap",
+            "Elapsed": 0.06
+          },
+          {
+            "Time": "2026-10-21T15:34:03.836482872Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/mismatched_receipt",
+            "Elapsed": 0.06
+          },
+          {
+            "Time": "2026-10-21T15:34:03.836499838Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell",
+            "Elapsed": 0.61
+          }
+        ],
+        "budget_pass_events": 112,
+        "overall_top_level_passes": 649,
+        "overall_terminal_events": {
+          "pass": 1306,
+          "skip": 6
+        },
+        "existing_skips": [
+          "TestDockerImageRuntimeContract",
+          "TestDockerImageEmbeddedPrometheus",
+          "TestEasySDKReadinessSerialDelayFixture",
+          "TestNativePackageLifecycle",
+          "TestNativePackageSignedRepository",
+          "TestNativePackageRepositoryDeadlineFixture"
+        ],
+        "failed_tests": [],
+        "local_timeout_not_superseded": true
+      }
+    },
+    "e2e": {
+      "artifact_id": 12356928133,
+      "identity": {
+        "source_sha": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+        "policy_sha": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+        "run_id": "39625524702",
+        "run_attempt": "1"
+      },
+      "results": {
+        "cross_node_delivery/result.json": {
+          "status": "not_run"
+        },
+        "ordinary_history/result.json": {
+          "status": "failed",
+          "exit_code": 1,
+          "session_id": 7738,
+          "output_bytes": 28032,
+          "output_truncated": false,
+          "passed": false,
+          "cleanup": {
+            "session_id": 7738,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "failed",
+          "wrapper_exit_code": 1,
+          "elapsed_seconds": 102.556
+        },
+        "self_chat/result.json": {
+          "status": "not_run"
+        },
+        "build/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2301,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2301,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 89.844
+        }
+      },
+      "test_events": [
+        {
+          "Time": "2026-10-21T15:35:00.300143616Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology"
+        },
+        {
+          "Time": "2026-10-21T15:35:00.300206191Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes"
+        },
+        {
+          "Time": "2026-10-21T15:35:16.874576226Z",
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "Elapsed": 16.57
+        },
+        {
+          "Time": "2026-10-21T15:35:16.874588486Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes"
+        },
+        {
+          "Time": "2026-10-21T15:35:33.974646809Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "Elapsed": 17.1
+        },
+        {
+          "Time": "2026-10-21T15:35:33.974654911Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes"
+        },
+        {
+          "Time": "2026-10-21T15:35:46.634685746Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "Elapsed": 12.66
+        },
+        {
+          "Time": "2026-10-21T15:35:46.634695402Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes"
+        },
+        {
+          "Time": "2026-10-21T15:36:04.721818484Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "Elapsed": 18.09
+        },
+        {
+          "Time": "2026-10-21T15:36:04.721827342Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes"
+        },
+        {
+          "Time": "2026-10-21T15:36:22.822021363Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "Elapsed": 18.1
+        },
+        {
+          "Time": "2026-10-21T15:36:22.822035353Z",
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology",
+          "Elapsed": 82.52
+        }
+      ],
+      "binary_sha256": "e0c44e2cbc3f9456097183fabb00f60a35aed21bc56aa577c9240028cf9d66b0",
+      "passed_topologies": [
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes"
+      ]
+    }
+  },
+  "performance": {
+    "tcp-sendack": {
+      "result": {
+        "status": "pass"
+      },
+      "phase": "measurement",
+      "qualification": true,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.043645,
+          "scheduled_to_start_p99_ms": 1.064826,
+          "service_p99_ms": 177.366316
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.103257,
+          "scheduled_to_start_p99_ms": 1.061719,
+          "service_p99_ms": 177.370559
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.065154,
+          "scheduled_to_start_p99_ms": 1.063724,
+          "service_p99_ms": 177.346284
+        }
+      ],
+      "maximum_second_p99_ms": 178.527855
+    },
+    "channel-append": {
+      "result": {
+        "status": "pass"
+      },
+      "phase": "measurement",
+      "qualification": true,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 13.710448,
+          "scheduled_to_start_p99_ms": 1.065081,
+          "service_p99_ms": 13.272108
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 6.470452,
+          "scheduled_to_start_p99_ms": 1.066981,
+          "service_p99_ms": 4.478475
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 10.102904,
+          "scheduled_to_start_p99_ms": 1.084117,
+          "service_p99_ms": 8.286291
+        }
+      ],
+      "maximum_second_p99_ms": 46.747869
+    },
+    "mixed-send": {
+      "result": {
+        "status": "pass"
+      },
+      "phase": "measurement",
+      "qualification": true,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 17.112098,
+          "scheduled_to_start_p99_ms": 1.458587,
+          "service_p99_ms": 15.393146
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 21.316979,
+          "scheduled_to_start_p99_ms": 1.846615,
+          "service_p99_ms": 19.717525
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 23.525536,
+          "scheduled_to_start_p99_ms": 2.461384,
+          "service_p99_ms": 22.000416
+        }
+      ],
+      "maximum_second_p99_ms": 124.191714
+    }
+  },
+  "three_node_correctness": {
+    "local_step": {
+      "schema": "wukongim/chat-lifecycle-local-step/v1",
+      "outcome": "clean",
+      "reason": "complete",
+      "offered_rate_per_second": 500,
+      "actual_rate_per_second": 511.1111111111111,
+      "minimum_throughput_percent": 90,
+      "measured_duration_seconds": 90,
+      "qualification_reached": true,
+      "target_connections": 2500,
+      "online_connections": 2500,
+      "sent": 46000,
+      "acknowledged": 46000,
+      "expected": 45000,
+      "minimum_filesystem_free_percent": 55.92411712683035,
+      "storage_evidence_complete": true,
+      "host_io_evidence_complete": true,
+      "product_metrics_complete": true,
+      "product_queue_evidence_complete": true,
+      "product_queues_converged": true,
+      "process_continuity_complete": true,
+      "timeline_evidence_complete": true,
+      "profile_evidence_complete": true,
+      "operator_interrupted": false,
+      "harness_failure_reason": ""
+    },
+    "final_messages": {
+      "sent": 76002,
+      "send_attempts": 76002,
+      "first_attempts": 76002,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 76002,
+      "send_rejected": 0,
+      "received": 98808,
+      "receive_acknowledged": 98808,
+      "receive_ack_failures": 0,
+      "retry_attempts": 0,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "final_harness": {
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 0,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "final_queues": {
+      "work_current": 0,
+      "deferred_group_routes": 0,
+      "work_peak": 54488,
+      "work_capacity": 114500,
+      "retry_current": 0,
+      "retry_peak": 0,
+      "retry_capacity": 12288,
+      "inflight_current": 0,
+      "inflight_peak": 500,
+      "inflight_capacity": 12288,
+      "transport_current": 0,
+      "transport_capacity": 0,
+      "transport_rejected": 0
+    },
+    "final_correlation": {
+      "pending_unfinished": 0,
+      "outstanding": 0,
+      "sampled": 838,
+      "delivered": 838,
+      "expired": 0,
+      "duplicate_completions": 0,
+      "conflicting_completions": 0,
+      "unknown_acknowledgments": 0
+    },
+    "measurement_sends": 46000,
+    "artifact_boundary": {
+      "artifact_id": 12357161437,
+      "archive_size": 230318380,
+      "downloaded_range_bytes": 42653,
+      "selected_entries": [
+        "artifacts/local-step.json",
+        "artifacts/report/final.json",
+        "artifacts/report/qualification.json",
+        "artifacts/report/run-start.json",
+        "artifacts/report/worker-evidence.json",
+        "host.json"
+      ],
+      "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked",
+      "selected_file_digests": [
+        {
+          "path": "artifact-12357161437-inventory.json",
+          "size": 41324,
+          "sha256": "63ec42795092c27cb9fa40083b6e68fbcf9d92de1516a921713d59f765e0b5b5"
+        },
+        {
+          "path": "artifact-12357161437-selection.json",
+          "size": 466,
+          "sha256": "b797d17c9c90b7f1f473cfd5a0598a40a81efa293a46543ebe4e9efde8155227"
+        },
+        {
+          "path": "artifact-12357161437-selected/host.json",
+          "size": 4483,
+          "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+        },
+        {
+          "path": "artifact-12357161437-selected/artifacts/local-step.json",
+          "size": 834,
+          "sha256": "b73e0ce1267420518492a27cb6b3f15956c78cb70630f011f7f46b3d79b02b22"
+        },
+        {
+          "path": "artifact-12357161437-selected/artifacts/report/qualification.json",
+          "size": 23444,
+          "sha256": "c7afc2555fb0848b113ae48d44bfb1283f26561a3a004cc341149fbe47cdbd80"
+        },
+        {
+          "path": "artifact-12357161437-selected/artifacts/report/run-start.json",
+          "size": 387,
+          "sha256": "3dbdc627054d8aebbaec4b81e0034cd80f667c69c6f8e757a9ba68cb090150e2"
+        },
+        {
+          "path": "artifact-12357161437-selected/artifacts/report/worker-evidence.json",
+          "size": 584,
+          "sha256": "852fe838b307b2b884327817735be8da71206d75bed0d73b1f1e6e0a6fc10544"
+        },
+        {
+          "path": "artifact-12357161437-selected/artifacts/report/final.json",
+          "size": 23503,
+          "sha256": "f755e8f525561652738464408eabaf7c82d0a9841f6af72c90b2bc24301646c2"
+        }
+      ]
+    }
+  },
+  "workflows": [
+    {
+      "id": 39625524544,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:47:39Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524544"
+    },
+    {
+      "id": 39625578509,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:43Z",
+      "updated_at": "2026-10-21T15:25:49Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625578509"
+    },
+    {
+      "id": 39625524702,
+      "name": "V3 Candidate Regression pull_request 1022 attempt 1",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:36:28Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524702"
+    },
+    {
+      "id": 39625524550,
+      "name": "Safety Automation - EasySDK Released Package Acceptance",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:41:37Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524550"
+    },
+    {
+      "id": 39625524864,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1022 attempt 1",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:31:12Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864"
+    },
+    {
+      "id": 39625524596,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T15:25:23Z",
+      "updated_at": "2026-10-21T15:25:31Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524596"
+    }
+  ],
+  "manager_not_triggered": "Changed 27-file diff does not match Manager path filters; no current-head Manager evidence.",
+  "publication_boundary": "Credential-free PR validation only; no signed public package publication, 2h rehearsal, 72h soak, same-data capacity, or 30m recovery claim.",
+  "native_first_failure": {
+    "run_id": 39625524544,
+    "job_id": 119318017429,
+    "attempt": 1,
+    "test": "TestNativePackageLifecycle",
+    "test_elapsed_seconds": 306.17,
+    "source": "scripts/native_package_lifecycle_integration_test.go:43",
+    "first_error": "package bootstrap and systemd did not reach running or degraded state within 300 seconds",
+    "stage": "package-install before systemd PID1 and product service lifecycle",
+    "observed_appstream_metadata": {
+      "size": "28 MB",
+      "speed": "100 kB/s",
+      "duration": "04:46"
+    },
+    "observed_terminal": "DNF transaction ongoing; systemd has not been booted as PID1",
+    "classification": "infrastructure/bootstrap admission deadline failure; no product-runtime failure established",
+    "root_cause_limit": "Slow repository metadata download is directly logged; no claim about the underlying network/mirror cause or counterfactual success after a longer deadline.",
+    "cleanup_limit": "Workflow diagnostics/cleanup ran; no standalone Docker zero-inventory receipt is emitted by this existing workflow.",
+    "log_sha256": "0067f5899ae966f801fca4f334237079c3a8d0e0bcd63376ad6c5fa01daacdb2",
+    "rerun": false
+  },
+  "sdk": {
+    "workflow_run": 39625524550,
+    "conclusion": "success",
+    "packages": [
+      "Android Maven Central 1.0.5",
+      "iOS CocoaPods 1.1.1",
+      "Flutter pub.dev 1.1.0 on iOS"
+    ],
+    "all_three_execute_and_cleanup_steps_success": true,
+    "cleanup_boundary": "Existing runtime cleanup step success; no independent zero-process inventory receipt."
+  },
+  "native_preview": {
+    "workflow_run": 39625524544,
+    "conclusion": "failure",
+    "build_signed_test_repository_and_ordinary_installs": "success",
+    "systemd_lifecycle": {
+      "Ubuntu24.04": "success",
+      "Debian12": "success",
+      "AlmaLinux9": "success",
+      "RockyLinux9": "failure"
+    },
+    "publication": false
+  },
+  "scripts_api_inconsistency": {
+    "status": "in_progress",
+    "conclusion": null,
+    "all_11_steps": "success",
+    "complete_log_available": true,
+    "command_receipt": "passed, exit0, cleanup0",
+    "last_observation_file": "candidate-jobs-cache-bounded.json",
+    "parent_authorized_handoff": true,
+    "followup": "One fresh jobs/checks GET may confirm API terminal status; do not rerun."
+  }
+}

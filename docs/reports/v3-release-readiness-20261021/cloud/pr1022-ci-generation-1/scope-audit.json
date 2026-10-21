@@ -1,0 +1,73 @@
+{
+  "changed_files": [
+    ".github/workflows/README.md",
+    ".github/workflows/chat-lifecycle-formal-finalize.yml",
+    ".github/workflows/chat-lifecycle-formal.yml",
+    ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+    ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "CHANGELOG.md",
+    "cmd/wkchatlifecycle/budget_downward_test.go",
+    "cmd/wkchatlifecycle/main.go",
+    "cmd/wkcli/internal/benchmark/budget_downward_test.go",
+    "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/usecase/chatlifecyclerun/FLOW.md",
+    "internal/usecase/chatlifecyclerun/budget_downward_test.go",
+    "internal/usecase/chatlifecyclerun/run.go",
+    "internal/usecase/clouddeploy/FLOW.md",
+    "internal/usecase/clouddeploy/budget_downward_test.go",
+    "internal/usecase/clouddeploy/deployment.go",
+    "scripts/chat-lifecycle/authenticate-released-preclock.py",
+    "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+    "scripts/chat-lifecycle/stage-orchestrate.sh",
+    "scripts/chat_lifecycle_downward_budget_consumers_integration_test.go",
+    "scripts/chat_lifecycle_downward_budget_consumers_test.go",
+    "scripts/chat_lifecycle_downward_budget_integration_test.go",
+    "scripts/chat_lifecycle_downward_budget_test.go",
+    "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+    "scripts/chat_lifecycle_workflows_test.go"
+  ],
+  "trigger_boundary": {
+    "v3_candidate": "Go/internal/scripts changes match paths; complete named default/scripts + dependent E2E",
+    "three_node": "Go/internal/scripts changes match paths; PR modes only; nightly and diagnostic event branches skipped",
+    "sdk": "The changed .github/workflows/README.md explicitly matches the SDK pull_request path filter",
+    "native_preview": "cmd/wkcli/**, internal/**, and .github/workflows/README.md match native preview path filters",
+    "manager": "No changed file matches Manager workflow paths; workflow README does not match its filter, so not triggered on this head"
+  },
+  "job_bounds_minutes": {
+    "candidate_default": 35,
+    "candidate_scripts": 20,
+    "candidate_e2e": 35,
+    "native_build_install": 60,
+    "sdk_android": 40,
+    "sdk_ios": 35
+  },
+  "publication_claim": false,
+  "read_only_ci_only": true,
+  "workflow_timeouts": {
+    "v3-candidate-regression.yml": [
+      "timeout-minutes: 35",
+      "timeout-minutes: 20",
+      "timeout-minutes: 35"
+    ],
+    "native-package-preview.yml": [
+      "timeout-minutes: 60",
+      "timeout-minutes: 30"
+    ],
+    "easysdk-release-acceptance.yml": [
+      "timeout-minutes: 40",
+      "timeout-minutes: 35",
+      "timeout-minutes: 40"
+    ],
+    "three-node-chat-lifecycle-regression.yml": [
+      "timeout-minutes: 3",
+      "timeout-minutes: 35",
+      "timeout-minutes: 20",
+      "timeout-minutes: 25",
+      "timeout-minutes: 2",
+      "timeout-minutes: 45",
+      "timeout-minutes: 20"
+    ]
+  }
+}

@@ -1,0 +1,173 @@
+2026-10-21T15:47:33.9975948Z --- FAIL: TestNativePackageLifecycle (306.17s)
+2026-10-21T15:47:33.9979020Z     native_package_lifecycle_integration_test.go:43: native package lifecycle validation failed: exit status 1
+2026-10-21T15:47:33.9981413Z         package bootstrap and systemd did not reach running or degraded state within 300 seconds
+2026-10-21T15:47:33.9982582Z         native package lifecycle container logs:
+2026-10-21T15:47:33.9983505Z         native package bootstrap stage=package-update
+2026-10-21T15:47:33.9984412Z         native package bootstrap stage=package-install
+2026-10-21T15:47:33.9985251Z         Rocky Linux 9 - BaseOS                           86 MB/s |  40 MB     00:00    
+2026-10-21T15:47:33.9986144Z         Rocky Linux 9 - AppStream                       100 kB/s |  28 MB     04:46    
+2026-10-21T15:47:33.9988020Z         Rocky Linux 9 - Extras                           22 kB/s |  17 kB     00:00    
+2026-10-21T15:47:33.9990332Z         Last metadata expiration check: 0:00:01 ago on Wed Oct 21 15:47:29 2026.
+2026-10-21T15:47:33.9991090Z         Dependencies resolved.
+2026-10-21T15:47:33.9992273Z         =======================================================================================
+2026-10-21T15:47:33.9993138Z          Package                 Arch    Version                            Repository     Size
+2026-10-21T15:47:33.9994808Z         =======================================================================================
+2026-10-21T15:47:33.9995325Z         Installing:
+2026-10-21T15:47:33.9996685Z          wukongim                x86_64  3.0.0~beta.24_SNAPSHOT_8e8c0ab33-1 @commandline   37 M
+2026-10-21T15:47:33.9998100Z         Upgrading:
+2026-10-21T15:47:33.9998842Z          libacl                  x86_64  2.4.0-1.el9_8                      baseos         25 k
+2026-10-21T15:47:34.0000097Z          openssl                 x86_64  1:3.5.8-2.el9_8                    baseos        1.4 M
+2026-10-21T15:47:34.0002032Z          openssl-libs            x86_64  1:3.5.8-2.el9_8                    baseos        2.3 M
+2026-10-21T15:47:34.0003363Z          systemd-libs            x86_64  252-67.el9_8.6.rocky.0.1           baseos        637 k
+2026-10-21T15:47:34.0004096Z         Installing dependencies:
+2026-10-21T15:47:34.0004778Z          acl                     x86_64  2.4.0-1.el9_8                      baseos         74 k
+2026-10-21T15:47:34.0006446Z          dbus                    x86_64  1:1.12.20-8.el9                    baseos        6.8 k
+2026-10-21T15:47:34.0007373Z          dbus-broker             x86_64  28-9.el9_8                         baseos        169 k
+2026-10-21T15:47:34.0008211Z          dbus-common             noarch  1:1.12.20-8.el9                    baseos         14 k
+2026-10-21T15:47:34.0008895Z          kmod-libs               x86_64  28-11.el9                          baseos         62 k
+2026-10-21T15:47:34.0009964Z          libseccomp              x86_64  2.5.2-2.el9                        baseos         71 k
+2026-10-21T15:47:34.0010858Z          openssl-fips-provider   x86_64  1:3.5.8-2.el9_8                    baseos        813 k
+2026-10-21T15:47:34.0011689Z          systemd                 x86_64  252-67.el9_8.6.rocky.0.1           baseos        4.0 M
+2026-10-21T15:47:34.0012734Z          systemd-pam             x86_64  252-67.el9_8.6.rocky.0.1           baseos        244 k
+2026-10-21T15:47:34.0013601Z          systemd-rpm-macros      noarch  252-67.el9_8.6.rocky.0.1           baseos         32 k
+2026-10-21T15:47:34.0014067Z         
+2026-10-21T15:47:34.0014568Z         Transaction Summary
+2026-10-21T15:47:34.0016244Z         =======================================================================================
+2026-10-21T15:47:34.0016647Z         Install  11 Packages
+2026-10-21T15:47:34.0016953Z         Upgrade   4 Packages
+2026-10-21T15:47:34.0017203Z         
+2026-10-21T15:47:34.0017447Z         Total size: 47 M
+2026-10-21T15:47:34.0017843Z         Total download size: 9.8 M
+2026-10-21T15:47:34.0018170Z         Downloading Packages:
+2026-10-21T15:47:34.0018688Z         (1/14): dbus-1.12.20-8.el9.x86_64.rpm            33 kB/s | 6.8 kB     00:00    
+2026-10-21T15:47:34.0019574Z         (2/14): dbus-common-1.12.20-8.el9.noarch.rpm    146 kB/s |  14 kB     00:00    
+2026-10-21T15:47:34.0020230Z         (3/14): acl-2.4.0-1.el9_8.x86_64.rpm            185 kB/s |  74 kB     00:00    
+2026-10-21T15:47:34.0020958Z         (4/14): dbus-broker-28-9.el9_8.x86_64.rpm       340 kB/s | 169 kB     00:00    
+2026-10-21T15:47:34.0021831Z         (5/14): kmod-libs-28-11.el9.x86_64.rpm          315 kB/s |  62 kB     00:00    
+2026-10-21T15:47:34.0022498Z         (6/14): libseccomp-2.5.2-2.el9.x86_64.rpm       538 kB/s |  71 kB     00:00    
+2026-10-21T15:47:34.0023221Z         (7/14): systemd-pam-252-67.el9_8.6.rocky.0.1.x8 1.1 MB/s | 244 kB     00:00    
+2026-10-21T15:47:34.0023959Z         (8/14): openssl-fips-provider-3.5.8-2.el9_8.x86 2.8 MB/s | 813 kB     00:00    
+2026-10-21T15:47:34.0024702Z         (9/14): systemd-rpm-macros-252-67.el9_8.6.rocky 392 kB/s |  32 kB     00:00    
+2026-10-21T15:47:34.0025416Z         (10/14): libacl-2.4.0-1.el9_8.x86_64.rpm        320 kB/s |  25 kB     00:00    
+2026-10-21T15:47:34.0026045Z         (11/14): systemd-252-67.el9_8.6.rocky.0.1.x86_6 7.4 MB/s | 4.0 MB     00:00    
+2026-10-21T15:47:34.0026741Z         (12/14): openssl-libs-3.5.8-2.el9_8.x86_64.rpm   10 MB/s | 2.3 MB     00:00    
+2026-10-21T15:47:34.0027430Z         (13/14): openssl-3.5.8-2.el9_8.x86_64.rpm       5.0 MB/s | 1.4 MB     00:00    
+2026-10-21T15:47:34.0028044Z         (14/14): systemd-libs-252-67.el9_8.6.rocky.0.1. 7.3 MB/s | 637 kB     00:00    
+2026-10-21T15:47:34.0028658Z         --------------------------------------------------------------------------------
+2026-10-21T15:47:34.0029502Z         Total                                           8.0 MB/s | 9.8 MB     00:01     
+2026-10-21T15:47:34.0030092Z         Rocky Linux 9 - BaseOS                          1.7 MB/s | 1.7 kB     00:00    
+2026-10-21T15:47:34.0030540Z         Importing GPG key 0x350D275D:
+2026-10-21T15:47:34.0031210Z          Userid     : "Rocky Enterprise Software Foundation - Release key 2022 <releng@rockylinux.org>"
+2026-10-21T15:47:34.0031900Z          Fingerprint: 21CB 256A E16F C54C 6E65 2949 702D 426D 350D 275D
+2026-10-21T15:47:34.0032434Z          From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky-9
+2026-10-21T15:47:34.0032917Z         Key imported successfully
+2026-10-21T15:47:34.0033441Z         Running transaction check
+2026-10-21T15:47:34.0033777Z         Transaction check succeeded.
+2026-10-21T15:47:34.0034203Z         Running transaction test
+2026-10-21T15:47:34.0034537Z         Transaction test succeeded.
+2026-10-21T15:47:34.0034846Z         Running transaction
+2026-10-21T15:47:34.0035614Z           Preparing        :                                                        1/1 
+2026-10-21T15:47:34.0036256Z           Upgrading        : libacl-2.4.0-1.el9_8.x86_64                           1/19 
+2026-10-21T15:47:34.0036905Z           Installing       : acl-2.4.0-1.el9_8.x86_64                              2/19 
+2026-10-21T15:47:34.0037563Z           Upgrading        : openssl-libs-1:3.5.8-2.el9_8.x86_64                   3/19 
+2026-10-21T15:47:34.0038411Z           Installing       : openssl-fips-provider-1:3.5.8-2.el9_8.x86_64          4/19 
+2026-10-21T15:47:34.0039769Z           Upgrading        : systemd-libs-252-67.el9_8.6.rocky.0.1.x86_64          5/19 
+2026-10-21T15:47:34.0040483Z           Running scriptlet: systemd-libs-252-67.el9_8.6.rocky.0.1.x86_64          5/19 
+2026-10-21T15:47:34.0041273Z           Installing       : kmod-libs-28-11.el9.x86_64                            6/19 
+2026-10-21T15:47:34.0042032Z           Installing       : systemd-rpm-macros-252-67.el9_8.6.rocky.0.1.noarch    7/19 
+2026-10-21T15:47:34.0042715Z           Installing       : libseccomp-2.5.2-2.el9.x86_64                         8/19 
+2026-10-21T15:47:34.0043458Z           Installing       : dbus-1:1.12.20-8.el9.x86_64                           9/19 
+2026-10-21T15:47:34.0044192Z           Installing       : systemd-pam-252-67.el9_8.6.rocky.0.1.x86_64          10/19 
+2026-10-21T15:47:34.0044895Z           Running scriptlet: systemd-252-67.el9_8.6.rocky.0.1.x86_64              11/19 
+2026-10-21T15:47:34.0045678Z           Installing       : systemd-252-67.el9_8.6.rocky.0.1.x86_64              11/19 
+2026-10-21T15:47:34.0046438Z           Running scriptlet: systemd-252-67.el9_8.6.rocky.0.1.x86_64              11/19 
+2026-10-21T15:47:34.0047217Z           Installing       : dbus-common-1:1.12.20-8.el9.noarch                   12/19 
+2026-10-21T15:47:34.0047976Z           Running scriptlet: dbus-common-1:1.12.20-8.el9.noarch                   12/19 
+2026-10-21T15:47:34.0049491Z         Created symlink /etc/systemd/system/sockets.target.wants/dbus.socket → /usr/lib/systemd/system/dbus.socket.
+2026-10-21T15:47:34.0050576Z         Created symlink /etc/systemd/user/sockets.target.wants/dbus.socket → /usr/lib/systemd/user/dbus.socket.
+2026-10-21T15:47:34.0053654Z         
+2026-10-21T15:47:34.0054685Z           Installing       : dbus-broker-28-9.el9_8.x86_64                        13/19 
+2026-10-21T15:47:34.0056146Z           Running scriptlet: dbus-broker-28-9.el9_8.x86_64                        13/19 
+2026-10-21T15:47:34.0058029Z         Created symlink /etc/systemd/system/dbus.service → /usr/lib/systemd/system/dbus-broker.service.
+2026-10-21T15:47:34.0060073Z         Created symlink /etc/systemd/user/dbus.service → /usr/lib/systemd/user/dbus-broker.service.
+2026-10-21T15:47:34.0060612Z         
+2026-10-21T15:47:34.0060943Z         
+2026-10-21T15:47:34.0061223Z         native package bootstrap stage:
+2026-10-21T15:47:34.0061757Z         package-install
+2026-10-21T15:47:34.0062011Z         
+2026-10-21T15:47:34.0062265Z         native package PID 1:
+2026-10-21T15:47:34.0062642Z         sh
+2026-10-21T15:47:34.0062898Z         /bin/sh -ec set -eu
+2026-10-21T15:47:34.0063203Z         bootstrap_stage() {
+2026-10-21T15:47:34.0063633Z           printf '%s\n' "$1" >/run/wk-native-bootstrap-stage
+2026-10-21T15:47:34.0064164Z           printf 'native package bootstrap stage=%s\n' "$1" >&2
+2026-10-21T15:47:34.0064601Z         }
+2026-10-21T15:47:34.0065322Z         if [ -n "${NATIVE_PACKAGE_TEST_APT_MIRROR:-}" ] && [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+2026-10-21T15:47:34.0066816Z           sed -i -e "s#http://archive.ubuntu.com/ubuntu/#${NATIVE_PACKAGE_TEST_APT_MIRROR}/#" -e "s#http://security.ubuntu.com/ubuntu/#${NATIVE_PACKAGE_TEST_APT_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
+2026-10-21T15:47:34.0067890Z         fi
+2026-10-21T15:47:34.0068269Z         if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+2026-10-21T15:47:34.0068957Z           sed -i 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources
+2026-10-21T15:47:34.0069648Z         fi
+2026-10-21T15:47:34.0070133Z         # Reuse this fresh container metadata during the later reinstall lifecycle.
+2026-10-21T15:47:34.0070620Z         bootstrap_stage package-update
+2026-10-21T15:47:34.0070914Z         :
+2026-10-21T15:47:34.0071199Z         bootstrap_stage package-install
+2026-10-21T15:47:34.0071594Z         dnf install -y /opt/wukongim-package.rpm
+2026-10-21T15:47:34.0071966Z         bootstrap_stage systemd-exec
+2026-10-21T15:47:34.0072594Z         if [ -x /lib/systemd/systemd ]; then exec /lib/systemd/systemd; fi
+2026-10-21T15:47:34.0073340Z         if [ -x /usr/lib/systemd/systemd ]; then exec /usr/lib/systemd/systemd; fi
+2026-10-21T15:47:34.0074063Z         echo 'systemd executable is missing after package installation' >&2
+2026-10-21T15:47:34.0074464Z         exit 1 
+2026-10-21T15:47:34.0074756Z         
+2026-10-21T15:47:34.0075037Z         native package systemd state:
+2026-10-21T15:47:34.0075590Z         System has not been booted with systemd as init system (PID 1). Can't operate.
+2026-10-21T15:47:34.0076184Z         Failed to connect to bus: Host is down
+2026-10-21T15:47:34.0076472Z         
+2026-10-21T15:47:34.0076732Z         native package systemd jobs:
+2026-10-21T15:47:34.0077360Z         System has not been booted with systemd as init system (PID 1). Can't operate.
+2026-10-21T15:47:34.0077932Z         Failed to connect to bus: Host is down
+2026-10-21T15:47:34.0078221Z         
+2026-10-21T15:47:34.0078562Z         native package system journal:
+2026-10-21T15:47:34.0078900Z         No journal files were found.
+2026-10-21T15:47:34.0079528Z         -- No entries --
+2026-10-21T15:47:34.0079803Z         
+2026-10-21T15:47:34.0080061Z         wukongim service status:
+2026-10-21T15:47:34.0080616Z         System has not been booted with systemd as init system (PID 1). Can't operate.
+2026-10-21T15:47:34.0081125Z         Failed to connect to bus: Host is down
+2026-10-21T15:47:34.0081416Z         
+2026-10-21T15:47:34.0081774Z         wukongim service journal:
+2026-10-21T15:47:34.0082108Z         No journal files were found.
+2026-10-21T15:47:34.0082506Z         -- No entries --
+2026-10-21T15:47:34.0082740Z         
+2026-10-21T15:47:34.0082920Z FAIL
+2026-10-21T15:47:34.0083178Z FAIL	github.com/WuKongIM/WuKongIM/scripts	306.187s
+2026-10-21T15:47:34.0083485Z FAIL
+2026-10-21T15:47:34.5638245Z ##[error]Process completed with exit code 1.
+2026-10-21T15:47:34.5696622Z ##[group]Run git diff --exit-code
+2026-10-21T15:47:34.5696993Z [36;1mgit diff --exit-code[0m
+2026-10-21T15:47:34.5697296Z [36;1mgit diff --cached --exit-code[0m
+2026-10-21T15:47:34.5747762Z shell: /usr/bin/bash -e {0}
+2026-10-21T15:47:34.5748082Z env:
+2026-10-21T15:47:34.5748294Z   GOWORK: off
+2026-10-21T15:47:34.5748536Z   WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION: 1
+2026-10-21T15:47:34.5748885Z   WK_NATIVE_PACKAGE_LIFECYCLE_IMAGE: rockylinux:9
+2026-10-21T15:47:34.5749543Z   WK_NATIVE_PACKAGE_LIFECYCLE_FORMAT: rpm
+2026-10-21T15:47:34.5749962Z   WK_NATIVE_PACKAGE_DIST_DIR: /home/runner/work/WuKongIM/WuKongIM/dist
+2026-10-21T15:47:34.5750345Z   GOTOOLCHAIN: local
+2026-10-21T15:47:34.5750569Z ##[endgroup]
+2026-10-21T15:47:35.0957888Z Post job cleanup.
+2026-10-21T15:47:35.1902099Z [command]/usr/bin/git version
+2026-10-21T15:47:35.1946058Z git version 2.55.0
+2026-10-21T15:47:35.1987664Z Temporarily overriding HOME='/home/runner/work/_temp/b3f7cc80-10bc-4c57-804d-bd1049cfd176' before making global git config changes
+2026-10-21T15:47:35.1989151Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:47:35.1993950Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:47:35.2036370Z Removing SSH command configuration
+2026-10-21T15:47:35.2045400Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:47:35.2094787Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:47:35.2395758Z Removing HTTP extra header
+2026-10-21T15:47:35.2404040Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:47:35.2455249Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:47:35.2771458Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:47:35.2779751Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:47:35.2857960Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T15:47:35.3350956Z Cleaning up orphan processes

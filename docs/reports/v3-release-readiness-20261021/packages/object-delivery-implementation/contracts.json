@@ -1,0 +1,8 @@
+{
+  "command": [
+    "bash",
+    "tests/contract.sh"
+  ],
+  "exit_code": 0,
+  "duration_seconds": 1.814
+}

@@ -1,0 +1,99 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119309607351/logs",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T15:31:26.402992+00:00",
+  "job_id": 119309607351,
+  "run_id": 39625524550,
+  "conclusion": "success",
+  "raw_bytes": 76377,
+  "raw_sha256": "62212f30338bc3edf58bd255d4a2f4cb1c7f31eb76bcc84f2c8a2ebadeeb51dd",
+  "public_bytes": 75928,
+  "public_sha256": "a024a18fe04c5b7c6396715b62e2beabb448d23e4d2a9c5b66b0950fd89fea42",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "size": 63,
+      "sha256": "dc2e2bbf37d4aa521870660328a946affa466f17d70da6fa7d38fcae538b7340"
+    },
+    {
+      "line": 26,
+      "size": 52,
+      "sha256": "9b056e4b02911edb8bfe87764dbef33d7e3c4f3a5b3d4e0c7c5cc80f0887492c"
+    },
+    {
+      "line": 40,
+      "size": 42,
+      "sha256": "93028a0e894c542f23d7fa720f54086e36078c4c0c04e479c419f4b9bf8dae81"
+    },
+    {
+      "line": 97,
+      "size": 211,
+      "sha256": "533cd32bab93cac69bb7e715d03b48c05a7e7fed07df755dad74d73232f4ee4f"
+    },
+    {
+      "line": 140,
+      "size": 42,
+      "sha256": "4258351aad6890225741c9c6c431123ba7424f4ddd07b6d66e7eb9b976b8f615"
+    },
+    {
+      "line": 222,
+      "size": 42,
+      "sha256": "c9e172c6055e9c4d17b82306f1816cd6bc5ca51aa827473808b75991fe90bebd"
+    },
+    {
+      "line": 253,
+      "size": 61,
+      "sha256": "d3b6719bbc1fef021e1d50d257b52aadff92906d3380fc6a9a5d93fec8e6f5e0"
+    },
+    {
+      "line": 256,
+      "size": 42,
+      "sha256": "4d1e15924ed8de44d96f44cd607c21a9cf5578cac967c1ed6d14438d7b640abe"
+    },
+    {
+      "line": 282,
+      "size": 42,
+      "sha256": "e73dba5b8b94c2f687135a44a88032a5a95daa2d47daf7d82adf8e1ac60a9245"
+    },
+    {
+      "line": 342,
+      "size": 211,
+      "sha256": "9c451fba61e22d2069956aec20439e4749f09da0e957f2b6b35c3fc0e3d6e07b"
+    },
+    {
+      "line": 428,
+      "size": 86,
+      "sha256": "dbff599c66e707e6e24754b68760311ef0a7d6ea4b0488b86f11f883091e977d"
+    },
+    {
+      "line": 464,
+      "size": 86,
+      "sha256": "f83c3b4fa2aa26ba67256746e19f3ccebfd12e8abaa006d685f22761418a3561"
+    },
+    {
+      "line": 664,
+      "size": 259,
+      "sha256": "284bc7866443911ee372ca03495fb77f67309d293276eea20707920697102cd7"
+    },
+    {
+      "line": 671,
+      "size": 60,
+      "sha256": "ae2df075354a0568e250326e122782c2e2a74e157eea8960659bb3e5cf1c0c70"
+    },
+    {
+      "line": 672,
+      "size": 72,
+      "sha256": "c56dec7cfed10ca6c3f1f4ddf37fd09578d96d23e683ff6f690b45bf9609bb70"
+    },
+    {
+      "line": 792,
+      "size": 86,
+      "sha256": "8102c82d7030bcd231aa45580c4a5bf2f6c133117d60b2e08d5b06756078b6f0"
+    }
+  ],
+  "synthetic_sha_present": true,
+  "head_sha_present": true
+}

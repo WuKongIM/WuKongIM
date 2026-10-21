@@ -1,0 +1,11 @@
+{
+  "diagnostic_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect",
+  "head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "temporary_instrumentation_preserved_as": "observation-v1.patch",
+  "temporary_instrumentation_removed": true,
+  "diagnostic_worktree_clean": true,
+  "shipping_worktree_clean": true,
+  "shipping_head": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "branch_retained_for_parent_decision": true,
+  "no_commits_pushes_or_ci_reruns": true
+}

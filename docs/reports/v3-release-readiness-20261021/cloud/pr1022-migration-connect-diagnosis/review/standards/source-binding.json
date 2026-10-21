@@ -1,0 +1,102 @@
+{
+  "review_axis": "standards",
+  "reviewed_at": "2026-10-21T15:53:15.847728+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-migration-connect",
+  "base_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "branch_commits": [],
+  "scope_commands": [
+    "git diff HEAD",
+    "git ls-files --others --exclude-standard"
+  ],
+  "untracked_files": [],
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "83a5cce4f1e57e5f8a6f022ff5d4e63dd647bdce2a22a13aa8b0f24fc9c07b76",
+      "size": 190075
+    },
+    "test/e2e/migration/ordinary_history/AGENTS.md": {
+      "sha256": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+      "size": 2383
+    },
+    "test/e2e/migration/ordinary_history/ordinary_history_test.go": {
+      "sha256": "d24b12b77aadf0f356c46cff2930b2f293e8be33d645034e0118dac1eccf973c",
+      "size": 12087
+    }
+  },
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/implementation.patch",
+    "sha256": "66520f2d1742d4512baf83b820fc9c0c5c5254eaa0395d0a1904a3fe9eba653a",
+    "matches_git_diff_HEAD": true
+  },
+  "source_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/source-freeze.json",
+    "sha256": "2b326e8d61b33aa567f11e22c4931f319204010aa829f68b7939e86ab5a440b5"
+  },
+  "before_review_fix": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-migration-connect-diagnosis/repair-v2/before-review-fix.json",
+    "sha256": "f49314c531a8d1e2de71e39b830a68a0cd4623ae2688bdeb0aee4efe9818ad6d"
+  },
+  "standards_sources": {
+    "AGENTS.md": {
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "reviewed_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "base_revision": "9a4900dc67ac674791edba11ea9a719cd91ec570"
+    },
+    "test/e2e/AGENTS.md": {
+      "base_sha256": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603",
+      "reviewed_sha256": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603",
+      "base_revision": "9a4900dc67ac674791edba11ea9a719cd91ec570"
+    },
+    "test/e2e/migration/AGENTS.md": {
+      "base_sha256": "ada2ef6c7b39c62b09e7d5d26a9d6f2ddf2de344765d09ae9fa34490cf2d15c6",
+      "reviewed_sha256": "ada2ef6c7b39c62b09e7d5d26a9d6f2ddf2de344765d09ae9fa34490cf2d15c6",
+      "base_revision": "9a4900dc67ac674791edba11ea9a719cd91ec570"
+    },
+    "test/e2e/migration/ordinary_history/AGENTS.md": {
+      "base_sha256": "bb88da9005b7447e75a688e0afd7880a50e916a824320c80e89a6ee32a428e74",
+      "reviewed_sha256": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc",
+      "base_revision": "9a4900dc67ac674791edba11ea9a719cd91ec570"
+    },
+    "test/e2e/suite/FLOW.md": {
+      "base_sha256": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+      "reviewed_sha256": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+      "base_revision": "9a4900dc67ac674791edba11ea9a719cd91ec570"
+    }
+  },
+  "supporting_source_at_base": {
+    "test/e2e/suite/readiness.go": {
+      "sha256": "62ab9b64f2474403370ae99b30c8b09a0caeb6002e71f9c48f778e4bbd8e5377",
+      "working_copy_matches_base": true
+    },
+    "test/e2e/suite/process.go": {
+      "sha256": "04f9b8b0fd2996ca7ab167a550d995c4f5407ed7675b732312abf69abf9e8794",
+      "working_copy_matches_base": true
+    },
+    "test/e2e/suite/runtime.go": {
+      "sha256": "3b16c7c874fb3ad80b156c277ad4c897b41ed20cc4bba11eb7232ce88084981e",
+      "working_copy_matches_base": true
+    }
+  },
+  "smell_baseline_reviewed": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "hard_findings": 0,
+  "heuristic_findings": 0,
+  "validation_status": "v1 focused passed/full failed after restart; v2 not executed pending diagnosis",
+  "tests_executed_by_reviewer": false,
+  "implementation_modified": false,
+  "external_actions": false,
+  "report_word_count": 263
+}

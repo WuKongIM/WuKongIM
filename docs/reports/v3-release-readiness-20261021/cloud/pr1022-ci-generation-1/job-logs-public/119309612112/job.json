@@ -1,0 +1,27 @@
+{
+  "id": 119309612112,
+  "run_id": 39625524864,
+  "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1022 attempt 1",
+  "head_branch": "codex/v3-rc-budget-downward",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39625524864",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbx2g0UA",
+  "head_sha": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119309612112",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39625524864/job/119309612112",
+  "status": "completed",
+  "conclusion": "skipped",
+  "created_at": "2026-10-21T15:25:24Z",
+  "started_at": "2026-10-21T15:25:24Z",
+  "completed_at": "2026-10-21T15:25:24Z",
+  "name": "Fixed Linux SEND diagnosis",
+  "steps": [],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119309612112",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": null,
+  "runner_name": null,
+  "runner_group_id": null,
+  "runner_group_name": null
+}

@@ -1,0 +1,789 @@
+﻿2026-10-21T15:25:31.6962940Z Current runner version: '2.338.0'
+2026-10-21T15:25:31.6988350Z ##[group]Runner Image Provisioner
+2026-10-21T15:25:31.6990110Z Hosted Compute Agent
+2026-10-21T15:25:31.6991360Z Version: 20260828.587
+2026-10-21T15:25:31.6992580Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-21T15:25:31.6994220Z Build Date: 2026-08-28T16:44:25Z
+2026-10-21T15:25:31.6995820Z Worker ID: {2f2f0656-4790-43d5-864d-651c3f66f977}
+2026-10-21T15:25:31.6997340Z Azure Region: westus
+2026-10-21T15:25:31.6998620Z ##[endgroup]
+2026-10-21T15:25:31.7002250Z ##[group]Operating System
+2026-10-21T15:25:31.7003480Z macOS
+2026-10-21T15:25:31.7004450Z 15.7.9
+2026-10-21T15:25:31.7005480Z 24G830
+2026-10-21T15:25:31.7006510Z ##[endgroup]
+2026-10-21T15:25:31.7007600Z ##[group]Runner Image
+2026-10-21T15:25:31.7008930Z Image: macos-15-arm64
+2026-10-21T15:25:31.7010200Z Version: 20260907.0337.1
+2026-10-21T15:25:31.7012660Z Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260907.0337/images/macos/macos-15-arm64-Readme.md
+2026-10-21T15:25:31.7015870Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260907.0337
+2026-10-21T15:25:31.7017900Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:31.7024750Z Contents: read
+2026-10-21T15:25:31.7025750Z Metadata: read
+2026-10-21T15:25:31.7027070Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:31.7032820Z Cache mode: write
+2026-10-21T15:25:31.7034280Z Prepare workflow directory
+2026-10-21T15:25:31.7503550Z Prepare all required actions
+2026-10-21T15:25:31.7541860Z Getting action download info
+2026-10-21T15:25:32.2069720Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-10-21T15:25:32.6987210Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-21T15:25:33.2586700Z Download action repository 'actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38' (SHA:249970729cb0ef3589644e2896645e5dc5ba9c38)
+2026-10-21T15:25:33.3972340Z Download action repository 'subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e' (SHA:fd55f4c5af5b953cc57a2be44cb082c8f6635e8e)
+2026-10-21T15:25:33.8709320Z Getting action download info
+2026-10-21T15:25:34.1068660Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-10-21T15:25:34.3599000Z Complete job name: Flutter pub.dev 1.1.0 on iOS
+2026-10-21T15:25:34.4351860Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-10-21T15:25:34.4353710Z with:
+2026-10-21T15:25:34.4354380Z   repository: WuKongIM/WuKongIM
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:34.4362120Z   ssh-strict: true
+2026-10-21T15:25:34.4362760Z   ssh-user: git
+2026-10-21T15:25:34.4363410Z   persist-credentials: true
+2026-10-21T15:25:34.4364130Z   clean: true
+2026-10-21T15:25:34.4364750Z   sparse-checkout-cone-mode: true
+2026-10-21T15:25:34.4365640Z   fetch-depth: 1
+2026-10-21T15:25:34.4366290Z   fetch-tags: false
+2026-10-21T15:25:34.4366970Z   show-progress: true
+2026-10-21T15:25:34.4367630Z   lfs: false
+2026-10-21T15:25:34.4368260Z   submodules: false
+2026-10-21T15:25:34.4368910Z   set-safe-directory: true
+2026-10-21T15:25:34.4369640Z   allow-unsafe-pr-checkout: false
+2026-10-21T15:25:34.4374640Z env:
+2026-10-21T15:25:34.4375330Z   LANG: en_US.UTF-8
+2026-10-21T15:25:34.4375960Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:25:34.4376670Z ##[endgroup]
+2026-10-21T15:25:34.9705320Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T15:25:34.9707500Z ##[group]Getting Git version info
+2026-10-21T15:25:34.9708390Z Working directory is '/Users/runner/work/WuKongIM/WuKongIM'
+2026-10-21T15:25:34.9709690Z [command]/opt/homebrew/bin/git version
+2026-10-21T15:25:35.0312460Z git version 2.55.0
+2026-10-21T15:25:35.0335880Z ##[endgroup]
+2026-10-21T15:25:35.0343830Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/f6c92be0-5510-4cd0-80d2-6a6fbc2b41a7/.gitconfig'
+2026-10-21T15:25:35.0346410Z Temporarily overriding HOME='/Users/runner/work/_temp/f6c92be0-5510-4cd0-80d2-6a6fbc2b41a7' before making global git config changes
+2026-10-21T15:25:35.0348320Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:25:35.0349970Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:25:35.0514260Z Deleting the contents of '/Users/runner/work/WuKongIM/WuKongIM'
+2026-10-21T15:25:35.0521760Z ##[group]Determining repository object format
+2026-10-21T15:25:35.0524910Z ##[endgroup]
+2026-10-21T15:25:35.0526460Z ##[group]Initializing the repository
+2026-10-21T15:25:35.0527730Z [command]/opt/homebrew/bin/git init /Users/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:25:35.1221930Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T15:25:35.1227120Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T15:25:35.1238380Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T15:25:35.1269470Z hint: call:
+2026-10-21T15:25:35.1272360Z hint:
+2026-10-21T15:25:35.1273540Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T15:25:35.1274680Z hint:
+2026-10-21T15:25:35.1275730Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T15:25:35.1277110Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T15:25:35.1278460Z hint:
+2026-10-21T15:25:35.1279210Z hint: 	git branch -m <name>
+2026-10-21T15:25:35.1280150Z hint:
+2026-10-21T15:25:35.1281180Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T15:25:35.1282960Z Initialized empty Git repository in /Users/runner/work/WuKongIM/WuKongIM/.git/
+2026-10-21T15:25:35.1285820Z [command]/opt/homebrew/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T15:25:35.1341090Z ##[endgroup]
+2026-10-21T15:25:35.1344670Z ##[group]Disabling automatic garbage collection
+2026-10-21T15:25:35.1347390Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-21T15:25:35.1513690Z ##[endgroup]
+2026-10-21T15:25:35.1515110Z ##[group]Setting up auth
+2026-10-21T15:25:35.1516380Z Removing SSH command configuration
+2026-10-21T15:25:35.1518180Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:25:35.1576470Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:25:35.2984190Z Removing HTTP extra header
+2026-10-21T15:25:35.2987670Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:25:35.3080980Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:25:35.4231940Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:25:35.4233700Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:25:35.4236650Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:35.5470830Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path /Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:25:35.5592950Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:25:35.5677210Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:25:35.5891810Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:25:35.5983350Z ##[endgroup]
+2026-10-21T15:25:35.5985760Z ##[group]Fetching the repository
+2026-10-21T15:25:35.5990550Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +8e8c0ab3321affc8655fb720a308e50bfaca15ca:refs/remotes/pull/1022/merge
+2026-10-21T15:25:40.2602440Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T15:25:40.2621470Z  * [new ref]         8e8c0ab3321affc8655fb720a308e50bfaca15ca -> pull/1022/merge
+2026-10-21T15:25:40.2684440Z ##[endgroup]
+2026-10-21T15:25:40.2685560Z ##[group]Determining the checkout info
+2026-10-21T15:25:40.2686430Z ##[endgroup]
+2026-10-21T15:25:40.2687150Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-21T15:25:40.2922830Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T15:25:40.3093900Z ##[group]Checking out the ref
+2026-10-21T15:25:40.3102730Z [command]/opt/homebrew/bin/git checkout --progress --force refs/remotes/pull/1022/merge
+2026-10-21T15:25:41.4069090Z Updating files:  72% (5697/7815)
+2026-10-21T15:25:41.4267690Z Updating files:  73% (5705/7815)
+2026-10-21T15:25:41.4375310Z Updating files:  74% (5784/7815)
+2026-10-21T15:25:41.4476520Z Updating files:  75% (5862/7815)
+2026-10-21T15:25:41.4609280Z Updating files:  76% (5940/7815)
+2026-10-21T15:25:41.4916990Z Updating files:  77% (6018/7815)
+2026-10-21T15:25:41.5020530Z Updating files:  78% (6096/7815)
+2026-10-21T15:25:41.5102290Z Updating files:  79% (6174/7815)
+2026-10-21T15:25:41.5184220Z Updating files:  80% (6252/7815)
+2026-10-21T15:25:41.5273940Z Updating files:  81% (6331/7815)
+2026-10-21T15:25:41.5415020Z Updating files:  82% (6409/7815)
+2026-10-21T15:25:41.5510220Z Updating files:  83% (6487/7815)
+2026-10-21T15:25:41.5698000Z Updating files:  84% (6565/7815)
+2026-10-21T15:25:41.5828350Z Updating files:  85% (6643/7815)
+2026-10-21T15:25:41.5962660Z Updating files:  86% (6721/7815)
+2026-10-21T15:25:41.6126910Z Updating files:  87% (6800/7815)
+2026-10-21T15:25:41.6270700Z Updating files:  88% (6878/7815)
+2026-10-21T15:25:41.8327200Z Updating files:  89% (6956/7815)
+2026-10-21T15:25:41.8436160Z Updating files:  90% (7034/7815)
+2026-10-21T15:25:41.8575160Z Updating files:  91% (7112/7815)
+2026-10-21T15:25:41.8814930Z Updating files:  92% (7190/7815)
+2026-10-21T15:25:41.9061540Z Updating files:  93% (7268/7815)
+2026-10-21T15:25:41.9163300Z Updating files:  94% (7347/7815)
+2026-10-21T15:25:41.9264810Z Updating files:  95% (7425/7815)
+2026-10-21T15:25:41.9366980Z Updating files:  96% (7503/7815)
+2026-10-21T15:25:41.9571430Z Updating files:  97% (7581/7815)
+2026-10-21T15:25:41.9774210Z Updating files:  98% (7659/7815)
+2026-10-21T15:25:41.9910420Z Updating files:  99% (7737/7815)
+2026-10-21T15:25:41.9910980Z Updating files: 100% (7815/7815)
+2026-10-21T15:25:41.9911340Z Updating files: 100% (7815/7815), done.
+2026-10-21T15:25:42.0038520Z HEAD is now at 8e8c0ab Merge 9a4900dc67ac674791edba11ea9a719cd91ec570 into aeb45c2164b6a50214928f520edd2a8815b7a976
+2026-10-21T15:25:42.0077210Z ##[endgroup]
+2026-10-21T15:25:42.0313120Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-21T15:25:42.0437090Z 8e8c0ab3321affc8655fb720a308e50bfaca15ca
+2026-10-21T15:25:42.1216230Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-21T15:25:42.1219880Z with:
+2026-10-21T15:25:42.1220770Z   go-version-file: go.mod
+2026-10-21T15:25:42.1221460Z   cache: true
+2026-10-21T15:25:42.1222040Z   check-latest: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:25:42.1241260Z env:
+2026-10-21T15:25:42.1241750Z   LANG: en_US.UTF-8
+2026-10-21T15:25:42.1242420Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:25:42.1242940Z ##[endgroup]
+2026-10-21T15:25:42.4799340Z Setup go version spec 1.25.11
+2026-10-21T15:25:42.4897620Z Attempting to download 1.25.11...
+2026-10-21T15:25:43.2205630Z matching 1.25.11...
+2026-10-21T15:25:43.2295700Z Acquiring 1.25.11 from https://github.com/actions/go-versions/releases/download/1.25.11-26891828414/go-1.25.11-darwin-arm64.tar.gz
+2026-10-21T15:25:44.0795360Z Extracting Go...
+2026-10-21T15:25:44.0989250Z [command]/usr/bin/tar xz -C /Users/runner/work/_temp/029de323-a63b-4b83-9822-ac0aee8cf906 -f /Users/runner/work/_temp/7797758c-9445-4224-a26b-340223bdb714
+2026-10-21T15:25:47.8704050Z Successfully extracted go to /Users/runner/work/_temp/029de323-a63b-4b83-9822-ac0aee8cf906
+2026-10-21T15:25:47.8706120Z Adding to the cache ...
+2026-10-21T15:26:01.9297330Z Successfully cached go to /Users/runner/hostedtoolcache/go/1.25.11/arm64
+2026-10-21T15:26:01.9298780Z Added go to the path
+2026-10-21T15:26:01.9299480Z Successfully set up Go version 1.25.11
+2026-10-21T15:26:02.2861210Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOCACHE
+2026-10-21T15:26:02.2884420Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOMODCACHE
+2026-10-21T15:26:02.2973880Z /Users/runner/Library/Caches/go-build
+2026-10-21T15:26:02.2992750Z /Users/runner/go/pkg/mod
+2026-10-21T15:26:02.6411680Z Cache hit for: setup-go-macOS-arm64-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4
+2026-10-21T15:26:03.9683370Z Received 0 of 382487116 (0.0%), 0.0 MBs/sec
+2026-10-21T15:26:04.9692930Z Received 50331648 of 382487116 (13.2%), 24.0 MBs/sec
+2026-10-21T15:26:05.9705720Z Received 130023424 of 382487116 (34.0%), 41.3 MBs/sec
+2026-10-21T15:26:06.9729420Z Received 155189248 of 382487116 (40.6%), 36.9 MBs/sec
+2026-10-21T15:26:07.9772490Z Received 222298112 of 382487116 (58.1%), 42.3 MBs/sec
+2026-10-21T15:26:08.9771130Z Received 268435456 of 382487116 (70.2%), 42.6 MBs/sec
+2026-10-21T15:26:09.9778230Z Received 348127232 of 382487116 (91.0%), 47.3 MBs/sec
+2026-10-21T15:26:10.5204150Z Received 382487116 of 382487116 (100.0%), 48.3 MBs/sec
+2026-10-21T15:26:10.5359260Z Cache Size: ~365 MB (382487116 B)
+2026-10-21T15:26:10.5396760Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/05ecf8ba-f371-4c4f-9433-ed18cd9fdb7a/cache.tzst -P -C /Users/runner/work/WuKongIM/WuKongIM --delay-directory-restore --use-compress-program unzstd
+2026-10-21T15:26:19.6346970Z Cache restored successfully
+2026-10-21T15:26:19.6458540Z Cache restored from key: setup-go-macOS-arm64-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4
+2026-10-21T15:26:19.6609750Z go version go1.25.11 darwin/arm64
+2026-10-21T15:26:19.6610230Z 
+2026-10-21T15:26:19.6611400Z ##[group]go env
+2026-10-21T15:26:22.4189900Z AR='ar'
+2026-10-21T15:26:22.4190540Z CC='clang'
+2026-10-21T15:26:22.4191030Z CGO_CFLAGS='-O2 -g'
+2026-10-21T15:26:22.4191390Z CGO_CPPFLAGS=''
+2026-10-21T15:26:22.4192100Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T15:26:22.4192480Z CGO_ENABLED='1'
+2026-10-21T15:26:22.4193120Z CGO_FFLAGS='-O2 -g'
+2026-10-21T15:26:22.4193550Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T15:26:22.4193840Z CXX='clang++'
+2026-10-21T15:26:22.4196420Z GCCGO='gccgo'
+2026-10-21T15:26:22.4197420Z GO111MODULE=''
+2026-10-21T15:26:22.4198310Z GOARCH='arm64'
+2026-10-21T15:26:22.4199110Z GOARM64='v8.0'
+2026-10-21T15:26:22.4199800Z GOAUTH='netrc'
+2026-10-21T15:26:22.4200560Z GOBIN=''
+2026-10-21T15:26:22.4205330Z GOCACHE='/Users/runner/Library/Caches/go-build'
+2026-10-21T15:26:22.4205840Z GOCACHEPROG=''
+2026-10-21T15:26:22.4206350Z GODEBUG=''
+2026-10-21T15:26:22.4208380Z GOENV='/Users/runner/Library/Application Support/go/env'
+2026-10-21T15:26:22.4208770Z GOEXE=''
+2026-10-21T15:26:22.4209050Z GOEXPERIMENT=''
+2026-10-21T15:26:22.4209260Z GOFIPS140='off'
+2026-10-21T15:26:22.4209890Z GOFLAGS=''
+2026-10-21T15:26:22.4211080Z GOGCCFLAGS='-fPIC -arch arm64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -ffile-prefix-map=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/go-build3713873095=/tmp/go-build -gno-record-gcc-switches -fno-common'
+2026-10-21T15:26:22.4281230Z GOHOSTARCH='arm64'
+2026-10-21T15:26:22.4281980Z GOHOSTOS='darwin'
+2026-10-21T15:26:22.4282850Z GOINSECURE=''
+2026-10-21T15:26:22.4283350Z GOMOD='/Users/runner/work/WuKongIM/WuKongIM/go.mod'
+2026-10-21T15:26:22.4283820Z GOMODCACHE='/Users/runner/go/pkg/mod'
+2026-10-21T15:26:22.4284110Z GONOPROXY=''
+2026-10-21T15:26:22.4284920Z GONOSUMDB=''
+2026-10-21T15:26:22.4286250Z GOOS='darwin'
+2026-10-21T15:26:22.4286790Z GOPATH='/Users/runner/go'
+2026-10-21T15:26:22.4287740Z GOPRIVATE=''
+2026-10-21T15:26:22.4289370Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T15:26:22.4289810Z GOROOT='/Users/runner/hostedtoolcache/go/1.25.11/arm64'
+2026-10-21T15:26:22.4290210Z GOSUMDB='sum.golang.org'
+2026-10-21T15:26:22.4290500Z GOTELEMETRY='local'
+2026-10-21T15:26:22.4290920Z GOTELEMETRYDIR='/Users/runner/Library/Application Support/go/telemetry'
+2026-10-21T15:26:22.4292080Z GOTMPDIR=''
+2026-10-21T15:26:22.4293580Z GOTOOLCHAIN='local'
+2026-10-21T15:26:22.4294100Z GOTOOLDIR='/Users/runner/hostedtoolcache/go/1.25.11/arm64/pkg/tool/darwin_arm64'
+2026-10-21T15:26:22.4294470Z GOVCS=''
+2026-10-21T15:26:22.4295420Z GOVERSION='go1.25.11'
+2026-10-21T15:26:22.4296710Z GOWORK=''
+2026-10-21T15:26:22.4298160Z PKG_CONFIG='pkg-config'
+2026-10-21T15:26:22.4298420Z 
+2026-10-21T15:26:22.4302620Z ##[endgroup]
+2026-10-21T15:26:22.5065450Z ##[group]Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+2026-10-21T15:26:22.5065930Z with:
+2026-10-21T15:26:22.5066200Z   node-version: 22.12.0
+2026-10-21T15:26:22.5066480Z   cache: npm
+2026-10-21T15:26:22.5066900Z   cache-dependency-path: test/easysdk-release/peer/package-lock.json
+2026-10-21T15:26:22.5067260Z   check-latest: false
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:26:22.5069770Z   package-manager-cache: true
+2026-10-21T15:26:22.5070020Z env:
+2026-10-21T15:26:22.5070230Z   LANG: en_US.UTF-8
+2026-10-21T15:26:22.5070450Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:22.5070750Z   GOTOOLCHAIN: local
+2026-10-21T15:26:22.5071010Z ##[endgroup]
+2026-10-21T15:26:22.8206860Z Attempting to download 22.12.0...
+2026-10-21T15:26:23.5760480Z Acquiring 22.12.0 - arm64 from https://github.com/actions/node-versions/releases/download/22.12.0-12152383658/node-22.12.0-darwin-arm64.tar.gz
+2026-10-21T15:26:24.4534920Z Extracting ...
+2026-10-21T15:26:24.4760560Z [command]/usr/bin/tar xz --strip 1 -C /Users/runner/work/_temp/9a3cbd09-ba0f-4b3c-8c1f-9f86d10eed18 -f /Users/runner/work/_temp/317c69cc-e9c3-4057-acf4-84b163f3c316
+2026-10-21T15:26:26.0370490Z Adding to the cache ...
+2026-10-21T15:26:29.2748090Z ##[group]Environment details
+2026-10-21T15:26:29.7109510Z node: v22.12.0
+2026-10-21T15:26:29.7110530Z npm: 10.9.0
+2026-10-21T15:26:29.7111040Z yarn: 1.22.22
+2026-10-21T15:26:29.7112690Z ##[endgroup]
+2026-10-21T15:26:29.7167620Z [command]/Users/runner/hostedtoolcache/node/22.12.0/arm64/bin/npm config get cache
+2026-10-21T15:26:29.9344830Z /Users/runner/.npm
+2026-10-21T15:26:30.2729250Z Cache hit for: node-cache-macOS-arm64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac
+2026-10-21T15:26:31.2828850Z Received 71329 of 71329 (100.0%), 0.1 MBs/sec
+2026-10-21T15:26:31.2836200Z Cache Size: ~0 MB (71329 B)
+2026-10-21T15:26:31.2855320Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/0333ed7e-2d25-42c2-a9f8-d882eabf9a29/cache.tzst -P -C /Users/runner/work/WuKongIM/WuKongIM --delay-directory-restore --use-compress-program unzstd
+2026-10-21T15:26:31.3122670Z Cache restored successfully
+2026-10-21T15:26:31.3134320Z Cache restored from key: node-cache-macOS-arm64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac
+2026-10-21T15:26:31.3681170Z ##[group]Run subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+2026-10-21T15:26:31.3681680Z with:
+2026-10-21T15:26:31.3682000Z   channel: stable
+2026-10-21T15:26:31.3682320Z   flutter-version: 3.41.4
+2026-10-21T15:26:31.3682580Z   cache: true
+2026-10-21T15:26:31.3683400Z   architecture: ARM64
+2026-10-21T15:26:31.3683670Z   pub-cache-path: default
+2026-10-21T15:26:31.3683860Z   dry-run: false
+2026-10-21T15:26:31.3684080Z   git-source: https://github.com/flutter/flutter.git
+2026-10-21T15:26:31.3684370Z env:
+2026-10-21T15:26:31.3684590Z   LANG: en_US.UTF-8
+2026-10-21T15:26:31.3684860Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:31.3685130Z   GOTOOLCHAIN: local
+2026-10-21T15:26:31.3685290Z ##[endgroup]
+2026-10-21T15:26:31.3746130Z ##[start-action display=Make yq tool available on Windows runners;id=__subosito_flutter-action.__run]
+2026-10-21T15:26:31.3753740Z ##[end-action id=__subosito_flutter-action.__run;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-21T15:26:31.3755880Z ##[start-action display=Make setup script executable;id=__subosito_flutter-action.__run_2]
+2026-10-21T15:26:31.3802670Z ##[group]Run chmod +x "$GITHUB_ACTION_PATH/setup.sh"
+2026-10-21T15:26:31.3803020Z [36;1mchmod +x "$GITHUB_ACTION_PATH/setup.sh"[0m
+2026-10-21T15:26:31.6282830Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T15:26:31.6283170Z env:
+2026-10-21T15:26:31.6283360Z   LANG: en_US.UTF-8
+2026-10-21T15:26:31.6283530Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:31.6283700Z   GOTOOLCHAIN: local
+2026-10-21T15:26:31.6283860Z ##[endgroup]
+2026-10-21T15:26:31.7209470Z ##[end-action id=__subosito_flutter-action.__run_2;outcome=success;conclusion=success;duration_ms=345]
+2026-10-21T15:26:31.7212000Z ##[start-action display=Set action inputs;id=__subosito_flutter-action.flutter-action]
+2026-10-21T15:26:31.7253700Z ##[group]Run $GITHUB_ACTION_PATH/setup.sh -p \
+2026-10-21T15:26:31.7254090Z [36;1m$GITHUB_ACTION_PATH/setup.sh -p \[0m
+2026-10-21T15:26:31.7254390Z [36;1m  -n '3.41.4' \[0m
+2026-10-21T15:26:31.7254590Z [36;1m  -f '' \[0m
+2026-10-21T15:26:31.7254810Z [36;1m  -a 'ARM64' \[0m
+2026-10-21T15:26:31.7266680Z [36;1m  -k '' \[0m
+2026-10-21T15:26:31.7266850Z [36;1m  -c '' \[0m
+2026-10-21T15:26:31.7267030Z [36;1m  -l '' \[0m
+2026-10-21T15:26:31.7267230Z [36;1m  -d 'default' \[0m
+2026-10-21T15:26:31.7267550Z [36;1m  -g 'https://github.com/flutter/flutter.git' \[0m
+2026-10-21T15:26:31.7267840Z [36;1m  stable[0m
+2026-10-21T15:26:31.7377510Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T15:26:31.7377920Z env:
+2026-10-21T15:26:31.7378220Z   LANG: en_US.UTF-8
+2026-10-21T15:26:31.7378490Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:31.7378870Z   GOTOOLCHAIN: local
+2026-10-21T15:26:31.7379170Z ##[endgroup]
+2026-10-21T15:26:32.3663740Z ##[end-action id=__subosito_flutter-action.flutter-action;outcome=success;conclusion=success;duration_ms=644]
+2026-10-21T15:26:32.3667830Z ##[start-action display=Cache Flutter;id=__subosito_flutter-action.cache-flutter]
+2026-10-21T15:26:32.3736580Z ##[group]Run actions/cache@v4
+2026-10-21T15:26:32.3736820Z with:
+2026-10-21T15:26:32.3737170Z   path: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:26:32.3737720Z   key: flutter-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0
+2026-10-21T15:26:32.3738270Z   enableCrossOsArchive: false
+2026-10-21T15:26:32.3738550Z   fail-on-cache-miss: false
+2026-10-21T15:26:32.3738780Z   lookup-only: false
+2026-10-21T15:26:32.3738980Z   save-always: false
+2026-10-21T15:26:32.3739160Z env:
+2026-10-21T15:26:32.3739330Z   LANG: en_US.UTF-8
+2026-10-21T15:26:32.3739520Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:26:32.3739710Z   GOTOOLCHAIN: local
+2026-10-21T15:26:32.3739880Z ##[endgroup]
+2026-10-21T15:26:32.5533350Z (node:1690) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T15:26:32.5536510Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T15:26:32.8080590Z Cache hit for: flutter-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0
+2026-10-21T15:26:32.8199790Z (node:1690) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-21T15:26:34.0958130Z Received 0 of 2105278338 (0.0%), 0.0 MBs/sec
+2026-10-21T15:26:35.0998140Z Received 58720256 of 2105278338 (2.8%), 28.0 MBs/sec
+2026-10-21T15:26:36.1039790Z Received 117440512 of 2105278338 (5.6%), 37.3 MBs/sec
+2026-10-21T15:26:37.1022890Z Received 130023424 of 2105278338 (6.2%), 30.9 MBs/sec
+2026-10-21T15:26:38.1050000Z Received 134217728 of 2105278338 (6.4%), 25.6 MBs/sec
+2026-10-21T15:26:39.1101630Z Received 171966464 of 2105278338 (8.2%), 27.3 MBs/sec
+2026-10-21T15:26:40.1139300Z Received 218103808 of 2105278338 (10.4%), 29.7 MBs/sec
+2026-10-21T15:26:41.1091320Z Received 255852544 of 2105278338 (12.2%), 30.4 MBs/sec
+2026-10-21T15:26:42.1100000Z Received 268435456 of 2105278338 (12.8%), 28.4 MBs/sec
+2026-10-21T15:26:43.1120280Z Received 297795584 of 2105278338 (14.1%), 28.4 MBs/sec
+2026-10-21T15:26:44.1150880Z Received 343932928 of 2105278338 (16.3%), 29.8 MBs/sec
+2026-10-21T15:26:45.1139500Z Received 381681664 of 2105278338 (18.1%), 30.3 MBs/sec
+2026-10-21T15:26:46.1163620Z Received 406847488 of 2105278338 (19.3%), 29.8 MBs/sec
+2026-10-21T15:26:47.1189140Z Received 444596224 of 2105278338 (21.1%), 30.2 MBs/sec
+2026-10-21T15:26:48.1199890Z Received 478150656 of 2105278338 (22.7%), 30.3 MBs/sec
+2026-10-21T15:26:49.1277740Z Received 520093696 of 2105278338 (24.7%), 30.9 MBs/sec
+2026-10-21T15:26:50.1291840Z Received 532676608 of 2105278338 (25.3%), 29.8 MBs/sec
+2026-10-21T15:26:51.1296780Z Received 549453824 of 2105278338 (26.1%), 29.1 MBs/sec
+2026-10-21T15:26:52.1320630Z Received 587202560 of 2105278338 (27.9%), 29.4 MBs/sec
+2026-10-21T15:26:53.1320680Z Received 629145600 of 2105278338 (29.9%), 29.9 MBs/sec
+2026-10-21T15:26:54.1340060Z Received 658505728 of 2105278338 (31.3%), 29.8 MBs/sec
+2026-10-21T15:26:55.1360920Z Received 666894336 of 2105278338 (31.7%), 28.9 MBs/sec
+2026-10-21T15:26:56.1386960Z Received 666894336 of 2105278338 (31.7%), 27.6 MBs/sec
+2026-10-21T15:26:57.1441040Z Received 666894336 of 2105278338 (31.7%), 26.4 MBs/sec
+2026-10-21T15:26:58.1453130Z Received 687865856 of 2105278338 (32.7%), 26.2 MBs/sec
+2026-10-21T15:26:59.1476720Z Received 729808896 of 2105278338 (34.7%), 26.7 MBs/sec
+2026-10-21T15:27:00.1484040Z Received 780140544 of 2105278338 (37.1%), 27.5 MBs/sec
+2026-10-21T15:27:01.1503180Z Received 796917760 of 2105278338 (37.9%), 27.1 MBs/sec
+2026-10-21T15:27:02.1528430Z Received 801112064 of 2105278338 (38.1%), 26.3 MBs/sec
+2026-10-21T15:27:03.1539380Z Received 801112064 of 2105278338 (38.1%), 25.4 MBs/sec
+2026-10-21T15:27:04.1554050Z Received 805306368 of 2105278338 (38.3%), 24.7 MBs/sec
+2026-10-21T15:27:05.1569330Z Received 851443712 of 2105278338 (40.4%), 25.3 MBs/sec
+2026-10-21T15:27:06.1553660Z Received 901775360 of 2105278338 (42.8%), 26.0 MBs/sec
+2026-10-21T15:27:07.1571840Z Received 931135488 of 2105278338 (44.2%), 26.1 MBs/sec
+2026-10-21T15:27:08.1610490Z Received 939524096 of 2105278338 (44.6%), 25.6 MBs/sec
+2026-10-21T15:27:09.1617290Z Received 968884224 of 2105278338 (46.0%), 25.6 MBs/sec
+2026-10-21T15:27:10.1622970Z Received 1023410176 of 2105278338 (48.6%), 26.3 MBs/sec
+2026-10-21T15:27:11.1676310Z Received 1061158912 of 2105278338 (50.4%), 26.6 MBs/sec
+2026-10-21T15:27:12.1696510Z Received 1069547520 of 2105278338 (50.8%), 26.1 MBs/sec
+2026-10-21T15:27:13.1753050Z Received 1069547520 of 2105278338 (50.8%), 25.4 MBs/sec
+2026-10-21T15:27:14.2011630Z Received 1069547520 of 2105278338 (50.8%), 24.8 MBs/sec
+2026-10-21T15:27:15.2381520Z Received 1090519040 of 2105278338 (51.8%), 24.7 MBs/sec
+2026-10-21T15:27:16.2072660Z Received 1136656384 of 2105278338 (54.0%), 25.1 MBs/sec
+2026-10-21T15:27:17.2075320Z Received 1170210816 of 2105278338 (55.6%), 25.3 MBs/sec
+2026-10-21T15:27:18.2105600Z Received 1203765248 of 2105278338 (57.2%), 25.4 MBs/sec
+2026-10-21T15:27:19.2106140Z Received 1207959552 of 2105278338 (57.4%), 25.0 MBs/sec
+2026-10-21T15:27:20.2104500Z Received 1249902592 of 2105278338 (59.4%), 25.3 MBs/sec
+2026-10-21T15:27:21.2192390Z Received 1291845632 of 2105278338 (61.4%), 25.6 MBs/sec
+2026-10-21T15:27:22.2226120Z Received 1337982976 of 2105278338 (63.6%), 26.0 MBs/sec
+2026-10-21T15:27:23.2248550Z Received 1337982976 of 2105278338 (63.6%), 25.5 MBs/sec
+2026-10-21T15:27:24.2273190Z Received 1337982976 of 2105278338 (63.6%), 25.0 MBs/sec
+2026-10-21T15:27:25.2289550Z Received 1346371584 of 2105278338 (64.0%), 24.6 MBs/sec
+2026-10-21T15:27:26.2304510Z Received 1392508928 of 2105278338 (66.1%), 25.0 MBs/sec
+2026-10-21T15:27:27.2311110Z Received 1430257664 of 2105278338 (67.9%), 25.2 MBs/sec
+2026-10-21T15:27:28.2328030Z Received 1472200704 of 2105278338 (69.9%), 25.5 MBs/sec
+2026-10-21T15:27:29.2345530Z Received 1472200704 of 2105278338 (69.9%), 25.0 MBs/sec
+2026-10-21T15:27:30.2353770Z Received 1472200704 of 2105278338 (69.9%), 24.6 MBs/sec
+2026-10-21T15:27:31.2375240Z Received 1476395008 of 2105278338 (70.1%), 24.2 MBs/sec
+2026-10-21T15:27:32.2380330Z Received 1522532352 of 2105278338 (72.3%), 24.6 MBs/sec
+2026-10-21T15:27:33.2394370Z Received 1581252608 of 2105278338 (75.1%), 25.1 MBs/sec
+2026-10-21T15:27:34.2421340Z Received 1610612736 of 2105278338 (76.5%), 25.1 MBs/sec
+2026-10-21T15:27:35.2693500Z Received 1648361472 of 2105278338 (78.3%), 25.3 MBs/sec
+2026-10-21T15:27:36.2549630Z Received 1702887424 of 2105278338 (80.9%), 25.7 MBs/sec
+2026-10-21T15:27:37.2592950Z Received 1740636160 of 2105278338 (82.7%), 25.9 MBs/sec
+2026-10-21T15:27:38.2616580Z Received 1740636160 of 2105278338 (82.7%), 25.5 MBs/sec
+2026-10-21T15:27:39.2627620Z Received 1740636160 of 2105278338 (82.7%), 25.1 MBs/sec
+2026-10-21T15:27:40.2637520Z Received 1757413376 of 2105278338 (83.5%), 25.0 MBs/sec
+2026-10-21T15:27:41.2647400Z Received 1807745024 of 2105278338 (85.9%), 25.3 MBs/sec
+2026-10-21T15:27:42.2673020Z Received 1858076672 of 2105278338 (88.3%), 25.6 MBs/sec
+2026-10-21T15:27:43.3445320Z Received 1879048192 of 2105278338 (89.3%), 25.5 MBs/sec
+2026-10-21T15:27:44.3441310Z Received 1912602624 of 2105278338 (90.8%), 25.6 MBs/sec
+2026-10-21T15:27:45.3454210Z Received 1962934272 of 2105278338 (93.2%), 25.9 MBs/sec
+2026-10-21T15:27:46.3463420Z Received 2004877312 of 2105278338 (95.2%), 26.1 MBs/sec
+2026-10-21T15:27:47.3484410Z Received 2009071616 of 2105278338 (95.4%), 25.8 MBs/sec
+2026-10-21T15:27:48.3550030Z Received 2013265920 of 2105278338 (95.6%), 25.5 MBs/sec
+2026-10-21T15:27:49.3536160Z Received 2051014656 of 2105278338 (97.4%), 25.6 MBs/sec
+2026-10-21T15:27:50.3555130Z Received 2092695426 of 2105278338 (99.4%), 25.8 MBs/sec
+2026-10-21T15:27:51.2796870Z Received 2105278338 of 2105278338 (100.0%), 25.7 MBs/sec
+2026-10-21T15:27:51.2822680Z Cache Size: ~2008 MB (2105278338 B)
+2026-10-21T15:27:51.2918400Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/26d52ae3-22f0-474c-abdd-638836a14a6c/cache.tzst -P -C /Users/runner/work/WuKongIM/WuKongIM --delay-directory-restore --use-compress-program unzstd
+2026-10-21T15:28:08.5747120Z Cache restored successfully
+2026-10-21T15:28:08.8060050Z Cache restored from key: flutter-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0
+2026-10-21T15:28:08.8238380Z ##[end-action id=__subosito_flutter-action.cache-flutter;outcome=success;conclusion=success;duration_ms=96408]
+2026-10-21T15:28:08.8246850Z ##[start-action display=Cache pub dependencies;id=__subosito_flutter-action.cache-pub]
+2026-10-21T15:28:10.5429360Z ##[group]Run actions/cache@v4
+2026-10-21T15:28:10.5429710Z with:
+2026-10-21T15:28:10.5430000Z   path: /Users/runner/.pub-cache
+2026-10-21T15:28:10.5430750Z   key: flutter-pub-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0-
+2026-10-21T15:28:10.5436660Z   enableCrossOsArchive: false
+2026-10-21T15:28:10.5437970Z   fail-on-cache-miss: false
+2026-10-21T15:28:10.5439090Z   lookup-only: false
+2026-10-21T15:28:10.5440100Z   save-always: false
+2026-10-21T15:28:10.5441240Z env:
+2026-10-21T15:28:10.5453290Z   LANG: en_US.UTF-8
+2026-10-21T15:28:10.5458930Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:28:10.5459880Z   GOTOOLCHAIN: local
+2026-10-21T15:28:10.5463780Z ##[endgroup]
+2026-10-21T15:28:10.7750520Z (node:3223) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T15:28:10.7766290Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T15:28:11.2590220Z Cache hit for: flutter-pub-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0-
+2026-10-21T15:28:11.2658510Z (node:3223) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-21T15:28:12.5576610Z Received 0 of 19051948 (0.0%), 0.0 MBs/sec
+2026-10-21T15:28:13.5583830Z Received 14857644 of 19051948 (78.0%), 7.1 MBs/sec
+2026-10-21T15:28:14.5602460Z Received 14857644 of 19051948 (78.0%), 4.7 MBs/sec
+2026-10-21T15:28:15.5601350Z Received 14857644 of 19051948 (78.0%), 3.5 MBs/sec
+2026-10-21T15:28:16.5618640Z Received 14857644 of 19051948 (78.0%), 2.8 MBs/sec
+2026-10-21T15:28:17.5637730Z Received 14857644 of 19051948 (78.0%), 2.4 MBs/sec
+2026-10-21T15:28:17.6051660Z Received 19051948 of 19051948 (100.0%), 3.0 MBs/sec
+2026-10-21T15:28:17.6055650Z Cache Size: ~18 MB (19051948 B)
+2026-10-21T15:28:17.6146820Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/f08ea0d7-3cf6-4a6a-a329-1085135bf44c/cache.tzst -P -C /Users/runner/work/WuKongIM/WuKongIM --delay-directory-restore --use-compress-program unzstd
+2026-10-21T15:28:19.8515920Z Cache restored successfully
+2026-10-21T15:28:19.8618890Z Cache restored from key: flutter-pub-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0-
+2026-10-21T15:28:19.8720130Z ##[end-action id=__subosito_flutter-action.cache-pub;outcome=success;conclusion=success;duration_ms=11041]
+2026-10-21T15:28:19.8727300Z ##[start-action display=Run setup script;id=__subosito_flutter-action.__run_3]
+2026-10-21T15:28:19.8781430Z ##[group]Run $GITHUB_ACTION_PATH/setup.sh \
+2026-10-21T15:28:19.8781890Z [36;1m$GITHUB_ACTION_PATH/setup.sh \[0m
+2026-10-21T15:28:19.8782250Z [36;1m  -n '3.41.4' \[0m
+2026-10-21T15:28:19.8782530Z [36;1m  -a 'arm64' \[0m
+2026-10-21T15:28:19.8782990Z [36;1m  -c '/Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64' \[0m
+2026-10-21T15:28:19.8783480Z [36;1m  -d '/Users/runner/.pub-cache' \[0m
+2026-10-21T15:28:19.8783840Z [36;1m  stable[0m
+2026-10-21T15:28:19.9275470Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T15:28:19.9276410Z env:
+2026-10-21T15:28:19.9277070Z   LANG: en_US.UTF-8
+2026-10-21T15:28:19.9277650Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:28:19.9278430Z   GOTOOLCHAIN: local
+2026-10-21T15:28:19.9279110Z ##[endgroup]
+2026-10-21T15:28:20.5288160Z ##[end-action id=__subosito_flutter-action.__run_3;outcome=success;conclusion=success;duration_ms=655]
+2026-10-21T15:28:20.5584640Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-10-21T15:28:20.5585050Z with:
+2026-10-21T15:28:20.5585240Z   repository: WuKongIM/WuKongEasySDK-Flutter
+2026-10-21T15:28:20.5585480Z   ref: v1.1.0
+2026-10-21T15:28:20.5585670Z   path: release-sdk
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:28:20.5588210Z   ssh-strict: true
+2026-10-21T15:28:20.5588410Z   ssh-user: git
+2026-10-21T15:28:20.5588600Z   persist-credentials: true
+2026-10-21T15:28:20.5588830Z   clean: true
+2026-10-21T15:28:20.5589040Z   sparse-checkout-cone-mode: true
+2026-10-21T15:28:20.5589280Z   fetch-depth: 1
+2026-10-21T15:28:20.5589480Z   fetch-tags: false
+2026-10-21T15:28:20.5589700Z   show-progress: true
+2026-10-21T15:28:20.5589890Z   lfs: false
+2026-10-21T15:28:20.5590090Z   submodules: false
+2026-10-21T15:28:20.5590330Z   set-safe-directory: true
+2026-10-21T15:28:20.5590570Z   allow-unsafe-pr-checkout: false
+2026-10-21T15:28:20.5590820Z env:
+2026-10-21T15:28:20.5591070Z   LANG: en_US.UTF-8
+2026-10-21T15:28:20.5591280Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:28:20.5591510Z   GOTOOLCHAIN: local
+2026-10-21T15:28:20.5591820Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:28:20.5592170Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-10-21T15:28:20.5592450Z ##[endgroup]
+2026-10-21T15:28:20.7669580Z Syncing repository: WuKongIM/WuKongEasySDK-Flutter
+2026-10-21T15:28:20.7670850Z ##[group]Getting Git version info
+2026-10-21T15:28:20.7671900Z Working directory is '/Users/runner/work/WuKongIM/WuKongIM/release-sdk'
+2026-10-21T15:28:20.7727660Z [command]/opt/homebrew/bin/git version
+2026-10-21T15:28:20.8492050Z git version 2.55.0
+2026-10-21T15:28:20.8498710Z ##[endgroup]
+2026-10-21T15:28:20.8502800Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/a5930c0d-c489-48b3-9e8c-e24b6858103e/.gitconfig'
+2026-10-21T15:28:20.8510070Z Temporarily overriding HOME='/Users/runner/work/_temp/a5930c0d-c489-48b3-9e8c-e24b6858103e' before making global git config changes
+2026-10-21T15:28:20.8516890Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:28:20.8518090Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WuKongIM/WuKongIM/release-sdk
+2026-10-21T15:28:20.8710640Z ##[group]Determining repository object format
+2026-10-21T15:28:21.1987180Z ##[endgroup]
+2026-10-21T15:28:21.1987940Z ##[group]Initializing the repository
+2026-10-21T15:28:21.1988980Z [command]/opt/homebrew/bin/git init /Users/runner/work/WuKongIM/WuKongIM/release-sdk
+2026-10-21T15:28:21.2401080Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T15:28:21.2403780Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T15:28:21.2409090Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T15:28:21.2415100Z hint: call:
+2026-10-21T15:28:21.2415390Z hint:
+2026-10-21T15:28:21.2415810Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T15:28:21.2416160Z hint:
+2026-10-21T15:28:21.2416620Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T15:28:21.2417270Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T15:28:21.2417680Z hint:
+2026-10-21T15:28:21.2417960Z hint: 	git branch -m <name>
+2026-10-21T15:28:21.2418220Z hint:
+2026-10-21T15:28:21.2418730Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T15:28:21.2419520Z Initialized empty Git repository in /Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git/
+2026-10-21T15:28:21.2420800Z [command]/opt/homebrew/bin/git remote add origin https://github.com/WuKongIM/WuKongEasySDK-Flutter
+2026-10-21T15:28:21.2543460Z ##[endgroup]
+2026-10-21T15:28:21.2544240Z ##[group]Disabling automatic garbage collection
+2026-10-21T15:28:21.2554310Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-21T15:28:21.2697700Z ##[endgroup]
+2026-10-21T15:28:21.2701500Z ##[group]Setting up auth
+2026-10-21T15:28:21.2704860Z Removing SSH command configuration
+2026-10-21T15:28:21.2706380Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:28:21.2805570Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:28:21.4832950Z Removing HTTP extra header
+2026-10-21T15:28:21.4837290Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:28:21.4933520Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:28:21.6811380Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:28:21.6821360Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:28:21.6973060Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:28:21.8835870Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path /Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:28:21.8918690Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:28:21.9005310Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/release-sdk/.git.path /github/runner_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:28:21.9096240Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path /github/runner_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:28:21.9185530Z ##[endgroup]
+2026-10-21T15:28:21.9186150Z ##[group]Fetching the repository
+2026-10-21T15:28:21.9192180Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/v1.1.0*:refs/remotes/origin/v1.1.0* +refs/tags/v1.1.0*:refs/tags/v1.1.0*
+2026-10-21T15:28:22.5709400Z From https://github.com/WuKongIM/WuKongEasySDK-Flutter
+2026-10-21T15:28:22.5710650Z  * [new tag]         v1.1.0     -> v1.1.0
+2026-10-21T15:28:22.5713030Z ##[endgroup]
+2026-10-21T15:28:22.5714150Z ##[group]Determining the checkout info
+2026-10-21T15:28:22.5717130Z [command]/opt/homebrew/bin/git branch --list --remote origin/v1.1.0
+2026-10-21T15:28:22.5842290Z [command]/opt/homebrew/bin/git tag --list v1.1.0
+2026-10-21T15:28:22.5960890Z v1.1.0
+2026-10-21T15:28:22.5963010Z ##[endgroup]
+2026-10-21T15:28:22.5970750Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-21T15:28:22.6118200Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T15:28:22.6253040Z ##[group]Checking out the ref
+2026-10-21T15:28:22.6256970Z [command]/opt/homebrew/bin/git checkout --progress --force refs/tags/v1.1.0
+2026-10-21T15:28:22.6873600Z HEAD is now at 98ab8f3 chore: prepare WuKongEasySDK Flutter 1.1.0 (#4)
+2026-10-21T15:28:22.6887470Z ##[endgroup]
+2026-10-21T15:28:22.7062410Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-21T15:28:22.7204820Z 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6
+2026-10-21T15:28:22.7331540Z ##[group]Run test/easysdk-release/flutter/prepare-release-example.sh release-sdk
+2026-10-21T15:28:22.7332170Z [36;1mtest/easysdk-release/flutter/prepare-release-example.sh release-sdk[0m
+2026-10-21T15:28:22.7332710Z [36;1mcp test/easysdk-release/flutter/release_smoke_app.dart \[0m
+2026-10-21T15:28:22.7333160Z [36;1m  release-sdk/example/lib/release_smoke_app.dart[0m
+2026-10-21T15:28:22.7333480Z [36;1mcd release-sdk/example[0m
+2026-10-21T15:28:22.7333710Z [36;1mflutter pub get[0m
+2026-10-21T15:28:22.7334130Z [36;1mflutter pub deps --json >"${RUNNER_TEMP}/flutter-dependencies.json"[0m
+2026-10-21T15:28:22.7334710Z [36;1mjq -e '.packages[] | select(.name == "wukong_easy_sdk" and .version == "1.1.0" and .source == "hosted")' \[0m
+2026-10-21T15:28:22.7335170Z [36;1m  "${RUNNER_TEMP}/flutter-dependencies.json"[0m
+2026-10-21T15:28:22.7336050Z [36;1mjq -e '.packages[] | select(.name == "wukong_easy_sdk") | .rootUri | contains(".pub-cache")' \[0m
+2026-10-21T15:28:22.7336510Z [36;1m  .dart_tool/package_config.json[0m
+2026-10-21T15:28:22.7405130Z shell: /bin/bash -e {0}
+2026-10-21T15:28:22.7405360Z env:
+2026-10-21T15:28:22.7405540Z   LANG: en_US.UTF-8
+2026-10-21T15:28:22.7405750Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:28:22.7405980Z   GOTOOLCHAIN: local
+2026-10-21T15:28:22.7406320Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:28:22.7406680Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-10-21T15:28:22.7406960Z ##[endgroup]
+2026-10-21T15:28:23.9576640Z Resolving dependencies...
+2026-10-21T15:28:24.1500620Z Downloading packages...
+2026-10-21T15:28:24.1523920Z   async 2.13.0 (2.13.1 available)
+2026-10-21T15:28:24.1525230Z   clock 1.1.2 (1.1.3 available)
+2026-10-21T15:28:24.1526120Z   crypto 3.0.6 (3.0.7 available)
+2026-10-21T15:28:24.1527100Z   flutter_lints 4.0.0 (6.0.0 available)
+2026-10-21T15:28:24.1527970Z   lints 4.0.0 (6.1.0 available)
+2026-10-21T15:28:24.1528780Z   matcher 0.12.19 (0.12.20 available)
+2026-10-21T15:28:24.1529950Z   material_color_utilities 0.13.0 (0.13.1 available)
+2026-10-21T15:28:24.1530900Z   meta 1.17.0 (1.19.0 available)
+2026-10-21T15:28:24.1531720Z   source_span 1.10.1 (1.10.2 available)
+2026-10-21T15:28:24.1532600Z   stack_trace 1.12.1 (1.12.2 available)
+2026-10-21T15:28:24.1533440Z   test_api 0.7.10 (0.7.15 available)
+2026-10-21T15:28:24.1538020Z   uuid 4.5.1 (4.6.0 available)
+2026-10-21T15:28:24.1541320Z   vector_math 2.2.0 (2.4.3 available)
+2026-10-21T15:28:24.1542560Z   vm_service 15.0.0 (15.4.0 available)
+2026-10-21T15:28:24.1543920Z * wukong_easy_sdk 1.1.0 (was 1.1.0 from path ..)
+2026-10-21T15:28:24.1545190Z Changed 1 dependency!
+2026-10-21T15:28:24.1546370Z 14 packages have newer versions incompatible with dependency constraints.
+2026-10-21T15:28:24.1547750Z Try `flutter pub outdated` for more information.
+2026-10-21T15:28:25.2593200Z {
+2026-10-21T15:28:25.2594150Z   "name": "wukong_easy_sdk",
+2026-10-21T15:28:25.2595250Z   "version": "1.1.0",
+2026-10-21T15:28:25.2596240Z   "kind": "direct",
+2026-10-21T15:28:25.2597100Z   "source": "hosted",
+2026-10-21T15:28:25.2597900Z   "dependencies": [
+2026-10-21T15:28:25.2598760Z     "flutter",
+2026-10-21T15:28:25.2599510Z     "web_socket_channel",
+2026-10-21T15:28:25.2634490Z     "uuid"
+2026-10-21T15:28:25.2635470Z   ],
+2026-10-21T15:28:25.2636140Z   "directDependencies": [
+2026-10-21T15:28:25.2636930Z     "flutter",
+2026-10-21T15:28:25.2637630Z     "web_socket_channel",
+2026-10-21T15:28:25.2638300Z     "uuid"
+2026-10-21T15:28:25.2638890Z   ]
+2026-10-21T15:28:25.2639560Z }
+2026-10-21T15:28:25.2650030Z true
+2026-10-21T15:28:25.2835530Z ##[group]Run test/easysdk-release/start-runtime.sh flutter
+2026-10-21T15:28:25.2836080Z [36;1mtest/easysdk-release/start-runtime.sh flutter[0m
+2026-10-21T15:28:25.2877630Z shell: /bin/bash -e {0}
+2026-10-21T15:28:25.2877900Z env:
+2026-10-21T15:28:25.2878160Z   LANG: en_US.UTF-8
+2026-10-21T15:28:25.2878390Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:28:25.2878630Z   GOTOOLCHAIN: local
+2026-10-21T15:28:25.2879020Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:28:25.2879370Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-10-21T15:28:25.2879660Z ##[endgroup]
+2026-10-21T15:28:57.2106500Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:28:58.3084210Z curl: (7) Failed to connect to 127.0.0.1 port 5001 after 0 ms: Couldn't connect to server
+2026-10-21T15:29:02.8737630Z 
+2026-10-21T15:29:02.8741650Z added 2 packages in 835ms
+2026-10-21T15:29:03.9316960Z RUNTIME_READY platform=flutter server_source=8e8c0ab3321affc8655fb720a308e50bfaca15ca
+2026-10-21T15:29:03.9386380Z PEER_READY package=easyjssdk@2.0.4
+2026-10-21T15:29:03.9517030Z ##[group]Run test/easysdk-release/boot-ios-simulator.sh
+2026-10-21T15:29:03.9517550Z [36;1mtest/easysdk-release/boot-ios-simulator.sh[0m
+2026-10-21T15:29:03.9584090Z shell: /bin/bash -e {0}
+2026-10-21T15:29:03.9584380Z env:
+2026-10-21T15:29:03.9584700Z   LANG: en_US.UTF-8
+2026-10-21T15:29:03.9585020Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:29:03.9585340Z   GOTOOLCHAIN: local
+2026-10-21T15:29:03.9585800Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:29:03.9586280Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-10-21T15:29:03.9586590Z   ACCEPTANCE_PLATFORM: flutter
+2026-10-21T15:29:03.9587020Z   ACCEPTANCE_ROOT: /Users/runner/work/_temp/easysdk-release-flutter
+2026-10-21T15:29:03.9587510Z   ALICE_UID: release-flutter-alice-39625524550-1
+2026-10-21T15:29:03.9587900Z   BOB_UID: release-flutter-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:29:03.9602270Z   ALICE_TO_BOB_TEXT: flutter-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:29:03.9603760Z   BOB_TO_ALICE_TEXT: flutter-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:29:03.9604710Z   WUKONGIM_PID: 4222
+2026-10-21T15:29:03.9605450Z   PEER_PID: 4261
+2026-10-21T15:29:03.9606140Z ##[endgroup]
+2026-10-21T15:32:08.7815050Z Monitoring boot status for iPhone 16 Pro (DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9).
+2026-10-21T15:32:08.7825350Z Device already booted, nothing to do.
+2026-10-21T15:32:08.7972550Z 
+2026-10-21T15:32:08.8075650Z IOS_SIMULATOR_READY id=DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+2026-10-21T15:32:08.9426930Z ##[group]Run "${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"
+2026-10-21T15:32:08.9440550Z [36;1m"${GITHUB_WORKSPACE}/test/easysdk-release/flutter/run-release-smoke.sh"[0m
+2026-10-21T15:32:10.4361470Z shell: /bin/bash -e {0}
+2026-10-21T15:32:10.4363250Z env:
+2026-10-21T15:32:10.4364140Z   LANG: en_US.UTF-8
+2026-10-21T15:32:10.4365070Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:32:10.4366870Z   GOTOOLCHAIN: local
+2026-10-21T15:32:10.4368750Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:32:10.4370420Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-10-21T15:32:10.4371450Z   ACCEPTANCE_PLATFORM: flutter
+2026-10-21T15:32:10.4372970Z   ACCEPTANCE_ROOT: /Users/runner/work/_temp/easysdk-release-flutter
+2026-10-21T15:32:10.4374620Z   ALICE_UID: release-flutter-alice-39625524550-1
+2026-10-21T15:32:10.4375970Z   BOB_UID: release-flutter-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:32:10.4378640Z   ALICE_TO_BOB_TEXT: flutter-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:32:10.4380300Z   BOB_TO_ALICE_TEXT: flutter-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:32:10.4381830Z   WUKONGIM_PID: 4222
+2026-10-21T15:32:10.4382990Z   PEER_PID: 4261
+2026-10-21T15:32:10.4386750Z   SIMULATOR_ID: DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+2026-10-21T15:32:10.4387440Z ##[endgroup]
+2026-10-21T15:32:10.8370570Z FLUTTER_RELEASE_SMOKE_STAGE stage=build
+2026-10-21T15:33:07.1704710Z Building com.example.wukongEasySdkExample for simulator (ios)...
+2026-10-21T15:36:07.6740760Z Running Xcode build...                                          
+2026-10-21T15:36:07.6830880Z Xcode build done.                                           154.4s
+2026-10-21T15:36:15.1208200Z ✓ Built build/ios/iphonesimulator/Runner.app
+2026-10-21T15:40:36.3242400Z FLUTTER_RELEASE_SMOKE_STAGE stage=install
+2026-10-21T15:41:02.6476260Z FLUTTER_RELEASE_SMOKE_STAGE stage=launch
+2026-10-21T15:41:05.7669500Z com.example.wukongEasySdkExample: 27060
+2026-10-21T15:41:09.3522200Z {"status":"PASS","package":"wukong_easy_sdk@1.1.0","alice_to_bob":true,"bob_to_alice":true,"disconnected":true}PEER_READY package=easyjssdk@2.0.4
+2026-10-21T15:41:09.3523550Z PEER_PASS alice-to-bob=true bob-to-alice-ack=true
+2026-10-21T15:41:09.4028390Z ##[group]Run test/easysdk-release/cleanup-runtime.sh
+2026-10-21T15:41:09.4032450Z [36;1mtest/easysdk-release/cleanup-runtime.sh[0m
+2026-10-21T15:41:09.4520170Z shell: /bin/bash -e {0}
+2026-10-21T15:41:09.4520770Z env:
+2026-10-21T15:41:09.4521500Z   LANG: en_US.UTF-8
+2026-10-21T15:41:09.4522570Z   LC_ALL: en_US.UTF-8
+2026-10-21T15:41:09.4522960Z   GOTOOLCHAIN: local
+2026-10-21T15:41:09.4523490Z   FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.41.4-arm64
+2026-10-21T15:41:09.4524210Z   PUB_CACHE: /Users/runner/.pub-cache
+2026-10-21T15:41:09.4524850Z   ACCEPTANCE_PLATFORM: flutter
+2026-10-21T15:41:09.4525720Z   ACCEPTANCE_ROOT: /Users/runner/work/_temp/easysdk-release-flutter
+2026-10-21T15:41:09.4526340Z   ALICE_UID: release-flutter-alice-39625524550-1
+2026-10-21T15:41:09.4526930Z   BOB_UID: release-flutter-bob-39625524550-1
+[redacted authentication-related line; original hash retained]
+2026-10-21T15:41:09.4528530Z   ALICE_TO_BOB_TEXT: flutter-released-package-alice-to-bob-39625524550-1
+2026-10-21T15:41:09.4538690Z   BOB_TO_ALICE_TEXT: flutter-released-package-bob-to-alice-39625524550-1
+2026-10-21T15:41:09.4539290Z   WUKONGIM_PID: 4222
+2026-10-21T15:41:09.4540020Z   PEER_PID: 4261
+2026-10-21T15:41:09.4540390Z   SIMULATOR_ID: DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+2026-10-21T15:41:09.4540870Z   JOB_STATUS: success
+2026-10-21T15:41:09.4541870Z ##[endgroup]
+2026-10-21T15:41:09.7788200Z Post job cleanup.
+2026-10-21T15:41:10.5076150Z [command]/opt/homebrew/bin/git version
+2026-10-21T15:41:10.5872570Z git version 2.55.0
+2026-10-21T15:41:10.6051760Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/a90c47d6-8e95-4eb4-bbdf-efd62eafdd28/.gitconfig'
+2026-10-21T15:41:10.6052870Z Temporarily overriding HOME='/Users/runner/work/_temp/a90c47d6-8e95-4eb4-bbdf-efd62eafdd28' before making global git config changes
+2026-10-21T15:41:10.6054830Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:41:10.6055780Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WuKongIM/WuKongIM/release-sdk
+2026-10-21T15:41:10.6325290Z Removing SSH command configuration
+2026-10-21T15:41:10.6345920Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:41:10.6440680Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:41:10.8690310Z Removing HTTP extra header
+2026-10-21T15:41:10.8698470Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:41:10.8799090Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:41:11.1045460Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:41:11.1069770Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:41:11.1092290Z includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path
+2026-10-21T15:41:11.1108860Z includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path
+2026-10-21T15:41:11.1146140Z includeif.gitdir:/github/workspace/release-sdk/.git.path
+2026-10-21T15:41:11.1147060Z includeif.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path
+2026-10-21T15:41:11.1148870Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path
+2026-10-21T15:41:11.1187540Z /Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1195960Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git.path /Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1434540Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path
+2026-10-21T15:41:11.1548770Z /Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1567210Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/release-sdk/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1666640Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/release-sdk/.git.path
+2026-10-21T15:41:11.1781200Z /github/runner_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1802390Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/release-sdk/.git.path /github/runner_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1861160Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path
+2026-10-21T15:41:11.1922300Z /github/runner_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.1928970Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/release-sdk/.git/worktrees/*.path /github/runner_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config
+2026-10-21T15:41:11.2054980Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T15:41:11.3617500Z Removing credentials config '/Users/runner/work/_temp/git-credentials-1c2f38ee-2a35-489c-8ccf-637b52c31e92.config'
+2026-10-21T15:41:11.3922540Z Post job cleanup.
+2026-10-21T15:41:11.3926530Z ##[start-action display=Cache pub dependencies;id=__124b500b-3c53-48a8-b172-fb39b93a86ea.cache-pub]
+2026-10-21T15:41:12.6808690Z Post job cleanup.
+2026-10-21T15:41:12.9096550Z Cache hit occurred on the primary key flutter-pub-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0-, not saving cache.
+2026-10-21T15:41:12.9097830Z (node:27457) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T15:41:12.9098560Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T15:41:12.9121280Z ##[end-action id=__124b500b-3c53-48a8-b172-fb39b93a86ea.cache-pub;outcome=success;conclusion=success;duration_ms=1519]
+2026-10-21T15:41:12.9123580Z ##[start-action display=Cache Flutter;id=__124b500b-3c53-48a8-b172-fb39b93a86ea.cache-flutter]
+2026-10-21T15:41:12.9170270Z Post job cleanup.
+2026-10-21T15:41:13.0894550Z Cache hit occurred on the primary key flutter-macos-stable-3.41.4-arm64-ff37bef603469fb030f2b72995ab929ccfc227f0, not saving cache.
+2026-10-21T15:41:13.0896340Z (node:27458) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T15:41:13.0897120Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T15:41:13.0933050Z ##[end-action id=__124b500b-3c53-48a8-b172-fb39b93a86ea.cache-flutter;outcome=success;conclusion=success;duration_ms=180]
+2026-10-21T15:41:13.1317550Z Post job cleanup.
+2026-10-21T15:41:13.3285180Z Cache hit occurred on the primary key node-cache-macOS-arm64-npm-4987035720d2354ef1ef301182c7c62171ec7ef0e03d48e8c3a85a6e4145d0ac, not saving cache.
+2026-10-21T15:41:13.3443480Z Post job cleanup.
+2026-10-21T15:41:13.5612570Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOCACHE
+2026-10-21T15:41:13.5704450Z [command]/Users/runner/hostedtoolcache/go/1.25.11/arm64/bin/go env GOMODCACHE
+2026-10-21T15:41:13.7012850Z /Users/runner/go/pkg/mod
+2026-10-21T15:41:13.7026090Z /Users/runner/Library/Caches/go-build
+2026-10-21T15:41:13.7060830Z Cache hit occurred on the primary key setup-go-macOS-arm64-go-1.25.11-eb22399717b2236cd1f228c5051be0998147d238495ee65be75b9849229374c4, not saving cache.
+2026-10-21T15:41:13.7223840Z Post job cleanup.
+2026-10-21T15:41:13.8914210Z [command]/opt/homebrew/bin/git version
+2026-10-21T15:41:13.9026460Z git version 2.55.0
+2026-10-21T15:41:13.9045320Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/4474e21f-e1b3-405a-837f-b35071df22ff/.gitconfig'
+2026-10-21T15:41:13.9055660Z Temporarily overriding HOME='/Users/runner/work/_temp/4474e21f-e1b3-405a-837f-b35071df22ff' before making global git config changes
+2026-10-21T15:41:13.9057980Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T15:41:13.9059970Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WuKongIM/WuKongIM
+2026-10-21T15:41:13.9137980Z Removing SSH command configuration
+2026-10-21T15:41:13.9149330Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T15:41:13.9232850Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T15:41:14.0889100Z Removing HTTP extra header
+2026-10-21T15:41:14.0908290Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T15:41:14.1039230Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T15:41:14.2370440Z Removing includeIf entries pointing to credentials config files
+2026-10-21T15:41:14.2379000Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T15:41:14.2457470Z includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T15:41:14.2458320Z includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T15:41:14.2460530Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T15:41:14.2461610Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T15:41:14.2473810Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T15:41:14.2566950Z /Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.2578420Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git.path /Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.2713450Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T15:41:14.2784870Z /Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.2795240Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.3046270Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T15:41:14.3129630Z /github/runner_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.3145460Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.3268520Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T15:41:14.3365760Z /github/runner_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.3380250Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config
+2026-10-21T15:41:14.3520930Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T15:41:14.5062230Z Removing credentials config '/Users/runner/work/_temp/git-credentials-e8de970c-3b5e-4a4d-bb57-8930ff11f966.config'
+2026-10-21T15:41:14.5249500Z Cleaning up orphan processes
+2026-10-21T15:41:31.0881470Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

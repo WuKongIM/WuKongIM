@@ -1,0 +1,26 @@
+{
+  "source": "9a4900dc67ac674791edba11ea9a719cd91ec570",
+  "at": "2026-10-21T15:53:12.073652+00:00",
+  "files": {
+    "internal/access/api/FLOW.md": "2af34512e6fb8cd0559ddad21c8e4d4a317b699c088ed28c0673847a2940ade9",
+    "internal/usecase/message/FLOW.md": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348",
+    "internal/runtime/readavailability/FLOW.md": "c2377f3d87f4f1b3c5e247ff4ce6a4981e7cb71e930428b2a543e871f07a233c",
+    "internal/runtime/channelappend/FLOW.md": "7ae41e62c0ba2a83051d9199d963e21dc4fd9c471b611b2c5a9224cdbfa689a5",
+    "internal/infra/cluster/FLOW.md": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+    "pkg/channel/FLOW.md": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+    "pkg/channel/reactor/FLOW.md": "00c68c4f2d9f0fbee08b9c4f1d21f35d40e183700afcab3b06a48be060030f4b",
+    "pkg/cluster/FLOW.md": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+    "pkg/channel/replication/quorum_log.go": "da31a1e1d5fd4c2f8d86bde9ef9aa5639dd528aef3cd9fb676bde48f84aea4cf",
+    "pkg/channel/replication/quorum_round.go": "071e016817325663043401d6521c395d052657c916bb95bea6a6000195217f7f",
+    "pkg/channel/replication/quorum_round_state.go": "9a3363f2e7ac4e3b717947c10bcece9390b6d9c24eeeb2541e48a45ab1345269",
+    "pkg/channel/replication/recovery_barrier.go": "b7c340d3af98b9f78fa65e4e36424e17ca64fdb9f57872e5a755a852cd9777d1",
+    "pkg/channel/replication/quorum_log_recovery_error_test.go": "5d322d4cd71fda5488ceb9246fc2be1ad5eb626785c1a0be5967c8771fa50486",
+    "pkg/channel/replication/quorum_round_test.go": "0986e0f7aff32e0202273fb8c91e0462145c29fd82ac68427b3f1bf77b5742da",
+    "internal/infra/cluster/message_reader.go": "4908581b23040c792fcefd0449cf244e8decd7633a7b458298d621537dd17c09",
+    "internal/infra/cluster/error_map.go": "fc1750b172289937667a5f5130ad702fc7ab63e4536e4caeca7d25f2bf608948",
+    "internal/access/api/channel_messagesync.go": "66836c7c16d01dd3f5adf5cf15eaa555491ca09fcb95cde85944242024973cf3",
+    "internal/access/api/message_read_error.go": "64c975cdc6183a11bd36790efad4cf7583053b821f81fdf2ac09c78213744f2c",
+    "internal/runtime/readavailability/errors.go": "bc809852ac409faf48c7a3bb523cc72603441b217e9fd780ee79875ec78dee8c",
+    "pkg/cluster/channels/service.go": "045afa754442cc6f34a54eefcd51aa290c88c6e177eec8f4405dcefb8658ce03"
+  }
+}

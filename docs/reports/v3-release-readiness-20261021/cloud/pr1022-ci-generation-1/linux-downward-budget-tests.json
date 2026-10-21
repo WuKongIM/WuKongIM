@@ -1,0 +1,825 @@
+{
+  "source_sha": "8e8c0ab3321affc8655fb720a308e50bfaca15ca",
+  "source_tree": "9a199e729569efa88fed09ee9025c5720f1dbe55",
+  "artifact_id": 12357946122,
+  "root_count": 15,
+  "expected_roots": [
+    "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+    "TestChatLifecycleDownwardBudgetCannotResetSpentRequest",
+    "TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority",
+    "TestChatLifecycleDownwardBudgetDocuments",
+    "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+    "TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification",
+    "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+    "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell",
+    "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+    "TestChatLifecycleDownwardBudgetInput",
+    "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+    "TestChatLifecycleDownwardBudgetRehearsalWiring",
+    "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+    "TestChatLifecycleDownwardBudgetTransitionSelector",
+    "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure"
+  ],
+  "actual_budget_events": [
+    {
+      "Time": "2026-10-21T15:27:25.739933902Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetConsumerWorkflowAuthority",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T15:27:25.741029514Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerWorkflowCleanupPrecedesQualification",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T15:27:25.741716085Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/rehearsal",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T15:27:25.742818036Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure/formal",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T15:27:25.742829123Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetZeroUploadSurvivesQualificationFailure",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T15:27:25.762400205Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetActivationEnvironmentPreservesAdmittedValues",
+      "Elapsed": 0.02
+    },
+    {
+      "Time": "2026-10-21T15:27:25.80161496Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1500000000_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:25.841515699Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1351044800_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:25.880997617Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/150000001_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:25.920227926Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1500000000_100",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:25.96074252Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1351044800_100",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:25.999600387Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/0_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.036162473Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/-1_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.071744376Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/150000000_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.110480289Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1500000001_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.148924819Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/9223372036854775808_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.189535268Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1351044800.0_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.231515632Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1e9_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.274167729Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/+1351044800_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.31637145Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/01351044800_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.358386186Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/_1351044800_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.399960498Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/1351044800__",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.438897384Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput/_",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.438909472Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetInput",
+      "Elapsed": 0.68
+    },
+    {
+      "Time": "2026-10-21T15:27:26.484394048Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/lower",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:27:26.525482919Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/default",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.56956414Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/root-stop",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.612052379Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/missing-root",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.651067664Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/currency",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.692407592Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/float-limit",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.739194682Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/boolean-prior",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:27:26.778710762Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/raised-pair",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.819551668Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/missing-cap",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.862687204Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-cap",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.903476232Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-bool-prior",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:26.950934297Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-prior",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:27:26.994304947Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/receipt-identity",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:27.037245499Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/deployment-stop",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:27.079910965Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/deployment-schema",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:27.120677279Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments/proof-attempt-lower",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:27:27.120688136Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetDocuments",
+      "Elapsed": 0.68
+    },
+    {
+      "Time": "2026-10-21T15:27:27.272791624Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFirstStartAndFormalCaps",
+      "Elapsed": 0.15
+    },
+    {
+      "Time": "2026-10-21T15:27:27.272884975Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalWiring",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-21T15:33:58.512732458Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetTransitionSelector/1201044799",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:33:58.524342889Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetTransitionSelector/1201044800",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:33:58.535408306Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetTransitionSelector/1201044801",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:33:58.535421246Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetTransitionSelector",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-21T15:33:58.679907511Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/stop_minus_one",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:33:58.808801035Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/at_stop",
+      "Elapsed": 0.13
+    },
+    {
+      "Time": "2026-10-21T15:33:58.943865287Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/above_stop",
+      "Elapsed": 0.13
+    },
+    {
+      "Time": "2026-10-21T15:33:59.08882472Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_false/default",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:33:59.237923642Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/stop_minus_one",
+      "Elapsed": 0.15
+    },
+    {
+      "Time": "2026-10-21T15:33:59.377417877Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/at_stop",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:33:59.513928405Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/above_stop",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:33:59.653380647Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell/previous_true/default",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:33:59.653394858Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetRehearsalTransitionBoundaryActualWorkflowShell",
+      "Elapsed": 1.12
+    },
+    {
+      "Time": "2026-10-21T15:33:59.798606471Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/hard_minus_one",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:33:59.940631264Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/at_hard",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:34:00.078957185Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/above_hard",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:34:00.162746764Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:00.212869676Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/handoff_receipt",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:00.225936532Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_false/default",
+      "Elapsed": 0.15
+    },
+    {
+      "Time": "2026-10-21T15:34:00.262036828Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/handoff_deployment",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:00.346041331Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_receipt",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T15:34:00.373165707Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/hard_minus_one",
+      "Elapsed": 0.15
+    },
+    {
+      "Time": "2026-10-21T15:34:00.431878006Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_deployment",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:00.527568824Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/final_higher",
+      "Elapsed": 0.1
+    },
+    {
+      "Time": "2026-10-21T15:34:00.527747163Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/at_hard",
+      "Elapsed": 0.15
+    },
+    {
+      "Time": "2026-10-21T15:34:00.581357623Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/rehearsal_receipt",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:00.594122003Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_false/sidecar_authority",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:34:00.683646517Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:00.684096595Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/above_hard",
+      "Elapsed": 0.16
+    },
+    {
+      "Time": "2026-10-21T15:34:00.735501129Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/handoff_receipt",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:00.787359117Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/handoff_deployment",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:00.845153072Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell/previous_true/default",
+      "Elapsed": 0.16
+    },
+    {
+      "Time": "2026-10-21T15:34:00.845167964Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalCompleteBoundaryActualWorkflowShell",
+      "Elapsed": 1.19
+    },
+    {
+      "Time": "2026-10-21T15:34:00.882634289Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_receipt",
+      "Elapsed": 0.1
+    },
+    {
+      "Time": "2026-10-21T15:34:00.90416955Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetCannotResetSpentRequest",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T15:34:00.94854578Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/#00",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:34:00.976992449Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_deployment",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:00.993065796Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/1500000001",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:34:01.035786995Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/1351044800100",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:34:01.072919837Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/final_higher",
+      "Elapsed": 0.1
+    },
+    {
+      "Time": "2026-10-21T15:34:01.07895904Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction/150000000",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-21T15:34:01.078975695Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetStageRejectsBeforeAnyExternalAction",
+      "Elapsed": 0.17
+    },
+    {
+      "Time": "2026-10-21T15:34:01.125139156Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/rehearsal_receipt",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:01.13949837Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/rehearsal/previous_true/sidecar_authority",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:34:01.282138531Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/",
+      "Elapsed": 0.14
+    },
+    {
+      "Time": "2026-10-21T15:34:01.372964472Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/handoff_receipt",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:01.462010875Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/handoff_deployment",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:01.581808481Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_receipt",
+      "Elapsed": 0.12
+    },
+    {
+      "Time": "2026-10-21T15:34:01.701407718Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_deployment",
+      "Elapsed": 0.12
+    },
+    {
+      "Time": "2026-10-21T15:34:01.827363516Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/final_higher",
+      "Elapsed": 0.13
+    },
+    {
+      "Time": "2026-10-21T15:34:01.878183202Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/rehearsal_receipt",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:01.889760102Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_false/sidecar_authority",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:34:02.013439636Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/",
+      "Elapsed": 0.12
+    },
+    {
+      "Time": "2026-10-21T15:34:02.096222368Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/handoff_receipt",
+      "Elapsed": 0.08
+    },
+    {
+      "Time": "2026-10-21T15:34:02.18217438Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/handoff_deployment",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:02.304611544Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_receipt",
+      "Elapsed": 0.12
+    },
+    {
+      "Time": "2026-10-21T15:34:02.424456581Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_deployment",
+      "Elapsed": 0.12
+    },
+    {
+      "Time": "2026-10-21T15:34:02.550684636Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/final_higher",
+      "Elapsed": 0.13
+    },
+    {
+      "Time": "2026-10-21T15:34:02.5998576Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/rehearsal_receipt",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-21T15:34:02.610581481Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell/formal/previous_true/sidecar_authority",
+      "Elapsed": 0.01
+    },
+    {
+      "Time": "2026-10-21T15:34:02.610599398Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFinalizerAuthenticationActualWorkflowShell",
+      "Elapsed": 2.54
+    },
+    {
+      "Time": "2026-10-21T15:34:03.338580428Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/lower",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T15:34:03.448587088Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/default",
+      "Elapsed": 0.11
+    },
+    {
+      "Time": "2026-10-21T15:34:03.565483483Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/stop_minus_one",
+      "Elapsed": 0.12
+    },
+    {
+      "Time": "2026-10-21T15:34:03.652268882Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/at_stop",
+      "Elapsed": 0.09
+    },
+    {
+      "Time": "2026-10-21T15:34:03.718840773Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/above_stop",
+      "Elapsed": 0.07
+    },
+    {
+      "Time": "2026-10-21T15:34:03.776495924Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/missing_plan_cap",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T15:34:03.836482872Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell/mismatched_receipt",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-21T15:34:03.836499838Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDownwardBudgetFormalAdmissionActualWorkflowShell",
+      "Elapsed": 0.61
+    }
+  ],
+  "budget_pass_events": 112,
+  "overall_top_level_passes": 649,
+  "overall_terminal_events": {
+    "pass": 1306,
+    "skip": 6
+  },
+  "existing_skips": [
+    "TestDockerImageRuntimeContract",
+    "TestDockerImageEmbeddedPrometheus",
+    "TestEasySDKReadinessSerialDelayFixture",
+    "TestNativePackageLifecycle",
+    "TestNativePackageSignedRepository",
+    "TestNativePackageRepositoryDeadlineFixture"
+  ],
+  "failed_tests": [],
+  "local_timeout_not_superseded": true
+}
