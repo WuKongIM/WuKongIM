@@ -1,0 +1,176 @@
+{
+  "passed": true,
+  "actual_checkout": "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+  "actual_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "case_count": 29,
+  "case_names": [
+    "export-native-public-fixtures",
+    "client-rejects-missing-binaries",
+    "client-rejects-malformed-binaries",
+    "client-rejects-wrong-source",
+    "verify-native-preview",
+    "reject-structural-preview",
+    "repeat-canonical-archive",
+    "reject-preview-deb",
+    "reject-preview-rpm",
+    "reject-preview-apt-index",
+    "reject-preview-rpm-metadata",
+    "reject-preview-signature-crypto",
+    "plan-native-composite-A",
+    "plan-native-composite-B",
+    "repeat-composite-plan",
+    "reject-preview-archive",
+    "reject-preview-receipt",
+    "reject-preview-control-sha",
+    "reject-preview-audit-id",
+    "reject-preview-control",
+    "reject-missing-preview",
+    "reject-missing-retained-archive",
+    "reject-test-without-optin",
+    "reject-fresh-production-auth",
+    "reject-plan-digest",
+    "reject-route-limit",
+    "materialize-exact-A",
+    "materialize-exact-B",
+    "export-public-only"
+  ],
+  "export_command_count": 27,
+  "outer_command_count": 27,
+  "complete_outer_output_hashes_recomputed": 26,
+  "negative_commands": [
+    {
+      "stage": "reject-structural-preview",
+      "exit_code": 1,
+      "diagnostic": "production package-site verification failed: gpg rejected the reviewed public certificate packets\n"
+    },
+    {
+      "stage": "reject-preview-deb",
+      "exit_code": 1,
+      "diagnostic": "production package-site verification failed: APT payload digest differs from snapshot for 3.1.0-rc.1\n"
+    },
+    {
+      "stage": "reject-preview-rpm",
+      "exit_code": 1,
+      "diagnostic": "production package-site verification failed: RPM payload digest differs from snapshot for 3.1.0-rc.1\n"
+    },
+    {
+      "stage": "reject-preview-apt-index",
+      "exit_code": 1,
+      "diagnostic": "production package-site verification failed: APT Packages.gz differs from Packages\n"
+    },
+    {
+      "stage": "reject-preview-rpm-metadata",
+      "exit_code": 1,
+      "diagnostic": "production package-site verification failed: OpenPGP signature is bad, revoked, or untrusted\n"
+    },
+    {
+      "stage": "reject-preview-signature-crypto",
+      "exit_code": 1,
+      "diagnostic": "production package-site verification failed: OpenPGP signature must expose exactly one full issuer fingerprint\n"
+    },
+    {
+      "stage": "reject-preview-archive",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: archive SHA-256 differs from independent anchor\n"
+    },
+    {
+      "stage": "reject-preview-receipt",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: receipt SHA-256 differs from independent anchor\n"
+    },
+    {
+      "stage": "reject-preview-control-sha",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: control identity differs from independent anchor\n"
+    },
+    {
+      "stage": "reject-preview-audit-id",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: audit identity differs from independent anchor\n"
+    },
+    {
+      "stage": "reject-preview-control",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: control file SHA-256 differs from independent anchor: manifests/channels.json\n"
+    },
+    {
+      "stage": "reject-missing-preview",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: current composite channels fields must be exactly ['preview', 'stable']\n"
+    },
+    {
+      "stage": "reject-missing-retained-archive",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: [Errno 2] No such file or directory: '/tmp/wk-d3-64c3754w/missing.tar'\n"
+    },
+    {
+      "stage": "reject-test-without-optin",
+      "exit_code": 1,
+      "diagnostic": "object-storage planning failed: TEST ONLY input requires matching explicit test_only mode\n"
+    },
+    {
+      "stage": "reject-plan-digest",
+      "exit_code": 1,
+      "diagnostic": "offline object delivery failed: recomputed plan digest differs\n"
+    },
+    {
+      "stage": "reject-route-limit",
+      "exit_code": 1,
+      "diagnostic": "offline object delivery failed: route table exceeds declared route limit\n"
+    }
+  ],
+  "verification": {
+    "activation_authorized": false,
+    "cloud_verified": false,
+    "data_only_packages": true,
+    "fresh_production_auth_verified": false,
+    "github_provenance_verified": false,
+    "installed_cli_verified": false,
+    "native_preview_verified": true,
+    "native_stable_verified": true,
+    "public_clients_verified": false,
+    "sdk_integration_verified": false
+  },
+  "materializations": {
+    "A": {
+      "delivery": {
+        "sha256": "dc5ef690ea0173b2215ebc5e2295186faf67646708cc53fb9306a9aa1089155c",
+        "size": 157527
+      },
+      "objects": 153,
+      "plan": {
+        "sha256": "66580dd1b7acdcb21700ef4b62b1c93ed1160c5d1f534b45d08ccea8a65441fc",
+        "size": 75560
+      },
+      "routes": 178,
+      "source_audit_ids": [
+        10,
+        4242,
+        4243
+      ]
+    },
+    "B": {
+      "delivery": {
+        "sha256": "d3bf41621724c3e301086d4cff93c6a0acb098bc93fc64a22e606172e5ac98f6",
+        "size": 157527
+      },
+      "objects": 153,
+      "plan": {
+        "sha256": "b20ac727947e506093cef9ca137d942cdaf1b3890f36a0d519ae8eec3840c112",
+        "size": 75560
+      },
+      "routes": 178,
+      "source_audit_ids": [
+        10,
+        4242,
+        4243
+      ]
+    }
+  },
+  "secret_tree_removed": true,
+  "scratch_removed": true,
+  "ci_os_process_inventory": "not captured; unknown",
+  "ci_zombie_process_count": "not captured; unknown",
+  "prior_local_pid_limit_failure_separate": true,
+  "no_native_execution_by_observer": true
+}

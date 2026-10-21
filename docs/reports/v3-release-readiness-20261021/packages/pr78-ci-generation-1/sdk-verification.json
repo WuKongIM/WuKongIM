@@ -1,0 +1,10 @@
+{
+  "tests": 34,
+  "input_tests": 10,
+  "skips": 0,
+  "failures": 0,
+  "errors": 0,
+  "provider_network_allowed": false,
+  "checkout_sha": "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+  "checkout_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e"
+}

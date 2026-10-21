@@ -1,0 +1,33 @@
+{
+  "retrieved_at_utc": "2026-10-21T21:03:42.648839+00:00",
+  "method": "Public documentation reads through web tool only; no authenticated API requests. Summaries below are interpretations, not full page snapshots.",
+  "sources": [
+    {
+      "url": "https://help.aliyun.com/zh/cdn/developer-reference/api-cdn-2018-05-10-refreshobjectcaches",
+      "facts": [
+        "ObjectPath request is a newline-separated string for batch URLs.",
+        "RefreshTaskId response is a comma-separated string.",
+        "Same-domain URL submissions in one second are grouped into a task; groups split at 2000 URLs."
+      ],
+      "does_not_define": "Post-submission per-URL query row encoding for grouped tasks."
+    },
+    {
+      "url": "https://help.aliyun.com/zh/cdn/developer-reference/api-cdn-2018-05-10-describerefreshtaskbyid",
+      "facts": [
+        "TaskId request allows up to 10 comma-separated IDs.",
+        "Response declares Tasks array, TotalCount, and per-row string TaskId/ObjectPath plus status/type.",
+        "Query retention is three days."
+      ],
+      "does_not_define": "Grouped row cardinality, delimiters inside ObjectPath, pagination/truncation of grouped members, or exclusive ownership by one submission."
+    },
+    {
+      "url": "https://help.aliyun.com/zh/cdn/developer-reference/api-cdn-2018-05-10-describerefreshtasks",
+      "facts": [
+        "Supports simultaneous TaskId and exact ObjectPath filtering.",
+        "Response uses Tasks.CDNTask with PageNumber/PageSize/TotalCount; page size at most100.",
+        "Query retention is three days and rate limit is5 requests/second."
+      ],
+      "does_not_define": "A concrete grouped-task example or proof that exact path filtering returns complete unambiguous membership for this retained real task."
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "mode": "Bounded evidence route. No reproduction harness/SDK invocation/remote task query or changes authorized.",
+  "hypotheses": [
+    {
+      "hypothesis": "Retained docs logs include grouped per-URL query rows.",
+      "prediction": "Find DescribeRefreshTaskById response with Tasks/ObjectPath and total coverage.",
+      "outcome": "Not supported: exact helper never calls a Describe API; no such response in allowed public archive."
+    },
+    {
+      "hypothesis": "Docs success confirms batch submission only, and may show fewer IDs than URLs.",
+      "prediction": "Find bounded four-URL source and a narrow accepted-task log, without completion polling.",
+      "outcome": "Confirmed: four URLs, one ID33643947491, accepted-only code/log."
+    },
+    {
+      "hypothesis": "Official query contracts fully define grouped-member encoding and coverage.",
+      "prediction": "Find documented row grouping/delimiters/cardinality or a grouped response example.",
+      "outcome": "Not established by the three official pages. DescribeRefreshTasks offers a candidate exact-ID/path paginated query but actual grouped behavior remains unobserved."
+    }
+  ],
+  "inspection_errors_preserved": [
+    {
+      "operation": "initial bounded source line excerpt",
+      "error": "IndexError because provider file has433lines and requested fixed range ended450",
+      "resolution": "Read392 through actual file length; no source execution or mutation."
+    }
+  ]
+}

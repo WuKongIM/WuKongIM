@@ -1,0 +1,352 @@
+{
+  "verified_at_utc": "2026-10-21T20:50:14.500915+00:00",
+  "merge_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "accepted_pr_tip": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "tip_same_tree": true,
+  "tip_is_merge_ancestor": true,
+  "merged_at": "2026-10-21T20:44:41Z",
+  "docs_run": {
+    "id": 39672950808,
+    "event": "push",
+    "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-10-21T20:44:45Z"
+  },
+  "docs_jobs": [
+    {
+      "id": 119475303206,
+      "name": "Verify and package the static documentation site",
+      "started_at": "2026-10-21T20:44:48Z",
+      "completed_at": "2026-10-21T20:46:55Z",
+      "conclusion": "success",
+      "source_sha_logged": true,
+      "checkout_boundary": "Exact merged source in checkout log.",
+      "public_log_sha256": "071a521577e016bd063f1a9f4f394009da293e78e201b9ac1445d7201cbca561",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:44:49Z",
+          "completed_at": "2026-10-21T20:44:50Z"
+        },
+        {
+          "name": "Checkout the exact source revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:44:50Z",
+          "completed_at": "2026-10-21T20:44:55Z"
+        },
+        {
+          "name": "Validate the immutable release documentation source",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-21T20:44:55Z",
+          "completed_at": "2026-10-21T20:44:55Z"
+        },
+        {
+          "name": "Set up Bun",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:44:55Z",
+          "completed_at": "2026-10-21T20:44:56Z"
+        },
+        {
+          "name": "Configure GitHub Pages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:44:56Z",
+          "completed_at": "2026-10-21T20:44:57Z"
+        },
+        {
+          "name": "Install, verify, and export the site",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:44:57Z",
+          "completed_at": "2026-10-21T20:46:47Z"
+        },
+        {
+          "name": "Verify the GitHub Pages static markers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T20:46:47Z",
+          "completed_at": "2026-10-21T20:46:47Z"
+        },
+        {
+          "name": "Upload the exact static export",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T20:46:47Z",
+          "completed_at": "2026-10-21T20:46:53Z"
+        },
+        {
+          "name": "Post Set up Bun",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T20:46:53Z",
+          "completed_at": "2026-10-21T20:46:53Z"
+        },
+        {
+          "name": "Post Checkout the exact source revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T20:46:53Z",
+          "completed_at": "2026-10-21T20:46:53Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T20:46:53Z",
+          "completed_at": "2026-10-21T20:46:53Z"
+        }
+      ]
+    },
+    {
+      "id": 119476395122,
+      "name": "Deploy the verified artifact",
+      "started_at": "2026-10-21T20:46:59Z",
+      "completed_at": "2026-10-21T20:47:18Z",
+      "conclusion": "success",
+      "source_sha_logged": true,
+      "checkout_boundary": "Exact merged source in checkout log.",
+      "public_log_sha256": "54c6d4ca0ddaf829fea0e0458eda9b80849b28a5a0e2a5eb8c6bbd4b0e0e9965",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:47:00Z",
+          "completed_at": "2026-10-21T20:47:01Z"
+        },
+        {
+          "name": "Wait for the expected GitHub Pages custom domain",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 2,
+          "started_at": "2026-10-21T20:47:01Z",
+          "completed_at": "2026-10-21T20:47:01Z"
+        },
+        {
+          "name": "Deploy to GitHub Pages",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:47:01Z",
+          "completed_at": "2026-10-21T20:47:17Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:47:17Z",
+          "completed_at": "2026-10-21T20:47:17Z"
+        }
+      ]
+    },
+    {
+      "id": 119476586183,
+      "name": "Verify the direct GitHub Pages origin",
+      "started_at": "2026-10-21T20:47:21Z",
+      "completed_at": "2026-10-21T20:47:32Z",
+      "conclusion": "success",
+      "source_sha_logged": true,
+      "checkout_boundary": "Exact merged source in checkout log.",
+      "public_log_sha256": "2d28b51280692a889711c2ddd16714f1c84c5cbdafc5906acf2f93b8f701a09f",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:47:22Z",
+          "completed_at": "2026-10-21T20:47:23Z"
+        },
+        {
+          "name": "Checkout the exact source revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:47:23Z",
+          "completed_at": "2026-10-21T20:47:27Z"
+        },
+        {
+          "name": "Require the Pages API and direct origin data plane to agree",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:47:27Z",
+          "completed_at": "2026-10-21T20:47:30Z"
+        },
+        {
+          "name": "Post Checkout the exact source revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:47:30Z",
+          "completed_at": "2026-10-21T20:47:30Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T20:47:30Z",
+          "completed_at": "2026-10-21T20:47:30Z"
+        }
+      ]
+    },
+    {
+      "id": 119476699413,
+      "name": "Refresh bounded Alibaba CDN URLs",
+      "started_at": "2026-10-21T20:47:36Z",
+      "completed_at": "2026-10-21T20:47:50Z",
+      "conclusion": "success",
+      "source_sha_logged": true,
+      "checkout_boundary": "Exact merged source in checkout log.",
+      "public_log_sha256": "521e9f98b775428bc58a14a62db16724c0973772f346e58e23ad3f0d90dbbe41",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:47:37Z",
+          "completed_at": "2026-10-21T20:47:38Z"
+        },
+        {
+          "name": "Checkout the exact source revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:47:38Z",
+          "completed_at": "2026-10-21T20:47:43Z"
+        },
+        {
+          "name": "Validate the exact CDN refresh binding without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:47:43Z",
+          "completed_at": "2026-10-21T20:47:43Z"
+        },
+        {
+          "name": "Install the pinned Alibaba Cloud CLI",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:47:43Z",
+          "completed_at": "2026-10-21T20:47:44Z"
+        },
+        {
+          "name": "Exchange the exact CDN refresh OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:47:44Z",
+          "completed_at": "2026-10-21T20:47:46Z"
+        },
+        {
+          "name": "Refresh only the bounded stable public URLs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:47:46Z",
+          "completed_at": "2026-10-21T20:47:47Z"
+        },
+        {
+          "name": "Post Exchange the exact CDN refresh OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T20:47:47Z",
+          "completed_at": "2026-10-21T20:47:47Z"
+        },
+        {
+          "name": "Post Checkout the exact source revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T20:47:47Z",
+          "completed_at": "2026-10-21T20:47:48Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T20:47:48Z",
+          "completed_at": "2026-10-21T20:47:48Z"
+        }
+      ]
+    }
+  ],
+  "postmerge_pr_signal": {
+    "id": 39672951899,
+    "created_at": "2026-10-21T20:44:45Z",
+    "head_sha": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+    "event": "pull_request",
+    "attempt": 1,
+    "conclusion": "success",
+    "pull_requests": [],
+    "limit": "Runs API/logs retain event kind, not exact webhook action; this signal was created after the confirmed merge. The tip SHA is expected for a PR event."
+  },
+  "merge_head_runtime_ci": "No candidate/performance/SDK/native runtime workflow among captured exact-merge runs; their triggers do not make this merge a fresh product regression run. Gen4 exact-tree candidate/performance receipts remain separate.",
+  "pages_artifact": {
+    "id": 12380901596,
+    "bytes": 42712074,
+    "api_declared_digest": "sha256:c95374f9c780f096aed68ac552a19d644806664dad2cc53417281c6f595a0cac",
+    "downloaded": false,
+    "reason": "Static site export is outside this finite control-evidence archive; no whole-byte integrity or content inspection claim."
+  },
+  "source_rule_hashes": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/docs-pages.yml",
+      "bytes": 10081,
+      "sha256": "5b61562a02f1e07d00e5bd6becaa5ed3395b5fa92f01160ad240b19cb2dcb699"
+    },
+    {
+      "path": ".github/workflows/issue-agent-pr-signal.yml",
+      "bytes": 609,
+      "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45"
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "bytes": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "bytes": 13037,
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71"
+    }
+  ],
+  "mutations_by_observer": [],
+  "observer_processes_remaining": []
+}

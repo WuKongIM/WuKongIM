@@ -1,0 +1,14 @@
+{
+  "source": "../pr77-ci-generation-1",
+  "manifest_sha256": "4dc93581853533f2218aca848403dff4a0ea9785e6dd8a9693ed9045aeca3906",
+  "verified_payload_entries": 175,
+  "all_path_size_SHA_CRC_match": true,
+  "read_only_no_old_file_modified": true,
+  "coverage": {
+    "passed": 0,
+    "failed": 1,
+    "not_reached": 48
+  },
+  "timeout_subphase": "unknown",
+  "first_observer_probe": "relative Path.parent pointed at current directory; FileNotFoundError; resolved absolute parent then verified; not CI failure"
+}

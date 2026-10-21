@@ -1,0 +1,29 @@
+{
+  "planning_only": true,
+  "proposed_driver_cases": [
+    "native-public-binding",
+    "native-composite-materialization",
+    "sdk-all-objects-A",
+    "sdk-all-objects-B",
+    "sdk-object-resource-fence",
+    "sdk-local-object-drift",
+    "sdk-unknown-put-no-retry",
+    "sdk-full-get-failures",
+    "sdk-initial-input-current-fence",
+    "sdk-mid-object-drift",
+    "sdk-generation-source-binding",
+    "sdk-full-config-A",
+    "sdk-config-A-B-reuse",
+    "sdk-config-fresh-fence",
+    "sdk-config-removal-unsupported",
+    "sdk-config-incomplete-sideeffects",
+    "sdk-full-refresh-set-unsupported",
+    "sdk-aggregate-task-coverage-unknown",
+    "sdk-production-boundaries-refuse",
+    "driver-ci-receipt-cleanup"
+  ],
+  "proposed_count": 20,
+  "overall_full_delivery_success_allowed": false,
+  "expected_final_limitation": "refresh_unsupported",
+  "implementation_waits_for_actual_merged_main": true
+}

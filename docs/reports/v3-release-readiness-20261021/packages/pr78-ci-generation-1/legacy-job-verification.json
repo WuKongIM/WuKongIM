@@ -1,0 +1,10 @@
+{
+  "actual_checkouts": [
+    "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+    "ed7e67d8f781b4f92872e42116c11b304fe03b5c"
+  ],
+  "signed_repository_install_complete": true,
+  "completion_marker": "native-package signed repository container validation passed",
+  "log_bytes": 200739,
+  "signals": []
+}

@@ -1,0 +1,189 @@
+[
+  {
+    "path": "arrival.warmup.json",
+    "size": 19199,
+    "compressed_size": 1247,
+    "crc32": "cb1851a5",
+    "retained": true,
+    "sha256": "f5ad646cc4ace9be8419175f0cde2c25c97531f479f53c6be3c23668238ddc26",
+    "public_sha256": "f5ad646cc4ace9be8419175f0cde2c25c97531f479f53c6be3c23668238ddc26",
+    "public_bytes": 19199,
+    "redacted_lines": []
+  },
+  {
+    "path": "benchmark.txt",
+    "size": 2357,
+    "compressed_size": 837,
+    "crc32": "8e8bba9c",
+    "retained": true,
+    "sha256": "1b83366a266fbac4656a149b246676f45d24ba85d92e0d128ff4e16e4be345e1",
+    "public_sha256": "1b83366a266fbac4656a149b246676f45d24ba85d92e0d128ff4e16e4be345e1",
+    "public_bytes": 2357,
+    "redacted_lines": []
+  },
+  {
+    "path": "arrival.json",
+    "size": 57404,
+    "compressed_size": 3288,
+    "crc32": "19903a58",
+    "retained": true,
+    "sha256": "590b5271201ec463956f2ffe208a1fcb8d86916c7ba2d92698ca5a56f78e6c40",
+    "public_sha256": "590b5271201ec463956f2ffe208a1fcb8d86916c7ba2d92698ca5a56f78e6c40",
+    "public_bytes": 57404,
+    "redacted_lines": []
+  },
+  {
+    "path": "binary.sha256",
+    "size": 127,
+    "compressed_size": 109,
+    "crc32": "169500e8",
+    "retained": true,
+    "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2",
+    "public_sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2",
+    "public_bytes": 127,
+    "redacted_lines": []
+  },
+  {
+    "path": "counters/after.json",
+    "size": 50637,
+    "compressed_size": 4162,
+    "crc32": "55d654fa",
+    "retained": true,
+    "sha256": "894267b18b0d29437bd6237966a6a1be4fa51efeabfcd8527c2423737418a480",
+    "public_sha256": "894267b18b0d29437bd6237966a6a1be4fa51efeabfcd8527c2423737418a480",
+    "public_bytes": 50637,
+    "redacted_lines": []
+  },
+  {
+    "path": "counters/before.json",
+    "size": 50386,
+    "compressed_size": 3985,
+    "crc32": "28fbc86f",
+    "retained": true,
+    "sha256": "5096670108dfa85dc83c041a4abb9a9337015a495b77bcfa84acea3eeca41fea",
+    "public_sha256": "5096670108dfa85dc83c041a4abb9a9337015a495b77bcfa84acea3eeca41fea",
+    "public_bytes": 50386,
+    "redacted_lines": []
+  },
+  {
+    "path": "counters/window.json",
+    "size": 576,
+    "compressed_size": 353,
+    "crc32": "fe1ef1fd",
+    "retained": true,
+    "sha256": "919440497189e47d7e3ab95f9653c93c8e11aa9d62154924e63bc228381210d5",
+    "public_sha256": "919440497189e47d7e3ab95f9653c93c8e11aa9d62154924e63bc228381210d5",
+    "public_bytes": 576,
+    "redacted_lines": []
+  },
+  {
+    "path": "counters.warmup/after.json",
+    "size": 50386,
+    "compressed_size": 3983,
+    "crc32": "b840a2e6",
+    "retained": true,
+    "sha256": "020ee2f75aa6de87f51f8fd3937d0f8b97cf46e04c074ed5fa6ac058d96a0d7a",
+    "public_sha256": "020ee2f75aa6de87f51f8fd3937d0f8b97cf46e04c074ed5fa6ac058d96a0d7a",
+    "public_bytes": 50386,
+    "redacted_lines": []
+  },
+  {
+    "path": "counters.warmup/before.json",
+    "size": 21539,
+    "compressed_size": 2948,
+    "crc32": "5184d3d7",
+    "retained": true,
+    "sha256": "87e2dabaeeaf58e84df761ead7f442488a4111752efc4f086c5552886bd82aa5",
+    "public_sha256": "87e2dabaeeaf58e84df761ead7f442488a4111752efc4f086c5552886bd82aa5",
+    "public_bytes": 21539,
+    "redacted_lines": []
+  },
+  {
+    "path": "counters.warmup/window.json",
+    "size": 504,
+    "compressed_size": 313,
+    "crc32": "1b5aad50",
+    "retained": true,
+    "sha256": "81ca0456056aac6e86837d5d885f01b4ed082a6a9ccf1febb390bd69ecda98f0",
+    "public_sha256": "81ca0456056aac6e86837d5d885f01b4ed082a6a9ccf1febb390bd69ecda98f0",
+    "public_bytes": 504,
+    "redacted_lines": []
+  },
+  {
+    "path": "data-filesystem.json",
+    "size": 244,
+    "compressed_size": 159,
+    "crc32": "77ec143c",
+    "retained": true,
+    "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+    "public_sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+    "public_bytes": 244,
+    "redacted_lines": []
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "size": 123,
+    "compressed_size": 109,
+    "crc32": "e8d99c35",
+    "retained": true,
+    "sha256": "57d40e95eb3402e813db7ee660e522a2f5c82f55ace90d092581c06d8315ef8d",
+    "public_sha256": "57d40e95eb3402e813db7ee660e522a2f5c82f55ace90d092581c06d8315ef8d",
+    "public_bytes": 123,
+    "redacted_lines": []
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33,
+    "compressed_size": 35,
+    "crc32": "dd48af92",
+    "retained": true,
+    "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+    "public_sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+    "public_bytes": 33,
+    "redacted_lines": []
+  },
+  {
+    "path": "host.json",
+    "size": 4483,
+    "compressed_size": 1177,
+    "crc32": "86213588",
+    "retained": true,
+    "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401",
+    "public_sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401",
+    "public_bytes": 4483,
+    "redacted_lines": []
+  },
+  {
+    "path": "kernel.txt",
+    "size": 113,
+    "compressed_size": 100,
+    "crc32": "5f528912",
+    "retained": true,
+    "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5",
+    "public_sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5",
+    "public_bytes": 113,
+    "redacted_lines": []
+  },
+  {
+    "path": "result.json",
+    "size": 18,
+    "compressed_size": 20,
+    "crc32": "81529131",
+    "retained": true,
+    "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+    "public_sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+    "public_bytes": 18,
+    "redacted_lines": []
+  },
+  {
+    "path": "source.sha",
+    "size": 41,
+    "compressed_size": 41,
+    "crc32": "064074e6",
+    "retained": true,
+    "sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449",
+    "public_sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449",
+    "public_bytes": 41,
+    "redacted_lines": []
+  }
+]

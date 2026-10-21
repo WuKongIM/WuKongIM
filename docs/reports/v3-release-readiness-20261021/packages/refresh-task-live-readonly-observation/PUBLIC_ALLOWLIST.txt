@@ -1,0 +1,6 @@
+README.md
+observed-response.json
+provenance.json
+manifest.json
+PUBLIC_ALLOWLIST.txt
+SHA256SUMS

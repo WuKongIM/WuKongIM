@@ -1,0 +1,30 @@
+{
+  "schema": "wukongim.cloud_rc.diagnostic_limit/v1",
+  "source": "Parent task current evidence handoff; no additional MCP/SSH/provider attempt performed by this preparation",
+  "previous_live_analysis_attempts": 2,
+  "mcp_connection_established": false,
+  "second_attempt_existing_compatible_cli": "0.163",
+  "second_attempt_health_requests_timed_out": 12,
+  "timeout_cause": "unknown",
+  "previous_analysis_authorization": "closed",
+  "future_live_mcp_success_assumed": false,
+  "collector_repair_scope": "Retains run/worker-generation/snapshot-sequence/cut-bound worker evidence and diagnostic status plus failure-time-anchored bounded metric partitions; no message-loss runtime fix.",
+  "allowed_current_actions": "Read-only plan preparation and local public report writing only.",
+  "no_implicit_authorization_for": [
+    "A third diagnostic attempt",
+    "IAM/permission changes",
+    "New paid procurement",
+    "Changing runtime thresholds or product source"
+  ],
+  "new_collector_budgets": {
+    "worker_evidence_bytes": 1048576,
+    "diagnostic_status_bytes": 65536,
+    "metrics_max_requests": 8,
+    "metrics_total_bytes": 25165824,
+    "metrics_file_bytes": 4194304,
+    "metrics_total_seconds": 60,
+    "metrics_window_seconds": 900,
+    "metrics_step_seconds": 15,
+    "metric_bounds": "Canonical nearest-millisecond closed query interval; original nanosecond terminal cut retained."
+  }
+}

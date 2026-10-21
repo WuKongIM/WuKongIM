@@ -1,0 +1,14 @@
+# PR #78 — first natural main checks after merge
+
+Merged main commit `7255102de81b45c23d52e908ccdde1b7799ee3f5` (merged 2026-10-21T20:58:59Z) has tree `cd49a22102235d60bda1a703a5b1145ab112c40e`, exactly the accepted PR head `1fb1c6ea077fd260c373434c1a3c368a7952defd` tree. GitHub Git-object GET, both actual job checkout logs, and the SDK receipt bind this identity.
+
+- [Pages run 39674980407](https://github.com/WuKongIM/packages/actions/runs/39674980407): natural main push, attempt 1; 581 Linux default tests with zero skips, plus four workflow contracts passed. Configure Pages, artifact upload, and Deploy complete Pages snapshot were skipped. No Pages artifact was produced.
+- [SDK run 39674980428](https://github.com/WuKongIM/packages/actions/runs/39674980428): natural main push, attempt 1; 34 SDK and 10 input tests passed with zero skips. Its 1,338-byte artifact was downloaded completely; recomputed whole ZIP SHA equals the API digest and every member CRC/SHA/size matches. The receipt explicitly disables provider network.
+
+Final discovery contains exactly these two successful push workflows. Three checks are terminal: two success and one conditional deploy skip. The unchanged Pages workflow sets `deploy_bootstrap=false` because `preview.enabled=true`; deployment requires true. Stable separately remains disabled. This is a deployment skip, not a missing validation test. No Actions warning/error annotations were observed in the two complete public job logs.
+
+The native workflow has pull_request and manual triggers, no push trigger, and was not executed again. The accepted 49-case PR run remains 39672398441, bound by generation-1 archive manifest `7a6842bd643a265c99e28501fd4771b9c42dd373863982d15160a14fa7ef7e13`; equal trees preserve its source identity. That archive separately verifies 49 cases, eight installed identities, twelve cache cases, two cross-generation downloads, eleven phase summaries, M1 29, the older native suites and zero owned resources. Historical #77 failure, unknown timeout subphase, and all prior archives are unchanged. This is not production stable publication or public-provider acceptance.
+
+`summary.json`, `job-step-outcomes.json`, original public job logs, `source-binding.json`, SDK receipt and replayable `verify-postmerge.py` provide the finite proof. Source snapshots are byte copies of the accepted tree archive, bound to main by exact Git tree identity. No source, workflow, cloud, production resource, key, PR, branch or worktree was changed. No dispatch, rerun, cancellation or merge was performed by this observer. All subprocesses terminated. Private raw ZIPs and GET stderr stay outside this public directory.
+
+`ARCHIVE_ALLOWLIST.txt` enumerates every final public file. `archive-sha256.json` binds payload and allowlist by path/size/SHA256/CRC32; `SHA256SUMS` and `CRC32SUMS` additionally bind the manifest and exclude their own self-hashes. All entries were read back and verified.

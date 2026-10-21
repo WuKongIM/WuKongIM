@@ -1,0 +1,25 @@
+{
+  "currency": "CNY",
+  "unit": "micro-CNY",
+  "historical_two_lease_full_quote_reserve_micros": 148955200,
+  "latest_lease_full_quote_reserve_micros": 74477600,
+  "cumulative_quote_reserve_micros": 223432800,
+  "cumulative_quote_reserve_cny": "223.4328",
+  "reserve_is_invoice": false,
+  "actual_provider_bill": "unknown/unresolved",
+  "task_hard_limit_micros": 1500000000,
+  "task_operational_stop_micros": 1350000000,
+  "new_request_hard_limit_micros": 1276567200,
+  "new_request_hard_limit_cny": "1276.5672",
+  "new_request_operational_stop_micros": 1126567200,
+  "new_request_operational_stop_cny": "1126.5672",
+  "fixed_request_safety_gap_micros": 150000000,
+  "conservation": {
+    "reserved_plus_new_hard": 1500000000,
+    "reserved_plus_new_stop": 1350000000
+  },
+  "new_request_initial_prior_micros": 0,
+  "enforcement": "Workflow downward-only input H; existing RunPlan/Lease/DeploymentPlan and wkcli derive/enforce S=H-150000000 through rehearsal, formal, capacity, recovery. Historical reserve is held outside the new request; do not put it in an unauthenticated prior field or count it twice.",
+  "future_same_request_formal_prior": "Authenticated conservative creation-to-zero rehearsal cost from the new request transition; no manual override.",
+  "quote_admission": "A fresh future Quote must fit remaining admitted operational stop; no Quote requested here. No budget/permission increases."
+}

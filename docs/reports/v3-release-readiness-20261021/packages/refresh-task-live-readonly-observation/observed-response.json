@@ -1,0 +1,42 @@
+{
+  "TotalCount": 4,
+  "Tasks": [
+    {
+      "Status": "Complete",
+      "ObjectType": "file",
+      "ObjectPath": "https://docs.githubim.com/zh/",
+      "Description": "",
+      "TaskId": "33643947491",
+      "CreationTime": "2026-10-21T20:47:47Z",
+      "Process": "100%"
+    },
+    {
+      "Status": "Complete",
+      "ObjectType": "file",
+      "ObjectPath": "https://docs.githubim.com/",
+      "Description": "",
+      "TaskId": "33643947491",
+      "CreationTime": "2026-10-21T20:47:47Z",
+      "Process": "100%"
+    },
+    {
+      "Status": "Complete",
+      "ObjectType": "file",
+      "ObjectPath": "https://docs.githubim.com/api/search",
+      "Description": "",
+      "TaskId": "33643947491",
+      "CreationTime": "2026-10-21T20:47:47Z",
+      "Process": "100%"
+    },
+    {
+      "Status": "Complete",
+      "ObjectType": "file",
+      "ObjectPath": "https://docs.githubim.com/en/",
+      "Description": "",
+      "TaskId": "33643947491",
+      "CreationTime": "2026-10-21T20:47:47Z",
+      "Process": "100%"
+    }
+  ],
+  "RequestId": "01A16048-EE37-5932-9795-C364DE421ADB"
+}

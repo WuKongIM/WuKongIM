@@ -1,0 +1,89 @@
+{
+  "head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "files": [
+    {
+      "source_path": "tests/native_object_delivery_fixture_drill.py",
+      "archived_path": "native_object_delivery_fixture_drill.py.source",
+      "size": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": "tests/native_stable_clients_drill.py",
+      "archived_path": "native_stable_clients_drill.py.source",
+      "size": 71299,
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": "scripts/validate-production-package-clients.py",
+      "archived_path": "validate-production-package-clients.py.source",
+      "size": 88596,
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": "tests/fixtures/wkcli-acceptance/sha256.json",
+      "archived_path": "installed-fixtures-sha256.json.source",
+      "size": 552,
+      "sha256": "76a729dc8666f668aa480f86585ab359f2fb3ca3d9c6c2a05bef4a61d62ed0fc",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": "manifests/channels.json",
+      "archived_path": "channels.json.source",
+      "size": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": ".github/workflows/pages.yml",
+      "archived_path": "pages.yml.source",
+      "size": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": ".github/workflows/object-storage-provider-contract.yml",
+      "archived_path": "object-storage-provider-contract.yml.source",
+      "size": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "base_byte_identical": true
+    },
+    {
+      "source_path": ".github/workflows/native-package-repository-drill.yml",
+      "archived_path": "native-package-repository-drill.yml.source",
+      "size": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "base_byte_identical": true
+    }
+  ],
+  "reviewed_M2a_five_files": [
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "bytes": 27342,
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d"
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "tests/provider_sdk/fixtures/native-composite-routes.json",
+      "bytes": 670004,
+      "sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8"
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 18618,
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 4176,
+      "sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0"
+    }
+  ],
+  "only_reviewed_five_files_changed": true
+}

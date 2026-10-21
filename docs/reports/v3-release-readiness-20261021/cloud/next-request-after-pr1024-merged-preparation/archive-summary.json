@@ -1,0 +1,22 @@
+{
+  "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "payload_files": 41,
+  "payload_bytes": 93202,
+  "manifest_sha256": "b180f97bf0813bcd40578540b365a68102d35d5e6e03b86ebcfac7fa7572de35",
+  "all_local_processes_terminal": true,
+  "offline_cases": 9,
+  "offline_all_pass": true,
+  "source_mutations": false,
+  "no_paid_or_provider_or_remote_api_action": true,
+  "real_request_identity_generated": false,
+  "waiting_for_new_paid_authorization": true,
+  "exclusions": [
+    "offline executable",
+    "gocache",
+    "exported package closure bytes",
+    "private keys/credentials",
+    "large artifacts/binaries",
+    "old generation copies"
+  ],
+  "secret_scan": "No private key PEM markers; only fixed TEST ONLY public format vectors in offline fixtures. No credentials were read."
+}

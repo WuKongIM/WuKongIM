@@ -1,0 +1,35 @@
+{
+  "proven_findings": [
+    {
+      "severity": "P2",
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "line": 414,
+      "title": "One URL per task ID contradicts documented and observed batch grouping",
+      "evidence": "Official grouping rule plus retained docs four-URL submission returning one ID. This is source-contract evidence; packages provider was not run.",
+      "related_lines": [
+        421,
+        423,
+        424
+      ]
+    }
+  ],
+  "unknowns": [
+    "Actual Tasks/ObjectPath shape for task33643947491",
+    "Whether aggregated query rows repeat an ID, encode multiple paths in one string, or expose only a representative path",
+    "Whether grouped tasks include URL members from another same-domain same-second submission",
+    "TotalCount/member completeness and repeated polling stability for aggregated responses"
+  ],
+  "not_verified": [
+    "No packages-provider live reproduction",
+    "No repair implemented/tested",
+    "No new CDN request or read query",
+    "No production/publication readiness approval"
+  ],
+  "coverage_gap": {
+    "path": "scripts/aliyun-object-storage-provider.py",
+    "line": 423,
+    "title": "TaskId-to-one-ObjectPath map cannot establish grouped URL coverage",
+    "evidence": "One-row-per-ID precondition and dict mapping encode a bijection. Actual grouped Describe response shape remains unknown; removing only the ID count check does not supply coverage proof."
+  },
+  "write_boundary": "Refresh RPC at line413 precedes strict response check at414; a later rejection is not absence of remote side effect and does not authorize blind resubmission."
+}

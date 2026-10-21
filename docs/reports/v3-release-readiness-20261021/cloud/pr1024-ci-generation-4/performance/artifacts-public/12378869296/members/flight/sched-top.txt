@@ -1,0 +1,46 @@
+File: benchmark.test
+Type: delay
+Showing nodes accounting for 6251.05ms, 98.97% of 6316.18ms total
+Dropped 340 nodes (cum <= 31.58ms)
+Showing top 40 nodes out of 201
+      flat  flat%   sum%        cum   cum%
+ 3614.88ms 57.23% 57.23%  3614.88ms 57.23%  runtime.selectnbsend
+ 1146.72ms 18.16% 75.39%  1146.72ms 18.16%  runtime.chansend1
+  560.49ms  8.87% 84.26%   560.49ms  8.87%  sync.(*Cond).Signal
+  294.41ms  4.66% 88.92%   294.41ms  4.66%  runtime.selectgo
+  186.62ms  2.95% 91.88%   186.62ms  2.95%  github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Future).Complete.func1
+  112.90ms  1.79% 93.66%   112.90ms  1.79%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Future).finish.func1
+   87.69ms  1.39% 95.05%    87.69ms  1.39%  sync.(*WaitGroup).Add
+   68.04ms  1.08% 96.13%   129.17ms  2.05%  github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort
+   59.16ms  0.94% 97.07%    59.16ms  0.94%  runtime.selectnbrecv
+   53.66ms  0.85% 97.92%    63.77ms  1.01%  github.com/prometheus/client_golang/prometheus.(*Registry).Gather
+   47.44ms  0.75% 98.67%    47.44ms  0.75%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go
+   13.16ms  0.21% 98.88%    62.62ms  0.99%  github.com/WuKongIM/WuKongIM/internal/bench/arrival.RunObserved
+    3.99ms 0.063% 98.94%  1325.11ms 20.98%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*scheduler).enqueue
+    1.75ms 0.028% 98.97%   178.71ms  2.83%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).Enqueue
+    0.12ms 0.0019% 98.97%   454.84ms  7.20%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched.(*Scheduler).Enqueue
+    0.01ms 0.00017% 98.97%   194.60ms  3.08%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).applyAppendCompletion
+         0     0% 98.97%    36.48ms  0.58%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).OnFrame
+         0     0% 98.97%    36.48ms  0.58%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).handleSend
+         0     0% 98.97%    36.48ms  0.58%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).sendBatchOne
+         0     0% 98.97%    73.78ms  1.17%  github.com/WuKongIM/WuKongIM/internal/app.BenchmarkThreeNodeMixedSendPath500QPS
+         0     0% 98.97%    73.78ms  1.17%  github.com/WuKongIM/WuKongIM/internal/app.benchmarkThreeNodeMixedSendPathAtRate
+         0     0% 98.97%    36.48ms  0.58%  github.com/WuKongIM/WuKongIM/internal/app.benchmarkThreeNodeMixedSendPathAtRate.func1
+         0     0% 98.97%    52.32ms  0.83%  github.com/WuKongIM/WuKongIM/internal/app.runMixedFlight.func1
+         0     0% 98.97%    52.32ms  0.83%  github.com/WuKongIM/WuKongIM/internal/app.runMixedFlight.func2
+         0     0% 98.97%    63.48ms  1.00%  github.com/WuKongIM/WuKongIM/internal/app.startMixedSendFlight.func3
+         0     0% 98.97%    38.58ms  0.61%  github.com/WuKongIM/WuKongIM/internal/bench/arrival.RunObserved.func1
+         0     0% 98.97%    60.34ms  0.96%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelAppender).AppendBatch
+         0     0% 98.97%   112.90ms  1.79%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Future).completeItem
+         0     0% 98.97%   112.90ms  1.79%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Future).finish
+         0     0% 98.97%    49.53ms  0.78%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Group).SubmitLocal
+         0     0% 98.97%   161.71ms  2.56%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).admitPreparedInboxLocked
+         0     0% 98.97%   161.71ms  2.56%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).admitPreparedLocked
+         0     0% 98.97%   196.25ms  3.11%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).advance
+         0     0% 98.97%   196.25ms  3.11%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).advanceAppendOnly
+         0     0% 98.97%   112.90ms  1.79%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).dispatchAppendItemCompletion
+         0     0% 98.97%   264.56ms  4.19%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runAppend.func1
+         0     0% 98.97%    60.34ms  0.96%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runAppend.func1.1
+         0     0% 98.97%   290.99ms  4.61%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*groupMetrics).observePressure
+         0     0% 98.97%    59.92ms  0.95%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion
+         0     0% 98.97%   460.83ms  7.30%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion.func1

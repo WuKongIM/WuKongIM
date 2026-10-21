@@ -1,0 +1,11 @@
+{
+  "schema": "wukongim.chat_lifecycle.formal_transition/v1",
+  "from_stage": "rehearsal",
+  "outcome": "rehearsal_pass",
+  "request_id": "TEST-ONLY-offline-not-a-request",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "bundle_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "codex_diagnostic_pubkey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBERERERERERERERERERERERERERERERERERERERERER",
+  "committed_micros": 1234567,
+  "zero_inventory": true
+}

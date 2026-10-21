@@ -1,0 +1,3 @@
+Deleted branch codex/v3-rc-terminal-evidence (was f419ea8f8).
+warning: deleting branch 'codex/v3-rc-terminal-evidence' that has been merged to
+         'refs/remotes/origin/codex/v3-rc-terminal-evidence', but not yet merged to HEAD.

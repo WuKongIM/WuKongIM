@@ -1,0 +1,5 @@
+{
+  "action": "local git rev-parse 0c575fd63bcf8164332ca28053039f8fdf84137f^{tree}",
+  "result": "exit 128: archived synthetic CI commit object is not present in this local checkout",
+  "resolution": "Do not fetch. Verify 79a and f419 locally; inspect retained GitHub Git-object JSON and CI source identity for synthetic merge checkout. This is an inspection availability boundary, not a failed candidate test."
+}

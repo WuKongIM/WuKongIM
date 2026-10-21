@@ -1,0 +1,10 @@
+{
+  "time_utc": "2026-10-21T20:47:34.169781+00:00",
+  "merge_commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "original_head": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "target_contains_tip": true,
+  "clean_including_ignored": true,
+  "worktree_removed": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "local_branch_deleted_without_force": "codex/v3-rc-terminal-evidence",
+  "user_main_unchanged": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83"
+}

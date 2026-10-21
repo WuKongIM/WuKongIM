@@ -1,0 +1,95 @@
+{
+  "executed_during_review": false,
+  "all_nine_receipts_and_outputs_consistent": true,
+  "cases": [
+    {
+      "case": "lower-rehearsal",
+      "recorded_exit_code": 0,
+      "receipt_complete": true,
+      "stdout_equals_saved_plan": true,
+      "all_recorded_checks_true": true,
+      "request_is_test_only": true,
+      "recorded_budget": {
+        "currency": "CNY",
+        "limit_micros": 1276567200,
+        "committed_micros": 0,
+        "operational_stop_micros": 1126567200
+      },
+      "passed": true
+    },
+    {
+      "case": "default-rehearsal",
+      "recorded_exit_code": 0,
+      "receipt_complete": true,
+      "stdout_equals_saved_plan": true,
+      "all_recorded_checks_true": true,
+      "request_is_test_only": true,
+      "recorded_budget": {
+        "currency": "CNY",
+        "limit_micros": 1500000000,
+        "committed_micros": 0,
+        "operational_stop_micros": 1350000000
+      },
+      "passed": true
+    },
+    {
+      "case": "lower-formal-synthetic-transition",
+      "recorded_exit_code": 0,
+      "receipt_complete": true,
+      "stdout_equals_saved_plan": true,
+      "all_recorded_checks_true": true,
+      "request_is_test_only": true,
+      "recorded_budget": {
+        "currency": "CNY",
+        "limit_micros": 1276567200,
+        "committed_micros": 1234567,
+        "operational_stop_micros": 1126567200
+      },
+      "passed": true
+    },
+    {
+      "case": "raise-cap",
+      "recorded_exit_code": 1,
+      "receipt_complete": true,
+      "invalid_input_rejection_retained": true,
+      "passed": true
+    },
+    {
+      "case": "zero-stop",
+      "recorded_exit_code": 1,
+      "receipt_complete": true,
+      "invalid_input_rejection_retained": true,
+      "passed": true
+    },
+    {
+      "case": "padded-cap",
+      "recorded_exit_code": 1,
+      "receipt_complete": true,
+      "invalid_input_rejection_retained": true,
+      "passed": true
+    },
+    {
+      "case": "historical-prior-in-new-request",
+      "recorded_exit_code": 1,
+      "receipt_complete": true,
+      "invalid_input_rejection_retained": true,
+      "passed": true
+    },
+    {
+      "case": "unproved-attempt-two",
+      "recorded_exit_code": 1,
+      "receipt_complete": true,
+      "invalid_input_rejection_retained": true,
+      "passed": true
+    },
+    {
+      "case": "formal-missing-transition",
+      "recorded_exit_code": 1,
+      "receipt_complete": true,
+      "invalid_input_rejection_retained": true,
+      "passed": true
+    }
+  ],
+  "no_quote_or_provider_authority_inferred": true,
+  "formal_transition_fixture_not_authenticated": true
+}

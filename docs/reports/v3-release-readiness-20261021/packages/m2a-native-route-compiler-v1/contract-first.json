@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bash",
+    "tests/contract.sh"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "timeout_seconds": 90,
+  "started_at_unix": 1792614746.500698,
+  "timed_out": false,
+  "exit_code": 0,
+  "terminal": true,
+  "elapsed_seconds": 1.303
+}

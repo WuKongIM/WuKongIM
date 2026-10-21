@@ -1,0 +1,116 @@
+{
+  "id": 119466951110,
+  "run_id": 39670542965,
+  "workflow_name": "V3 Candidate Regression pull_request 1024 attempt 1",
+  "head_branch": "codex/v3-rc-terminal-evidence",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39670542965",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAb0MkBxg",
+  "head_sha": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119466951110",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39670542965/job/119466951110",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T20:28:05Z",
+  "started_at": "2026-10-21T20:28:07Z",
+  "completed_at": "2026-10-21T20:38:11Z",
+  "name": "Candidate scripts integration",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T20:28:08Z",
+      "completed_at": "2026-10-21T20:28:09Z"
+    },
+    {
+      "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T20:28:09Z",
+      "completed_at": "2026-10-21T20:28:22Z"
+    },
+    {
+      "name": "Freeze source and named-check authority",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T20:28:22Z",
+      "completed_at": "2026-10-21T20:28:22Z"
+    },
+    {
+      "name": "Validate workflow static contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 4,
+      "started_at": "2026-10-21T20:28:22Z",
+      "completed_at": "2026-10-21T20:28:22Z"
+    },
+    {
+      "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 5,
+      "started_at": "2026-10-21T20:28:22Z",
+      "completed_at": "2026-10-21T20:28:30Z"
+    },
+    {
+      "name": "Run frozen scripts-integration named check once",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-10-21T20:28:30Z",
+      "completed_at": "2026-10-21T20:38:06Z"
+    },
+    {
+      "name": "Reject tracked-tree mutation",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-10-21T20:38:06Z",
+      "completed_at": "2026-10-21T20:38:06Z"
+    },
+    {
+      "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 8,
+      "started_at": "2026-10-21T20:38:06Z",
+      "completed_at": "2026-10-21T20:38:07Z"
+    },
+    {
+      "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 15,
+      "started_at": "2026-10-21T20:38:07Z",
+      "completed_at": "2026-10-21T20:38:07Z"
+    },
+    {
+      "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 16,
+      "started_at": "2026-10-21T20:38:07Z",
+      "completed_at": "2026-10-21T20:38:08Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 17,
+      "started_at": "2026-10-21T20:38:08Z",
+      "completed_at": "2026-10-21T20:38:08Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119466951110",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": 1000024543,
+  "runner_name": "GitHub Actions 1000024543",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

@@ -1,0 +1,209 @@
+[
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/pkg/bench/model",
+    "directory": "pkg/bench/model",
+    "go_files": [
+      "bench_api.go",
+      "config.go",
+      "fanout_proof.go",
+      "plan.go",
+      "rate.go",
+      "receive_drain.go",
+      "scenario_digest.go",
+      "tcp_source.go",
+      "terminal_fence.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+    "directory": "internal/bench/target",
+    "go_files": [
+      "client.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/pkg/protocol/frame",
+    "directory": "pkg/protocol/frame",
+    "go_files": [
+      "common.go",
+      "connack.go",
+      "connect.go",
+      "disconnect.go",
+      "event.go",
+      "ping.go",
+      "pong.go",
+      "recv.go",
+      "recvack.go",
+      "send.go",
+      "sendack.go",
+      "setting.go",
+      "sub.go",
+      "suback.go",
+      "terminal_fence.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/pkg/protocol/codec",
+    "directory": "pkg/protocol/codec",
+    "go_files": [
+      "common.go",
+      "connack.go",
+      "connect.go",
+      "decoder.go",
+      "disconnect.go",
+      "encoder.go",
+      "event.go",
+      "message_seq.go",
+      "protocol.go",
+      "recv.go",
+      "recvack.go",
+      "send.go",
+      "sendack.go",
+      "sub.go",
+      "suback.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc",
+    "directory": "pkg/protocol/wkprotoenc",
+    "go_files": [
+      "crypto.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/pkg/client",
+    "directory": "pkg/client",
+    "go_files": [
+      "batch_waiter.go",
+      "client.go",
+      "crypto.go",
+      "errors.go",
+      "message.go",
+      "observer.go",
+      "options.go",
+      "pending.go",
+      "pool.go",
+      "reader.go",
+      "terminal_fence.go",
+      "writer.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/internal/bench/wkproto",
+    "directory": "internal/bench/wkproto",
+    "go_files": [
+      "client.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid",
+    "directory": "pkg/protocol/channelid",
+    "go_files": [
+      "agent.go",
+      "command.go",
+      "person.go",
+      "request_subscribers.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+    "directory": "internal/bench/chatlifecycle",
+    "go_files": [
+      "capacity.go",
+      "capacity_config.go",
+      "capacity_dataset_probe.go",
+      "checkpoint.go",
+      "cluster_observation.go",
+      "config.go",
+      "coordinator.go",
+      "credentials.go",
+      "defaults.go",
+      "disk_observer.go",
+      "doc.go",
+      "engine.go",
+      "evidence.go",
+      "groups.go",
+      "identity.go",
+      "io.go",
+      "lifecycle_proof.go",
+      "live_diagnostics.go",
+      "observer.go",
+      "payload.go",
+      "preflight.go",
+      "production_capacity.go",
+      "production_controller.go",
+      "production_evidence.go",
+      "production_lifecycle.go",
+      "production_meta.go",
+      "production_observation.go",
+      "rate.go",
+      "relationship.go",
+      "report.go",
+      "retry.go",
+      "runtime_safety.go",
+      "schedule.go",
+      "session.go",
+      "setup.go",
+      "start_receipt.go",
+      "sync.go",
+      "traffic.go",
+      "types.go",
+      "validation_capacity.go",
+      "validation_formal.go",
+      "validation_observation.go",
+      "validation_thresholds.go",
+      "validation_workload.go",
+      "verdict.go",
+      "verifier.go",
+      "window.go",
+      "worker_client.go",
+      "worker_protocol.go",
+      "worker_server.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerepair",
+    "directory": "internal/usecase/chatlifecyclerepair",
+    "go_files": [
+      "session.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease",
+    "directory": "internal/usecase/cloudlease",
+    "go_files": [
+      "control.go",
+      "types.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun",
+    "directory": "internal/usecase/chatlifecyclerun",
+    "go_files": [
+      "run.go"
+    ],
+    "embed_files": []
+  },
+  {
+    "import_path": "github.com/WuKongIM/WuKongIM/cmd/wkchatlifecycle",
+    "directory": "cmd/wkchatlifecycle",
+    "go_files": [
+      "access.go",
+      "deployment_identity.go",
+      "main.go",
+      "repair.go"
+    ],
+    "embed_files": []
+  }
+]

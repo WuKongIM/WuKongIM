@@ -1,0 +1,86 @@
+{
+  "M1": {
+    "CI_process_inventory": "not captured",
+    "export_commands": 27,
+    "outer_commands": 27,
+    "passed": 29,
+    "scratch_removed": true,
+    "test_secrets_removed": true
+  },
+  "SDK": {
+    "input_tests": 10,
+    "skips": 0,
+    "tests": 34
+  },
+  "actual_checkout": "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+  "all_ci_terminal_and_passed": true,
+  "all_observer_processes_terminal": true,
+  "checks_conditional_skip": 1,
+  "checks_success": 4,
+  "first_natural_attempt": 1,
+  "full_signed_repository_install_passed": true,
+  "head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "legacy": [
+    {
+      "cases": 7,
+      "cleanup": {},
+      "name": "native-source-metadata",
+      "transport_cases": 0
+    },
+    {
+      "cases": 10,
+      "cleanup": {
+        "secret_tree_removed_before_verification": true,
+        "source_inputs_unchanged": true
+      },
+      "name": "native-local-signing",
+      "transport_cases": 0
+    },
+    {
+      "cases": 6,
+      "cleanup": {
+        "scratch_removed": true
+      },
+      "name": "native-bootstrap-preparation",
+      "transport_cases": 0
+    },
+    {
+      "cases": 31,
+      "cleanup": {
+        "checked_in_control_unchanged": true,
+        "scratch_removed": true,
+        "secret_tree_removed_before_verification": true
+      },
+      "name": "native-stable-candidate",
+      "transport_cases": 8
+    }
+  ],
+  "observer_mutations_or_retry_dispatch": 0,
+  "pages": {
+    "actual_checkout": "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+    "actual_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+    "contracts": 4,
+    "counts_read_from_actual_job_log": true,
+    "default_skips": 0,
+    "default_tests": 581,
+    "source": "pages-job.log"
+  },
+  "prior_failure_cause": "unknown",
+  "prior_failure_preserved": true,
+  "public_release_or_M2b_verified": false,
+  "stable": {
+    "RPM_generation_switch_proofs": 2,
+    "cache_cases": 12,
+    "cache_roots_remaining": 0,
+    "cases_passed": 49,
+    "cleanup_errors": [],
+    "installed_identities": 8,
+    "installed_phase_commands": 11,
+    "not_reached": 0,
+    "owned_containers_networks_remaining": 0,
+    "real_expected_installed_rejections": 3,
+    "same_inode_hash_read_proofs": 4
+  },
+  "stable_enabled": false,
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e"
+}

@@ -1,0 +1,26 @@
+# PR #1024 generation 4 — first-attempt candidate evidence
+
+Exact head `f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd`, base `cee5d51f325fb84033060f546337d326110adae5`; actual PR merge checkout `0c575fd63bcf8164332ca28053039f8fdf84137f` has parents base + head and the same tree `a13367b2dc4658e6c27a1992f240544636e5178d`. Both Git API objects, each actual job log and artifact identity agree. Product `cmd`, `internal`, `pkg`, `go.mod`, `go.sum` objects remain identical to base; this is a reviewed new head, not a same-head CI rerun.
+
+Run **39670542965 / attempt 1** completed **success**, with all three jobs successful. The final exact-head run listing also retains performance success and two first-attempt Issue Agent PR Signal successes. No SDK/native workflow was triggered by this exact change; absence is not a new validation pass. PR is still draft at the captured snapshot. No Review Agent enablement, dispatch, rerun, cancellation, source mutation, merge or cloud operation occurred.
+
+## Frozen named checks
+
+Both checks loaded the PR base's policy bytes and applied its arguments, working directory, outer timeout and combined output bound without a filter or override. Each artifact independently binds the policy SHA256 and exact synthetic source SHA.
+
+- `go-unit`: original five-root command, `GOWORK=off`, `GOFLAGS=-p=2`, 1800-second outer bound, 8 MiB output. Actual exit/wrapper 0 in **401.003 seconds**; **219 tested packages passed**, 15 package summaries state no test files. Nonverbose output does not enumerate every internal subtest/skip.
+- `scripts-integration`: original `go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2`; `GOWORK=off`, `GOFLAGS=-p=2 -json`; unchanged **600-second outer / 9-minute test / parallel 2 / 8 MiB** contract. Actual exit/wrapper 0 in **576.017 seconds**, 1,507,252 combined output bytes, untruncated. The frozen named step ran 20:28:30–20:38:06Z.
+
+The scripts stream has **651 root PASS and 6 root SKIP**, zero root FAIL and zero unfinished roots across the selected packages. Within the root `scripts` package: 565 PASS / 6 SKIP. All safe test-name events were extracted from the full original ZIP before generic text redaction, so harmless Token/Secret/Authorization names are counted. The older generation 1/2 count clarification remains separate and unchanged.
+
+The migrated `TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire` ran once in the integration tier: RUN 20:30:17.326431160Z, CONT 20:37:27.728496845Z, PASS 20:37:27.850783628Z (**0.12s**). Its source has the integration build tag, excluding it from default discovery. `Retention` ran to PASS (**22.18s**, CONT 20:37:02.500328398Z → PASS 20:37:24.684909526Z); `CollectorRequiresTerminalAnchor` passed (0.43s). The fixed source contains 20 Python test methods / 79 process cases; parent PASS and its receipt checks establish completion of that full named collector test. The inner per-case Linux JSON was in Go TempDir and is **not directly retained** in the uploaded artifact; no individual Linux receipt is invented.
+
+All nine request-registration cancellation subcases passed (parent 0.48s), and the original interrupted-profile test passed (0.05s). The six original skips and precise reasons remain in `scripts-timing-and-skips.json`: two opt-in Docker image cases, two native package cases, and two subprocess-only fixtures. CONT rank/interval is scheduler evidence, not an observed lock-acquisition time. This one hosted run is not a controlled A/B attribution of every saved second or a promise of future 600-second margin.
+
+## Process E2E and cleanup
+
+The three specified E2E packages ran their full default test sets serially against one binary, SHA256 `e7e204483ec010e62b9c8df7c2f0663e4b95bc404a0ac9e6da4303ef23526f1b`, verified four times around the scenarios. All five migration topologies passed, with **55 history verifications and zero temporary retries** (1→1:4, 1→3:13, 3→1:4, 3→3:13, 3→5:21). Cross-node delivery had four passing tests and the explicit opt-in 2,000-QPS replica comparison skipped. Self-chat passed for single-node and three-node clusters, six acknowledged messages per case, complete histories, one whole-cluster restart each, production-default token authentication and rejected invalid authentication.
+
+All six command receipts (default, scripts, build, ordinary_history, cross_node_delivery, self_chat) record `cleanup.verified=true`, `cleanup.complete=true` and empty remaining-process lists for their exact owned SID. This is the runner's completed-session evidence, not a guarantee under future hard SIGKILL or runner loss.
+
+Three small candidate ZIPs were fully downloaded, matched API whole-ZIP SHA256 and passed all ZIP-member CRCs. The public finite allowlist contains safe receipts, complete redacted command/job logs and all safe test events; original ZIPs/raw logs remain in the private sibling. No credentials, signed URLs, binary artifacts or actual AGENTS/FLOW files are copied. Earlier failures are preserved. Performance is independently sealed under `../performance`, including its one internal retry and incomplete flight-counter signals. This closes this exact-head candidate gate; it does not establish long-duration stability or signed stable publication.

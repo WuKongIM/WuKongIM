@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-21T20:49:26.235136+00:00",
+  "endpoint": "actions/jobs/119475304527/logs",
+  "exit_code": 0,
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_bytes": 2090,
+  "raw_sha256": "7c7c97fe3852849878f3ec257da387c35e3b972256207f239b4ca81fd28572e5",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "bytes": 63,
+      "sha256": "4a0da979874fcaa40ec21141160d589f8ccc14c67f3ad322f7d8149599868d8f"
+    },
+    {
+      "line": 25,
+      "bytes": 52,
+      "sha256": "4c2cf23ee794fce3041f28c5b65bbb0620bca7e6e71c3ac49f8315f2f44a821b"
+    },
+    {
+      "line": 29,
+      "bytes": 77,
+      "sha256": "cfeb0ad0f81e02c47f1fadc43e668bbc78674e99aeed031aae84f6ad2ee5f95a"
+    }
+  ],
+  "public_bytes": 2090,
+  "public_sha256": "a8877fe6e2283662f413950696b234c8aa91006b5f8336dd8a2271eaf9fb1550"
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "wukongim/finite-m2b-plan/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 10076,
+      "sha256": "58f6ed0cfaf56b37a88de781eb1e15a6e0e9e9744e68b5722b5e332598937fac"
+    },
+    {
+      "path": "case-inventory.json",
+      "bytes": 909,
+      "sha256": "ff9d786f0b1dba657ecf0d22dea2d031bdc09a3a0497e4a209115305403b2a26"
+    },
+    {
+      "path": "failure-matrix.md",
+      "bytes": 5145,
+      "sha256": "a36bcc8e5f48015603a10fe75328c766072975a45a033c061d2b1f70ef07a520"
+    },
+    {
+      "path": "observed-gaps.json",
+      "bytes": 50188,
+      "sha256": "23abdf9a2b49e5094ed16f240c23b36de8b0156c3b0cfe477035511dd6c38133"
+    },
+    {
+      "path": "public-allowlist.json",
+      "bytes": 186,
+      "sha256": "b804ef8e7304f64c402b73d36c2f64a55c77af402c1ba8ef42c304563b3f795c"
+    },
+    {
+      "path": "sourcebinding.json",
+      "bytes": 4049,
+      "sha256": "5cf35c83a228fdcdcb39d41ac6bc7f44c6b1312e1c10e36eeb67ad2367315044"
+    },
+    {
+      "path": "terminal-check.json",
+      "bytes": 267,
+      "sha256": "581fc3bd01ad2de45a983c730d1f786ab4ed91518d4dc717b2f28d6abc5826fd"
+    }
+  ],
+  "file_count": 7,
+  "total_bytes": 70820,
+  "planning_only": true
+}

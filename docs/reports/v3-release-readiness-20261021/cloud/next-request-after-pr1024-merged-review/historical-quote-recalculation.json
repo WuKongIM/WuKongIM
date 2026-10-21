@@ -1,0 +1,40 @@
+{
+  "quotes": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/quote-public-frozen/quote.json",
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac",
+      "bytes": 1842,
+      "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+      "request_id": "chat-20261021T095421Z-cf11d65c",
+      "plan_digest": "e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47",
+      "quoted_at": "2026-10-21T10:03:22.765550024Z",
+      "estimated_cost_micros": 74477600,
+      "line_items_sum_micros": 74477600
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-continuation-e302/terminal-public-frozen/verified/attempt-2/quote.json",
+      "sha256": "634e068b65667e4511ae85cd64a9cbd164d2bbe6934fe53a8b26c244c01152ac",
+      "bytes": 1842,
+      "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+      "request_id": "chat-20261021T095421Z-cf11d65c",
+      "plan_digest": "e75273c61c954136f5c146aa62ced1b5ba6e2889090e007f553d2330535473e6",
+      "quoted_at": "2026-10-21T13:12:13.413465899Z",
+      "estimated_cost_micros": 74477600,
+      "line_items_sum_micros": 74477600
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/first-diagnosis-public-frozen/finalizer-39642565187/verified/quote.json",
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "bytes": 1842,
+      "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+      "request_id": "chat-20261021T163850Z-4ccd7506",
+      "plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c",
+      "quoted_at": "2026-10-21T16:47:36.437829502Z",
+      "estimated_cost_micros": 74477600,
+      "line_items_sum_micros": 74477600
+    }
+  ],
+  "sum_quote_reserve_micros": 223432800,
+  "provider_invoice_verified": false,
+  "limit": "Three retained full-lease conservative quotes, not actual billing or a new live Quote."
+}

@@ -1,0 +1,13 @@
+File: benchmark.test
+Type: delay
+Showing nodes accounting for 146.34s, 100% of 146.34s total
+      flat  flat%   sum%        cum   cum%
+   146.34s   100%   100%    146.34s   100%  internal/poll.(*FD).Read
+         0     0%   100%    146.34s   100%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0%   100%    146.34s   100%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0%   100%    146.34s   100%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+         0     0%   100%    146.34s   100%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.ReadFrame
+         0     0%   100%    146.34s   100%  io.ReadAtLeast
+         0     0%   100%    146.34s   100%  net.(*conn).Read
+         0     0%   100%    146.34s   100%  net.(*netFD).Read
+         0     0%   100%    146.34s   100%  runtime/pprof.Do

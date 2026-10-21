@@ -1,0 +1,44 @@
+{
+  "artifact_id": 12378749770,
+  "command": {
+    "arguments": [
+      "go",
+      "test",
+      "./cmd/...",
+      "./internal/...",
+      "./pkg/...",
+      "./scripts/...",
+      "./docker/...",
+      "-count=1"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 1800,
+    "max_output_bytes": 8388608,
+    "named_check": "go-unit",
+    "environment": {
+      "GOWORK": "off",
+      "GOFLAGS": "-p=2"
+    }
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2307,
+    "output_bytes": 22030,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2307,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 401.003
+  },
+  "tested_package_count": 219,
+  "no_test_files_package_count": 15,
+  "limit": "Nonverbose go test summary does not enumerate all internal subtests/skips."
+}

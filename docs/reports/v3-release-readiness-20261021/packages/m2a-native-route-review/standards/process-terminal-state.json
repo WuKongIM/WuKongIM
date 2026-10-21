@@ -1,0 +1,105 @@
+{
+  "recorded_at_utc": "2026-10-21T20:39:27.522142+00:00",
+  "author_command_receipts": [
+    {
+      "name": "first-red",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+        "-B",
+        "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+        "--receipt",
+        "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/first-red-sdk-receipt.json"
+      ],
+      "exit_code": 1,
+      "timeout_seconds": 120,
+      "elapsed_seconds": 0.492,
+      "terminal": true,
+      "timed_out": false
+    },
+    {
+      "name": "preimplementation-red",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+        "-B",
+        "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+        "--receipt",
+        "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/preimplementation-red-sdk-receipt.json"
+      ],
+      "exit_code": 1,
+      "timeout_seconds": 120,
+      "elapsed_seconds": 0.381,
+      "terminal": true,
+      "timed_out": false
+    },
+    {
+      "name": "sdk-implementation-first",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+        "-B",
+        "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+        "--receipt",
+        "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/sdk-implementation-first-receipt.json"
+      ],
+      "exit_code": 0,
+      "timeout_seconds": 120,
+      "elapsed_seconds": 0.506,
+      "terminal": true,
+      "timed_out": false
+    },
+    {
+      "name": "inputs-first",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_object_storage_delivery_inputs.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "timeout_seconds": 120,
+      "elapsed_seconds": 2.279,
+      "terminal": true,
+      "timed_out": false
+    },
+    {
+      "name": "contract-first",
+      "command": [
+        "bash",
+        "tests/contract.sh"
+      ],
+      "exit_code": 0,
+      "timeout_seconds": 90,
+      "elapsed_seconds": 1.303,
+      "terminal": true,
+      "timed_out": false
+    },
+    {
+      "name": "default-first",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 0,
+      "timeout_seconds": 600,
+      "elapsed_seconds": 135.445,
+      "terminal": true,
+      "timed_out": false
+    }
+  ],
+  "author_summary_all_owned_processes_terminal": true,
+  "review_executed_tests_builds_probes_ci_cloud": false,
+  "reviewer_spawned_background_processes": false,
+  "limitation": "Receipts provide command terminal/timeout state, not PID/PGID identities or an OS-wide child census. No broader process-inventory claim is made."
+}

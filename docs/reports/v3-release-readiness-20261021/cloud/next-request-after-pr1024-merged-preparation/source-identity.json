@@ -1,0 +1,20 @@
+{
+  "schema": "local-git-merged-source-binding/v1",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "candidate_sha": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "candidate_tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "parents": [
+    "cee5d51f325fb84033060f546337d326110adae5",
+    "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd"
+  ],
+  "merge_time_utc": "2026-10-21T20:44:41Z",
+  "merge_confirmed_by": "parent explicit GitHub merge handoff plus local exact Git object verification",
+  "candidate_tip_contained": true,
+  "offline_tool_closure_identical_in_merge": true,
+  "offline_tool_closure_files": 118,
+  "offline_tool_binary_is_product_bundle": false,
+  "current_remote_api_refresh_performed_here": false,
+  "prior_failure_generation_files_modified": false
+}

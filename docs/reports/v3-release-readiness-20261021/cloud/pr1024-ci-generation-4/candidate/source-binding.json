@@ -1,0 +1,115 @@
+{
+  "head": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "rules_and_source_hashes": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "bytes": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "bytes": 13037,
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "scripts/run-v3-candidate-check.py",
+      "bytes": 10569,
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_start_integration_test.go",
+      "bytes": 5769,
+      "sha256": "f59325ccf1b7dd3692dc8021491ce68cdcac013bf8ba0d3f6de3b56bc0891f71"
+    },
+    {
+      "path": "scripts/chat_lifecycle_direct_lab_test.go",
+      "bytes": 28722,
+      "sha256": "cf42269fd621ef8c4dad1a2766b1599f18ff2d719d8a9f10fd692a051b38715f"
+    },
+    {
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "bytes": 4854,
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+    },
+    {
+      "path": "scripts/wukongim_local_threshold_pprof_script_integration_test.go",
+      "bytes": 30502,
+      "sha256": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311"
+    }
+  ],
+  "product_and_dependencies_unchanged_from_base": {
+    "cmd": {
+      "head_object": "a667d96681bd972d0e839e67103652791587a9b6",
+      "base_object": "a667d96681bd972d0e839e67103652791587a9b6"
+    },
+    "internal": {
+      "head_object": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+      "base_object": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22"
+    },
+    "pkg": {
+      "head_object": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+      "base_object": "1f01d2e69354fa05164cf237337bdfbc3844755d"
+    },
+    "go.mod": {
+      "head_object": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "base_object": "840bd60ba9789d0e28aef6db867da2e472c65f41"
+    },
+    "go.sum": {
+      "head_object": "1692c2bb1806d016e62aa440142582d0b1aa54a6",
+      "base_object": "1692c2bb1806d016e62aa440142582d0b1aa54a6"
+    }
+  },
+  "frozen_policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "named_checks": {
+    "go-unit": {
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "scripts-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    }
+  }
+}

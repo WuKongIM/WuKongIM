@@ -1,0 +1,29 @@
+{
+  "head": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "accepted_head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "copied_from_accepted_tree_archive": "../pr78-ci-generation-1",
+  "Git_object_main_tree_equal_accepted_tree": true,
+  "files": [
+    {
+      "path": "pages.yml.source",
+      "bytes": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": "object-storage-provider-contract.yml.source",
+      "bytes": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": "native-package-repository-drill.yml.source",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": "channels.json.source",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    }
+  ]
+}

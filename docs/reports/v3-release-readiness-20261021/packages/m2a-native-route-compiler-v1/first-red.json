@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+    "-B",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "--receipt",
+    "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/first-red-sdk-receipt.json"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "timeout_seconds": 120,
+  "started_at_unix": 1792614638.756578,
+  "implementation_unchanged": true,
+  "original22_unchanged": true,
+  "new_test_methods": 12,
+  "test_sha256": "0ddca75e5019e0539e61c3da20e32fbd25226b89d8c58573763028e508258b65",
+  "fixture_sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8",
+  "timed_out": false,
+  "exit_code": 1,
+  "terminal": true,
+  "elapsed_seconds": 0.492
+}

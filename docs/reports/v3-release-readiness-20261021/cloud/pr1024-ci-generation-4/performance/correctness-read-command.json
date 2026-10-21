@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "performance-private/range-zip.py",
+    "performance/correctness-selected-paths.json"
+  ],
+  "exit_code": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_bytes": 0,
+  "full_zip_downloaded": false,
+  "downloaded_range_bytes": 57327,
+  "members": 22
+}

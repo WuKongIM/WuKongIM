@@ -1,0 +1,191 @@
+{
+  "schema": "finite-public-ci-archive/v1",
+  "frozen_at_utc": "2026-10-21T20:50:14.532132+00:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2421,
+      "sha256": "c99f012ca7b25f20abbf8bb26aca7c1dc688a92d569a1442b1d7aa9ef6794e77"
+    },
+    {
+      "path": "collect-public.py",
+      "bytes": 2545,
+      "sha256": "50856401d3d63e766b85568d79e99de64b5972049071624af06c1ffeda9a1ee1"
+    },
+    {
+      "path": "docs-artifacts-read.json",
+      "bytes": 238,
+      "sha256": "6f0009a1e3353fed1768bab2f62884bfe442a1e9c5bc4368187292a2feeb8acf"
+    },
+    {
+      "path": "docs-artifacts.json",
+      "bytes": 706,
+      "sha256": "e413a47c4a231e78e74d9f59abc2abc5b276883d6b7dad6d0d16872e8d9adb88"
+    },
+    {
+      "path": "docs-jobs-read.json",
+      "bytes": 233,
+      "sha256": "57c8d45bdee5b685d320f6616f0c1a13638c5f7b0e5fc7e6307de8c89e1e5d60"
+    },
+    {
+      "path": "docs-jobs.json",
+      "bytes": 8698,
+      "sha256": "56d92b7ddfac3a450fec2bde88521c890575bad4394020427734e6a58dd7a367"
+    },
+    {
+      "path": "docs-run-read.json",
+      "bytes": 215,
+      "sha256": "705cfd672d8f43301d79c2c09087d510dc7699a8699eae5cef05d82b0ed9fdd9"
+    },
+    {
+      "path": "docs-run.json",
+      "bytes": 14632,
+      "sha256": "6ea04248fe62647f93ed8467dea781f7b37a1ade09387103ee95b8c5302dde19"
+    },
+    {
+      "path": "job-119475303206-read.json",
+      "bytes": 8426,
+      "sha256": "d30554141e2a40d5a4052747e43512e5770f9be157f33a301bdfb1d981b20aa1"
+    },
+    {
+      "path": "job-119475303206.log",
+      "bytes": 648820,
+      "sha256": "071a521577e016bd063f1a9f4f394009da293e78e201b9ac1445d7201cbca561"
+    },
+    {
+      "path": "job-119475304527-read.json",
+      "bytes": 862,
+      "sha256": "fc5d3f2c03f442db2daa0d66b313dc819b391d6d59ac14a0ee7e20d381ef0ab0"
+    },
+    {
+      "path": "job-119475304527.log",
+      "bytes": 2090,
+      "sha256": "a8877fe6e2283662f413950696b234c8aa91006b5f8336dd8a2271eaf9fb1550"
+    },
+    {
+      "path": "job-119476395122-read.json",
+      "bytes": 995,
+      "sha256": "200a63ea09096e270beb9c350bc654c4546db8b84a1abd94f932f91828bde4e5"
+    },
+    {
+      "path": "job-119476395122.log",
+      "bytes": 3928,
+      "sha256": "54c6d4ca0ddaf829fea0e0458eda9b80849b28a5a0e2a5eb8c6bbd4b0e0e9965"
+    },
+    {
+      "path": "job-119476586183-read.json",
+      "bytes": 3417,
+      "sha256": "a214e9db114a2a0d3fbee7d4b6873a72e1c7cb4aa22423ec806223a062bb8930"
+    },
+    {
+      "path": "job-119476586183.log",
+      "bytes": 13848,
+      "sha256": "2d28b51280692a889711c2ddd16714f1c84c5cbdafc5906acf2f93b8f701a09f"
+    },
+    {
+      "path": "job-119476699413-read.json",
+      "bytes": 5704,
+      "sha256": "3d93084c202578923b53b1f0ed46cc007c0f46a4ca6f9011c48e26fec92ae1f3"
+    },
+    {
+      "path": "job-119476699413.log",
+      "bytes": 17240,
+      "sha256": "521e9f98b775428bc58a14a62db16724c0973772f346e58e23ad3f0d90dbbe41"
+    },
+    {
+      "path": "merge-check-runs-read.json",
+      "bytes": 287,
+      "sha256": "e218de9f63d55dce9b69cbfdb518baa19723497d3f6b2abea40f2321dc78ccf9"
+    },
+    {
+      "path": "merge-check-runs.json",
+      "bytes": 23743,
+      "sha256": "ab761eca4cf059f99d5279002cf6a8f1519d6acaf340c889068513819a9c8171"
+    },
+    {
+      "path": "merge-commit-read.json",
+      "bytes": 267,
+      "sha256": "e434d4790f5cdc3338c55c42e28962ec9e905ee72f90bd570a613abb4d68e598"
+    },
+    {
+      "path": "merge-commit.json",
+      "bytes": 2698,
+      "sha256": "b5d263b687ce71cf8f3ce360330fd8d1d06cb4e4416a99bbf55dd2ab59131e6f"
+    },
+    {
+      "path": "merge-runs-read.json",
+      "bytes": 290,
+      "sha256": "17fcf98179cbc98c77ed21f927bfe281ca3126f3dd2bf010c29458b19c491fa9"
+    },
+    {
+      "path": "merge-runs.json",
+      "bytes": 14668,
+      "sha256": "0c5da589d6cff3b8f1bd4866e3ab55f45a24ab2f37c8fd11267d0e15b54febd4"
+    },
+    {
+      "path": "merge-status-read.json",
+      "bytes": 270,
+      "sha256": "b479c3591edd3745be729d7457b0671732c8ba47a5f465dd7981e29ffe421b00"
+    },
+    {
+      "path": "merge-status.json",
+      "bytes": 4427,
+      "sha256": "f29adf4621b2bb0153fdaa510f4e04f2a15f7cd6a38dea80c65d308341fcd0e9"
+    },
+    {
+      "path": "postmerge-signal-jobs-read.json",
+      "bytes": 338,
+      "sha256": "a1cb30b8c518a9ee730f1f9a1635c001e4cbd40a3a5e40606d8b0016749e0c06"
+    },
+    {
+      "path": "postmerge-signal-jobs.json",
+      "bytes": 1448,
+      "sha256": "278c767dea0f851c654610ba66f36b8edae546485a0bbb3268b5a3323c86f987"
+    },
+    {
+      "path": "postmerge-signal-run-read.json",
+      "bytes": 321,
+      "sha256": "8a805547e802cb45acf05d410ee95a8e100026d6767aba9096433061c7317d26"
+    },
+    {
+      "path": "postmerge-signal-run.json",
+      "bytes": 12012,
+      "sha256": "2538dc31d81564c53666177b8fa49b317606f03f795aff4234d305c37631a204"
+    },
+    {
+      "path": "pr-read.json",
+      "bytes": 225,
+      "sha256": "9332fe9ec88c4887cdbab89a208cbe1b66e0def02cbd4d70a86adb7c05c0ae89"
+    },
+    {
+      "path": "pr.json",
+      "bytes": 19776,
+      "sha256": "ce36fba1108e8936307b8a1dea6c4503b281491c541336ba53150e12b9fea0ac"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 12039,
+      "sha256": "79af5898cc18cd2165bec3a25d9a4ed292b37a173bd1d8cffc6bbb3ac72a36ea"
+    },
+    {
+      "path": "tip-signals-read.json",
+      "bytes": 302,
+      "sha256": "06feeb37aa69e4e05a736391770c978177702b0595b47dc1585106875611c484"
+    },
+    {
+      "path": "tip-signals.json",
+      "bytes": 60100,
+      "sha256": "fe2f46eff1d11a6a1b99b66add2009a4c0ed749fde8b4acc17011303ca4f7fdd"
+    }
+  ],
+  "payload_count": 35,
+  "payload_bytes": 888229,
+  "excludes": [
+    "private sibling directories",
+    "original ZIPs",
+    "credentials and signed URLs",
+    "trace/pprof/product binaries",
+    "actual AGENTS.md/FLOW.md files"
+  ],
+  "copy_contract": "Copy only listed payloads and these three manifest files, verifying bytes/SHA for every payload. API-declared ZIP digest must not be confused with observed whole-ZIP SHA; see each integrity receipt."
+}

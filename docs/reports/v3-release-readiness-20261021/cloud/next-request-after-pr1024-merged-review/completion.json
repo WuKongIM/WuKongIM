@@ -1,0 +1,14 @@
+{
+  "completed_at_utc": "2026-10-21T20:55:41.145864+00:00",
+  "preparation_files_verified_unchanged": 44,
+  "changed_preparation_files": [],
+  "source_git_objects_immutable": true,
+  "local_checkout_head_before": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "local_checkout_head_after": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "checkout_status_unchanged": true,
+  "local_checkout_head_unchanged": true,
+  "all_own_commands_terminal": true,
+  "background_processes_started": false,
+  "network_calls": false,
+  "source_or_original_archive_mutations": false
+}

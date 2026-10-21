@@ -1,0 +1,55 @@
+{
+  "schema": "mixed-send-flight/v1",
+  "status": "captured",
+  "started_at": "2026-10-21T20:30:36.652988979Z",
+  "stopped_at": "2026-10-21T20:30:39.913915923Z",
+  "export_started_at": "2026-10-21T20:30:39.904290454Z",
+  "export_ended_at": "2026-10-21T20:30:39.911408182Z",
+  "trace_bytes": 6898669,
+  "trace_complete": true,
+  "counters_complete": false,
+  "handlers_completed": true,
+  "history_target_seconds": 15,
+  "runtime_byte_target": 33554432,
+  "output_byte_limit": 67108864,
+  "trigger": {
+    "at": "2026-10-21T20:30:37.891153861Z",
+    "cohort_start": "2026-10-21T20:30:36.662367458Z",
+    "cohort": 0,
+    "above_400ms": 6
+  },
+  "cut_count": 5,
+  "missing_signals": [
+    {
+      "started_at": "2026-10-21T20:30:36.653108099Z",
+      "missing": {
+        "/sys/fs/cgroup/cpu.max": "open /sys/fs/cgroup/cpu.max: no such file or directory"
+      }
+    },
+    {
+      "started_at": "2026-10-21T20:30:37.661908478Z",
+      "missing": {
+        "/sys/fs/cgroup/cpu.max": "open /sys/fs/cgroup/cpu.max: no such file or directory"
+      }
+    },
+    {
+      "started_at": "2026-10-21T20:30:38.662648641Z",
+      "missing": {
+        "/sys/fs/cgroup/cpu.max": "open /sys/fs/cgroup/cpu.max: no such file or directory"
+      }
+    },
+    {
+      "started_at": "2026-10-21T20:30:39.661937175Z",
+      "missing": {
+        "/sys/fs/cgroup/cpu.max": "open /sys/fs/cgroup/cpu.max: no such file or directory"
+      }
+    },
+    {
+      "started_at": "2026-10-21T20:30:39.893869679Z",
+      "missing": {
+        "/sys/fs/cgroup/cpu.max": "open /sys/fs/cgroup/cpu.max: no such file or directory"
+      }
+    }
+  ],
+  "archive_scope": "Trace and pprof binaries remain only in locally private original ZIP and are excluded from public allowlist; native trace-analysis text and exact member digests are retained."
+}

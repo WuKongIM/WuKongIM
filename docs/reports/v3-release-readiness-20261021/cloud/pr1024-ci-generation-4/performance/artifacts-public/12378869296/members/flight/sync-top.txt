@@ -1,0 +1,46 @@
+File: benchmark.test
+Type: delay
+Showing nodes accounting for 1735633718.50us, 100% of 1735918864.42us total
+Dropped 221 nodes (cum <= 8679594.32us)
+Showing top 40 nodes out of 99
+      flat  flat%   sum%        cum   cum%
+825472311.34us 47.55% 47.55% 825472311.34us 47.55%  runtime.selectgo
+747841623.19us 43.08% 90.63% 747841623.19us 43.08%  runtime.chanrecv2
+162319132.44us  9.35%   100% 162319133.53us  9.35%  sync.(*Cond).Wait
+  574.46us 3.3e-05%   100% 34879061.78us  2.01%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CallRPC
+   70.21us 4e-06%   100% 50628024.01us  2.92%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).nextRequest
+    2.88us 1.7e-07%   100% 9641480.60us  0.56%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*writerAdvanceScheduler).run
+    2.56us 1.5e-07%   100% 16068923.33us  0.93%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).waitForInboxCoalesce
+    1.41us 8.1e-08%   100% 145890342.09us  8.40%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched.(*Scheduler).WaitBatchInto
+         0     0%   100% 56384941.52us  3.25%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).OnFrame
+         0     0%   100% 56384941.52us  3.25%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).handleSend
+         0     0%   100% 56384941.52us  3.25%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).sendBatchOne
+         0     0%   100% 33867752.72us  1.95%  github.com/WuKongIM/WuKongIM/internal/access/node.(*ChannelAppendAdapter).HandleChannelAppendRPC
+         0     0%   100% 34220705.36us  1.97%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ForwardSendBatch
+         0     0%   100% 56384941.52us  3.25%  github.com/WuKongIM/WuKongIM/internal/app.benchmarkThreeNodeMixedSendPathAtRate.func1
+         0     0%   100% 33867752.72us  1.95%  github.com/WuKongIM/WuKongIM/internal/app.channelAppendAuthorityLocal.SubmitForAuthority
+         0     0%   100% 33867752.72us  1.95%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0%   100% 765498467.24us 44.10%  github.com/WuKongIM/WuKongIM/internal/bench/arrival.RunObserved.func1
+         0     0%   100% 34220705.36us  1.97%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelAppendClient).ForwardSendBatch
+         0     0%   100% 35169294.80us  2.03%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelAppender).AppendBatch
+         0     0%   100% 52394399.26us  3.02%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Future).Wait
+         0     0%   100% 52757089.17us  3.04%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).SendBatchEach
+         0     0%   100% 34220705.36us  1.97%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).forwardBatch
+         0     0%   100% 52757089.17us  3.04%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).sendSingle
+         0     0%   100% 52747351.89us  3.04%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).submitSingleTarget
+         0     0%   100% 16068923.33us  0.93%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).advance
+         0     0%   100% 16068923.33us  0.93%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).advanceAppendOnly
+         0     0%   100% 35169294.80us  2.03%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runAppend.func1
+         0     0%   100% 35169294.80us  2.03%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runAppend.func1.1
+         0     0%   100% 9401361.11us  0.54%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*groupMetrics).runPressurePublisher
+         0     0%   100% 51238218.13us  2.95%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion.func1
+         0     0%   100% 16068923.33us  0.93%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*writerAdvanceScheduler).run.func1
+         0     0%   100% 35169294.80us  2.03%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.appendEffect.run
+         0     0%   100% 56384941.52us  3.25%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).SendBatchEach
+         0     0%   100% 56384941.52us  3.25%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).sendBatchEachOne
+         0     0%   100% 52757089.17us  3.04%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).submitSingleBatchItem
+         0     0%   100% 37535538.18us  2.16%  github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Mailbox).WaitOne
+         0     0%   100% 37535538.18us  2.16%  github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).loop
+         0     0%   100% 38723284.12us  2.23%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*ExchangeServer).Handle
+         0     0%   100% 40287356.23us  2.32%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*peerBatcher).drainTarget
+         0     0%   100% 40287327.50us  2.32%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*peerBatcher).exchange

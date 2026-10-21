@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery_inputs.py",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "timeout_seconds": 120,
+  "started_at_unix": 1792614746.500727,
+  "timed_out": false,
+  "exit_code": 0,
+  "terminal": true,
+  "elapsed_seconds": 2.279
+}

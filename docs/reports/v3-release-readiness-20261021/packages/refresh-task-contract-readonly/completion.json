@@ -1,0 +1,12 @@
+{
+  "completed_at_utc": "2026-10-21T21:04:48.024270+00:00",
+  "source_digests_unchanged": true,
+  "checkouts_unchanged": true,
+  "network": "Three public Alibaba help-page reads only",
+  "no_cloud_api_or_cdn_request": true,
+  "no_tests_or_sdk_invocation": true,
+  "no_private_logs_credentials_or_browser": true,
+  "no_source_mutation": true,
+  "all_own_commands_terminal": true,
+  "background_processes_started": false
+}

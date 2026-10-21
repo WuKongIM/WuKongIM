@@ -1,0 +1,9 @@
+{
+  "payload_files": 9,
+  "payload_bytes": 64030,
+  "manifest_sha256": "0a6950298d9c7d6713bb52a583f5853786ab8587776f4735a3cd59477c2aa209",
+  "allowlist_sha256": "ef6fa87e3fab78d1d852dae7720c694ab5f75e5e032eea6fa0545d50fc959fdf",
+  "open_findings": 0,
+  "completed_at_utc": "2026-10-21T20:55:41.145864+00:00",
+  "reviewed_preparation_manifest_sha256": "b180f97bf0813bcd40578540b365a68102d35d5e6e03b86ebcfac7fa7572de35"
+}

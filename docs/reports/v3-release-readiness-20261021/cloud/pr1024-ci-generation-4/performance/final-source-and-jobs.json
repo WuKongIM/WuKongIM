@@ -1,0 +1,568 @@
+{
+  "identity": {
+    "head_sha": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+    "head_tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+    "base_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "checkout_sha": "0c575fd63bcf8164332ca28053039f8fdf84137f",
+    "run_attempt": 1,
+    "pr": 1024,
+    "checkout_note": "PR synthetic merge identity independently resolved from Git API; actual receipt and each job log must still match."
+  },
+  "run_status": "completed",
+  "run_conclusion": "success",
+  "checkout_verified": true,
+  "same_tree": true,
+  "jobs": [
+    {
+      "id": 119466949654,
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:28:07Z",
+      "completed_at": "2026-10-21T20:30:59Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:28:08Z",
+          "completed_at": "2026-10-21T20:28:09Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:28:09Z",
+          "completed_at": "2026-10-21T20:28:20Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:28:20Z",
+          "completed_at": "2026-10-21T20:28:37Z"
+        },
+        {
+          "name": "Run focused unit and race gates",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:28:37Z",
+          "completed_at": "2026-10-21T20:30:45Z"
+        },
+        {
+          "name": "Exercise bounded arrival saturation under race detection",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:30:45Z",
+          "completed_at": "2026-10-21T20:30:56Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:30:56Z",
+          "completed_at": "2026-10-21T20:30:56Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T20:30:56Z",
+          "completed_at": "2026-10-21T20:30:56Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T20:30:56Z",
+          "completed_at": "2026-10-21T20:30:57Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T20:30:57Z",
+          "completed_at": "2026-10-21T20:30:57Z"
+        }
+      ],
+      "log_sha256": "e6cee74f14ed82f5313d94608bab90dd23d3a32cfca54be48c814a42564574ec",
+      "checkout_verified_in_log": true
+    },
+    {
+      "id": 119466950015,
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:28:07Z",
+      "completed_at": "2026-10-21T20:28:23Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:28:08Z",
+          "completed_at": "2026-10-21T20:28:08Z"
+        },
+        {
+          "name": "Checkout exact candidate without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:28:08Z",
+          "completed_at": "2026-10-21T20:28:20Z"
+        },
+        {
+          "name": "Check identical-input successful main baseline",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:28:20Z",
+          "completed_at": "2026-10-21T20:28:21Z"
+        },
+        {
+          "name": "Post Checkout exact candidate without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:28:21Z",
+          "completed_at": "2026-10-21T20:28:21Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T20:28:21Z",
+          "completed_at": "2026-10-21T20:28:21Z"
+        }
+      ],
+      "log_sha256": "5746bfdb4817d40ef54a1e3e6eb2830800efef9cd550673055ed0abc57d127bf",
+      "checkout_verified_in_log": true
+    },
+    {
+      "id": 119466950108,
+      "name": "PR three-node correctness",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:28:07Z",
+      "completed_at": "2026-10-21T20:32:57Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:28:08Z",
+          "completed_at": "2026-10-21T20:28:09Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:28:09Z",
+          "completed_at": "2026-10-21T20:28:20Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:28:20Z",
+          "completed_at": "2026-10-21T20:28:35Z"
+        },
+        {
+          "name": "Prepare isolated PR evidence root",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:28:35Z",
+          "completed_at": "2026-10-21T20:28:35Z"
+        },
+        {
+          "name": "Run bounded three-node 500 QPS correctness smoke",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:28:35Z",
+          "completed_at": "2026-10-21T20:32:38Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:32:38Z",
+          "completed_at": "2026-10-21T20:32:38Z"
+        },
+        {
+          "name": "Upload PR regression evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T20:32:38Z",
+          "completed_at": "2026-10-21T20:32:54Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T20:32:54Z",
+          "completed_at": "2026-10-21T20:32:54Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T20:32:54Z",
+          "completed_at": "2026-10-21T20:32:54Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T20:32:54Z",
+          "completed_at": "2026-10-21T20:32:54Z"
+        }
+      ],
+      "log_sha256": "d8361eb291783b05533a7e36f971a7a56cf20bde02c9d364706c4c9712a0d666",
+      "checkout_verified_in_log": true
+    },
+    {
+      "id": 119466951906,
+      "name": "Nightly direct 500 QPS qualification",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T20:28:05Z",
+      "completed_at": "2026-10-21T20:28:05Z",
+      "steps": []
+    },
+    {
+      "id": 119467007172,
+      "name": "Fixed Linux SEND diagnosis",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T20:28:11Z",
+      "completed_at": "2026-10-21T20:28:05Z",
+      "steps": []
+    },
+    {
+      "id": 119467106272,
+      "name": "PR 500 QPS / tcp-sendack",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:28:26Z",
+      "completed_at": "2026-10-21T20:33:09Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:28:26Z",
+          "completed_at": "2026-10-21T20:28:28Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:28:28Z",
+          "completed_at": "2026-10-21T20:28:40Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:28:40Z",
+          "completed_at": "2026-10-21T20:28:53Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:28:53Z",
+          "completed_at": "2026-10-21T20:33:05Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:33:05Z",
+          "completed_at": "2026-10-21T20:33:05Z"
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:33:05Z",
+          "completed_at": "2026-10-21T20:33:06Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T20:33:06Z",
+          "completed_at": "2026-10-21T20:33:06Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T20:33:06Z",
+          "completed_at": "2026-10-21T20:33:07Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T20:33:07Z",
+          "completed_at": "2026-10-21T20:33:07Z"
+        }
+      ],
+      "log_sha256": "1c7d5a4b12b3aee7181a560cbcf51c38512cf47afdcb90fe79edceba5161fb63",
+      "checkout_verified_in_log": true
+    },
+    {
+      "id": 119467106312,
+      "name": "PR 500 QPS / mixed-send",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:28:26Z",
+      "completed_at": "2026-10-21T20:33:49Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:28:27Z",
+          "completed_at": "2026-10-21T20:28:28Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:28:28Z",
+          "completed_at": "2026-10-21T20:28:39Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:28:39Z",
+          "completed_at": "2026-10-21T20:28:55Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:28:55Z",
+          "completed_at": "2026-10-21T20:33:42Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:33:42Z",
+          "completed_at": "2026-10-21T20:33:43Z"
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:33:43Z",
+          "completed_at": "2026-10-21T20:33:45Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T20:33:45Z",
+          "completed_at": "2026-10-21T20:33:45Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T20:33:45Z",
+          "completed_at": "2026-10-21T20:33:45Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T20:33:45Z",
+          "completed_at": "2026-10-21T20:33:45Z"
+        }
+      ],
+      "log_sha256": "5c4dc9788b912bfb64e09684b564672a09ea75c23497bc6efd960b3396711d36",
+      "checkout_verified_in_log": true
+    },
+    {
+      "id": 119467106464,
+      "name": "PR 500 QPS / channel-append",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:28:26Z",
+      "completed_at": "2026-10-21T20:33:25Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:28:27Z",
+          "completed_at": "2026-10-21T20:28:28Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:28:28Z",
+          "completed_at": "2026-10-21T20:28:40Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:28:40Z",
+          "completed_at": "2026-10-21T20:28:57Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T20:28:57Z",
+          "completed_at": "2026-10-21T20:33:20Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T20:33:20Z",
+          "completed_at": "2026-10-21T20:33:20Z"
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T20:33:20Z",
+          "completed_at": "2026-10-21T20:33:21Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T20:33:21Z",
+          "completed_at": "2026-10-21T20:33:21Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T20:33:21Z",
+          "completed_at": "2026-10-21T20:33:22Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T20:33:22Z",
+          "completed_at": "2026-10-21T20:33:22Z"
+        }
+      ],
+      "log_sha256": "968f0f018ec5a678620b6853c7086314ddc85d4ae0d2c8f19255b851900478eb",
+      "checkout_verified_in_log": true
+    },
+    {
+      "id": 119469868319,
+      "name": "PR three-node regression",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T20:33:52Z",
+      "completed_at": "2026-10-21T20:33:56Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T20:33:53Z",
+          "completed_at": "2026-10-21T20:33:53Z"
+        },
+        {
+          "name": "Require every independent check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T20:33:53Z",
+          "completed_at": "2026-10-21T20:33:53Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T20:33:53Z",
+          "completed_at": "2026-10-21T20:33:53Z"
+        }
+      ],
+      "log_sha256": "8a71b39369cfd7b66e688f6d14c58ee0e03edb362498ad518b62512ed642d3f2",
+      "checkout_verified_in_log": false,
+      "checkout_limit": "Aggregate job has no checkout; consumes same-run dependency results."
+    }
+  ],
+  "baseline": {
+    "reuse": false,
+    "reason": "performance_inputs_changed"
+  },
+  "unit_race_commands": [
+    "GOWORK=off go test ./internal/bench/arrival ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1",
+    "GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1",
+    "GOWORK=off go test -race -tags=integration ./internal/bench/arrival -count=1"
+  ],
+  "unit_race_successful_package_lines": 22,
+  "limits": [
+    "This is exact-head PR evidence, not long-duration qualification.",
+    "Two conditional jobs are skipped; they are not passing validations.",
+    "Unit/race nonverbose output does not expose every internal skip.",
+    "No provider, SSH, dispatch, rerun, cancellation or publication operation performed."
+  ]
+}

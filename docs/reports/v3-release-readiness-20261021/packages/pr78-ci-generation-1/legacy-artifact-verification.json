@@ -1,0 +1,39 @@
+[
+  {
+    "name": "native-source-metadata",
+    "cases": 7,
+    "transport_cases": 0,
+    "all_passed": true,
+    "cleanup": {}
+  },
+  {
+    "name": "native-local-signing",
+    "cases": 10,
+    "transport_cases": 0,
+    "all_passed": true,
+    "cleanup": {
+      "secret_tree_removed_before_verification": true,
+      "source_inputs_unchanged": true
+    }
+  },
+  {
+    "name": "native-bootstrap-preparation",
+    "cases": 6,
+    "transport_cases": 0,
+    "all_passed": true,
+    "cleanup": {
+      "scratch_removed": true
+    }
+  },
+  {
+    "name": "native-stable-candidate",
+    "cases": 31,
+    "transport_cases": 8,
+    "all_passed": true,
+    "cleanup": {
+      "checked_in_control_unchanged": true,
+      "secret_tree_removed_before_verification": true,
+      "scratch_removed": true
+    }
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "source_sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+  "python_method_count": 20,
+  "methods": [
+    "CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window",
+    "CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable",
+    "CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor",
+    "CollectorTests.test_capacity_order_preserves_nanoseconds",
+    "CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence",
+    "CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted",
+    "CollectorTests.test_formal_capacity_retains_both_stages",
+    "CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete",
+    "CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected",
+    "CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing",
+    "CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte",
+    "CollectorTests.test_invalid_status_is_rejected",
+    "CollectorTests.test_bad_terminal_anchor_never_queries_now",
+    "CollectorTests.test_partitions_retain_more_than_original_single_response_cap",
+    "CollectorTests.test_empty_optional_metric_family_has_explicit_zero_coverage",
+    "CollectorTests.test_partial_metrics_keep_successful_siblings",
+    "HelperBoundsTests.test_selector_partition_is_disjoint_and_complete",
+    "HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint",
+    "HelperBoundsTests.test_metric_total_transfer_budget_is_shared",
+    "HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition"
+  ],
+  "process_case_count_expected_from_reviewed_fixture_and_local_receipt": 79,
+  "linux_per_case_receipt_directly_retained": false,
+  "admission": "Go parent invokes the complete fixed Python unittest module without a filter, checks subprocess success and JSON fixture_only=true/tests_run>0/failure_count=0/error_count=0. Actual CI PASS must be observed before coverage is reported.",
+  "test_artifact_location": "Go temporary test directory, not part of workflow artifact upload",
+  "head_sha": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd"
+}

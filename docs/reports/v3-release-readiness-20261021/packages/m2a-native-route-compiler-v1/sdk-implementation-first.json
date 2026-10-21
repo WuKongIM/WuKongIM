@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+    "-B",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "--receipt",
+    "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/sdk-implementation-first-receipt.json"
+  ],
+  "timeout_seconds": 120,
+  "tests_unchanged_from_preimplementation_red": true,
+  "terminal": true,
+  "exit_code": 0,
+  "elapsed_seconds": 0.506
+}

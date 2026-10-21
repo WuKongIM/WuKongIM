@@ -1,0 +1,31 @@
+{
+  "base": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "scope": [
+    "scripts/aliyun-object-storage-provider.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/provider_sdk/fixtures/native-composite-routes.json",
+    "docs/object-storage-delivery.md",
+    "CHANGELOG.md"
+  ],
+  "baseline": {
+    "scripts/aliyun-object-storage-provider.py": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+    "docs/object-storage-delivery.md": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+    "CHANGELOG.md": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+  },
+  "applicable_external_rules_and_inputs": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/.agents/skills/tdd/SKILL.md": "6cfc6a5920744e55861b9b6176e12597d0c09345ea077bddc44c0d60712f2a0f",
+    "/Users/tt/.agents/skills/tdd/tests.md": "859f9e592c188fda4fc7277dd180e4ce9c7a2e13f6efe1f6f29eccc9d28c106a",
+    "/Users/tt/.agents/skills/tdd/mocking.md": "3ceb807fdf4a47d6a93d4d9a891e5ba6d362a6247bd08adc451feebfc17361ef",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/.github/CODEOWNERS": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-plan-review/report.md": "516a7e354ea822c55ce3904087149dabdf2306a86eda6e582bfa0164f6880db9",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/README.md": "34908f697987f96ada73e999a9c851ad72b15f8d4540709134f3c4c66e8cfc8a"
+  },
+  "packages_AGENTS_FLOW_CONTEXT": [],
+  "workflow_README": "absent; no workflow invocation or modification",
+  "clean_before_tests": true
+}

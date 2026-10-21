@@ -1,0 +1,37 @@
+{
+  "runs": [
+    {
+      "id": 39672398545,
+      "name": "Safety Automation - Verify Object Storage SDK Contracts",
+      "attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39672398545"
+    },
+    {
+      "id": 39672398399,
+      "name": "Safety Automation - Deploy Package Repository Bootstrap",
+      "attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39672398399"
+    },
+    {
+      "id": 39672398441,
+      "name": "Safety Automation - Drill Native Package Repository",
+      "attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39672398441"
+    }
+  ],
+  "action_warning_error_lines": {
+    "pages-job.log": [],
+    "sdk-job.log": [],
+    "legacy-native-job.log.gz": [],
+    "stable-job.log": []
+  },
+  "only_conditional_deployment_skip": true,
+  "native_test_skip": false,
+  "no_observer_dispatch_or_retry": true
+}

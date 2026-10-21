@@ -1,0 +1,16 @@
+{
+  "provider_AST_outside_compile_unchanged": true,
+  "tests_unchanged_since_preimplementation_red": true,
+  "old22_unchanged": true,
+  "tracked": [
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "scripts/aliyun-object-storage-provider.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py"
+  ],
+  "untracked": [
+    "tests/provider_sdk/fixtures/native-composite-routes.json"
+  ],
+  "protected_workflows_lock_producers_channel_keys_unchanged": true,
+  "git_diff_check_exit": 0
+}

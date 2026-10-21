@@ -1,0 +1,384 @@
+{
+  "artifact_id": 12379192583,
+  "source": "0c575fd63bcf8164332ca28053039f8fdf84137f",
+  "local_step": {
+    "schema": "wukongim/chat-lifecycle-local-step/v1",
+    "outcome": "clean",
+    "reason": "complete",
+    "offered_rate_per_second": 500,
+    "actual_rate_per_second": 511.0444444444444,
+    "minimum_throughput_percent": 90,
+    "measured_duration_seconds": 90,
+    "qualification_reached": true,
+    "target_connections": 2500,
+    "online_connections": 2500,
+    "sent": 45994,
+    "acknowledged": 45994,
+    "expected": 45000,
+    "minimum_filesystem_free_percent": 56.42617493500893,
+    "storage_evidence_complete": true,
+    "host_io_evidence_complete": true,
+    "product_metrics_complete": true,
+    "product_queue_evidence_complete": true,
+    "product_queues_converged": true,
+    "process_continuity_complete": true,
+    "timeline_evidence_complete": true,
+    "profile_evidence_complete": true,
+    "operator_interrupted": false,
+    "harness_failure_reason": ""
+  },
+  "window": {
+    "start": "2026-10-21T20:30:00.889046286Z",
+    "warmup_end": "2026-10-21T20:31:00.889046286Z",
+    "qualification_at": "2026-10-21T20:31:00.890046286Z",
+    "final_at": "2026-10-21T20:35:00.889046286Z",
+    "end": "2026-10-21T20:32:33.002598656Z",
+    "elapsed": 152113552570
+  },
+  "final_verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 13,
+      "minute_capacity": 16,
+      "latency_samples": [
+        19,
+        19,
+        19
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "messages": {
+    "sent": 76002,
+    "send_attempts": 76003,
+    "first_attempts": 76002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 76002,
+    "send_rejected": 0,
+    "received": 98808,
+    "receive_acknowledged": 98808,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 840,
+    "delivered": 840,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 54485,
+    "work_capacity": 114500,
+    "retry_current": 0,
+    "retry_peak": 1,
+    "retry_capacity": 12288,
+    "inflight_current": 0,
+    "inflight_peak": 500,
+    "inflight_capacity": 12288,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 1
+  },
+  "sessions": {
+    "target": 2500,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0,
+    "planned_new": 2000,
+    "planned_returning": 500,
+    "completed_new": 2500,
+    "completed_returning": 0,
+    "expired": 0,
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 2500,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    }
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "product_queue_rows": [
+    {
+      "tag": "rate-500",
+      "node": "node-1",
+      "evidence": "complete",
+      "baseline_queue": "2",
+      "baseline_inflight": "3",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    },
+    {
+      "tag": "rate-500",
+      "node": "node-2",
+      "evidence": "complete",
+      "baseline_queue": "14",
+      "baseline_inflight": "17",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    },
+    {
+      "tag": "rate-500",
+      "node": "node-3",
+      "evidence": "complete",
+      "baseline_queue": "6",
+      "baseline_inflight": "8",
+      "drained_queue": "0",
+      "drained_inflight": "0",
+      "converged": "true"
+    }
+  ],
+  "retry_scope": {
+    "qualification_retry_attempts": 1,
+    "final_retry_attempts": 1,
+    "qualification_transport_rejected": 1,
+    "final_transport_rejected": 1,
+    "first_nonzero_retry_cut": {
+      "at": "2026-10-21T20:30:20.925587178Z",
+      "cut": "periodic",
+      "retry_attempts": 1,
+      "terminal": 0
+    },
+    "limit": "Counter observations only; no inference about previous generations."
+  },
+  "warning_scan": [
+    {
+      "member": "artifacts/logs/node1/app.log",
+      "bytes": 16497,
+      "sha256": "565ccf37d3fc4c88a3796e330ba6f3b394d6046043b1307d8dc8eeb1ca1ccb36",
+      "matching_lines": [
+        {
+          "line": 57,
+          "sha256": "455af6a6ed9caac286830674ccbb902ad12dfb906abdbfb9e904e0f2496fcc29"
+        },
+        {
+          "line": 58,
+          "sha256": "58720da0f4521cd5023dc15a808f66711c20d16bfdd5ee7424984dd2a59e07c4"
+        }
+      ]
+    },
+    {
+      "member": "artifacts/logs/node2/app.log",
+      "bytes": 15526,
+      "sha256": "5a25c64d7d8c9b6593a0b35a461ad04b4dfd204c79bb9ad83ed699f242504440",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/node3/app.log",
+      "bytes": 16090,
+      "sha256": "b0f03b2b7bddafc6187f6d8f6f94b6b5bf3da7897559badb482a03cf1d4ba190",
+      "matching_lines": [
+        {
+          "line": 56,
+          "sha256": "674b75a72f43750a53e1b817fd1f5e9ef0a1217c09cbde579fa8ae1deac21b6b"
+        }
+      ]
+    },
+    {
+      "member": "artifacts/logs/service-1.log",
+      "bytes": 15830,
+      "sha256": "05e7cab27e46e4248c6243561f287a5a6bde18262302a0296696b7ac46c8bb02",
+      "matching_lines": [
+        {
+          "line": 71,
+          "sha256": "455af6a6ed9caac286830674ccbb902ad12dfb906abdbfb9e904e0f2496fcc29"
+        },
+        {
+          "line": 72,
+          "sha256": "58720da0f4521cd5023dc15a808f66711c20d16bfdd5ee7424984dd2a59e07c4"
+        }
+      ]
+    },
+    {
+      "member": "artifacts/logs/service-2.log",
+      "bytes": 14859,
+      "sha256": "81daf3aab352ac91f0c44ffda89f56966bb93c4cb932f9a96bdeec190531eccc",
+      "matching_lines": []
+    },
+    {
+      "member": "artifacts/logs/service-3.log",
+      "bytes": 15423,
+      "sha256": "1512106752d3b85533e1401ecfc5bec087721e5035489381241aaa7bcd885355",
+      "matching_lines": [
+        {
+          "line": 70,
+          "sha256": "674b75a72f43750a53e1b817fd1f5e9ef0a1217c09cbde579fa8ae1deac21b6b"
+        }
+      ]
+    }
+  ],
+  "checksums_verified_selected_members": [
+    "artifacts/local-step.json",
+    "artifacts/product_queue_summary.tsv",
+    "artifacts/report/final.json",
+    "artifacts/report/qualification.json",
+    "artifacts/report/diagnostic-status.json",
+    "artifacts/report/worker-evidence.json",
+    "artifacts/evidence/graceful-stop-status.json",
+    "artifacts/evidence/process-continuity.tsv",
+    "artifacts/evidence/timeline.tsv",
+    "artifacts/evidence/threshold-pprof-status.json",
+    "artifacts/logs/coordinator.log",
+    "artifacts/logs/node1/app.log",
+    "artifacts/logs/node2/app.log",
+    "artifacts/logs/node3/app.log",
+    "artifacts/logs/service-1.log",
+    "artifacts/logs/service-2.log",
+    "artifacts/logs/service-3.log"
+  ],
+  "public_copied_members": [
+    {
+      "member": "source.sha",
+      "public_path": "correctness-members/source.sha",
+      "bytes": 41,
+      "sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449"
+    },
+    {
+      "member": "host.json",
+      "public_path": "correctness-members/host.json",
+      "bytes": 4483,
+      "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+    },
+    {
+      "member": "data-filesystem.json",
+      "public_path": "correctness-members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "member": "artifacts/local-step.json",
+      "public_path": "correctness-members/artifacts/local-step.json",
+      "bytes": 834,
+      "sha256": "f885c4f99ff0598e37387e797352cf413b7d6eebf9dce214a672f14b96f219f6"
+    },
+    {
+      "member": "artifacts/product_queue_summary.tsv",
+      "public_path": "correctness-members/artifacts/product_queue_summary.tsv",
+      "bytes": 208,
+      "sha256": "7e1076d76b5d072f1d9e757428fdafbd5e7a4368de2040708997f909f5920e7e"
+    },
+    {
+      "member": "artifacts/report/final.json",
+      "public_path": "correctness-members/artifacts/report/final.json",
+      "bytes": 23511,
+      "sha256": "eda28840f5a30b38a807c2843938198175d16a0e07ed734da7ca20ee05afd1af"
+    },
+    {
+      "member": "artifacts/report/qualification.json",
+      "public_path": "correctness-members/artifacts/report/qualification.json",
+      "bytes": 23443,
+      "sha256": "10eace5c478e8788ba18c1342b2afcb6e2f1cdcc013fa3a8cfcded3804ef03e0"
+    },
+    {
+      "member": "artifacts/report/diagnostic-status.json",
+      "public_path": "correctness-members/artifacts/report/diagnostic-status.json",
+      "bytes": 8799,
+      "sha256": "f185d322497cf2549c7c738dfcc11117eb609ddf1e0a901b2077d048b7cd427c"
+    },
+    {
+      "member": "artifacts/report/worker-evidence.json",
+      "public_path": "correctness-members/artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "fd211b9e8b527563880fd34b38e523dc7838411da9ab5979f560a90fa84d8e46"
+    },
+    {
+      "member": "artifacts/evidence/graceful-stop-status.json",
+      "public_path": "correctness-members/artifacts/evidence/graceful-stop-status.json",
+      "bytes": 237,
+      "sha256": "7b7f2c9cf3b894f3b2e525714e6f592083046405ed8f0ed5da42855f83ddafec"
+    },
+    {
+      "member": "artifacts/evidence/process-continuity.tsv",
+      "public_path": "correctness-members/artifacts/evidence/process-continuity.tsv",
+      "bytes": 212,
+      "sha256": "0279cee778f6d9c8ad40c13d63862f8f655f794408e5de1f9574312b6617ed07"
+    },
+    {
+      "member": "artifacts/evidence/timeline.tsv",
+      "public_path": "correctness-members/artifacts/evidence/timeline.tsv",
+      "bytes": 1941,
+      "sha256": "2c1213bf8b5ccc4338089b1324e07fb007a4f4e1420f2894902ad10b8ef5da54"
+    },
+    {
+      "member": "artifacts/evidence/threshold-pprof-status.json",
+      "public_path": "correctness-members/artifacts/evidence/threshold-pprof-status.json",
+      "bytes": 287,
+      "sha256": "16fdec56e0522031eef0de1a6dad7d10d58aaed67a5afc03990d37f5d6571178"
+    },
+    {
+      "member": "artifacts/evidence/checksums.sha256",
+      "public_path": "correctness-members/artifacts/evidence/checksums.sha256",
+      "bytes": 9091,
+      "sha256": "258b2c5569a396d1d79ac6efb06d3da211906ae6d9b2457f205828c494f821cc"
+    }
+  ],
+  "cleanup_limit": "No independent post-shell OS PID inventory in smoke artifact; zero sessions/queues are not runner-wide zero-process proof.",
+  "archive_limit": "229288763-byte ZIP range-read only; selected CRC/SHA checked, whole-ZIP digest API-declared only."
+}

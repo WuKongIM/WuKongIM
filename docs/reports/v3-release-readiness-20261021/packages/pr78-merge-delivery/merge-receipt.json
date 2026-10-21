@@ -1,0 +1,10 @@
+{
+  "original_head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "merged_at": "2026-10-21T20:58:59Z",
+  "merge_commit": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "target_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "reviewed_tested_tree_match": true,
+  "original_tip_contained": false,
+  "worktree_clean": true,
+  "cleanup": "preserve original clean branch/worktree because rebase tip is not an ancestor"
+}

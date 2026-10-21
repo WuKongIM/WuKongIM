@@ -1,0 +1,110 @@
+{
+  "schema": "wukongim/finite-public-archive/v1",
+  "files": [
+    {
+      "path": "checks.json",
+      "bytes": 1906,
+      "sha256": "f06435992663b177604b93a9b13f687532ae4b6b2f539e3bdb6a469d8d27b7a5"
+    },
+    {
+      "path": "fetch-main.txt",
+      "bytes": 143,
+      "sha256": "82190501de0d9a3d131e7d6de7dffc6f2db3b9b30419c5531cda8fecc76044c4"
+    },
+    {
+      "path": "local-status.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "main-premerge.json",
+      "bytes": 5218,
+      "sha256": "1185c53b671702df1f7fa12ecd06fb125756a13f5371ac78fe5276ef373bfdd4"
+    },
+    {
+      "path": "merge-receipt.json",
+      "bytes": 404,
+      "sha256": "b6bf29490cba1d19e7f094912d06c09d64cdebca05d50fead19990b755b568d1"
+    },
+    {
+      "path": "merge.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pr-after.json",
+      "bytes": 245,
+      "sha256": "6fce7b311a4e1e247021933fc48b2d151d4539e8da3904d3d7ac59582507bee0"
+    },
+    {
+      "path": "pr-before.json",
+      "bytes": 3784,
+      "sha256": "79fdff31ef94b8464792eb193e3f9987297a9324ead1374bcd6940a0ce2ac72c"
+    },
+    {
+      "path": "pr-body.md",
+      "bytes": 3079,
+      "sha256": "aeb09ae514b26f088028e0f9d90314059654c2e95d425de63f46d58dd9fdd8d5"
+    },
+    {
+      "path": "pr-edit.txt",
+      "bytes": 47,
+      "sha256": "cc8f4949a54061763f765e6165ada1fb4c0f97c7ae3ab415097715eb82cec7b3"
+    },
+    {
+      "path": "pr-premerge.json",
+      "bytes": 137,
+      "sha256": "b366fb4697b22de314c49a0df743642d9b8cd3e62c48439e6d49282159df758a"
+    },
+    {
+      "path": "protection.json",
+      "bytes": 1200,
+      "sha256": "20d7e38e9ee07736822d3b21bd9b803e633c60bdf8520baf00b9ea0d66231396"
+    },
+    {
+      "path": "ready-signal.json",
+      "bytes": 925,
+      "sha256": "d17e73af42533093a588cc7f768bb157a64c7a2cb27ea95c11c1b580bbdb5a13"
+    },
+    {
+      "path": "ready.txt",
+      "bytes": 72,
+      "sha256": "14dc1e84901ad6f2e6c6ad3c422085ff2de60e11f15b1e299f5f8261be8f5350"
+    },
+    {
+      "path": "reviews.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "target-sha.txt",
+      "bytes": 41,
+      "sha256": "e6f3e929bce7f16cb87edf2f444652082309d1c0bb477aee1ec3c183cad509f3"
+    },
+    {
+      "path": "target-tree.txt",
+      "bytes": 41,
+      "sha256": "3c0a3bcfc3d79e708388be6003036be03a3f8b9cfc4130da116395ca86f02248"
+    },
+    {
+      "path": "cleanup-worktree.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cleanup-branch.txt",
+      "bytes": 233,
+      "sha256": "26bdf9de8cedf17da9a7ee5eea6c55f102dcc1b4c61f8d864db6d56c79eb0f98"
+    },
+    {
+      "path": "cleanup-receipt.json",
+      "bytes": 493,
+      "sha256": "3f820ffeed81767c85a759c14cd2890f52fa818bd2684210ab33376c66cdc4b9"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 310,
+      "sha256": "5e7ee94399a50ca3aec8c1bacd34e4094f365595324f7955e553fb9fd0c0dafe"
+    }
+  ]
+}

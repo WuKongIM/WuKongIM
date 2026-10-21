@@ -1,0 +1,48 @@
+{
+  "schema": "wukongim/source-freeze/v1",
+  "base": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "head": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "base_tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "branch": "codex/native-route-compiler",
+  "scope_count": 5,
+  "source_files": [
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "bytes": 27342,
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d"
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "tests/provider_sdk/fixtures/native-composite-routes.json",
+      "bytes": 670004,
+      "sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8"
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 18618,
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 4176,
+      "sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0"
+    }
+  ],
+  "patch": {
+    "path": "implementation.patch",
+    "bytes": 706836,
+    "sha256": "21095c12dd8928e31f3894280dbd188806d6a68b5da7c84040a68f917f7d8e18"
+  },
+  "untracked": [
+    "tests/provider_sdk/fixtures/native-composite-routes.json"
+  ],
+  "tests_unchanged_from_preimplementation_red": true,
+  "provider_AST_outside_compile_unchanged": true,
+  "no_commit_push_ci_cloud": true,
+  "frozen_at_utc": "2026-10-21T20:32:59.765112+00:00"
+}

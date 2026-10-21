@@ -1,0 +1,11 @@
+{
+  "schema": "wukongim.frozen_plan_independent_review/v1",
+  "review_scope": "next-request-after-pr1024-merged-preparation",
+  "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "open_findings": [],
+  "open_finding_count": 0,
+  "verdict": "ready_for_new_explicit_paid_start_decision_only",
+  "authorization_granted": false,
+  "live_admission_verified": false,
+  "release_qualified": false
+}

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "go",
+    "list",
+    "-deps",
+    "-json",
+    "./cmd/wkchatlifecycle"
+  ],
+  "source_head": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "exit_code": 1,
+  "network_dependency_fetch": "disabled GOPROXY/GOSUMDB/GOTOOLCHAIN",
+  "stderr": "go: go.mod requires go >= 1.25.0 (running go 1.23.4; GOTOOLCHAIN=local)\n"
+}

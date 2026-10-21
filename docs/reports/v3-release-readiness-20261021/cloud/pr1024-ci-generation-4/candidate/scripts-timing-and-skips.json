@@ -1,0 +1,297 @@
+{
+  "root_terminals_by_package": {
+    "github.com/WuKongIM/WuKongIM/scripts": {
+      "pass": 565,
+      "skip": 6
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper": {
+      "pass": 24
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/flowcheck": {
+      "pass": 12
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/skillcheck": {
+      "pass": 30
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/skillcontracts": {
+      "pass": 11
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/transport-perf": {
+      "pass": 5
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe": {
+      "pass": 4
+    }
+  },
+  "command": {
+    "arguments": [
+      "go",
+      "test",
+      "-tags=integration",
+      "./scripts/...",
+      "-count=1",
+      "-timeout=9m",
+      "-parallel=2"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 600,
+    "max_output_bytes": 8388608,
+    "named_check": "scripts-integration",
+    "environment": {
+      "GOWORK": "off",
+      "GOFLAGS": "-p=2 -json"
+    }
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2741,
+    "output_bytes": 1507252,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2741,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 576.017
+  },
+  "package_events": [
+    {
+      "Time": "2026-10-21T20:30:15.78311212Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts"
+    },
+    {
+      "Time": "2026-10-21T20:30:15.906127815Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper"
+    },
+    {
+      "Time": "2026-10-21T20:30:17.705424268Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+      "Elapsed": 1.799
+    },
+    {
+      "Time": "2026-10-21T20:30:17.904246264Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck"
+    },
+    {
+      "Time": "2026-10-21T20:30:17.913492449Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+      "Elapsed": 0.009
+    },
+    {
+      "Time": "2026-10-21T20:30:18.212612908Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck"
+    },
+    {
+      "Time": "2026-10-21T20:30:18.280154548Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+      "Elapsed": 0.068
+    },
+    {
+      "Time": "2026-10-21T20:30:18.695072897Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts"
+    },
+    {
+      "Time": "2026-10-21T20:30:18.701812296Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+      "Elapsed": 0.007
+    },
+    {
+      "Time": "2026-10-21T20:30:18.912214738Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf"
+    },
+    {
+      "Time": "2026-10-21T20:30:23.838746285Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf",
+      "Elapsed": 4.927
+    },
+    {
+      "Time": "2026-10-21T20:30:24.559280805Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe"
+    },
+    {
+      "Time": "2026-10-21T20:30:24.931947273Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+      "Elapsed": 0.373
+    },
+    {
+      "Time": "2026-10-21T20:38:05.805071263Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 470.022
+    }
+  ],
+  "test_positions": {
+    "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire": {
+      "events": [
+        {
+          "Time": "2026-10-21T20:30:17.32643116Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire"
+        },
+        {
+          "Time": "2026-10-21T20:30:17.326442877Z",
+          "Action": "pause",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire"
+        },
+        {
+          "Time": "2026-10-21T20:37:27.728496845Z",
+          "Action": "cont",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire"
+        },
+        {
+          "Time": "2026-10-21T20:37:27.850783628Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire",
+          "Elapsed": 0.12
+        }
+      ],
+      "all_packages_root_cont_one_based_rank": 194
+    },
+    "TestChatLifecycleTerminalEvidenceRetention": {
+      "events": [
+        {
+          "Time": "2026-10-21T20:30:48.548553533Z",
+          "Action": "run",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        },
+        {
+          "Time": "2026-10-21T20:30:48.548568285Z",
+          "Action": "pause",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        },
+        {
+          "Time": "2026-10-21T20:37:02.500328398Z",
+          "Action": "cont",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention"
+        },
+        {
+          "Time": "2026-10-21T20:37:24.684909526Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestChatLifecycleTerminalEvidenceRetention",
+          "Elapsed": 22.18
+        }
+      ],
+      "all_packages_root_cont_one_based_rank": 169
+    }
+  },
+  "skip_context": [
+    {
+      "Time": "2026-10-21T20:31:21.835364329Z",
+      "Test": "TestDockerImageRuntimeContract",
+      "Output": "=== RUN   TestDockerImageRuntimeContract\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:21.835427092Z",
+      "Test": "TestDockerImageRuntimeContract",
+      "Output": "    docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:21.835437107Z",
+      "Test": "TestDockerImageRuntimeContract",
+      "Output": "--- SKIP: TestDockerImageRuntimeContract (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:21.877614294Z",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Output": "=== RUN   TestDockerImageEmbeddedPrometheus\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:21.877620423Z",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Output": "    docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:21.877642696Z",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Output": "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:22.794594913Z",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Output": "=== RUN   TestEasySDKReadinessSerialDelayFixture\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:22.794600591Z",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Output": "    easysdk_readiness_schedule_integration_test.go:35: subprocess scheduling fixture only\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:22.794606379Z",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Output": "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.440843374Z",
+      "Test": "TestNativePackageLifecycle",
+      "Output": "=== RUN   TestNativePackageLifecycle\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.440850565Z",
+      "Test": "TestNativePackageLifecycle",
+      "Output": "    native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.440857385Z",
+      "Test": "TestNativePackageLifecycle",
+      "Output": "--- SKIP: TestNativePackageLifecycle (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.440871015Z",
+      "Test": "TestNativePackageSignedRepository",
+      "Output": "=== RUN   TestNativePackageSignedRepository\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.440898015Z",
+      "Test": "TestNativePackageSignedRepository",
+      "Output": "    native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.440910233Z",
+      "Test": "TestNativePackageSignedRepository",
+      "Output": "--- SKIP: TestNativePackageSignedRepository (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.81281294Z",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Output": "=== RUN   TestNativePackageRepositoryDeadlineFixture\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.812820201Z",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Output": "    native_package_repository_output_integration_test.go:92: subprocess fixture only\n"
+    },
+    {
+      "Time": "2026-10-21T20:31:51.812831548Z",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Output": "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)\n"
+    }
+  ],
+  "interpretation": "CONT marks scheduling admission, not observed lock acquisition. Test elapsed includes its test-body interval under Go reporting, not pure compilation; no sum-of-test-elapsed critical-path inference. One new-head hosted run is not same-host A/B attribution."
+}

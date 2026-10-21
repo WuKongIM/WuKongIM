@@ -1,0 +1,614 @@
+{
+  "axis": "Standards only; Spec report not read",
+  "reviewed_at_utc": "2026-10-21T20:39:27.523567+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "fixed_head": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "fixed_tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "source_freeze_sha256": "34d2361fc94b979366503e36f25fe8e9ab4ed8e256364ad05d2ab9191276f87b",
+  "full_patch_sha256": "21095c12dd8928e31f3894280dbd188806d6a68b5da7c84040a68f917f7d8e18",
+  "full_patch_matches_live_tracked_plus_untracked": true,
+  "branch_commits": [],
+  "staged": [],
+  "status_porcelain": [
+    " M CHANGELOG.md",
+    " M docs/object-storage-delivery.md",
+    " M scripts/aliyun-object-storage-provider.py",
+    " M tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "?? tests/provider_sdk/fixtures/"
+  ],
+  "untracked": [
+    "tests/provider_sdk/fixtures/native-composite-routes.json"
+  ],
+  "sources": [
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "before_sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+      "after_sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d",
+      "bytes": 27342,
+      "matches_frozen_source": true
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "before_sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+      "after_sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768",
+      "bytes": 42926,
+      "matches_frozen_source": true
+    },
+    {
+      "path": "tests/provider_sdk/fixtures/native-composite-routes.json",
+      "before_sha256": null,
+      "after_sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8",
+      "bytes": 670004,
+      "matches_frozen_source": true
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "before_sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "after_sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "bytes": 18618,
+      "matches_frozen_source": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "before_sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a",
+      "after_sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0",
+      "bytes": 4176,
+      "matches_frozen_source": true
+    }
+  ],
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "authority": "explicit user governing working agreement"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/README.md",
+      "before_sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "after_sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/docs/release-contract.md",
+      "before_sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "after_sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/docs/object-storage-delivery.md",
+      "before_sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "after_sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/.github/CODEOWNERS",
+      "before_sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "after_sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler/tests/contract.sh",
+      "before_sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+      "after_sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+      "relevant_rule_lines": [
+        37,
+        38,
+        40,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56
+      ]
+    }
+  ],
+  "repository_AGENTS_FLOW_CONTEXT": [],
+  "ancestor_rule": "External root AGENTS explicitly supplied by user; no applicable package FLOW exists.",
+  "static_verification": {
+    "provider_AST_outside_compile_rewrites_identical": true,
+    "original22_test_methods_byte_identical": true,
+    "new_methods": 12,
+    "current_test_bytes_equal_preimplementation_red": true,
+    "first_to_second_red_change": "Only two test prefix-length calculations changed len(prefix) to len(re.escape(prefix)) before implementation; old expectations retained.",
+    "protected_paths_unchanged": 33,
+    "public_readback_manifest_exact": true,
+    "public_readback_25_files_sha_verified": true,
+    "source_binding_exact": true,
+    "all_embedded_A_B_canonical_docs_and_routes_exact": true,
+    "fixture_test_only": true,
+    "fixture_production_authorization": false
+  },
+  "protected_source_hashes": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281"
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1"
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b"
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    }
+  ],
+  "fixture_provenance_manifest": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/A-B-candidate-delta.json",
+      "sha256": "39495127efa3a36bc1ba53599957e2825c3c57fede6e2ac149647f680ba24f89"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/README.md",
+      "sha256": "34908f697987f96ada73e999a9c851ad72b15f8d4540709134f3c4c66e8cfc8a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/analyze-routes.py",
+      "sha256": "9b8f0f07887de8e928d3b0ae9ec1e7eb9c281b7df3d338406a4c7b7bd154d6e0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/candidate-rules-A.json",
+      "sha256": "1b5daf67b552373048ef94a6ea4e5808024069ebd1d4c73ded5d83d9a8d2ec1a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/candidate-rules-B.json",
+      "sha256": "965db0b55226b8f671b2dc2ce20e60a49f9c2a45517f1d84dbc2657cda1c925b"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-command.json",
+      "sha256": "b5db1a796bdb8f6853aa54ab157bc584718211b63f16446f249e52dab7ba5c7c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/A/delivery.json",
+      "sha256": "39f72fa851e7d5bc677df36bdcbedc3bcc82c631b2f0005660f54bf67af3bcb8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/A/inputs.json",
+      "sha256": "e0ae0eea3f1c344bdba18b6200463fa1dede29cfece25298ad274ce488f8e8c7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/A/resolution.json",
+      "sha256": "995ef0e88e9f8930fe07c8046298b642384ff5265a5658b192c5e7663595b683"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/A/routes.json",
+      "sha256": "0be50097e61cbe976640377e7a2b41befb076d4b8df668c8bf1c17c24c0adf80"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/A/transport-plan.json",
+      "sha256": "03f1eca406c2cef1f43192dca0331d25cf632daa54d0de2157829c3192bf47ed"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/B/delivery.json",
+      "sha256": "347c3b311477667414befa9196b10ae1a8117f4f399721ba42a078a5377dcece"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/B/inputs.json",
+      "sha256": "522cdb7380e06473ef14ba09efc89decda41488523aa36d239ff6df36cb6cd8e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/B/resolution.json",
+      "sha256": "2a8f7e58441a83aa0855d75377b668e2be0e2a65e8d829a2caf678f05d25f84d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/B/routes.json",
+      "sha256": "57d2d676d463e9bc6faca14ab670873aa5b30755e235f48d503ff6ce6e634877"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/B/transport-plan.json",
+      "sha256": "ac5784370093e3903a0dc6447cbef57621c3ccba9615b615892d83692bb5917f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/descriptors.json",
+      "sha256": "8b30422d31fb98e888f0f72d8216cd93248e479368d078e625b7085df0c0362d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/resource.json",
+      "sha256": "0ddbb86632ae77ee74ed385d1a399e047d0143b86728673e994f0ae65304c2b9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/first-run/result.json",
+      "sha256": "21f3f4aa22d86383387a1a30a483bdd51df66495388c5494e0353ee6c19844af"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/governing-binding.json",
+      "sha256": "58c62e02e5377d1227ebbb4c0bf00af15f02e8c50369b4deb62e9c2dfa7a61d5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/readback.py",
+      "sha256": "b90ba3889a4b1777f1062e8b2830296c5ed295a885d139165ec845bd738b6938"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/route-analysis.json",
+      "sha256": "bf8f281031cd9179958cfcaec15682e39ec81a44160e7dca0e9ba16b2c20fc11"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/run.py",
+      "sha256": "85ae7aa4830893b089b026abb3674ef01c15e9ee37fee55344287c6fdd06a64f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/sourcebinding.json",
+      "sha256": "0d84637423a45d27ced5c92327fc5e2026bd5314bf4227ea609791b8e8fe6ca5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback/terminal-check.json",
+      "sha256": "bc4a5e8631ec09f07d91d2da89cbeb1c590768387983c2762b1e4c1014dc5702"
+    }
+  ],
+  "hard_findings": [],
+  "heuristic_findings": [
+    {
+      "priority": 3,
+      "classification": "judgment-only heuristic; not a hard violation or observed correctness defect",
+      "smell": "possible Duplicated Code",
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "lines": [
+        133,
+        135
+      ],
+      "duplicate_lines": [
+        92,
+        94
+      ],
+      "standard": "/Users/tt/.agents/skills/code-review/SKILL.md:46",
+      "summary": "The new grouped-output branch repeats the ordered CDN functionArgs constructor already used for literal output. Both encode source_url first, target_url, break, and sequence, so future wire-contract changes require synchronized edits. A small local constructor shared by both branches would keep this representation in one place while preserving byte/order compatibility.",
+      "disposition": {
+        "status": "recorded suggestion; no source edit requested from reviewer",
+        "root_consideration": "Retain the two three-line constructors to leave legacy ordered wire construction directly unchanged; byte/order tests cover the common protocol shape. Extra abstraction is not currently considered necessary.",
+        "hard_rule_waiver": false,
+        "current_behavior_acceptance_blocked": false,
+        "final_disposition": "parent to decide with independent Spec review; Standards has not read Spec"
+      }
+    }
+  ],
+  "smell_assessments": [
+    {
+      "name": "Mysterious Name",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Duplicated Code",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": true
+    },
+    {
+      "name": "Feature Envy",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Data Clumps",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Primitive Obsession",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Repeated Switches",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Shotgun Surgery",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Divergent Change",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Speculative Generality",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Message Chains",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Middle Man",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    },
+    {
+      "name": "Refused Bequest",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "finding": false
+    }
+  ],
+  "finite_evidence_manifest": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/source-freeze.json",
+      "bytes": 1716,
+      "sha256": "34d2361fc94b979366503e36f25fe8e9ab4ed8e256364ad05d2ab9191276f87b"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/implementation.patch",
+      "bytes": 706836,
+      "sha256": "21095c12dd8928e31f3894280dbd188806d6a68b5da7c84040a68f917f7d8e18"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/initial-binding.json",
+      "bytes": 2293,
+      "sha256": "c2495aac62a16ca1a6b3701df5f1ed742721564d6cda1c91c94bc04485a5e307"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/failure-matrix.md",
+      "bytes": 3177,
+      "sha256": "e078516f26c59a1dd3dd3a7e27868f85b181f081e86ddf631dbc19707b363153"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/README.md",
+      "bytes": 7081,
+      "sha256": "d8a04cbe3256f1b62a6eeb8f16b3134e098da357268acb9990656c406ca42268"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/first-red-tests.py",
+      "bytes": 42904,
+      "sha256": "0ddca75e5019e0539e61c3da20e32fbd25226b89d8c58573763028e508258b65"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/preimplementation-tests.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/test-boundary-review.md",
+      "bytes": 424,
+      "sha256": "fd4c8a39ffb033e241fc2e11a28c1f7a20ae79529c60588eaa30920ad10b46a1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/test-source-preservation.json",
+      "bytes": 2499,
+      "sha256": "0fe145914218f4559f0590cfedf1f35cc66731c636a528219e064a75a5a9c975"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/pre-validation-preservation.json",
+      "bytes": 509,
+      "sha256": "49bf81f1e4c4af47db95f8a6caa460b9ad558142c67b37be4be73ff9c3e5b947"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/protected-source-binding.json",
+      "bytes": 5127,
+      "sha256": "2298769141e0a27c2ea6a706e2fbe8ebec0be754331fe9c417a02ff8f886194f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/fixture-export.json",
+      "bytes": 464,
+      "sha256": "fc6b87ce5a3d20e50744011f82b66e799a69ac356327bf61754db61c401ababf"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/summary.json",
+      "bytes": 1446,
+      "sha256": "15ffd36d147507ec25011480cc1d3dbee714dba98eb4209688ad713e0e313365"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/run-bounded.py",
+      "bytes": 1086,
+      "sha256": "2e581174497b9c2dd86643bd3adbdf85e3804823637921e9ebf790a435468bf7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/first-red.json",
+      "bytes": 851,
+      "sha256": "3a9e6331c74e3acc7ca22643b212cea5c6c7880ab3baf8e2e71f81a2f6b25d46"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/preimplementation-red.json",
+      "bytes": 554,
+      "sha256": "dfb69f0d26b70ede3b727d346e7d2cff37738e47bf967225bbec7498c09eee97"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/sdk-implementation-first.json",
+      "bytes": 486,
+      "sha256": "f4c53370e45f07661d8544f3eb9346dbe81aa0337a5ffc21f65890f46f324417"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/inputs-first.json",
+      "bytes": 433,
+      "sha256": "84b027ee7571321ba341f3b1dd18ab97159f06c79e260bdc1e197a8eceea40e9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/contract-first.json",
+      "bytes": 313,
+      "sha256": "c5b1e2127bfbbb88e53edb7656ac1419138d17cbe5dd25798694bc58de3a4f35"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/default-first.json",
+      "bytes": 397,
+      "sha256": "c087b05d410006ae2d802049995cdc729a1bb77db1e84c840c45fc41800ef1f2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/first-red.log",
+      "bytes": 29685,
+      "sha256": "879f075a637a10266ee8ccb0892a00347cf424eed2703947cd4ece98314b2ec7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/preimplementation-red.log",
+      "bytes": 29685,
+      "sha256": "1dfed0c5decdcb486621c5928b5500532825d411296936186e0a6c7b076619e9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/sdk-implementation-first.log",
+      "bytes": 8077,
+      "sha256": "640d2164ee24affb2e75f589ec67a74a39a7b0a575354b5199d3fe0d1fd7e130"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/inputs-first.log",
+      "bytes": 2077,
+      "sha256": "b80695721bfabf518b9f28628271dcef24ed37775a8f48d4ec4cab60d198d6bc"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/contract-first.log",
+      "bytes": 176,
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/default-first.log",
+      "bytes": 2303,
+      "sha256": "6dab4919f5e26c35dc6da598a5973b7846fe995d10f7296a186774124760f62b"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/first-red-sdk-receipt.json",
+      "bytes": 2685,
+      "sha256": "d944de8910c16e099e8d92825ce1587ac4d32dde5c5928342bc372e943300dea"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/preimplementation-red-sdk-receipt.json",
+      "bytes": 2685,
+      "sha256": "d944de8910c16e099e8d92825ce1587ac4d32dde5c5928342bc372e943300dea"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2a-native-route-compiler-v1/sdk-implementation-first-receipt.json",
+      "bytes": 2684,
+      "sha256": "7c3a84829714cf3d9bc70955c5819d5d95d8b99795f0dfbc93a6b4710082c772"
+    }
+  ],
+  "tests_rerun": false,
+  "runtime_probe_executed": false,
+  "live_PCRE_or_cloud_authority_proven": false
+}

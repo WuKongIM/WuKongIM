@@ -1,0 +1,38 @@
+{
+  "artifact": {
+    "id": 12380409971,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM4MDQwOTk3MQ==",
+    "name": "object-storage-sdk-contract",
+    "size_in_bytes": 1338,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12380409971",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12380409971/zip",
+    "expired": false,
+    "digest": "sha256:4cbc4fb93289b55e1e26d371744f2360a7274b44fb5c5772f1a960471f1df561",
+    "created_at": "2026-10-21T20:59:20Z",
+    "updated_at": "2026-10-21T20:59:20Z",
+    "expires_at": "2026-10-28T20:59:20Z",
+    "workflow_run": {
+      "id": 39674980428,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "main",
+      "head_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5"
+    }
+  },
+  "get_exit_code": 0,
+  "zip_size": 1338,
+  "zip_sha256_recomputed": "4cbc4fb93289b55e1e26d371744f2360a7274b44fb5c5772f1a960471f1df561",
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "all_members_crc_verified": true,
+  "members": [
+    {
+      "path": "provider-contract-receipt.json",
+      "size": 2684,
+      "sha256": "7eb97c6c395adc98b18f25c1a1911f727d50a8fc5131a288ea00c3342f3168c7",
+      "crc32": "b75c3ed8",
+      "crc_verified": true
+    }
+  ],
+  "whole_zip_verified_against_api_digest": true
+}

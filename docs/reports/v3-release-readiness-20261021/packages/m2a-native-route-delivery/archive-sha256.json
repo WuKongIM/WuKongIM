@@ -1,0 +1,50 @@
+{
+  "schema": "wukongim/finite-public-archive/v1",
+  "files": [
+    {
+      "path": "combined-review.md",
+      "bytes": 5749,
+      "sha256": "41646210c9755590fe5e56690409d30e9993c69d77715f51cd9671aa4df218bd"
+    },
+    {
+      "path": "commit-identity.json",
+      "bytes": 183,
+      "sha256": "98a3685cb14110721f0b7ed4b1a7c5549a61c6691335e2213214e9777d11f4ad"
+    },
+    {
+      "path": "commit.txt",
+      "bytes": 231,
+      "sha256": "4a9bd60e73dddf56ef5d7b54218e3048bf6a337e19e373fbe6f69568734121db"
+    },
+    {
+      "path": "pr-body.md",
+      "bytes": 2104,
+      "sha256": "1cace1fc5a116ceb89441805758c3e8489a811bdf5f68f29f4a3e736da13475c"
+    },
+    {
+      "path": "pr-create.txt",
+      "bytes": 45,
+      "sha256": "9adc165acdf247c2a3b6d5a02d4a18fb3cb342daa95accb9238f064179a90eb2"
+    },
+    {
+      "path": "pr-url.txt",
+      "bytes": 45,
+      "sha256": "9adc165acdf247c2a3b6d5a02d4a18fb3cb342daa95accb9238f064179a90eb2"
+    },
+    {
+      "path": "push.txt",
+      "bytes": 400,
+      "sha256": "303fc660b71ffb5e8e8fa00491e88c2b9fb5f41f7f92bd2f7d69384091e6b6f1"
+    },
+    {
+      "path": "staged.patch",
+      "bytes": 706836,
+      "sha256": "f89af10da69fdfb7176d4a7101205a801deb2854936b3fcbafb35f2b251b98bb"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 109,
+      "sha256": "3d0e8cc8da059d7ba204febb5bd919980e8e4615788db4d188f94e7394cfe0ab"
+    }
+  ]
+}

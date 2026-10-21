@@ -1,0 +1,132 @@
+{
+  "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": ".agents/skills/wukongim-chat-lifecycle/SKILL.md",
+      "bytes": 6962,
+      "sha256": "adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "bytes": 3772,
+      "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf"
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "bytes": 2327,
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "bytes": 14038,
+      "sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "bytes": 1021,
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "bytes": 1021,
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "bytes": 4367,
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/formal.yaml",
+      "bytes": 4361,
+      "sha256": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "bytes": 10785,
+      "sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "bytes": 34715,
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "bytes": 16310,
+      "sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "bytes": 31210,
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "bytes": 3747,
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "bytes": 48953,
+      "sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7"
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "bytes": 45040,
+      "sha256": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd"
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "bytes": 5736,
+      "sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe"
+    },
+    {
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "bytes": 22737,
+      "sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a"
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "bytes": 17021,
+      "sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "bytes": 25696,
+      "sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887"
+    },
+    {
+      "path": "internal/usecase/cloudlease/control.go",
+      "bytes": 34885,
+      "sha256": "4b9f73a03d25833e08186a5c23b16c46654c738b8f36edd08e8301842915a71f"
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "bytes": 17480,
+      "sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0"
+    }
+  ],
+  "applicable_flow_scope": {
+    "internal/usecase/chatlifecyclerun/FLOW.md": "package",
+    "internal/usecase/cloudlease/FLOW.md": "package"
+  },
+  "flow_copies": "No active FLOW.md copies created; hashes refer to exact Git objects.",
+  "skill_route": "Direct Lab skill is diagnostic and not the selected formal RC path; exact formal workflow contract governs this plan.",
+  "protected_files_modified": false
+}

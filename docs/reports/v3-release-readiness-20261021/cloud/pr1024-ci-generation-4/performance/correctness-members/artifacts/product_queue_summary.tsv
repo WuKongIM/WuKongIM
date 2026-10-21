@@ -1,0 +1,4 @@
+tag	node	evidence	baseline_queue	baseline_inflight	drained_queue	drained_inflight	converged
+rate-500	node-1	complete	2	3	0	0	true
+rate-500	node-2	complete	14	17	0	0	true
+rate-500	node-3	complete	6	8	0	0	true

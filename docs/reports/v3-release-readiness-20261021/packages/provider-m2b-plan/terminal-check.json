@@ -1,0 +1,9 @@
+{
+  "source_head_unchanged": true,
+  "all_source_hashes_unchanged": true,
+  "worktree_clean": true,
+  "read_only_source": true,
+  "tests_containers_sdk_provider_ci_calls_executed": false,
+  "all_collection_commands_terminal": true,
+  "await_actual_merge_sha": true
+}

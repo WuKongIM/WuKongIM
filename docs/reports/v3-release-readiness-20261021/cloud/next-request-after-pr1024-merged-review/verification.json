@@ -1,0 +1,257 @@
+{
+  "schema": "wukongim.readonly_plan_review_checks/v1",
+  "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "at_utc": "2026-10-21T20:54:15.083239+00:00",
+  "checks": [
+    {
+      "name": "preparation_manifest_entries_match",
+      "passed": true,
+      "detail": 41
+    },
+    {
+      "name": "preparation_has_no_unlisted_payload",
+      "passed": true,
+      "detail": {
+        "actual_count": 44,
+        "allowlist_count": 43,
+        "unlisted": []
+      }
+    },
+    {
+      "name": "preparation_manifest_sha_matches_summary",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_and_candidate_tree_identical",
+      "passed": true,
+      "detail": {
+        "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06": "a13367b2dc4658e6c27a1992f240544636e5178d",
+        "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd": "a13367b2dc4658e6c27a1992f240544636e5178d"
+      }
+    },
+    {
+      "name": "source_parents_match",
+      "passed": true,
+      "detail": [
+        "cee5d51f325fb84033060f546337d326110adae5",
+        "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd"
+      ]
+    },
+    {
+      "name": "candidate_is_ancestor",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:AGENTS.md",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/workflows/README.md",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/review-agent/policy.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.agents/skills/wukongim-chat-lifecycle/SKILL.md",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:internal/usecase/chatlifecyclerun/FLOW.md",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:internal/usecase/cloudlease/FLOW.md",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:configs/cloud/chat-lifecycle/formal-v1.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:configs/wkbench/chat-lifecycle/formal.yaml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/workflows/chat-lifecycle-rehearsal.yml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/workflows/chat-lifecycle-formal.yml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/workflows/chat-lifecycle-formal-finalize.yml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:.github/workflows/chat-lifecycle-stop.yml",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:scripts/chat-lifecycle/stage-orchestrate.sh",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:scripts/chat-lifecycle/terminal-evidence.py",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:cmd/wkchatlifecycle/main.go",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:internal/usecase/chatlifecyclerun/run.go",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:internal/usecase/cloudlease/control.go",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "source_freeze:cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "all_118_tool_closure_files_match",
+      "passed": true,
+      "detail": 118
+    },
+    {
+      "name": "old_generation_and_selected_public_sources_unchanged",
+      "passed": true,
+      "detail": 14
+    },
+    {
+      "name": "retained_zero_matches_exact_selector_and_12_scopes",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "latest_terminal_is_runtime_failure",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "historical_reserve_sum",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "hard_budget_conserved",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "stop_budget_conserved",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "fixed_reserve_preserved",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "new_request_not_live_authorized",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "prior_not_invoice",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "retained_ci_git_object_matches_source_tree",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "retained_linux_default_receipt_pass",
+      "passed": true,
+      "detail": {
+        "elapsed_seconds": 401.003,
+        "artifact_id": 12378749770
+      }
+    },
+    {
+      "name": "retained_linux_scripts_receipt_pass",
+      "passed": true,
+      "detail": {
+        "elapsed_seconds": 576.017,
+        "artifact_id": 12380386536
+      }
+    },
+    {
+      "name": "retained_e2e_receipts_pass",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "three_distinct_old_quote_line_item_totals_verified",
+      "passed": true,
+      "detail": 223432800
+    },
+    {
+      "name": "all_nine_offline_receipts_consistent_with_saved_outputs",
+      "passed": true,
+      "detail": 9
+    }
+  ],
+  "all_pass": true,
+  "local_only": true,
+  "executed_cli_or_tests": false,
+  "network_provider_or_github_calls": false
+}

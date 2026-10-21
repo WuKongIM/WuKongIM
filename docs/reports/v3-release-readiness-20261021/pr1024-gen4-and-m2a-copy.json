@@ -1,0 +1,2553 @@
+{
+  "mode": "copied",
+  "evidence_base": "22516ead9ebeca5177a25429172525e5350c11cf",
+  "plan_sha256": "9443a09942609bad1b8159991a3261a856a5a3d59d735d4b9318aa37162d626d",
+  "old_entries_verified_unchanged": 10634,
+  "selected_files": 406,
+  "selected_bytes": 10593870,
+  "groups": [
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "e607f225895e2f8bd5315a06f31e23d32798a806bccf34f3e24af0db25a0a24d",
+      "manifest_entries": 135,
+      "explicit_extras": [
+        "PUBLIC_ALLOWLIST.json",
+        "SHA256SUMS"
+      ]
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "1a134f228f62e1554853f17e5cdb10709a697b7732525d128dc5f214d417d30a",
+      "manifest_entries": 138,
+      "explicit_extras": [
+        "PUBLIC_ALLOWLIST.json",
+        "SHA256SUMS"
+      ]
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "0e6da2d6ab3453978e3a1ab92f965ea735cda9f81a3dae736d67e80a3f3c9b22",
+      "manifest_entries": 21,
+      "explicit_extras": [
+        "PUBLIC_ALLOWLIST.txt",
+        "SHA256SUMS"
+      ]
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "afbc48e2be9d20f566af83cb71a41c5f63e6277dc7cfbd44010301537dbe0cb2",
+      "manifest_entries": 35,
+      "explicit_extras": [
+        "PUBLIC_ALLOWLIST.json",
+        "SHA256SUMS"
+      ]
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1",
+      "manifest": "manifest.json",
+      "manifest_sha256": "0806f65745aff5cfe1583f0b0f46c31018120401acdca97bb5ced2f40cf5f757",
+      "manifest_entries": 40,
+      "explicit_extras": [
+        "public-allowlist.json"
+      ]
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec",
+      "manifest": "manifest.json",
+      "manifest_sha256": "94d38e5555b445b97cd7c93b1a9243d1988564e9acee8f831c472189c64cdcae",
+      "manifest_entries": 7,
+      "explicit_extras": [
+        "ARCHIVE_ALLOWLIST.txt",
+        "SHA256SUMS"
+      ]
+    },
+    {
+      "path": "packages/m2a-native-route-delivery",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "586ed5b8be29b6928be55d46a14c4fa927adb6e95754429030982c94f0eb2558",
+      "manifest_entries": 9,
+      "explicit_extras": [
+        "PUBLIC_ALLOWLIST.txt",
+        "SHA256SUMS"
+      ]
+    },
+    {
+      "path": "packages/m2a-native-route-review/standards",
+      "explicit_files": {
+        "report.md": "cb53622a6823c665ac0f1fceb1d2a5d8ff096f69901c8d4b1e48d72c0969e29c",
+        "source-binding.json": "931d2b3c80e560d7b97d3e8b960144a1a00e9784f5559d2ddff128a658cb9b50",
+        "process-terminal-state.json": "1c2777e0d61f9febc9db8af9212f0db4b0d7945305fc7a711279121acd49a012",
+        "SHA256SUMS": "7f5e5fb3d8e2c681d281dc403be5d745dbd92b494b93f0a17edbcf5e7a4e3832"
+      }
+    }
+  ],
+  "evidence_mutated": true,
+  "recorded_at": "2026-10-21T20:55:05.055466+00:00",
+  "script_sha256": "a1cc30638a93b268d94b78f77e37bbd72e3b808a5b08fd6bbd7f5cd1bba44310",
+  "rules": {
+    "AGENTS.md_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "applicable_flow": [],
+    "reason": "No ancestor FLOW.md or more-specific AGENTS.md applies to docs/reports; archived rule references remain data."
+  },
+  "copied": [
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/PUBLIC_ALLOWLIST.json",
+      "bytes": 23302,
+      "sha256": "e607f225895e2f8bd5315a06f31e23d32798a806bccf34f3e24af0db25a0a24d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/README.md",
+      "bytes": 5282,
+      "sha256": "b33ce5cb530a475b901d50253bd6ba682d3ae27a647d88aedc4a4c36d26c5869"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/SHA256SUMS",
+      "bytes": 13766,
+      "sha256": "716d15fb74822d9a4d5386b85e574a4a91ce397892e753e3039cf2f39c6fa841"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/actual-checkout-commit-read.json",
+      "bytes": 243,
+      "sha256": "4e2c7a0280f19b158db5067e60cff7bb573649eb3884c4815ec9d7b1716dae2c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/actual-checkout-commit.json",
+      "bytes": 2602,
+      "sha256": "f2971b1aa8eee8d42502ad35e465587d235c0f506d15b4043fc8e605a84f796e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/analyze-scripts.py",
+      "bytes": 3287,
+      "sha256": "df66f97a1e690cca63471968bb26be7408175431d98fb11a52f92d35c76a592a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/archive-sha256.json",
+      "bytes": 23302,
+      "sha256": "e607f225895e2f8bd5315a06f31e23d32798a806bccf34f3e24af0db25a0a24d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/inventory.json",
+      "bytes": 2262,
+      "sha256": "8c91d7517490c64ab0d9a2a9e1f77effbbee83beb637c8350040c4f355ed7dd0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/command.json",
+      "bytes": 334,
+      "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/identity.json",
+      "bytes": 286,
+      "sha256": "d5fd6c9821200ed6bb98a9f759a3a807836c12e085b100b55f2fc3482740bfdd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/result.json",
+      "bytes": 370,
+      "sha256": "7018c41bf3683ac03c21a3f94eaf734f294cefa30bdb8f3b74110e7644b98b7c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/stdout-stderr.log",
+      "bytes": 22007,
+      "sha256": "f36297a0b4421ea7d2feb338a26c5b79747c16f99f87d8f99ca93368a4b23193"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/receipt.json",
+      "bytes": 1315,
+      "sha256": "8e71af2c8888f8a47e342f702377db7cec76653939af16ff4591580b0d2d02e1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/inventory.json",
+      "bytes": 7868,
+      "sha256": "91ce921e673e8b2b1d25a2a5009c68b6e12c4125223cfe050b961df00b7afb0e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/binary-build-info.txt",
+      "bytes": 8895,
+      "sha256": "8197c2dbcecce7a23b48271af57c7679432700115baed29e0bd1c6c935d579e9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/binary.sha256",
+      "bytes": 134,
+      "sha256": "dc87a302b6572eb4e942d92678058af51c99fee7844b1c0c62798c6b7624622b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/command.json",
+      "bytes": 285,
+      "sha256": "71585f4d0657ffa61e8ed369fc47e48ea7589cf37a5f042ea5c06a40d0ecfead"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/result.json",
+      "bytes": 368,
+      "sha256": "96e9631ee613e2c6cd7fd129b8b855aff78e0a66419f0aabc25695d073e9d6ef"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/stderr.log",
+      "bytes": 5028,
+      "sha256": "390520d45d07186285192b5e14c04b3da4af35461c4afe8132692868daed687c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/stdout.jsonl",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/command.json",
+      "bytes": 283,
+      "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/result.json",
+      "bytes": 370,
+      "sha256": "a73e1f2569e676c5c446e4a8775b3300c4ec4605a360a754b9aa72b1bee929e2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/stdout.jsonl",
+      "bytes": 8447,
+      "sha256": "9345354a0c6ac36e9c2f4e7d30453bbcab4fd4537c8a393ddd68307f30e72c70"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/identity.json",
+      "bytes": 172,
+      "sha256": "774301e940318b57c0341476d9dc0db1000143bd9b00d6da324d666ab385343e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/command.json",
+      "bytes": 302,
+      "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/result.json",
+      "bytes": 370,
+      "sha256": "38618be96b846354ba69a76e71d6f6fd2d75749f52d9eed70156503e5186805e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/stderr.log",
+      "bytes": 262,
+      "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/stdout.jsonl",
+      "bytes": 27303,
+      "sha256": "bf0ae5c1c2fe983c5ba3070f557004e59440227df345eb93422271a57c7dfd4c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/command.json",
+      "bytes": 273,
+      "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/report.json",
+      "bytes": 47382,
+      "sha256": "33baabb7bacdf28f826f6f3fcb4941c1896c3bc57066713e671af5530c3fd329"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/result.json",
+      "bytes": 370,
+      "sha256": "4a4359f8f56e2be128e0009def4e4bee3330d7a0e68cc4dc7093300938d0f08c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/stdout.jsonl",
+      "bytes": 3699,
+      "sha256": "a8353317df55aac6a775afdd679fe40fe7e3bd16995c97f609a20ca96414f805"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/receipt.json",
+      "bytes": 1315,
+      "sha256": "69a83a438087e9f03feeaf5d0638eaa10e949350c6b8577f96be5157cdddbb81"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/test-events.json",
+      "bytes": 7742,
+      "sha256": "221631ded1ba62a29d324d34b96a2b5445aa9c80446b5922178a7d2257c4134e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/inventory.json",
+      "bytes": 13288,
+      "sha256": "7bfbfb47384cf464305e732a40385e4ff8bbce0bf4f72360d2e250d0e63b720f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/command.json",
+      "bytes": 338,
+      "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/identity.json",
+      "bytes": 286,
+      "sha256": "d5fd6c9821200ed6bb98a9f759a3a807836c12e085b100b55f2fc3482740bfdd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/result.json",
+      "bytes": 372,
+      "sha256": "059150b98b610dca29bc1d732ba7b7f8b1f690a1fc852ab8cca0eef1d571b86c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/stdout-stderr.log",
+      "bytes": 1493295,
+      "sha256": "b0634eb60d700e72b5884c17d77adbc3afbafce20ee12e198bb0f88c6dd8e25e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/receipt.json",
+      "bytes": 1319,
+      "sha256": "f113aa1b0828c8dfefa050b9d6924baa8c57099713262d5c75c792c154a2e594"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/test-events.json",
+      "bytes": 708672,
+      "sha256": "d4235b320e3fe81eea5d003e2c0a627806087e91d34fe781c42927e05132f6df"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/collect-completed.py",
+      "bytes": 6518,
+      "sha256": "98c2b6f8eeb5105096bd124a9a7bce4179fa79f01b069c139ae20dde30c67fdd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/collector-fixed-suite.json",
+      "bytes": 2194,
+      "sha256": "17e8569ceb82a5ce168a8e3c2b89d0452b875512818cc66d1f28d8db39d83cf3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/default-summary.json",
+      "bytes": 993,
+      "sha256": "47ea0315acbb8fb05823bf57f512ec05714c6ecd2d8de69cf022a1333acdd1c0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/e2e-summary.json",
+      "bytes": 20311,
+      "sha256": "22aab3038560a7060e3275245f81a8ffba49a536998b57ae73632c62b7d91944"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/final-runs-read.json",
+      "bytes": 309,
+      "sha256": "ee9a0630e82c4aa9e81641d25b09649bab3bd8b9ccba8ac158f3a4b65a8cf722"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/final-runs.json",
+      "bytes": 49943,
+      "sha256": "efe76ed5958304b332ac1ae3c5e7fb7ddbf4186f89239c0b0c0b4bf3002cc12d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/final-source-and-jobs.json",
+      "bytes": 10718,
+      "sha256": "1967970b6b9a17e3837605a9e65d26b780e2a3fd7a1b623458e97109f7e3064a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/final-verification-receipt.json",
+      "bytes": 587,
+      "sha256": "c6d8bab56d044914a30f97ea9455bc426f32438fdde8a0f8d8607fd814c79b2a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/head-commit-read.json",
+      "bytes": 243,
+      "sha256": "d559c93dd1a6596e7a54126668eba1ff6feb9e6034fd2db43e24efd8633f68a0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/head-commit.json",
+      "bytes": 1117,
+      "sha256": "fb74f01995fa908643de642a1718ae656221e9034b6d7e5071c831fc3cea3268"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/initial-runs-read.json",
+      "bytes": 173,
+      "sha256": "d4ba74cc79bf334063e1558358dda6bdf205f70166a580eca19437f495ae1bda"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/initial-runs.json",
+      "bytes": 49937,
+      "sha256": "bea4916c02486477268d80997973fda95eee1217b27dbfa817406c8ce2dc5aa4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466950494/complete.log",
+      "bytes": 85131,
+      "sha256": "9fba502271c5a6f506f9a8494508cee1a8f0deee9dad8c5b3cbc5f95f9603de0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466950494/job.json",
+      "bytes": 3742,
+      "sha256": "d89a6f8fdff1c1f648404d99c9870e1474b2a2582e035c9dde3bd4a2229cacdb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466950494/receipt.json",
+      "bytes": 1455,
+      "sha256": "dc1547c8190204323ed03a1123135d2ecdaef25d8c8709313a7fddfb261a21f7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466951110/complete.log",
+      "bytes": 85309,
+      "sha256": "5149f6906ea8da74d1f171a92073d146373585fafd737b6438c1a103b8153ebb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466951110/job.json",
+      "bytes": 3750,
+      "sha256": "1b891699ec63ac98fa1aa7b5d2183aa39b6951b66f72847435e868caed058953"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466951110/receipt.json",
+      "bytes": 1455,
+      "sha256": "7788ce206338e9e08ac05929856259cde2bcbf4d0705ef6b717b92d0d6952152"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119470620362/complete.log",
+      "bytes": 85410,
+      "sha256": "6f3ee0ebb1f87921cecd99840ff8fb5b73f03bf51354604b30d0c89fb556f99f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119470620362/job.json",
+      "bytes": 3554,
+      "sha256": "6dd0f6b22c410a817e95b1275043a46de9146637dd4f0d063eb4cfb6b198e7fb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119470620362/receipt.json",
+      "bytes": 1455,
+      "sha256": "db4a25e04a8d0fa38f1aac66d67b7791795130c267cc15eba4fbb6d2fe6ebae0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/latest-snapshot.txt",
+      "bytes": 12,
+      "sha256": "24590b7290b2b8b493a91b8d867af7f5af77f7867f06befaecd4a4fd91cde745"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/owned-session-cleanup.json",
+      "bytes": 1559,
+      "sha256": "8c0536333734b634e550c3b06e87132694893a7977b6ba96008c0db4bb60142d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/read-snapshot.py",
+      "bytes": 1720,
+      "sha256": "ab8518ed4410479215c2b76e3d1811d96010ebd3873813d79b228e593a6e661f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/scripts-early-analysis.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/scripts-early-analysis.stdout",
+      "bytes": 3514,
+      "sha256": "6e435e9db8fa62276c0ac5128e14473ba3d32c4710c3f38a86fc1595ba9d146e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/scripts-early-summary.json",
+      "bytes": 14895,
+      "sha256": "455646bbe74257f071532557a82b4a5326f9050c66fdbc8a56816661a545e573"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/scripts-event-timeline.json",
+      "bytes": 708672,
+      "sha256": "d4235b320e3fe81eea5d003e2c0a627806087e91d34fe781c42927e05132f6df"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/scripts-summary.json",
+      "bytes": 14726,
+      "sha256": "4e6d2516b30e50ff88dcf8efa56078443c771553f7b06d2512e753ede03dde90"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/scripts-timing-and-skips.json",
+      "bytes": 10072,
+      "sha256": "b9c7697c272b0bdddf362cc71153afab8f1cb119f2680bb33ae8435d7f25bb46"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01-summary.txt",
+      "bytes": 3823,
+      "sha256": "f2c3c16b06534ad8e618021cea0a05c218151f0f2ca2613924dfdcbd9c8ef529"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "8f86a1a2bf25d4b37c802bb88772f52e693833be549f91151b227582963b4ac2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/jobs-read.json",
+      "bytes": 233,
+      "sha256": "d74f91bd19fbf22e09386dc51856d73e3b4d24b7a8bebc17238a047b2f6efec0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/jobs.json",
+      "bytes": 5298,
+      "sha256": "7d9760f3303303291fa4dcb58127360511c53f406f3dfd6fa12a7da8a304567b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/pr-read.json",
+      "bytes": 201,
+      "sha256": "4f31d145b626c0b52255309d8366af4ff6c545a3f42b348d7bf7cfbe144ded57"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/pr.json",
+      "bytes": 19394,
+      "sha256": "a114d61b1e86392358f783ef804ec97c5ee87c8733d08fb12285b1de1d32a2c5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/run-read.json",
+      "bytes": 215,
+      "sha256": "0d3f4877276c8399d8987c2af16eebe8c5048aa0700f89cf8fbcaefa5e6409e9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-01/run.json",
+      "bytes": 12459,
+      "sha256": "433795cd94b4011d1de3a19c7cbf8cc670211aa6f9fbc110af8e60f375c9a032"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02-summary.txt",
+      "bytes": 3823,
+      "sha256": "f2c3c16b06534ad8e618021cea0a05c218151f0f2ca2613924dfdcbd9c8ef529"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "d29390895fdf544ffe28f83bdfe0960679586ee3f02685f2145f3e581de75d82"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/jobs-read.json",
+      "bytes": 233,
+      "sha256": "2e8c57ee73a38185dbd5d2e47eb22206fd78f07c5fddfd1342c10bf9b1de1c41"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/jobs.json",
+      "bytes": 5298,
+      "sha256": "7d9760f3303303291fa4dcb58127360511c53f406f3dfd6fa12a7da8a304567b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/pr-read.json",
+      "bytes": 201,
+      "sha256": "5958ef75c5fbdc224552f309e9f05ccdeafcf2fd01476a307e93485604cb876c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/pr.json",
+      "bytes": 19394,
+      "sha256": "a114d61b1e86392358f783ef804ec97c5ee87c8733d08fb12285b1de1d32a2c5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/run-read.json",
+      "bytes": 215,
+      "sha256": "f357a343224e44bc617d23bb860554efdff2c73cd54e721f2c0fd1f519d9844a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-02/run.json",
+      "bytes": 12459,
+      "sha256": "433795cd94b4011d1de3a19c7cbf8cc670211aa6f9fbc110af8e60f375c9a032"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03-summary.txt",
+      "bytes": 6008,
+      "sha256": "8895c1d10534758f7f56adb9ccf92217c00a968e0cac84a8961e9017dfe507e0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "1ac9a77bbcc5d0ead5ba78ac255f3cab477dd1d3e5db3ad02b2adcfe2c029ea8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/artifacts.json",
+      "bytes": 749,
+      "sha256": "7d5f491041ec24b428dca2b859deab2e150189c46c20d7605eeecc6b5e974c79"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/jobs-read.json",
+      "bytes": 233,
+      "sha256": "52d2393c66aaa305ba79c049a3b56d636cf9d8e7e6684d7c5cf565193a0ee8de"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/jobs.json",
+      "bytes": 8125,
+      "sha256": "972dcc1404c11c55ff94657b1ca6278b6c64845079ceba63a48b79136fe61126"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/pr-read.json",
+      "bytes": 201,
+      "sha256": "27985a90be498e818719e2bb70b60ea0d7559197489f7732668311079678c743"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/pr.json",
+      "bytes": 19394,
+      "sha256": "a114d61b1e86392358f783ef804ec97c5ee87c8733d08fb12285b1de1d32a2c5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/run-read.json",
+      "bytes": 215,
+      "sha256": "e5e1880c08af7ede28aa9b043929c3a074786d1ac9cd2e03c9aae31047c56486"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-03/run.json",
+      "bytes": 12459,
+      "sha256": "9c652022a57a594858b7dc8e65395ebf6eddb804966e836ddffbe1aa37c14143"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04-summary.txt",
+      "bytes": 6051,
+      "sha256": "9e81a0f12d92b6ff5b92e80a898d309e29b42c7978a60056c07825ec4be2db5b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "d4e15e27ee00d2841b79d9da621992b7c0cba8527b6529638a3b982a9887e1dd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/artifacts.json",
+      "bytes": 749,
+      "sha256": "7d5f491041ec24b428dca2b859deab2e150189c46c20d7605eeecc6b5e974c79"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/jobs-read.json",
+      "bytes": 233,
+      "sha256": "b2dd4522e0fdbe34cfe6f9f6cb200b25239fd530157fc1aba0b652f5e746e5ba"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/jobs.json",
+      "bytes": 8168,
+      "sha256": "ee33b493ff3cd34f3169245e9f448f94732601b95951406a8563d40a292c75f7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/pr-read.json",
+      "bytes": 201,
+      "sha256": "6b604d63af72c2d9288e907bfb084afe1306039e834f9a936ec24f387ce5174f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/pr.json",
+      "bytes": 19394,
+      "sha256": "ad5d969b42411cb59b3f5c3c03f08f23ab3f3482256b2f5111658b21963e4405"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/run-read.json",
+      "bytes": 215,
+      "sha256": "df7e6e500abbfd0bed839f3a1e693ad481db7e95b19f9cf9cf128963405443b7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-04/run.json",
+      "bytes": 12459,
+      "sha256": "9c652022a57a594858b7dc8e65395ebf6eddb804966e836ddffbe1aa37c14143"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05-summary.txt",
+      "bytes": 6576,
+      "sha256": "ea76312b9220baf261e86cb7fcfc9ea61332efb79b09963f46520c2f2baed8f5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "3a37b66b5324fb893c1af9d6cd423fd2946a8035236fbeccb0225a547b1bd0e1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/artifacts.json",
+      "bytes": 1469,
+      "sha256": "02bfb9ef9986e7bd395a49fe6fb4ab73f26a462ddd7d19d1af08dc5f21077463"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/jobs-read.json",
+      "bytes": 233,
+      "sha256": "be7e4d26f4b255cf890e31478847b0ffc8f50310c817ba0949a8e0d16d2ea77c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/jobs.json",
+      "bytes": 8536,
+      "sha256": "7752e96c04ccdf4359369cb00bd1cac85a5710779593eac84ea29b7ad1ae13de"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/pr-read.json",
+      "bytes": 201,
+      "sha256": "4018aebcc1f4f369e095616d23123ef09c457601d786421a94533fddf495f2ca"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/pr.json",
+      "bytes": 19394,
+      "sha256": "ad5d969b42411cb59b3f5c3c03f08f23ab3f3482256b2f5111658b21963e4405"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/run-read.json",
+      "bytes": 215,
+      "sha256": "16a5ee11de2c26ae68673157795610827e613ebc169fa7425e23d4b846c1b139"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-05/run.json",
+      "bytes": 12459,
+      "sha256": "9c652022a57a594858b7dc8e65395ebf6eddb804966e836ddffbe1aa37c14143"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06-summary.txt",
+      "bytes": 7099,
+      "sha256": "3c99ea9a62024683a04c42710529ab092f849619d527be3097507c3ec040094f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "daa4ac0bc5c1dcb4ae8b0ba3defdb5a4e81a28750fbdda0ae435ffa4a3308b38"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/artifacts.json",
+      "bytes": 2184,
+      "sha256": "c963f8a2c1278baa76aa6f1db2b9f946c729bb25e7d8462357df6e526c573cee"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/jobs-read.json",
+      "bytes": 233,
+      "sha256": "707afdef346cfe5a61b90a985c1cae8f2a9db11ad3c27e7e296ac1db111c6c6c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/jobs.json",
+      "bytes": 8904,
+      "sha256": "c55a3ac7411f34b613b88ebba6801cf9c19529a2558be6ff185994770a1f7510"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/pr-read.json",
+      "bytes": 201,
+      "sha256": "6f0a42edfcbead47f9bd83542c592c578070a29a83537cebd633833c0f764674"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/pr.json",
+      "bytes": 19391,
+      "sha256": "15214a6ee27d43f8fc2f98207f443aa3a778f52e726c15a2496062b2f401f28d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/run-read.json",
+      "bytes": 215,
+      "sha256": "1927c97b632e8f7949bd10635755c8007db83f54855905ac0876d8ba17ad5251"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/snapshot-06/run.json",
+      "bytes": 12462,
+      "sha256": "96ad5343a363a0f052a27c1115d72f8e3d65033cb66d2d03194b23fb5942191c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/source-binding.json",
+      "bytes": 3625,
+      "sha256": "fcb9af8df389f78457042f04730d30123b65f4176acfd390f29b1708efd3f818"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/source-expectations.json",
+      "bytes": 411,
+      "sha256": "286e380a8a43b23ede38d3366df9007442f5628c90fd5d54efa44a5657b3ced2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/summarize-candidate.py",
+      "bytes": 8079,
+      "sha256": "c4125ac4fce353037a5426d629505c8faeb052693df16204cffb34c9c037c7ec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/summary-first.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/candidate/summary-first.stdout",
+      "bytes": 323,
+      "sha256": "ab187d6b2fbc23c17ba116ea82f541f39e26e12d268f8d737ce5350049b19b52"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/PUBLIC_ALLOWLIST.json",
+      "bytes": 25049,
+      "sha256": "1a134f228f62e1554853f17e5cdb10709a697b7732525d128dc5f214d417d30a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/README.md",
+      "bytes": 3328,
+      "sha256": "2289108593f9ecd0dbbee4e89db08f262364acdee10ffd6f9a75f6d1f7abbaea"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/SHA256SUMS",
+      "bytes": 15318,
+      "sha256": "3c7b545b218e551c9e60d5cae68dbb4a03697d43c88c3e7501ce2cd05ce1f1fe"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/actual-checkout-commit-read.json",
+      "bytes": 243,
+      "sha256": "4e2c7a0280f19b158db5067e60cff7bb573649eb3884c4815ec9d7b1716dae2c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/actual-checkout-commit.json",
+      "bytes": 2602,
+      "sha256": "f2971b1aa8eee8d42502ad35e465587d235c0f506d15b4043fc8e605a84f796e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/archive-sha256.json",
+      "bytes": 25049,
+      "sha256": "1a134f228f62e1554853f17e5cdb10709a697b7732525d128dc5f214d417d30a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/inventory.json",
+      "bytes": 10357,
+      "sha256": "74bb0ba38c89fba79506c8e247d689577ac7e34622d7aa6cbd80dd14d2aceb06"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/arrival.json",
+      "bytes": 57928,
+      "sha256": "a879ba60b37a7f2c4c49d91d8d8ce0d57b61daffcb88531ccbd623380af6d8b2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/arrival.warmup.json",
+      "bytes": 19411,
+      "sha256": "3fcb4d6fc295ecad8c39c827157cb562fbe88727d935e0c2c463a0a81bc57952"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/benchmark.txt",
+      "bytes": 4025,
+      "sha256": "5b98a6754345c029edcc8d4738a47d47c55a3ae61d084d942e47d03f67251d4c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/binary.sha256",
+      "bytes": 123,
+      "sha256": "0a02679af22e0659a5b382724dc317b84972516562544c0e2af212ec45f6e770"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters.warmup/after.json",
+      "bytes": 313442,
+      "sha256": "f9f480e984a79777f9650153238f0f62e418dc459982c8ded10849587c15459c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters.warmup/before.json",
+      "bytes": 310960,
+      "sha256": "c2c11f7e8f21ca654e9ae1c532a09bd846154730121548ca7ae1008021121c88"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters.warmup/window.json",
+      "bytes": 477,
+      "sha256": "1957efca56586b492073b86b455f4b94a1ad2ee71b00e4abe5701e9709532c9b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters/after.json",
+      "bytes": 320074,
+      "sha256": "da3da4655358eb4956f0c66a877e0be2cd06c2e90f181ae0e5cb011d3b2ab599"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters/before.json",
+      "bytes": 313443,
+      "sha256": "532d90350fa9007a474881897bef9a40ca3d1c1a727b9bfa55b45bac3196b8f8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters/window.json",
+      "bytes": 534,
+      "sha256": "db2e98dc2a4be2e6f813a3a33de1d81b8e5b8cfb2d9b106fea74856057427c66"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "be5958383bbd401ec06b56a412c9b8626f7e2cc737d931494f0def6cea90c87f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/analysis-status.txt",
+      "bytes": 59,
+      "sha256": "53e6295a83e23b21f92f8ae9c5d08f1253dc76514d5b78444795a6d164564d6d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/net-error.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/net-top.txt",
+      "bytes": 886,
+      "sha256": "51c20fd184d3961f0c2a8acc6e9d88f348c497e2edd36a349b8fd8f462451741"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sched-error.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sched-top.txt",
+      "bytes": 4855,
+      "sha256": "3649c6b40b49cc175523325b88275f9b7df84886a507938cd460d53b76e2cd19"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sync-error.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sync-top.txt",
+      "bytes": 5232,
+      "sha256": "4ddad20c6bf0507e0d30a3c98b78e388cc832edd26fb9d68c2115cc7873865bc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/syscall-error.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/syscall-top.txt",
+      "bytes": 4403,
+      "sha256": "89f8d483425f74451c5bd4b7373fb8ad4f0e6cabdde3107938c3178d6074c15a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/window.json",
+      "bytes": 650030,
+      "sha256": "f18405458323945150dc58ac07ade57ffb3d72e9f5b14a09e1afaf6aa133ffc9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/host.json",
+      "bytes": 4633,
+      "sha256": "65f12c33e22051311486d4e6c22ab280b9e6584e63bb3ef925f4b0c2ebb15d60"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/kernel.txt",
+      "bytes": 113,
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/source.sha",
+      "bytes": 41,
+      "sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/receipt.json",
+      "bytes": 1349,
+      "sha256": "8c642a2c4e9549208bbfd5e905fd2e54b740f84c054766ef967c466d5f4a1e26"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379192583/not-downloaded.json",
+      "bytes": 966,
+      "sha256": "548acf68c5c4c05a7003b623c97db7308e7b589294a1f9c5d070405522e3e915"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/inventory.json",
+      "bytes": 6069,
+      "sha256": "f890c0a6bb71f8435cd526035afc08dc21156b7ad062202cf427f25ba84fd77a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/arrival.json",
+      "bytes": 57404,
+      "sha256": "590b5271201ec463956f2ffe208a1fcb8d86916c7ba2d92698ca5a56f78e6c40"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/arrival.warmup.json",
+      "bytes": 19199,
+      "sha256": "f5ad646cc4ace9be8419175f0cde2c25c97531f479f53c6be3c23668238ddc26"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/benchmark.txt",
+      "bytes": 2357,
+      "sha256": "1b83366a266fbac4656a149b246676f45d24ba85d92e0d128ff4e16e4be345e1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/binary.sha256",
+      "bytes": 127,
+      "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters.warmup/after.json",
+      "bytes": 50386,
+      "sha256": "020ee2f75aa6de87f51f8fd3937d0f8b97cf46e04c074ed5fa6ac058d96a0d7a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters.warmup/before.json",
+      "bytes": 21539,
+      "sha256": "87e2dabaeeaf58e84df761ead7f442488a4111752efc4f086c5552886bd82aa5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters.warmup/window.json",
+      "bytes": 504,
+      "sha256": "81ca0456056aac6e86837d5d885f01b4ed082a6a9ccf1febb390bd69ecda98f0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters/after.json",
+      "bytes": 50637,
+      "sha256": "894267b18b0d29437bd6237966a6a1be4fa51efeabfcd8527c2423737418a480"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters/before.json",
+      "bytes": 50386,
+      "sha256": "5096670108dfa85dc83c041a4abb9a9337015a495b77bcfa84acea3eeca41fea"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters/window.json",
+      "bytes": 576,
+      "sha256": "919440497189e47d7e3ab95f9653c93c8e11aa9d62154924e63bc228381210d5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "57d40e95eb3402e813db7ee660e522a2f5c82f55ace90d092581c06d8315ef8d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/host.json",
+      "bytes": 4483,
+      "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/kernel.txt",
+      "bytes": 113,
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/source.sha",
+      "bytes": 41,
+      "sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/receipt.json",
+      "bytes": 1349,
+      "sha256": "45357aa34afa9e785bfc48db43802823dda74ed0758f0b5b000b36b8c6d40113"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/inventory.json",
+      "bytes": 3882,
+      "sha256": "2166aa93cbb0acfe9db76123af6b8b8856a6cf6090c1e0dfab464ffbe060149e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/arrival.json",
+      "bytes": 58126,
+      "sha256": "270c2bd55e33a7db417089c35ea7704ed3fee138b2a022c0122f567f0c97afc0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/arrival.warmup.json",
+      "bytes": 19447,
+      "sha256": "77b4147769cadbcf32d6a9c6c2748efaf9e1b5bef35af7175e18b4ce23341617"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/benchmark.txt",
+      "bytes": 2953,
+      "sha256": "cf8d55cc5f8f17da86a64e80896260451a7579cd5d6d9060ad79b7e6629b66ef"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/binary.sha256",
+      "bytes": 124,
+      "sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "eeb80aaa110d88e00f37eaa363cf6fa4d032818f19b43e6dcfb3837aaa40812c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/host.json",
+      "bytes": 4782,
+      "sha256": "ac4e956032c81aac3f8dff60bc9e44161a20f614976a6d58361e4f6cb982611d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/source.sha",
+      "bytes": 41,
+      "sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/receipt.json",
+      "bytes": 1344,
+      "sha256": "6b70ef0c0335b440bb2f3cc9f59c74df2fbca7c07819cc602302b3adb11b2c86"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/collect-completed.py",
+      "bytes": 6517,
+      "sha256": "214a5d2c3af65fbd1b057abb660820a691ea307e4c9e886dbc023ff8a631287a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members-integrity.json",
+      "bytes": 16876,
+      "sha256": "9241e5f9b9cc39789d8c79540dcfbd60a221e687846836faae2b632e7524a193"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/checksums.sha256",
+      "bytes": 9091,
+      "sha256": "258b2c5569a396d1d79ac6efb06d3da211906ae6d9b2457f205828c494f821cc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/graceful-stop-status.json",
+      "bytes": 237,
+      "sha256": "7b7f2c9cf3b894f3b2e525714e6f592083046405ed8f0ed5da42855f83ddafec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/process-continuity.tsv",
+      "bytes": 212,
+      "sha256": "0279cee778f6d9c8ad40c13d63862f8f655f794408e5de1f9574312b6617ed07"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/threshold-pprof-status.json",
+      "bytes": 287,
+      "sha256": "16fdec56e0522031eef0de1a6dad7d10d58aaed67a5afc03990d37f5d6571178"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/timeline.tsv",
+      "bytes": 1941,
+      "sha256": "2c1213bf8b5ccc4338089b1324e07fb007a4f4e1420f2894902ad10b8ef5da54"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/local-step.json",
+      "bytes": 834,
+      "sha256": "f885c4f99ff0598e37387e797352cf413b7d6eebf9dce214a672f14b96f219f6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/product_queue_summary.tsv",
+      "bytes": 208,
+      "sha256": "7e1076d76b5d072f1d9e757428fdafbd5e7a4368de2040708997f909f5920e7e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/diagnostic-status.json",
+      "bytes": 8799,
+      "sha256": "f185d322497cf2549c7c738dfcc11117eb609ddf1e0a901b2077d048b7cd427c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/final.json",
+      "bytes": 23511,
+      "sha256": "eda28840f5a30b38a807c2843938198175d16a0e07ed734da7ca20ee05afd1af"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/qualification.json",
+      "bytes": 23443,
+      "sha256": "10eace5c478e8788ba18c1342b2afcb6e2f1cdcc013fa3a8cfcded3804ef03e0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "fd211b9e8b527563880fd34b38e523dc7838411da9ab5979f560a90fa84d8e46"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/host.json",
+      "bytes": 4483,
+      "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-members/source.sha",
+      "bytes": 41,
+      "sha256": "34bf59f730ff203bf86f060789f0930216c2fe7c6f71f608483ed6ebc402d449"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-read-command.json",
+      "bytes": 348,
+      "sha256": "f1bdda4c722229f241ff2c37bef458436c96eae808a101e8aa812656aaa2c2e4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-selected-paths.json",
+      "bytes": 777,
+      "sha256": "9d0e94a7af75b20b1e32d3a83fc13fb1cc5d8b150d1f4cbb349615ec7da562ff"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/correctness-summary.json",
+      "bytes": 11764,
+      "sha256": "05030201caf04ea05e53927b9160317080259db86b79cf104cb040cfdc27a79b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/final-source-and-jobs.json",
+      "bytes": 18435,
+      "sha256": "26adf3d8210544e753d134840363bbd8dc88a8e9113d9582a676e1b3bdfc6c0c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/finalize-first.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/finalize-first.stdout",
+      "bytes": 68,
+      "sha256": "999c8cc7d5a1807c25c09d5ac582da7c72f9700bd0bc59ad307877a9471de680"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/finalize-public-summary.py",
+      "bytes": 2696,
+      "sha256": "cf72a763968cd3eb07a03206fa8b48ae8929f1f1a39f054eff94fa0e20d2a863"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/flight-summary.json",
+      "bytes": 1810,
+      "sha256": "3f52bfa7011acb0a04cc35aaa37e502aaa4f9be3f39fddc168a5aaa106ce96e4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/head-commit-read.json",
+      "bytes": 243,
+      "sha256": "d559c93dd1a6596e7a54126668eba1ff6feb9e6034fd2db43e24efd8633f68a0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/head-commit.json",
+      "bytes": 1117,
+      "sha256": "fb74f01995fa908643de642a1718ae656221e9034b6d7e5071c831fc3cea3268"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466949654/complete.log",
+      "bytes": 80497,
+      "sha256": "e6cee74f14ed82f5313d94608bab90dd23d3a32cfca54be48c814a42564574ec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466949654/job.json",
+      "bytes": 3071,
+      "sha256": "d5f471f1690e10716052176ec5657202674b4eb7e0263e8b949755dac5c674b3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466949654/receipt.json",
+      "bytes": 1455,
+      "sha256": "3706ceeee49ae7b9f13fcbd10e840232a1968f0abb7464d1c65eec131a5b8b11"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950015/complete.log",
+      "bytes": 71006,
+      "sha256": "5746bfdb4817d40ef54a1e3e6eb2830800efef9cd550673055ed0abc57d127bf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950015/job.json",
+      "bytes": 2238,
+      "sha256": "028aca56cd53fd1e4975b436b23989a450b9f72485bea05edee6278708d9f8a4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950015/receipt.json",
+      "bytes": 1322,
+      "sha256": "e20ee7b45e61db3eea7b9a3e30de0183b805d00df8cbdae7cb0e587a634e9971"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950108/complete.log",
+      "bytes": 85994,
+      "sha256": "d8361eb291783b05533a7e36f971a7a56cf20bde02c9d364706c4c9712a0d666"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950108/job.json",
+      "bytes": 3292,
+      "sha256": "168c1c0488d73bf33f280ee2d5698431549f9fdea67e9e448da630d3b41c02fa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950108/receipt.json",
+      "bytes": 2120,
+      "sha256": "83001b7c85e93a3b4fb31dcdfc4c56a752a0a8ad24cc7eb94698467e11f77b09"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466951906/job.json",
+      "bytes": 1046,
+      "sha256": "7c747dac26093e0b3223dfcc1c8d0b5db082b4002c8f00a4164f1d118db5db11"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467007172/job.json",
+      "bytes": 1036,
+      "sha256": "0c6235a8348c5b0b80fe2855588020a7ba1d9ca8e86d6c84e88dd88393b23682"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106272/complete.log",
+      "bytes": 83511,
+      "sha256": "1c7d5a4b12b3aee7181a560cbcf51c38512cf47afdcb90fe79edceba5161fb63"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106272/job.json",
+      "bytes": 3048,
+      "sha256": "5943fcf4270e958946d5053e196e9bd3f7736aa6448dd3a5d1660f9db3d09b50"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106272/receipt.json",
+      "bytes": 1455,
+      "sha256": "a44989b91ae8f75ef6df08bffdfad83e8a1eab6e42b45881ccac9042eb73effc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106312/complete.log",
+      "bytes": 85648,
+      "sha256": "5c4dc9788b912bfb64e09684b564672a09ea75c23497bc6efd960b3396711d36"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106312/job.json",
+      "bytes": 3047,
+      "sha256": "d98ccc076b9a8cd2b3b1a173ed54f47acdc4f4c00ecf4cddeb7cf27471d12f38"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106312/receipt.json",
+      "bytes": 1455,
+      "sha256": "504ea48f00fa81e2eff34b424f3cd447617dded301bc9ed22ebb9acafdf50d2f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106464/complete.log",
+      "bytes": 82916,
+      "sha256": "968f0f018ec5a678620b6853c7086314ddc85d4ae0d2c8f19255b851900478eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106464/job.json",
+      "bytes": 3051,
+      "sha256": "319763a45d854368cd07c05826d66946a561cc4c9853b79d50b21c9b3c2243de"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106464/receipt.json",
+      "bytes": 1455,
+      "sha256": "04f907adf7ae1f350762aea9d74d310cd21007c90d774cfb23986d11dc240ca3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119469868319/complete.log",
+      "bytes": 2684,
+      "sha256": "8a71b39369cfd7b66e688f6d14c58ee0e03edb362498ad518b62512ed642d3f2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119469868319/job.json",
+      "bytes": 1724,
+      "sha256": "f0c10b94802960e52a07c2033f49bd7609d5732ce9405b748eb6e225b2a95cf8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/job-logs-public/119469868319/receipt.json",
+      "bytes": 923,
+      "sha256": "df769c61065f241f9e77b6de4756f0231a7a6050b8148942f4730eb7854cbdcf"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/latest-snapshot.txt",
+      "bytes": 12,
+      "sha256": "1697d0ab2e0113d36214432def336f2d140077908889733dc357279c5e0e2054"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/performance-window-summary.json",
+      "bytes": 5345,
+      "sha256": "c9082fb658ee972d28d4c75cd5558a26cb230bf9ca2df2be7c9c09af9e663cfc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/read-snapshot.py",
+      "bytes": 1704,
+      "sha256": "2ef9534f7fe81bba669582f8c6acfcd2ed60a2abe916fa32add7dfd873192836"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01-summary.txt",
+      "bytes": 8288,
+      "sha256": "f49c88877d9c519e0a5957205f7f51ab5bcabb162c9ed51d056ebd2eddcc5483"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "cd5a37bc8923d83980f084f12ae852b09a4aae471e5121538a20a097c630ca2a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01/jobs-read.json",
+      "bytes": 233,
+      "sha256": "0fa6b1c8d7441b8def3503c0fb43b901cccbe42f3acef0c6ec7bdc24a4b2e27c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01/jobs.json",
+      "bytes": 14599,
+      "sha256": "98ca132a263b7fa24ef2d5f19f293f2d7f12a91e5956b77bf900b52282aa02d6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01/run-read.json",
+      "bytes": 215,
+      "sha256": "6ddb23b6fa9fdda74d272663c6f495f1cc5c051abdc6afcfb5cc5210cc342104"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-01/run.json",
+      "bytes": 12499,
+      "sha256": "361a06adee64601bdf7714827412a3ac2eff9f7e2e71d902888e7dc0d8b4e69c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02-summary.txt",
+      "bytes": 11128,
+      "sha256": "1d9ae6f2c46e840f94ea458819aab275dd1e3abf4cc22472b3ac2aa938610357"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "d8e4b5c65e44182e0332f6368d143148a558457b3649f71ba4956da1015a91be"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02/artifacts.json",
+      "bytes": 3022,
+      "sha256": "df5d0d3dc5da31b6728411346c58f672075914713d4d9bb26446cfef806a9483"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02/jobs-read.json",
+      "bytes": 233,
+      "sha256": "d0e37cae257a92f051148625682d40ab81447e81412fc2c793ce02deee9ed108"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02/jobs.json",
+      "bytes": 17517,
+      "sha256": "994ec52fb57fad5812ada549be51ece62b66a747585823365bbae2456d6b6d7b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02/run-read.json",
+      "bytes": 215,
+      "sha256": "f8d3a15ce432361542084d04934851dc91c9404648c92b7e85454f88f96b137a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/snapshot-02/run.json",
+      "bytes": 12502,
+      "sha256": "83a4012479ab9243033b9dd69efaa31253f92c494e7f526583f0a22f2fee3f8d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/source-expectations.json",
+      "bytes": 411,
+      "sha256": "286e380a8a43b23ede38d3366df9007442f5628c90fd5d54efa44a5657b3ced2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/summarize-performance.py",
+      "bytes": 6662,
+      "sha256": "15bd2c0de50e90ada7174c3a4aacf670befe362207ba898c4f9aa198bc6007f1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/summary-first.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-4/performance/summary-first.stdout",
+      "bytes": 1187,
+      "sha256": "15a8438eb07a6b1ed520a109ff0266e12cb73b9c6cab64c36a632b0449f297bf"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/PUBLIC_ALLOWLIST.json",
+      "bytes": 5999,
+      "sha256": "afbc48e2be9d20f566af83cb71a41c5f63e6277dc7cfbd44010301537dbe0cb2"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/README.md",
+      "bytes": 2421,
+      "sha256": "c99f012ca7b25f20abbf8bb26aca7c1dc688a92d569a1442b1d7aa9ef6794e77"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/SHA256SUMS",
+      "bytes": 3222,
+      "sha256": "a4f2061eeea40fcc17b986e7e10250253ff80f674f20250a5ffecb0414520d58"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/archive-sha256.json",
+      "bytes": 5999,
+      "sha256": "afbc48e2be9d20f566af83cb71a41c5f63e6277dc7cfbd44010301537dbe0cb2"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/collect-public.py",
+      "bytes": 2545,
+      "sha256": "50856401d3d63e766b85568d79e99de64b5972049071624af06c1ffeda9a1ee1"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/docs-artifacts-read.json",
+      "bytes": 238,
+      "sha256": "6f0009a1e3353fed1768bab2f62884bfe442a1e9c5bc4368187292a2feeb8acf"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/docs-artifacts.json",
+      "bytes": 706,
+      "sha256": "e413a47c4a231e78e74d9f59abc2abc5b276883d6b7dad6d0d16872e8d9adb88"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/docs-jobs-read.json",
+      "bytes": 233,
+      "sha256": "57c8d45bdee5b685d320f6616f0c1a13638c5f7b0e5fc7e6307de8c89e1e5d60"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/docs-jobs.json",
+      "bytes": 8698,
+      "sha256": "56d92b7ddfac3a450fec2bde88521c890575bad4394020427734e6a58dd7a367"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/docs-run-read.json",
+      "bytes": 215,
+      "sha256": "705cfd672d8f43301d79c2c09087d510dc7699a8699eae5cef05d82b0ed9fdd9"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/docs-run.json",
+      "bytes": 14632,
+      "sha256": "6ea04248fe62647f93ed8467dea781f7b37a1ade09387103ee95b8c5302dde19"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119475303206-read.json",
+      "bytes": 8426,
+      "sha256": "d30554141e2a40d5a4052747e43512e5770f9be157f33a301bdfb1d981b20aa1"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119475303206.log",
+      "bytes": 648820,
+      "sha256": "071a521577e016bd063f1a9f4f394009da293e78e201b9ac1445d7201cbca561"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119475304527-read.json",
+      "bytes": 862,
+      "sha256": "fc5d3f2c03f442db2daa0d66b313dc819b391d6d59ac14a0ee7e20d381ef0ab0"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119475304527.log",
+      "bytes": 2090,
+      "sha256": "a8877fe6e2283662f413950696b234c8aa91006b5f8336dd8a2271eaf9fb1550"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119476395122-read.json",
+      "bytes": 995,
+      "sha256": "200a63ea09096e270beb9c350bc654c4546db8b84a1abd94f932f91828bde4e5"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119476395122.log",
+      "bytes": 3928,
+      "sha256": "54c6d4ca0ddaf829fea0e0458eda9b80849b28a5a0e2a5eb8c6bbd4b0e0e9965"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119476586183-read.json",
+      "bytes": 3417,
+      "sha256": "a214e9db114a2a0d3fbee7d4b6873a72e1c7cb4aa22423ec806223a062bb8930"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119476586183.log",
+      "bytes": 13848,
+      "sha256": "2d28b51280692a889711c2ddd16714f1c84c5cbdafc5906acf2f93b8f701a09f"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119476699413-read.json",
+      "bytes": 5704,
+      "sha256": "3d93084c202578923b53b1f0ed46cc007c0f46a4ca6f9011c48e26fec92ae1f3"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/job-119476699413.log",
+      "bytes": 17240,
+      "sha256": "521e9f98b775428bc58a14a62db16724c0973772f346e58e23ad3f0d90dbbe41"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-check-runs-read.json",
+      "bytes": 287,
+      "sha256": "e218de9f63d55dce9b69cbfdb518baa19723497d3f6b2abea40f2321dc78ccf9"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-check-runs.json",
+      "bytes": 23743,
+      "sha256": "ab761eca4cf059f99d5279002cf6a8f1519d6acaf340c889068513819a9c8171"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-commit-read.json",
+      "bytes": 267,
+      "sha256": "e434d4790f5cdc3338c55c42e28962ec9e905ee72f90bd570a613abb4d68e598"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-commit.json",
+      "bytes": 2698,
+      "sha256": "b5d263b687ce71cf8f3ce360330fd8d1d06cb4e4416a99bbf55dd2ab59131e6f"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-runs-read.json",
+      "bytes": 290,
+      "sha256": "17fcf98179cbc98c77ed21f927bfe281ca3126f3dd2bf010c29458b19c491fa9"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-runs.json",
+      "bytes": 14668,
+      "sha256": "0c5da589d6cff3b8f1bd4866e3ab55f45a24ab2f37c8fd11267d0e15b54febd4"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-status-read.json",
+      "bytes": 270,
+      "sha256": "b479c3591edd3745be729d7457b0671732c8ba47a5f465dd7981e29ffe421b00"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/merge-status.json",
+      "bytes": 4427,
+      "sha256": "f29adf4621b2bb0153fdaa510f4e04f2a15f7cd6a38dea80c65d308341fcd0e9"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/postmerge-signal-jobs-read.json",
+      "bytes": 338,
+      "sha256": "a1cb30b8c518a9ee730f1f9a1635c001e4cbd40a3a5e40606d8b0016749e0c06"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/postmerge-signal-jobs.json",
+      "bytes": 1448,
+      "sha256": "278c767dea0f851c654610ba66f36b8edae546485a0bbb3268b5a3323c86f987"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/postmerge-signal-run-read.json",
+      "bytes": 321,
+      "sha256": "8a805547e802cb45acf05d410ee95a8e100026d6767aba9096433061c7317d26"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/postmerge-signal-run.json",
+      "bytes": 12012,
+      "sha256": "2538dc31d81564c53666177b8fa49b317606f03f795aff4234d305c37631a204"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/pr-read.json",
+      "bytes": 225,
+      "sha256": "9332fe9ec88c4887cdbab89a208cbe1b66e0def02cbd4d70a86adb7c05c0ae89"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/pr.json",
+      "bytes": 19776,
+      "sha256": "ce36fba1108e8936307b8a1dea6c4503b281491c541336ba53150e12b9fea0ac"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/summary.json",
+      "bytes": 12039,
+      "sha256": "79af5898cc18cd2165bec3a25d9a4ed292b37a173bd1d8cffc6bbb3ac72a36ea"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/tip-signals-read.json",
+      "bytes": 302,
+      "sha256": "06feeb37aa69e4e05a736391770c978177702b0595b47dc1585106875611c484"
+    },
+    {
+      "path": "cloud/pr1024-main-first-ci/tip-signals.json",
+      "bytes": 60100,
+      "sha256": "fe2f46eff1d11a6a1b99b66add2009a4c0ed749fde8b4acc17011303ca4f7fdd"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/PUBLIC_ALLOWLIST.txt",
+      "bytes": 310,
+      "sha256": "5e7ee94399a50ca3aec8c1bacd34e4094f365595324f7955e553fb9fd0c0dafe"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/SHA256SUMS",
+      "bytes": 1717,
+      "sha256": "aa33d47a887e1b038f6c6dee142c52eab74892e9295ea03133e50b87e3ec8b52"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/archive-sha256.json",
+      "bytes": 3186,
+      "sha256": "0e6da2d6ab3453978e3a1ab92f965ea735cda9f81a3dae736d67e80a3f3c9b22"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/checks.json",
+      "bytes": 1906,
+      "sha256": "f06435992663b177604b93a9b13f687532ae4b6b2f539e3bdb6a469d8d27b7a5"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/cleanup-branch.txt",
+      "bytes": 233,
+      "sha256": "26bdf9de8cedf17da9a7ee5eea6c55f102dcc1b4c61f8d864db6d56c79eb0f98"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/cleanup-receipt.json",
+      "bytes": 493,
+      "sha256": "3f820ffeed81767c85a759c14cd2890f52fa818bd2684210ab33376c66cdc4b9"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/cleanup-worktree.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/fetch-main.txt",
+      "bytes": 143,
+      "sha256": "82190501de0d9a3d131e7d6de7dffc6f2db3b9b30419c5531cda8fecc76044c4"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/local-status.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/main-premerge.json",
+      "bytes": 5218,
+      "sha256": "1185c53b671702df1f7fa12ecd06fb125756a13f5371ac78fe5276ef373bfdd4"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/merge-receipt.json",
+      "bytes": 404,
+      "sha256": "b6bf29490cba1d19e7f094912d06c09d64cdebca05d50fead19990b755b568d1"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/merge.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/pr-after.json",
+      "bytes": 245,
+      "sha256": "6fce7b311a4e1e247021933fc48b2d151d4539e8da3904d3d7ac59582507bee0"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/pr-before.json",
+      "bytes": 3784,
+      "sha256": "79fdff31ef94b8464792eb193e3f9987297a9324ead1374bcd6940a0ce2ac72c"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/pr-body.md",
+      "bytes": 3079,
+      "sha256": "aeb09ae514b26f088028e0f9d90314059654c2e95d425de63f46d58dd9fdd8d5"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/pr-edit.txt",
+      "bytes": 47,
+      "sha256": "cc8f4949a54061763f765e6165ada1fb4c0f97c7ae3ab415097715eb82cec7b3"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/pr-premerge.json",
+      "bytes": 137,
+      "sha256": "b366fb4697b22de314c49a0df743642d9b8cd3e62c48439e6d49282159df758a"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/protection.json",
+      "bytes": 1200,
+      "sha256": "20d7e38e9ee07736822d3b21bd9b803e633c60bdf8520baf00b9ea0d66231396"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/ready-signal.json",
+      "bytes": 925,
+      "sha256": "d17e73af42533093a588cc7f768bb157a64c7a2cb27ea95c11c1b580bbdb5a13"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/ready.txt",
+      "bytes": 72,
+      "sha256": "14dc1e84901ad6f2e6c6ad3c422085ff2de60e11f15b1e299f5f8261be8f5350"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/reviews.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/target-sha.txt",
+      "bytes": 41,
+      "sha256": "e6f3e929bce7f16cb87edf2f444652082309d1c0bb477aee1ec3c183cad509f3"
+    },
+    {
+      "path": "cloud/pr1024-merge-delivery/target-tree.txt",
+      "bytes": 41,
+      "sha256": "3c0a3bcfc3d79e708388be6003036be03a3f8b9cfc4130da116395ca86f02248"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/README.md",
+      "bytes": 7081,
+      "sha256": "d8a04cbe3256f1b62a6eeb8f16b3134e098da357268acb9990656c406ca42268"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/baseline/CHANGELOG.md",
+      "bytes": 3965,
+      "sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/baseline/docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/baseline/scripts/aliyun-object-storage-provider.py",
+      "bytes": 24964,
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/baseline/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 27245,
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/contract-first.json",
+      "bytes": 313,
+      "sha256": "c5b1e2127bfbbb88e53edb7656ac1419138d17cbe5dd25798694bc58de3a4f35"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/contract-first.log",
+      "bytes": 176,
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/default-first.json",
+      "bytes": 397,
+      "sha256": "c087b05d410006ae2d802049995cdc729a1bb77db1e84c840c45fc41800ef1f2"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/default-first.log",
+      "bytes": 2303,
+      "sha256": "6dab4919f5e26c35dc6da598a5973b7846fe995d10f7296a186774124760f62b"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/failure-matrix.md",
+      "bytes": 3177,
+      "sha256": "e078516f26c59a1dd3dd3a7e27868f85b181f081e86ddf631dbc19707b363153"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/first-red-sdk-receipt.json",
+      "bytes": 2685,
+      "sha256": "d944de8910c16e099e8d92825ce1587ac4d32dde5c5928342bc372e943300dea"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/first-red-tests.py",
+      "bytes": 42904,
+      "sha256": "0ddca75e5019e0539e61c3da20e32fbd25226b89d8c58573763028e508258b65"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/first-red.json",
+      "bytes": 851,
+      "sha256": "3a9e6331c74e3acc7ca22643b212cea5c6c7880ab3baf8e2e71f81a2f6b25d46"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/first-red.log",
+      "bytes": 29685,
+      "sha256": "879f075a637a10266ee8ccb0892a00347cf424eed2703947cd4ece98314b2ec7"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/fixture-export.json",
+      "bytes": 464,
+      "sha256": "fc6b87ce5a3d20e50744011f82b66e799a69ac356327bf61754db61c401ababf"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/implementation.patch",
+      "bytes": 706836,
+      "sha256": "21095c12dd8928e31f3894280dbd188806d6a68b5da7c84040a68f917f7d8e18"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/independent-fixture-audit.md",
+      "bytes": 680,
+      "sha256": "dfb95e6ba49a3b03fdd3e22f88f51a7a0aa3f444d1adbb4d8979a742aa5549ec"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/initial-binding.json",
+      "bytes": 2293,
+      "sha256": "c2495aac62a16ca1a6b3701df5f1ed742721564d6cda1c91c94bc04485a5e307"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/inputs-first.json",
+      "bytes": 433,
+      "sha256": "84b027ee7571321ba341f3b1dd18ab97159f06c79e260bdc1e197a8eceea40e9"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/inputs-first.log",
+      "bytes": 2077,
+      "sha256": "b80695721bfabf518b9f28628271dcef24ed37775a8f48d4ec4cab60d198d6bc"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/manifest.json",
+      "bytes": 6665,
+      "sha256": "0806f65745aff5cfe1583f0b0f46c31018120401acdca97bb5ced2f40cf5f757"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/pre-validation-preservation.json",
+      "bytes": 509,
+      "sha256": "49bf81f1e4c4af47db95f8a6caa460b9ad558142c67b37be4be73ff9c3e5b947"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/preimplementation-red-sdk-receipt.json",
+      "bytes": 2685,
+      "sha256": "d944de8910c16e099e8d92825ce1587ac4d32dde5c5928342bc372e943300dea"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/preimplementation-red.json",
+      "bytes": 554,
+      "sha256": "dfb69f0d26b70ede3b727d346e7d2cff37738e47bf967225bbec7498c09eee97"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/preimplementation-red.log",
+      "bytes": 29685,
+      "sha256": "1dfed0c5decdcb486621c5928b5500532825d411296936186e0a6c7b076619e9"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/preimplementation-tests.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/protected-source-binding.json",
+      "bytes": 5127,
+      "sha256": "2298769141e0a27c2ea6a706e2fbe8ebec0be754331fe9c417a02ff8f886194f"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/public-allowlist.json",
+      "bytes": 1470,
+      "sha256": "576ae1cd97b477191208a23f5a54d3a02478311194b367eedade4db0ddf83186"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/run-bounded.py",
+      "bytes": 1086,
+      "sha256": "2e581174497b9c2dd86643bd3adbdf85e3804823637921e9ebf790a435468bf7"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/sdk-implementation-first-receipt.json",
+      "bytes": 2684,
+      "sha256": "7c3a84829714cf3d9bc70955c5819d5d95d8b99795f0dfbc93a6b4710082c772"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/sdk-implementation-first.json",
+      "bytes": 486,
+      "sha256": "f4c53370e45f07661d8544f3eb9346dbe81aa0337a5ffc21f65890f46f324417"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/sdk-implementation-first.log",
+      "bytes": 8077,
+      "sha256": "640d2164ee24affb2e75f589ec67a74a39a7b0a575354b5199d3fe0d1fd7e130"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/source-freeze.json",
+      "bytes": 1716,
+      "sha256": "34d2361fc94b979366503e36f25fe8e9ab4ed8e256364ad05d2ab9191276f87b"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/source/CHANGELOG.md",
+      "bytes": 4176,
+      "sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/source/docs/object-storage-delivery.md",
+      "bytes": 18618,
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/source/scripts/aliyun-object-storage-provider.py",
+      "bytes": 27342,
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/source/tests/provider_sdk/fixtures/native-composite-routes.json",
+      "bytes": 670004,
+      "sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/summary.json",
+      "bytes": 1446,
+      "sha256": "15ffd36d147507ec25011480cc1d3dbee714dba98eb4209688ad713e0e313365"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/test-boundary-review.md",
+      "bytes": 424,
+      "sha256": "fd4c8a39ffb033e241fc2e11a28c1f7a20ae79529c60588eaa30920ad10b46a1"
+    },
+    {
+      "path": "packages/m2a-native-route-compiler-v1/test-source-preservation.json",
+      "bytes": 2499,
+      "sha256": "0fe145914218f4559f0590cfedf1f35cc66731c636a528219e064a75a5a9c975"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/PUBLIC_ALLOWLIST.txt",
+      "bytes": 109,
+      "sha256": "3d0e8cc8da059d7ba204febb5bd919980e8e4615788db4d188f94e7394cfe0ab"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/SHA256SUMS",
+      "bytes": 724,
+      "sha256": "381e0d33343537f124d71f0efa27820ffd8346136eb97fa919ad5256f8243674"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/archive-sha256.json",
+      "bytes": 1399,
+      "sha256": "586ed5b8be29b6928be55d46a14c4fa927adb6e95754429030982c94f0eb2558"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/combined-review.md",
+      "bytes": 5749,
+      "sha256": "41646210c9755590fe5e56690409d30e9993c69d77715f51cd9671aa4df218bd"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/commit-identity.json",
+      "bytes": 183,
+      "sha256": "98a3685cb14110721f0b7ed4b1a7c5549a61c6691335e2213214e9777d11f4ad"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/commit.txt",
+      "bytes": 231,
+      "sha256": "4a9bd60e73dddf56ef5d7b54218e3048bf6a337e19e373fbe6f69568734121db"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/pr-body.md",
+      "bytes": 2104,
+      "sha256": "1cace1fc5a116ceb89441805758c3e8489a811bdf5f68f29f4a3e736da13475c"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/pr-create.txt",
+      "bytes": 45,
+      "sha256": "9adc165acdf247c2a3b6d5a02d4a18fb3cb342daa95accb9238f064179a90eb2"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/pr-url.txt",
+      "bytes": 45,
+      "sha256": "9adc165acdf247c2a3b6d5a02d4a18fb3cb342daa95accb9238f064179a90eb2"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/push.txt",
+      "bytes": 400,
+      "sha256": "303fc660b71ffb5e8e8fa00491e88c2b9fb5f41f7f92bd2f7d69384091e6b6f1"
+    },
+    {
+      "path": "packages/m2a-native-route-delivery/staged.patch",
+      "bytes": 706836,
+      "sha256": "f89af10da69fdfb7176d4a7101205a801deb2854936b3fcbafb35f2b251b98bb"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 181,
+      "sha256": "fc2df62840ecff45ab8d966c26e7758360cecfd15887516b26d0126566f0763c"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/SHA256SUMS",
+      "bytes": 764,
+      "sha256": "456540dbfa1a9a438b838a1748e219fda1476156f2c00e1ce9193c96e854aa9a"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/after-binding.json",
+      "bytes": 2065,
+      "sha256": "d12ff4ca71bac64438872bc02c8be31fe2a9c092bf377356c9a60cab37fe9051",
+      "crc32": "750d512a"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/before-binding.json",
+      "bytes": 20290,
+      "sha256": "d585c6cf4998806eeda1d5755ef703eccd6f0c384df238dddf0f3ea6ae9b875d",
+      "crc32": "12cc3179"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/independent-probe.py",
+      "bytes": 7015,
+      "sha256": "0f8ccf95267b0c1f306b29a91d2b527cbf21faa0233e8727690cac858a6c0d91",
+      "crc32": "7101131f"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/manifest.json",
+      "bytes": 1485,
+      "sha256": "94d38e5555b445b97cd7c93b1a9243d1988564e9acee8f831c472189c64cdcae"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/probe-first.stderr.txt",
+      "bytes": 428,
+      "sha256": "56c711b9dc32ada8f4f421e2b359cacf7e1000d8148e666e25030ae192a78c00",
+      "crc32": "dc2293b2"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/probe-first.stdout.txt",
+      "bytes": 949,
+      "sha256": "af2bb6d2b6e5b2306f5bf4f3584a2478ff04a1954067946dc1b2e56b9c41736d",
+      "crc32": "bece952e"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/probe-result.json",
+      "bytes": 1099,
+      "sha256": "6bc59fa1bca6fe68f89c947b1bfb311a74ab1673f0c27468d93c4f15b3717d9b",
+      "crc32": "382bd288"
+    },
+    {
+      "path": "packages/m2a-native-route-review/spec/review.md",
+      "bytes": 2679,
+      "sha256": "05926f89c9d68c70c3be391ffde1dcb6f4ee15da326bc3e24148b15f047869a3",
+      "crc32": "4f06c271"
+    },
+    {
+      "path": "packages/m2a-native-route-review/standards/SHA256SUMS",
+      "bytes": 256,
+      "sha256": "7f5e5fb3d8e2c681d281dc403be5d745dbd92b494b93f0a17edbcf5e7a4e3832"
+    },
+    {
+      "path": "packages/m2a-native-route-review/standards/process-terminal-state.json",
+      "bytes": 3059,
+      "sha256": "1c2777e0d61f9febc9db8af9212f0db4b0d7945305fc7a711279121acd49a012"
+    },
+    {
+      "path": "packages/m2a-native-route-review/standards/report.md",
+      "bytes": 2587,
+      "sha256": "cb53622a6823c665ac0f1fceb1d2a5d8ff096f69901c8d4b1e48d72c0969e29c"
+    },
+    {
+      "path": "packages/m2a-native-route-review/standards/source-binding.json",
+      "bytes": 25824,
+      "sha256": "931d2b3c80e560d7b97d3e8b960144a1a00e9784f5559d2ddff128a658cb9b50"
+    }
+  ],
+  "created_paths": [
+    "cloud/pr1024-ci-generation-4/candidate/PUBLIC_ALLOWLIST.json",
+    "cloud/pr1024-ci-generation-4/candidate/README.md",
+    "cloud/pr1024-ci-generation-4/candidate/SHA256SUMS",
+    "cloud/pr1024-ci-generation-4/candidate/actual-checkout-commit-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/actual-checkout-commit.json",
+    "cloud/pr1024-ci-generation-4/candidate/analyze-scripts.py",
+    "cloud/pr1024-ci-generation-4/candidate/archive-sha256.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/inventory.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/command.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/go-version.txt",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/identity.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/policy.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/result.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/members/stdout-stderr.log",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12378749770/test-events.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/inventory.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/binary-build-info.txt",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/binary.sha256",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/command.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/result.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/stderr.log",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/build/stdout.jsonl",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/command.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/result.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/stderr.log",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/cross_node_delivery/stdout.jsonl",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/go-version.txt",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/identity.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/command.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/result.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/stderr.log",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/ordinary_history/stdout.jsonl",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/command.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/report.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/result.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/stderr.log",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/members/self_chat/stdout.jsonl",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12379493310/test-events.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/inventory.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/command.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/go-version.txt",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/identity.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/policy.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/result.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/members/stdout-stderr.log",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/artifacts-public/12380386536/test-events.json",
+    "cloud/pr1024-ci-generation-4/candidate/collect-completed.py",
+    "cloud/pr1024-ci-generation-4/candidate/collector-fixed-suite.json",
+    "cloud/pr1024-ci-generation-4/candidate/default-summary.json",
+    "cloud/pr1024-ci-generation-4/candidate/e2e-summary.json",
+    "cloud/pr1024-ci-generation-4/candidate/final-runs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/final-runs.json",
+    "cloud/pr1024-ci-generation-4/candidate/final-source-and-jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/final-verification-receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/head-commit-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/head-commit.json",
+    "cloud/pr1024-ci-generation-4/candidate/initial-runs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/initial-runs.json",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466950494/complete.log",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466950494/job.json",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466950494/receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466951110/complete.log",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466951110/job.json",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119466951110/receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119470620362/complete.log",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119470620362/job.json",
+    "cloud/pr1024-ci-generation-4/candidate/job-logs-public/119470620362/receipt.json",
+    "cloud/pr1024-ci-generation-4/candidate/latest-snapshot.txt",
+    "cloud/pr1024-ci-generation-4/candidate/owned-session-cleanup.json",
+    "cloud/pr1024-ci-generation-4/candidate/read-snapshot.py",
+    "cloud/pr1024-ci-generation-4/candidate/scripts-early-analysis.stderr",
+    "cloud/pr1024-ci-generation-4/candidate/scripts-early-analysis.stdout",
+    "cloud/pr1024-ci-generation-4/candidate/scripts-early-summary.json",
+    "cloud/pr1024-ci-generation-4/candidate/scripts-event-timeline.json",
+    "cloud/pr1024-ci-generation-4/candidate/scripts-summary.json",
+    "cloud/pr1024-ci-generation-4/candidate/scripts-timing-and-skips.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01-summary.txt",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/artifacts.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/pr-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/pr.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/run-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-01/run.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02-summary.txt",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/artifacts.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/pr-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/pr.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/run-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-02/run.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03-summary.txt",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/artifacts.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/pr-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/pr.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/run-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-03/run.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04-summary.txt",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/artifacts.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/pr-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/pr.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/run-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-04/run.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05-summary.txt",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/artifacts.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/pr-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/pr.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/run-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-05/run.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06-summary.txt",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/artifacts.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/jobs.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/pr-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/pr.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/run-read.json",
+    "cloud/pr1024-ci-generation-4/candidate/snapshot-06/run.json",
+    "cloud/pr1024-ci-generation-4/candidate/source-binding.json",
+    "cloud/pr1024-ci-generation-4/candidate/source-expectations.json",
+    "cloud/pr1024-ci-generation-4/candidate/summarize-candidate.py",
+    "cloud/pr1024-ci-generation-4/candidate/summary-first.stderr",
+    "cloud/pr1024-ci-generation-4/candidate/summary-first.stdout",
+    "cloud/pr1024-ci-generation-4/performance/PUBLIC_ALLOWLIST.json",
+    "cloud/pr1024-ci-generation-4/performance/README.md",
+    "cloud/pr1024-ci-generation-4/performance/SHA256SUMS",
+    "cloud/pr1024-ci-generation-4/performance/actual-checkout-commit-read.json",
+    "cloud/pr1024-ci-generation-4/performance/actual-checkout-commit.json",
+    "cloud/pr1024-ci-generation-4/performance/archive-sha256.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/inventory.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/arrival.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/arrival.warmup.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/benchmark.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/binary.sha256",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters.warmup/after.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters.warmup/before.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters.warmup/window.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters/after.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters/before.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/counters/window.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/data-filesystem.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/filesystem-preflight.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/analysis-status.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/net-error.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/net-top.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sched-error.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sched-top.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sync-error.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/sync-top.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/syscall-error.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/syscall-top.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/flight/window.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/go-version.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/host.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/kernel.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/result.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/members/source.sha",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12378869296/test-events.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379192583/not-downloaded.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/inventory.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/arrival.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/arrival.warmup.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/benchmark.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/binary.sha256",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters.warmup/after.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters.warmup/before.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters.warmup/window.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters/after.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters/before.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/counters/window.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/data-filesystem.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/filesystem-preflight.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/go-version.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/host.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/kernel.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/result.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/members/source.sha",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379252533/test-events.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/inventory.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/arrival.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/arrival.warmup.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/benchmark.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/binary.sha256",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/data-filesystem.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/filesystem-preflight.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/go-version.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/host.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/kernel.txt",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/result.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/members/source.sha",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/artifacts-public/12379941815/test-events.json",
+    "cloud/pr1024-ci-generation-4/performance/collect-completed.py",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members-integrity.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/checksums.sha256",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/graceful-stop-status.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/process-continuity.tsv",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/threshold-pprof-status.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/evidence/timeline.tsv",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/local-step.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/product_queue_summary.tsv",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/diagnostic-status.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/final.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/qualification.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/artifacts/report/worker-evidence.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/data-filesystem.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/host.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-members/source.sha",
+    "cloud/pr1024-ci-generation-4/performance/correctness-read-command.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-selected-paths.json",
+    "cloud/pr1024-ci-generation-4/performance/correctness-summary.json",
+    "cloud/pr1024-ci-generation-4/performance/final-source-and-jobs.json",
+    "cloud/pr1024-ci-generation-4/performance/finalize-first.stderr",
+    "cloud/pr1024-ci-generation-4/performance/finalize-first.stdout",
+    "cloud/pr1024-ci-generation-4/performance/finalize-public-summary.py",
+    "cloud/pr1024-ci-generation-4/performance/flight-summary.json",
+    "cloud/pr1024-ci-generation-4/performance/head-commit-read.json",
+    "cloud/pr1024-ci-generation-4/performance/head-commit.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466949654/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466949654/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466949654/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950015/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950015/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950015/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950108/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950108/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466950108/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119466951906/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467007172/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106272/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106272/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106272/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106312/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106312/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106312/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106464/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106464/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119467106464/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119469868319/complete.log",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119469868319/job.json",
+    "cloud/pr1024-ci-generation-4/performance/job-logs-public/119469868319/receipt.json",
+    "cloud/pr1024-ci-generation-4/performance/latest-snapshot.txt",
+    "cloud/pr1024-ci-generation-4/performance/performance-window-summary.json",
+    "cloud/pr1024-ci-generation-4/performance/read-snapshot.py",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01-summary.txt",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01/artifacts.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01/jobs.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01/run-read.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-01/run.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02-summary.txt",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02/artifacts-read.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02/artifacts.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02/jobs-read.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02/jobs.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02/run-read.json",
+    "cloud/pr1024-ci-generation-4/performance/snapshot-02/run.json",
+    "cloud/pr1024-ci-generation-4/performance/source-expectations.json",
+    "cloud/pr1024-ci-generation-4/performance/summarize-performance.py",
+    "cloud/pr1024-ci-generation-4/performance/summary-first.stderr",
+    "cloud/pr1024-ci-generation-4/performance/summary-first.stdout",
+    "cloud/pr1024-main-first-ci/PUBLIC_ALLOWLIST.json",
+    "cloud/pr1024-main-first-ci/README.md",
+    "cloud/pr1024-main-first-ci/SHA256SUMS",
+    "cloud/pr1024-main-first-ci/archive-sha256.json",
+    "cloud/pr1024-main-first-ci/collect-public.py",
+    "cloud/pr1024-main-first-ci/docs-artifacts-read.json",
+    "cloud/pr1024-main-first-ci/docs-artifacts.json",
+    "cloud/pr1024-main-first-ci/docs-jobs-read.json",
+    "cloud/pr1024-main-first-ci/docs-jobs.json",
+    "cloud/pr1024-main-first-ci/docs-run-read.json",
+    "cloud/pr1024-main-first-ci/docs-run.json",
+    "cloud/pr1024-main-first-ci/job-119475303206-read.json",
+    "cloud/pr1024-main-first-ci/job-119475303206.log",
+    "cloud/pr1024-main-first-ci/job-119475304527-read.json",
+    "cloud/pr1024-main-first-ci/job-119475304527.log",
+    "cloud/pr1024-main-first-ci/job-119476395122-read.json",
+    "cloud/pr1024-main-first-ci/job-119476395122.log",
+    "cloud/pr1024-main-first-ci/job-119476586183-read.json",
+    "cloud/pr1024-main-first-ci/job-119476586183.log",
+    "cloud/pr1024-main-first-ci/job-119476699413-read.json",
+    "cloud/pr1024-main-first-ci/job-119476699413.log",
+    "cloud/pr1024-main-first-ci/merge-check-runs-read.json",
+    "cloud/pr1024-main-first-ci/merge-check-runs.json",
+    "cloud/pr1024-main-first-ci/merge-commit-read.json",
+    "cloud/pr1024-main-first-ci/merge-commit.json",
+    "cloud/pr1024-main-first-ci/merge-runs-read.json",
+    "cloud/pr1024-main-first-ci/merge-runs.json",
+    "cloud/pr1024-main-first-ci/merge-status-read.json",
+    "cloud/pr1024-main-first-ci/merge-status.json",
+    "cloud/pr1024-main-first-ci/postmerge-signal-jobs-read.json",
+    "cloud/pr1024-main-first-ci/postmerge-signal-jobs.json",
+    "cloud/pr1024-main-first-ci/postmerge-signal-run-read.json",
+    "cloud/pr1024-main-first-ci/postmerge-signal-run.json",
+    "cloud/pr1024-main-first-ci/pr-read.json",
+    "cloud/pr1024-main-first-ci/pr.json",
+    "cloud/pr1024-main-first-ci/summary.json",
+    "cloud/pr1024-main-first-ci/tip-signals-read.json",
+    "cloud/pr1024-main-first-ci/tip-signals.json",
+    "cloud/pr1024-merge-delivery/PUBLIC_ALLOWLIST.txt",
+    "cloud/pr1024-merge-delivery/SHA256SUMS",
+    "cloud/pr1024-merge-delivery/archive-sha256.json",
+    "cloud/pr1024-merge-delivery/checks.json",
+    "cloud/pr1024-merge-delivery/cleanup-branch.txt",
+    "cloud/pr1024-merge-delivery/cleanup-receipt.json",
+    "cloud/pr1024-merge-delivery/cleanup-worktree.txt",
+    "cloud/pr1024-merge-delivery/fetch-main.txt",
+    "cloud/pr1024-merge-delivery/local-status.txt",
+    "cloud/pr1024-merge-delivery/main-premerge.json",
+    "cloud/pr1024-merge-delivery/merge-receipt.json",
+    "cloud/pr1024-merge-delivery/merge.txt",
+    "cloud/pr1024-merge-delivery/pr-after.json",
+    "cloud/pr1024-merge-delivery/pr-before.json",
+    "cloud/pr1024-merge-delivery/pr-body.md",
+    "cloud/pr1024-merge-delivery/pr-edit.txt",
+    "cloud/pr1024-merge-delivery/pr-premerge.json",
+    "cloud/pr1024-merge-delivery/protection.json",
+    "cloud/pr1024-merge-delivery/ready-signal.json",
+    "cloud/pr1024-merge-delivery/ready.txt",
+    "cloud/pr1024-merge-delivery/reviews.json",
+    "cloud/pr1024-merge-delivery/target-sha.txt",
+    "cloud/pr1024-merge-delivery/target-tree.txt",
+    "packages/m2a-native-route-compiler-v1/README.md",
+    "packages/m2a-native-route-compiler-v1/baseline/CHANGELOG.md",
+    "packages/m2a-native-route-compiler-v1/baseline/docs/object-storage-delivery.md",
+    "packages/m2a-native-route-compiler-v1/baseline/scripts/aliyun-object-storage-provider.py",
+    "packages/m2a-native-route-compiler-v1/baseline/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "packages/m2a-native-route-compiler-v1/contract-first.json",
+    "packages/m2a-native-route-compiler-v1/contract-first.log",
+    "packages/m2a-native-route-compiler-v1/default-first.json",
+    "packages/m2a-native-route-compiler-v1/default-first.log",
+    "packages/m2a-native-route-compiler-v1/failure-matrix.md",
+    "packages/m2a-native-route-compiler-v1/first-red-sdk-receipt.json",
+    "packages/m2a-native-route-compiler-v1/first-red-tests.py",
+    "packages/m2a-native-route-compiler-v1/first-red.json",
+    "packages/m2a-native-route-compiler-v1/first-red.log",
+    "packages/m2a-native-route-compiler-v1/fixture-export.json",
+    "packages/m2a-native-route-compiler-v1/implementation.patch",
+    "packages/m2a-native-route-compiler-v1/independent-fixture-audit.md",
+    "packages/m2a-native-route-compiler-v1/initial-binding.json",
+    "packages/m2a-native-route-compiler-v1/inputs-first.json",
+    "packages/m2a-native-route-compiler-v1/inputs-first.log",
+    "packages/m2a-native-route-compiler-v1/manifest.json",
+    "packages/m2a-native-route-compiler-v1/pre-validation-preservation.json",
+    "packages/m2a-native-route-compiler-v1/preimplementation-red-sdk-receipt.json",
+    "packages/m2a-native-route-compiler-v1/preimplementation-red.json",
+    "packages/m2a-native-route-compiler-v1/preimplementation-red.log",
+    "packages/m2a-native-route-compiler-v1/preimplementation-tests.py",
+    "packages/m2a-native-route-compiler-v1/protected-source-binding.json",
+    "packages/m2a-native-route-compiler-v1/public-allowlist.json",
+    "packages/m2a-native-route-compiler-v1/run-bounded.py",
+    "packages/m2a-native-route-compiler-v1/sdk-implementation-first-receipt.json",
+    "packages/m2a-native-route-compiler-v1/sdk-implementation-first.json",
+    "packages/m2a-native-route-compiler-v1/sdk-implementation-first.log",
+    "packages/m2a-native-route-compiler-v1/source-freeze.json",
+    "packages/m2a-native-route-compiler-v1/source/CHANGELOG.md",
+    "packages/m2a-native-route-compiler-v1/source/docs/object-storage-delivery.md",
+    "packages/m2a-native-route-compiler-v1/source/scripts/aliyun-object-storage-provider.py",
+    "packages/m2a-native-route-compiler-v1/source/tests/provider_sdk/fixtures/native-composite-routes.json",
+    "packages/m2a-native-route-compiler-v1/source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "packages/m2a-native-route-compiler-v1/summary.json",
+    "packages/m2a-native-route-compiler-v1/test-boundary-review.md",
+    "packages/m2a-native-route-compiler-v1/test-source-preservation.json",
+    "packages/m2a-native-route-delivery/PUBLIC_ALLOWLIST.txt",
+    "packages/m2a-native-route-delivery/SHA256SUMS",
+    "packages/m2a-native-route-delivery/archive-sha256.json",
+    "packages/m2a-native-route-delivery/combined-review.md",
+    "packages/m2a-native-route-delivery/commit-identity.json",
+    "packages/m2a-native-route-delivery/commit.txt",
+    "packages/m2a-native-route-delivery/pr-body.md",
+    "packages/m2a-native-route-delivery/pr-create.txt",
+    "packages/m2a-native-route-delivery/pr-url.txt",
+    "packages/m2a-native-route-delivery/push.txt",
+    "packages/m2a-native-route-delivery/staged.patch",
+    "packages/m2a-native-route-review/spec/ARCHIVE_ALLOWLIST.txt",
+    "packages/m2a-native-route-review/spec/SHA256SUMS",
+    "packages/m2a-native-route-review/spec/after-binding.json",
+    "packages/m2a-native-route-review/spec/before-binding.json",
+    "packages/m2a-native-route-review/spec/independent-probe.py",
+    "packages/m2a-native-route-review/spec/manifest.json",
+    "packages/m2a-native-route-review/spec/probe-first.stderr.txt",
+    "packages/m2a-native-route-review/spec/probe-first.stdout.txt",
+    "packages/m2a-native-route-review/spec/probe-result.json",
+    "packages/m2a-native-route-review/spec/review.md",
+    "packages/m2a-native-route-review/standards/SHA256SUMS",
+    "packages/m2a-native-route-review/standards/process-terminal-state.json",
+    "packages/m2a-native-route-review/standards/report.md",
+    "packages/m2a-native-route-review/standards/source-binding.json"
+  ],
+  "same_bytes_reused": [],
+  "old_top_manifest_sha256": "f0f354e6ab3790fdd975cd9d61e1d410ec0ab873eb72af72757cc26fc381dd59",
+  "not_included": [
+    "cloud next-request-after-pr1024-merged preparation",
+    "packages #78 terminal CI"
+  ],
+  "source_mutation": false,
+  "git_mutation": false,
+  "ci_or_cloud_action": false,
+  "prose_and_top_manifest_update": "deferred to root after review"
+}

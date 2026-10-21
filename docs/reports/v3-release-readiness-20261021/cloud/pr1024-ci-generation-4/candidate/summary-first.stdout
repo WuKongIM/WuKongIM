@@ -1,0 +1,17 @@
+{
+  "default": {
+    "tested_package_count": 219,
+    "no_test_files_package_count": 15
+  },
+  "scripts": {
+    "terminal": {
+      "pass": 651,
+      "skip": 6
+    },
+    "incomplete": 0,
+    "new9": 9
+  },
+  "history": 55,
+  "cleanups": 6,
+  "binary": "e7e204483ec010e62b9c8df7c2f0663e4b95bc404a0ac9e6da4303ef23526f1b"
+}

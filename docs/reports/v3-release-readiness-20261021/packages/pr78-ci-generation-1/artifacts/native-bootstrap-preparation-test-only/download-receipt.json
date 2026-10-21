@@ -1,0 +1,38 @@
+{
+  "artifact": {
+    "id": 12379873174,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM3OTg3MzE3NA==",
+    "name": "native-bootstrap-preparation-test-only",
+    "size_in_bytes": 7152,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12379873174",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12379873174/zip",
+    "expired": false,
+    "digest": "sha256:da3870780fe72bcd91118f6f7491fe93760c6900bd35e070546aca90fa7ece51",
+    "created_at": "2026-10-21T20:41:43Z",
+    "updated_at": "2026-10-21T20:41:43Z",
+    "expires_at": "2026-11-20T20:41:42Z",
+    "workflow_run": {
+      "id": 39672398441,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-route-compiler",
+      "head_sha": "1fb1c6ea077fd260c373434c1a3c368a7952defd"
+    }
+  },
+  "get_exit_code": 0,
+  "zip_size": 7152,
+  "zip_sha256_recomputed": "da3870780fe72bcd91118f6f7491fe93760c6900bd35e070546aca90fa7ece51",
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "all_members_crc_verified": true,
+  "members": [
+    {
+      "path": "native-bootstrap-preparation.json",
+      "size": 44122,
+      "sha256": "63c12281f5b3282be2705df930ccd566229541e86b8ccbe59e6f5dbf54a2cafb",
+      "crc32": "9904c1c9",
+      "crc_verified": true
+    }
+  ],
+  "whole_zip_verified_against_api_digest": true
+}

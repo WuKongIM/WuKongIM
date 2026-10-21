@@ -1,0 +1,46 @@
+File: benchmark.test
+Type: delay
+Showing nodes accounting for 4.83s, 99.74% of 4.84s total
+Dropped 95 nodes (cum <= 0.02s)
+Showing top 40 nodes out of 111
+      flat  flat%   sum%        cum   cum%
+     3.64s 75.18% 75.18%      3.64s 75.18%  syscall.write
+     0.45s  9.32% 84.50%      0.45s  9.32%  syscall.openat
+     0.35s  7.24% 91.74%      0.35s  7.24%  internal/poll.writev
+     0.35s  7.18% 98.93%      0.35s  7.18%  syscall.read
+     0.04s  0.81% 99.74%      0.04s  0.81%  syscall.unlinkat
+         0     0% 99.74%      0.77s 15.87%  bufio.(*Writer).Flush
+         0     0% 99.74%      0.77s 15.87%  bufio.(*Writer).Write
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*ExchangeServer).Handle
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*storeAdapter).Sync
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/channel/store.(*MessageDBFactory).AppendLeaderBatch
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).ensureDefaultRuntime.RegisterQuorumExchangeHandlerOn.func1
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*QuorumExchangeGateway).Handle
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0% 99.74%      0.39s  8.04%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelLog).loadCheckpoint
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelStore).prepareExactAppendRecordsLocked
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelStore).prepareExactCheckpointLocked
+         0     0% 99.74%      0.38s  7.95%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelEntry).loadMQTTSourceState
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/db/message.StoreAppendBatch
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/db/message.storeAppendBatchOwner
+         0     0% 99.74%      0.74s 15.22%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0% 99.74%      0.74s 15.22%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 99.74%      0.35s  7.18%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+         0     0% 99.74%      0.35s  7.24%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0% 99.74%      0.35s  7.24%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch
+         0     0% 99.74%      0.35s  7.24%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+         0     0% 99.74%      0.39s  8.00%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+         0     0% 99.74%      0.35s  7.18%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.ReadFrame
+         0     0% 99.74%      0.35s  7.24%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.WriteFramesInto
+         0     0% 99.74%      0.82s 16.83%  github.com/cockroachdb/pebble/v2.(*DB).compactAndWrite
+         0     0% 99.74%      0.82s 16.83%  github.com/cockroachdb/pebble/v2.(*DB).flush
+         0     0% 99.74%      0.82s 16.83%  github.com/cockroachdb/pebble/v2.(*DB).flush.func1
+         0     0% 99.74%      0.82s 16.83%  github.com/cockroachdb/pebble/v2.(*DB).flush1
+         0     0% 99.74%      0.39s  8.09%  github.com/cockroachdb/pebble/v2.(*DB).getInternal
+         0     0% 99.74%      0.05s  0.96%  github.com/cockroachdb/pebble/v2.(*DB).newCompactionOutputObj
+         0     0% 99.74%      0.05s  0.96%  github.com/cockroachdb/pebble/v2.(*DB).newCompactionOutputTable
+         0     0% 99.74%      0.82s 16.83%  github.com/cockroachdb/pebble/v2.(*DB).runCompaction

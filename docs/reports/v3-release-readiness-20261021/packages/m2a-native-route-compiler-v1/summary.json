@@ -1,0 +1,45 @@
+{
+  "schema": "wukongim/m2a-native-route-compiler-summary/v1",
+  "base": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "base_tree": "0c843c1a30df5a75eac5e8ac0b966b5b84e20036",
+  "source_freeze_sha256": "34d2361fc94b979366503e36f25fe8e9ab4ed8e256364ad05d2ab9191276f87b",
+  "patch_sha256": "21095c12dd8928e31f3894280dbd188806d6a68b5da7c84040a68f917f7d8e18",
+  "changed_paths": [
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "scripts/aliyun-object-storage-provider.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/provider_sdk/fixtures/native-composite-routes.json"
+  ],
+  "source_still_frozen": true,
+  "sdk": {
+    "run": 34,
+    "passed": 34,
+    "skipped": 0,
+    "original_tests": 22,
+    "new_tests": 12
+  },
+  "inputs": {
+    "run": 10,
+    "passed": 10,
+    "skipped": 0
+  },
+  "default": {
+    "run": 581,
+    "passed": 580,
+    "existing_local_skip": 1,
+    "unittest_seconds": 134.737
+  },
+  "contract_embedded_tests": 4,
+  "first_red_preserved": true,
+  "boundary_test_fix_before_implementation_red_preserved": true,
+  "no_tests_after_implementation": true,
+  "all_owned_processes_terminal": true,
+  "new_signing_material_generated": false,
+  "original_29_31_49_rerun": false,
+  "full153_object_sdk_integration": false,
+  "live_pcre_or_cloud_verified": false,
+  "production_activation": false,
+  "commit_push_pr_dispatch_provider_cloud": false,
+  "scope": "M2a only; M2b/live pending"
+}

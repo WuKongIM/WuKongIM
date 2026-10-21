@@ -1,0 +1,124 @@
+{
+  "schema": "wukongim.cloud_rc.merged_source_pending_approval/v1",
+  "state": "source_frozen_waiting_for_explicit_new_paid_authorization",
+  "executable": false,
+  "paid_authorized_for_this_new_request": false,
+  "entrypoint": ".github/workflows/chat-lifecycle-rehearsal.yml",
+  "dispatch_ref": "main",
+  "final_control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "final_product_source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "request_id": null,
+  "diagnostic_identity_created": false,
+  "workflow_inputs_template": {
+    "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "operator": "tangtaoit",
+    "codex_diagnostic_pubkey": null,
+    "request_id": null,
+    "released_preclock_run_id": "",
+    "request_budget_limit_micros": "1276567200"
+  },
+  "resources": {
+    "provider": "alibaba",
+    "region": "cn-hangzhou",
+    "host_count": 4,
+    "service_hosts": 3,
+    "load_hosts": 1,
+    "vcpus_per_host": 4,
+    "memory_bytes_per_host": 8589934592,
+    "architecture": "x86_64",
+    "billing_model": "postpaid",
+    "burstable": false,
+    "system_disk_bytes_each": 42949672960,
+    "service_data_disk_bytes_each": 536870912000,
+    "load_data_disk_bytes": 214748364800,
+    "load_public_eip_count": 1,
+    "peak_bandwidth_mbps": 20,
+    "temporary_diagnostic_ssh_http": "existing reviewed deployment exposure only"
+  },
+  "stages": [
+    {
+      "name": "fresh rehearsal",
+      "active_seconds": 7200,
+      "lease_seconds": 43200,
+      "success": "rehearsal_pass + complete evidence + exact zero before formal"
+    },
+    {
+      "name": "fresh formal Lease",
+      "lease_seconds": 345600,
+      "same_immutable_source_bundle": true,
+      "soak_seconds": 259200,
+      "checkpoint_seconds": 86400,
+      "capacity_max_seconds": 28800,
+      "recovery_seconds": 1800,
+      "recovery_send_per_second": 2000,
+      "fresh_dataset_after_rehearsal": true,
+      "same_aged_dataset_for_capacity_recovery": true
+    }
+  ],
+  "unchanged_gates": {
+    "sealed_yaml_required": true,
+    "online_users": 10000,
+    "send_per_second": 2000,
+    "topology": "12/256/3/3",
+    "correctness_losses_duplicates_corruptions_sequence_regressions": 0,
+    "hot_sendack_p99": "400ms",
+    "cold_p99": "2s",
+    "sync_p99": "1s",
+    "disk_safe_stop_free_percent": 5,
+    "other_yaml_thresholds": "unchanged, not overridden by this template"
+  },
+  "no_retry": {
+    "old_request_continuation": false,
+    "released_preclock_proof_eligible": false,
+    "runtime_correctness_failure_automatic_retry": false,
+    "new_start_requires_separate_explicit_decision": true
+  },
+  "approval_scope_to_present_after_merge": [
+    "Exact merged control and product source 79a7177032a6ae1ec7015cefe0e6f94eb0f19f06; new request-scoped diagnostic identity and unique tracking Issue only after explicit new paid authorization.",
+    "Four reviewed Hangzhou hosts and full staged run, temporary reviewed SSH/HTTP, safety schedules and exact final Release.",
+    "Reserve CNY223.4328 outside request; new hard CNY1276.5672/stop CNY1126.5672; task totals remain CNY1500/1350.",
+    "Identity/inventory/source/Quote/capacity/budget rejection stops admission; no IAM repair, budget increase, source substitution or automatic workload retry.",
+    "PR1024 adds evidence capture only; message-loss cause/remediation remain unproved."
+  ],
+  "not_performed": [
+    "Issue creation",
+    "operational request/key generation",
+    "GitHub/API refresh by this preparation",
+    "Quote",
+    "Acquire",
+    "dispatch",
+    "SSH",
+    "provider call",
+    "workflow/permission/secret changes",
+    "automation creation"
+  ],
+  "diagnosis_limits": {
+    "reference": "diagnostic-limit.json",
+    "live_MCP_success_unverified": true,
+    "previous_analysis_authorization_closed": true,
+    "third_attempt_authorized": false
+  },
+  "planned_source_guard": {
+    "exact_remote_main_required_before_dispatch": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "product_and_control_must_match": true,
+    "immutable_bundle_digest": "pending real bundle; offline fixture digest is not a bundle",
+    "source_change_requires_new_review": true,
+    "previous_cee5_paid_authorization_consumed": true
+  },
+  "offline_validation": {
+    "report": "offline-cases/results.json",
+    "cases": 9,
+    "all_pass": true,
+    "request_keys_bundle_transition": "Fixed TEST ONLY values, no real identity or authenticated transition",
+    "production_selector_admission": "Not performed: exact fresh Plan plus admitted live Quote required before Acquire."
+  },
+  "execution_after_authorization": [
+    "Fresh exact-main/source guard, existing identity/wrapping and bounded active handoff/cleanup/Stop inventory checks; do not repair IAM.",
+    "Generate one new request and its diagnostic identity using the existing protected mechanism; create one exact open/unlocked tracking Issue.",
+    "One top-level rehearsal dispatch with the six frozen input fields; unknown dispatch outcome is reconciled, never double-dispatched.",
+    "Authenticate source/bundle and Quote; save exact release selector before paid Acquire. Any failed admission stops.",
+    "Rehearsal: 10,000 full syncs and first complete 2,000 SEND/s grant establish run start; run 2h and retain complete evidence, then release to zero.",
+    "Only passing released rehearsal authenticates transition to a fresh formal Lease; same source/bundle/request caps, fresh dataset,72h then same aged-data capacity <=8h and recovery30m.",
+    "Existing schedules/finalizers/sweeper and exact Stop/Release own cleanup; runtime/correctness failure has no automatic retry."
+  ]
+}

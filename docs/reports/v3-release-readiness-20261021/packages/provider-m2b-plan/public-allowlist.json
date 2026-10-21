@@ -1,0 +1,11 @@
+{
+  "paths": [
+    "README.md",
+    "case-inventory.json",
+    "failure-matrix.md",
+    "observed-gaps.json",
+    "sourcebinding.json",
+    "terminal-check.json"
+  ],
+  "finite": true
+}

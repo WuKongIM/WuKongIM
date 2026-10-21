@@ -1,0 +1,10 @@
+{
+  "original_head": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "merged_at": "2026-10-21T20:44:41Z",
+  "merge_commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "target_tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "reviewed_tested_tree_match": true,
+  "original_tip_contained": true,
+  "worktree_clean": true,
+  "cleanup": "pending exact clean-worktree removal and safe branch deletion"
+}

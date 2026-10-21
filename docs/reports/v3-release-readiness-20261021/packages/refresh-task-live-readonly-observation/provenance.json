@@ -1,0 +1,37 @@
+{
+  "schema": "wukongim/ui-observed-readonly-response/v1",
+  "recorded_at": "2026-10-21T21:10:13.921946+00:00",
+  "observation_time": "Immediately before recording, approximately 2026-10-21 21:08 UTC; exact call timestamp not captured",
+  "browser": "Existing authenticated Alibaba Cloud Chrome session",
+  "surface": "Official Alibaba Cloud OpenAPI Explorer",
+  "operation": "DescribeRefreshTaskById",
+  "task_id": "33643947491",
+  "region": "cn-hangzhou",
+  "ui_http_status": 200,
+  "ui_duration_ms": 380,
+  "request_id": "01A16048-EE37-5932-9795-C364DE421ADB",
+  "capture_method": "JSON response parsed from the visible result troubleshooting link in the Explorer accessibility state. This is UI-observed content, not a raw network capture.",
+  "performed_actions": [
+    "Navigate to existing CDN task records",
+    "Open official read-only DescribeRefreshTaskById Explorer",
+    "Submit existing task ID once",
+    "Read visible response"
+  ],
+  "no_refresh_mutation": true,
+  "no_new_resources": true,
+  "credential_contents_read": false,
+  "existing_refresh_origin": {
+    "ci_run": 39672950808,
+    "log": "cloud/pr1024-main-first-ci/job-119476699413.log",
+    "line": 202,
+    "submission_url_count": 4,
+    "returned_task_ids": [
+      "33643947491"
+    ]
+  },
+  "limits": [
+    "This query proves the observed task response shape for this account, domain and time; it does not validate production packages delivery.",
+    "Task completion does not independently prove cache invalidation at every edge.",
+    "No new refresh operation was requested."
+  ]
+}

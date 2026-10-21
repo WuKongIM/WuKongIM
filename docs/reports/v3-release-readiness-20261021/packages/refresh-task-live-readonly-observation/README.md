@@ -1,0 +1,7 @@
+# Existing CDN task: read-only response observation
+
+The official Alibaba Cloud OpenAPI Explorer returned HTTP 200 for the existing task `33643947491`. The UI-observed response contains `TotalCount: 4`, four exact URL rows with the same task ID, `ObjectType: file`, `Complete`, and `100%`. The URLs include the exact root and trailing-slash language URLs. This shows that an assumption of one task ID per submitted URL is incompatible with the observed service response. File refresh of an exact root or trailing-slash URL must not be confused with Directory refresh.
+
+The task already existed from the normal docs deployment. Only DescribeRefreshTaskById was invoked in this observation; no new refresh, cloud purchase, activation, or package publication was performed. See [provenance](provenance.json) and [UI-observed response](observed-response.json). The response was recovered from the visible result troubleshooting link, not captured as raw HTTP bytes. The recording time is not claimed to be the exact call timestamp.
+
+The service documents task coalescing for same-domain URL refreshes submitted in the same second, and at most ten IDs per task query: [RefreshObjectCaches](https://help.aliyun.com/zh/cdn/developer-reference/api-cdn-2018-05-10-refreshobjectcaches), [DescribeRefreshTaskById](https://help.aliyun.com/zh/cdn/developer-reference/api-cdn-2018-05-10-describerefreshtaskbyid). These references informed a test-first provider compatibility repair; they do not establish production package publication readiness.

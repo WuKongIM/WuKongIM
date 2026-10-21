@@ -1,0 +1,12 @@
+{
+  "scope": "Exactly35allowlistedpublicpayloads",
+  "matches": [
+    {
+      "path": "job-119476699413.log",
+      "matches": {
+        "Alibaba CDN refresh accepted:": 1
+      }
+    }
+  ],
+  "limitation": "Absence of a serialized Describe call/result in this finite archive is not a claim about every historical operation."
+}

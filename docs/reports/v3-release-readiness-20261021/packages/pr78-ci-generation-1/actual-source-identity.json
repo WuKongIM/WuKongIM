@@ -1,0 +1,32 @@
+{
+  "PR_merge_field_not_used_to_infer_actual_checkout": true,
+  "actual_checkout": "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+  "actual_git_log_checkouts": {
+    "legacy-native-job.log.gz": [
+      "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+      "ed7e67d8f781b4f92872e42116c11b304fe03b5c"
+    ],
+    "pages-job.log": [
+      "5f597518d8c4722f8f971b6fe55e10ed7f8b539f"
+    ],
+    "sdk-job.log": [
+      "5f597518d8c4722f8f971b6fe55e10ed7f8b539f"
+    ],
+    "stable-job.log": [
+      "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+      "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+      "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+    ]
+  },
+  "github_git_objects_checked": true,
+  "head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "product_source": {
+    "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a"
+  },
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "trusted_toolchain": {
+    "sha": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+    "tree": "cf13983589c4e927c929d24a48bdcd3ba4b71b3a"
+  }
+}

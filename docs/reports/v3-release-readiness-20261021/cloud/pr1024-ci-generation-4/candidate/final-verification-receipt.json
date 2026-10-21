@@ -1,0 +1,15 @@
+{
+  "at_utc": "2026-10-21T20:42:21.689987+00:00",
+  "head": "f419ea8f82c8bd16a777cfc3bf6cbf8c85be60dd",
+  "candidate_run": 39670542965,
+  "performance_run": 39670542860,
+  "attempt": 1,
+  "candidate_success": true,
+  "performance_success": true,
+  "full_candidate_artifacts_sha_crc_verified": true,
+  "all_six_owned_sid_cleanup_verified_and_zero": true,
+  "no_mutating_operations": true,
+  "owned_observer_sessions_remaining": [],
+  "prior_generations_unchanged": true,
+  "scope": "Read-only exact-head first CI validation; no ready/merge decision or long-duration/publication claim."
+}

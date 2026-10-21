@@ -1,0 +1,88 @@
+{
+  "sources": [
+    {
+      "repository": "wukongim",
+      "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "wukongim",
+      "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "wukongim",
+      "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "scripts/docs-cdn/refresh.sh",
+      "bytes": 2097,
+      "sha256": "92dc031b2adb333312caf44ba28bafc303af72cab73786c97c70a42e24f16d13",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "wukongim",
+      "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": ".github/workflows/docs-pages.yml",
+      "bytes": 10081,
+      "sha256": "5b61562a02f1e07d00e5bd6becaa5ed3395b5fa92f01160ad240b19cb2dcb699",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "packages",
+      "source": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+      "path": "README.md",
+      "bytes": 10871,
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "packages",
+      "source": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 18618,
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "packages",
+      "source": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "bytes": 27342,
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "packages",
+      "source": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768",
+      "working_copy_matches": true
+    },
+    {
+      "repository": "external-skill",
+      "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+      "bytes": 9321,
+      "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+    }
+  ],
+  "applicable_flow_files": [],
+  "flow_discovery": "Git ls-tree and ancestor search: no applicable FLOW for scripts/docs-cdn, .github/workflows, or packages provider/tests/docs. docs-site/FLOW was discovered but no docs-site package code was deeply analyzed. packages repository contains no AGENTS/FLOW/CONTEXT. User-supplied root working agreements apply.",
+  "local_checkouts": [
+    {
+      "repository": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+      "status": ""
+    },
+    {
+      "repository": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+      "head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+      "status": ""
+    }
+  ]
+}

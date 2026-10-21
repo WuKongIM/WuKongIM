@@ -1,0 +1,139 @@
+{
+  "base": "bbcfb377c7d5bb23742ebf28394a0cbc4f45cc17",
+  "all_bytes_equal_base": true,
+  "original_worktree_clean": true,
+  "files": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281"
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1"
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b"
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    }
+  ]
+}

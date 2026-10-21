@@ -1,0 +1,113 @@
+{
+  "status": "passed",
+  "elapsed_seconds": 576.017,
+  "exit_code": 0,
+  "wrapper_exit_code": 0,
+  "roots": {
+    "pass": 651,
+    "skip": 6
+  },
+  "relevant_terminal": {
+    "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire": [
+      {
+        "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire",
+        "Action": "pass",
+        "Elapsed": 0.12,
+        "Time": "2026-10-21T20:37:27.850783628Z"
+      }
+    ],
+    "TestChatLifecycleTerminalEvidenceRetention": [
+      {
+        "Test": "TestChatLifecycleTerminalEvidenceRetention",
+        "Action": "pass",
+        "Elapsed": 22.18,
+        "Time": "2026-10-21T20:37:24.684909526Z"
+      }
+    ],
+    "TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor": [
+      {
+        "Test": "TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor",
+        "Action": "pass",
+        "Elapsed": 0.43,
+        "Time": "2026-10-21T20:37:02.5003162Z"
+      }
+    ],
+    "TestLocalThresholdPprofInterruptDuringRequestRegistration": [
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_HUP",
+        "Action": "pass",
+        "Elapsed": 0.04,
+        "Time": "2026-10-21T20:35:24.81542074Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_INT",
+        "Action": "pass",
+        "Elapsed": 0.04,
+        "Time": "2026-10-21T20:35:24.851931011Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_TERM",
+        "Action": "pass",
+        "Elapsed": 0.04,
+        "Time": "2026-10-21T20:35:24.889294826Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_HUP",
+        "Action": "pass",
+        "Elapsed": 0.05,
+        "Time": "2026-10-21T20:35:24.943708182Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_INT",
+        "Action": "pass",
+        "Elapsed": 0.05,
+        "Time": "2026-10-21T20:35:24.998741424Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_TERM",
+        "Action": "pass",
+        "Elapsed": 0.05,
+        "Time": "2026-10-21T20:35:25.05316175Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_HUP",
+        "Action": "pass",
+        "Elapsed": 0.07,
+        "Time": "2026-10-21T20:35:25.125054077Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_INT",
+        "Action": "pass",
+        "Elapsed": 0.07,
+        "Time": "2026-10-21T20:35:25.19422777Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_TERM",
+        "Action": "pass",
+        "Elapsed": 0.07,
+        "Time": "2026-10-21T20:35:25.262740308Z"
+      },
+      {
+        "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration",
+        "Action": "pass",
+        "Elapsed": 0.48,
+        "Time": "2026-10-21T20:35:25.262754078Z"
+      }
+    ],
+    "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata": [
+      {
+        "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+        "Action": "pass",
+        "Elapsed": 0.05,
+        "Time": "2026-10-21T20:35:25.308210673Z"
+      }
+    ]
+  },
+  "cleanup": {
+    "session_id": 2741,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [],
+    "remaining_processes": []
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "verified_offline": [
+    "RunPlan templates and materializer input validity",
+    "Lower request caps propagate to rehearsal and structurally valid formal plan",
+    "Default caps remain unchanged",
+    "Foreign historical prior, unproved second attempt, malformed/raised caps and missing formal transition reject",
+    "Original reviewed resources/durations/public ports unchanged",
+    "Product wkcli guard includes lawful lower caps; product/control same merged source"
+  ],
+  "still_live_and_unverified": [
+    "Current OIDC/role/wrapping-key availability",
+    "Complete bounded active handoff/cleanup/Stop inventory at actual start",
+    "New Issue readiness and later comment-write capability",
+    "Actual immutable bundle bytes/digest and activation identity",
+    "Fresh Quote price/capacity/quota/cost admission and exact cleanup selector",
+    "Actual two-hour rehearsal and full formal/capacity/recovery",
+    "Future terminal evidence availability and live MCP reachability"
+  ],
+  "selector_contract": {
+    "source": "internal/usecase/cloudlease/control.go:45-56",
+    "requires": "normalizeAndValidatePlan plus validateQuote; selector saved before paid Acquire in scripts/chat-lifecycle/stage-orchestrate.sh:603",
+    "fabricated_quote_used": false
+  },
+  "quote_cost_contract": {
+    "source": "internal/usecase/cloudlease/control.go:817-840",
+    "requires": "estimated quote <= admitted stop minus same-request committed amount"
+  },
+  "no_extra_mandatory_gate_added": true
+}

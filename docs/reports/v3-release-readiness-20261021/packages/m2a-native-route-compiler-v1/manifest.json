@@ -1,0 +1,209 @@
+{
+  "schema": "wukongim/finite-m2a-implementation/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 7081,
+      "sha256": "d8a04cbe3256f1b62a6eeb8f16b3134e098da357268acb9990656c406ca42268"
+    },
+    {
+      "path": "baseline/CHANGELOG.md",
+      "bytes": 3965,
+      "sha256": "ed31a92d89902c94a62d74daa8cd3fc5f5d569b1995eabdcb0f06aa9377c9b9a"
+    },
+    {
+      "path": "baseline/docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6"
+    },
+    {
+      "path": "baseline/scripts/aliyun-object-storage-provider.py",
+      "bytes": 24964,
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802"
+    },
+    {
+      "path": "baseline/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 27245,
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed"
+    },
+    {
+      "path": "contract-first.json",
+      "bytes": 313,
+      "sha256": "c5b1e2127bfbbb88e53edb7656ac1419138d17cbe5dd25798694bc58de3a4f35"
+    },
+    {
+      "path": "contract-first.log",
+      "bytes": 176,
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+    },
+    {
+      "path": "default-first.json",
+      "bytes": 397,
+      "sha256": "c087b05d410006ae2d802049995cdc729a1bb77db1e84c840c45fc41800ef1f2"
+    },
+    {
+      "path": "default-first.log",
+      "bytes": 2303,
+      "sha256": "6dab4919f5e26c35dc6da598a5973b7846fe995d10f7296a186774124760f62b"
+    },
+    {
+      "path": "failure-matrix.md",
+      "bytes": 3177,
+      "sha256": "e078516f26c59a1dd3dd3a7e27868f85b181f081e86ddf631dbc19707b363153"
+    },
+    {
+      "path": "first-red-sdk-receipt.json",
+      "bytes": 2685,
+      "sha256": "d944de8910c16e099e8d92825ce1587ac4d32dde5c5928342bc372e943300dea"
+    },
+    {
+      "path": "first-red-tests.py",
+      "bytes": 42904,
+      "sha256": "0ddca75e5019e0539e61c3da20e32fbd25226b89d8c58573763028e508258b65"
+    },
+    {
+      "path": "first-red.json",
+      "bytes": 851,
+      "sha256": "3a9e6331c74e3acc7ca22643b212cea5c6c7880ab3baf8e2e71f81a2f6b25d46"
+    },
+    {
+      "path": "first-red.log",
+      "bytes": 29685,
+      "sha256": "879f075a637a10266ee8ccb0892a00347cf424eed2703947cd4ece98314b2ec7"
+    },
+    {
+      "path": "fixture-export.json",
+      "bytes": 464,
+      "sha256": "fc6b87ce5a3d20e50744011f82b66e799a69ac356327bf61754db61c401ababf"
+    },
+    {
+      "path": "implementation.patch",
+      "bytes": 706836,
+      "sha256": "21095c12dd8928e31f3894280dbd188806d6a68b5da7c84040a68f917f7d8e18"
+    },
+    {
+      "path": "independent-fixture-audit.md",
+      "bytes": 680,
+      "sha256": "dfb95e6ba49a3b03fdd3e22f88f51a7a0aa3f444d1adbb4d8979a742aa5549ec"
+    },
+    {
+      "path": "initial-binding.json",
+      "bytes": 2293,
+      "sha256": "c2495aac62a16ca1a6b3701df5f1ed742721564d6cda1c91c94bc04485a5e307"
+    },
+    {
+      "path": "inputs-first.json",
+      "bytes": 433,
+      "sha256": "84b027ee7571321ba341f3b1dd18ab97159f06c79e260bdc1e197a8eceea40e9"
+    },
+    {
+      "path": "inputs-first.log",
+      "bytes": 2077,
+      "sha256": "b80695721bfabf518b9f28628271dcef24ed37775a8f48d4ec4cab60d198d6bc"
+    },
+    {
+      "path": "pre-validation-preservation.json",
+      "bytes": 509,
+      "sha256": "49bf81f1e4c4af47db95f8a6caa460b9ad558142c67b37be4be73ff9c3e5b947"
+    },
+    {
+      "path": "preimplementation-red-sdk-receipt.json",
+      "bytes": 2685,
+      "sha256": "d944de8910c16e099e8d92825ce1587ac4d32dde5c5928342bc372e943300dea"
+    },
+    {
+      "path": "preimplementation-red.json",
+      "bytes": 554,
+      "sha256": "dfb69f0d26b70ede3b727d346e7d2cff37738e47bf967225bbec7498c09eee97"
+    },
+    {
+      "path": "preimplementation-red.log",
+      "bytes": 29685,
+      "sha256": "1dfed0c5decdcb486621c5928b5500532825d411296936186e0a6c7b076619e9"
+    },
+    {
+      "path": "preimplementation-tests.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "protected-source-binding.json",
+      "bytes": 5127,
+      "sha256": "2298769141e0a27c2ea6a706e2fbe8ebec0be754331fe9c417a02ff8f886194f"
+    },
+    {
+      "path": "public-allowlist.json",
+      "bytes": 1470,
+      "sha256": "576ae1cd97b477191208a23f5a54d3a02478311194b367eedade4db0ddf83186"
+    },
+    {
+      "path": "run-bounded.py",
+      "bytes": 1086,
+      "sha256": "2e581174497b9c2dd86643bd3adbdf85e3804823637921e9ebf790a435468bf7"
+    },
+    {
+      "path": "sdk-implementation-first-receipt.json",
+      "bytes": 2684,
+      "sha256": "7c3a84829714cf3d9bc70955c5819d5d95d8b99795f0dfbc93a6b4710082c772"
+    },
+    {
+      "path": "sdk-implementation-first.json",
+      "bytes": 486,
+      "sha256": "f4c53370e45f07661d8544f3eb9346dbe81aa0337a5ffc21f65890f46f324417"
+    },
+    {
+      "path": "sdk-implementation-first.log",
+      "bytes": 8077,
+      "sha256": "640d2164ee24affb2e75f589ec67a74a39a7b0a575354b5199d3fe0d1fd7e130"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 1716,
+      "sha256": "34d2361fc94b979366503e36f25fe8e9ab4ed8e256364ad05d2ab9191276f87b"
+    },
+    {
+      "path": "source/CHANGELOG.md",
+      "bytes": 4176,
+      "sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0"
+    },
+    {
+      "path": "source/docs/object-storage-delivery.md",
+      "bytes": 18618,
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b"
+    },
+    {
+      "path": "source/scripts/aliyun-object-storage-provider.py",
+      "bytes": 27342,
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d"
+    },
+    {
+      "path": "source/tests/provider_sdk/fixtures/native-composite-routes.json",
+      "bytes": 670004,
+      "sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8"
+    },
+    {
+      "path": "source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 1446,
+      "sha256": "15ffd36d147507ec25011480cc1d3dbee714dba98eb4209688ad713e0e313365"
+    },
+    {
+      "path": "test-boundary-review.md",
+      "bytes": 424,
+      "sha256": "fd4c8a39ffb033e241fc2e11a28c1f7a20ae79529c60588eaa30920ad10b46a1"
+    },
+    {
+      "path": "test-source-preservation.json",
+      "bytes": 2499,
+      "sha256": "0fe145914218f4559f0590cfedf1f35cc66731c636a528219e064a75a5a9c975"
+    }
+  ],
+  "file_count": 40,
+  "total_bytes": 1739874,
+  "all_commands_terminal": true,
+  "source_frozen": true
+}

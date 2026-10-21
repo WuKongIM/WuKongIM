@@ -1,0 +1,6 @@
+{
+  "stage": "source copy preparation",
+  "error": "git show HEAD:channels.json: path does not exist (exit 128); actual path is manifests/channels.json",
+  "classification": "observer path selection error, not CI or product failure",
+  "source_or_CI_mutation": false
+}

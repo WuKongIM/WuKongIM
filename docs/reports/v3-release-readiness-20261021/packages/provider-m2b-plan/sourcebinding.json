@@ -1,0 +1,105 @@
+{
+  "source_head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "source_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "clean_before": true,
+  "files": [
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "bytes": 27342,
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d"
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "bytes": 11718,
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "bytes": 26015,
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "bytes": 38978,
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 42926,
+      "sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768"
+    },
+    {
+      "path": "tests/provider_sdk/fixtures/native-composite-routes.json",
+      "bytes": 670004,
+      "sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8"
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "bytes": 71299,
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "bytes": 15586,
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55"
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "bytes": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "bytes": 27,
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "bytes": 36702,
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 18618,
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    }
+  ],
+  "external_rules": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-m1-plan/README.md": "3ecb56b5adc41aefd259662bac671de0311345796be237180353bf444247af9e"
+  },
+  "packages_AGENTS_FLOW_CONTEXT_and_workflow_README": "absent; user root rules and root workflow guidance applied",
+  "planning_only": true
+}

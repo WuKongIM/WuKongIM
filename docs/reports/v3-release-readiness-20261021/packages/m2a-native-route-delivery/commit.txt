@@ -1,0 +1,3 @@
+[codex/native-route-compiler 1fb1c6e] feat: compile finite native route maps within CDN rule bounds
+ 5 files changed, 12296 insertions(+), 6 deletions(-)
+ create mode 100644 tests/provider_sdk/fixtures/native-composite-routes.json

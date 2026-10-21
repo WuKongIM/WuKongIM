@@ -1,0 +1,10 @@
+{
+  "source_manifest_sha256": "fecd657aa0440079faa851f7450893d00aebb872799fda947b1036f7d21e44a6",
+  "source_files_verified": 25,
+  "fixture_path": "tests/provider_sdk/fixtures/native-composite-routes.json",
+  "fixture_bytes": 670004,
+  "fixture_sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8",
+  "raw_delivery_plan_inputs_resolution_canonical_bytes_preserved": true,
+  "routes_equal_original": true,
+  "no_keys_read_or_created": true
+}

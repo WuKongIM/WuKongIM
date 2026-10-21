@@ -1,0 +1,10 @@
+{
+  "payload_count": 8,
+  "payload_bytes": 21971,
+  "manifest_sha256": "618102862d5416c5fdd1ef1d5fcd592f7059cd364d892202df1dfd4a8b22df0d",
+  "allowlist_sha256": "c6fe76ad6ec57e0eb2d58002ecf60a773554bd7f03f335045833f83f73cabe1f",
+  "completed_at_utc": "2026-10-21T21:04:48.024270+00:00",
+  "proven_contract_findings": 1,
+  "query_shape_known": false,
+  "production_readiness_pass": false
+}

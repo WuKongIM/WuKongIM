@@ -1,0 +1,9 @@
+{
+  "actual_checkout": "5f597518d8c4722f8f971b6fe55e10ed7f8b539f",
+  "actual_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "default_tests": 581,
+  "default_skips": 0,
+  "contracts": 4,
+  "source": "pages-job.log",
+  "counts_read_from_actual_job_log": true
+}

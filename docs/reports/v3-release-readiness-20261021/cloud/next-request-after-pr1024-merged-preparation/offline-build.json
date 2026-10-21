@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "build",
+    "-p=2",
+    "-trimpath",
+    "-buildvcs=false",
+    "-o",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/next-request-after-pr1024-offline-validation/wkchatlifecycle",
+    "./cmd/wkchatlifecycle"
+  ],
+  "cwd": "/tmp/wukongim-v3-readiness-20261021/cloud/next-request-after-pr1024-offline-validation/source",
+  "exit_code": 0,
+  "terminal": true,
+  "elapsed_seconds": 5.959103666013107,
+  "dependency_network": "disabled",
+  "binary_sha256": "7ab50cb9e387d91c700c8bf1b3c3e738c60410c386ee5daa7d07b93c7780f6f6",
+  "binary_is_deployment_bundle": false
+}
