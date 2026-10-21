@@ -1211,6 +1211,12 @@ specification, runbook, report, or module documentation; link to them when neede
   processes, or allocating time-sensitive resources; queue time is not part of
   a process deadline. Output-retention fixtures must observe streamed evidence
   before injecting termination, independently of interpreter startup latency.
+- Direct-lab Start-order acceptance runs real Bash and SSH key generation, so
+  it belongs in the integration tier. Its controlled fixture injects all four
+  control-tool paths; unused gate/bundle tools fail if called and append to the
+  exact operation trace. This avoids unrelated helper builds without weakening
+  acquisition ordering or private artifact checks. Other legacy direct-lab
+  cases still need a separate process-boundary audit before reclassification.
 - Local threshold profiling defers HUP/INT/TERM between background request
   launch and complete PID/file registration, then immediately joins its owned
   requests and seals interrupted evidence. A successful helper exit alone does
