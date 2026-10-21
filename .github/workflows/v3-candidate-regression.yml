@@ -127,6 +127,96 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  scripts-integration:
+    name: Candidate scripts integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+      GOFLAGS: "-p=2 -json"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Freeze source and named-check authority
+        id: identity
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVIDENCE_DIR: ${{ runner.temp }}/v3-candidate-${{ github.run_id }}-${{ github.run_attempt }}/scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          printf 'EVIDENCE_DIR=%s\n' "$EVIDENCE_DIR" >> "$GITHUB_ENV"
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          test -z "$(git status --porcelain --untracked-files=no)"
+          policy_sha="${BASE_SHA:-$(git rev-parse origin/main)}"
+          [[ "$policy_sha" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$policy_sha" HEAD
+          git show "$policy_sha:.github/review-agent/policy.json" > "$EVIDENCE_DIR/policy.json"
+          policy_sha256="$(sha256sum "$EVIDENCE_DIR/policy.json" | cut -d ' ' -f 1)"
+          jq -n --arg source_sha "$SOURCE_SHA" --arg policy_sha "$policy_sha" \
+            --arg policy_sha256 "$policy_sha256" --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_id "$GITHUB_RUN_ID" --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            '{source_sha:$source_sha,policy_sha:$policy_sha,policy_sha256:$policy_sha256,event:$event,run_id:$run_id,run_attempt:$run_attempt}' \
+            > "$EVIDENCE_DIR/identity.json"
+      - name: Validate workflow static contracts
+        run: python3 scripts/v3_candidate_workflow_contract_test.py
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Run frozen scripts-integration named check once
+        shell: bash
+        run: |
+          set -euo pipefail
+          go version > "$EVIDENCE_DIR/go-version.txt"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import importlib.util
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          policy = json.loads((evidence / "policy.json").read_text())
+          check = policy["trusted_checks"]["scripts-integration"]
+          arguments = check["arguments"]
+          working_dir = check["working_dir"]
+          timeout_seconds = check["timeout_seconds"]
+          max_output_bytes = check["max_output_bytes"]
+          if (not isinstance(arguments, list) or not arguments or
+                  not all(isinstance(arg, str) and arg for arg in arguments) or
+                  not isinstance(working_dir, str) or
+                  type(timeout_seconds) is not int or timeout_seconds <= 0 or
+                  type(max_output_bytes) is not int or max_output_bytes <= 0):
+              raise SystemExit("invalid frozen scripts-integration policy")
+          cwd = (root / working_dir).resolve()
+          if not cwd.is_relative_to(root) or not cwd.is_dir():
+              raise SystemExit("scripts-integration working directory escapes checkout")
+          spec = importlib.util.spec_from_file_location("candidate_runner", root / "scripts/run-v3-candidate-check.py")
+          runner = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(runner)
+          result = runner.run_command(arguments, cwd, evidence, timeout_seconds, max_output_bytes,
+                                      metadata={"named_check": "scripts-integration", "working_dir": working_dir,
+                                                "environment": {"GOWORK": "off", "GOFLAGS": os.environ["GOFLAGS"]}})
+          print(json.dumps(result))
+          raise SystemExit(result["wrapper_exit_code"])
+          PY
+      - name: Reject tracked-tree mutation
+        if: always()
+        run: git diff --exit-code HEAD --
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: v3-candidate-scripts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE_DIR }}
+          if-no-files-found: error
+          retention-days: 14
+
   process-e2e:
     name: Candidate migration and messaging E2E
     needs: default-suite

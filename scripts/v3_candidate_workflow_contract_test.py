@@ -30,11 +30,11 @@ class CandidateWorkflowContract(unittest.TestCase):
                        'gh workflow run', 'gh pr ', 'retry:'):
             self.assertNotIn(denied, text)
         actions = re.findall(r'uses:\s+([^\s]+)', text)
-        self.assertEqual(len(actions), 6)
+        self.assertEqual(len(actions), 9)
         for action in actions:
             self.assertRegex(action, r'^actions/(checkout|setup-go|upload-artifact)@[0-9a-f]{40}$')
-        self.assertEqual(text.count('persist-credentials: false'), 2)
-        self.assertEqual(text.count('cache: false'), 2)
+        self.assertEqual(text.count('persist-credentials: false'), 3)
+        self.assertEqual(text.count('cache: false'), 3)
 
     def test_frozen_named_check_enforces_policy_limits(self):
         text = self.source
@@ -49,6 +49,46 @@ class CandidateWorkflowContract(unittest.TestCase):
         self.assertIn('start_new_session=True', self.runner)
         self.assertIn('time.monotonic()', self.runner)
         self.assertIn('raise SystemExit', text)
+
+    def test_scripts_gate_is_independent_and_consumes_frozen_base_policy(self):
+        match = re.search(r'^  scripts-integration:\n(.*?)(?=^  [a-z0-9-]+:|\Z)',
+                          self.source, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(match, 'missing independent Linux scripts-integration job')
+        job = match.group(1)
+        self.assertIn('name: Candidate scripts integration', job)
+        self.assertIn('runs-on: ubuntu-24.04', job)
+        self.assertIn('timeout-minutes: 20', job)
+        self.assertNotIn('needs:', job)
+        self.assertIn('BASE_SHA: ${{ github.event.pull_request.base.sha }}', job)
+        self.assertIn('policy_sha="${BASE_SHA:-$(git rev-parse origin/main)}"', job)
+        self.assertIn('git merge-base --is-ancestor "$policy_sha" HEAD', job)
+        self.assertIn('git show "$policy_sha:.github/review-agent/policy.json"', job)
+        self.assertIn('policy["trusted_checks"]["scripts-integration"]', job)
+        for field in ('arguments', 'working_dir', 'timeout_seconds', 'max_output_bytes'):
+            self.assertIn('check["' + field + '"]', job)
+        self.assertIn('cwd.is_relative_to(root)', job)
+        self.assertIn('runner.run_command(arguments, cwd, evidence, timeout_seconds, max_output_bytes,', job)
+        self.assertIn('metadata={"named_check": "scripts-integration"', job)
+        self.assertIn('raise SystemExit(result["wrapper_exit_code"])', job)
+        self.assertIn('GOFLAGS: "-p=2 -json"', job)
+        self.assertIn('v3-candidate-scripts-${{ github.run_id }}-${{ github.run_attempt }}', job)
+        self.assertIn('source_sha', job)
+        self.assertIn('policy_sha256', job)
+        self.assertEqual(job.count('if: always()'), 2)
+        self.assertNotIn('go test', job)
+        self.assertNotIn('-timeout=', job)
+        self.assertNotIn('-run ', job)
+        # The existing default suite still exclusively controls the E2E dependency.
+        self.assertEqual(self.source.count('needs: default-suite'), 1)
+        self.assertNotIn('needs: scripts-integration', self.source)
+        # Observation is scoped to this job; concurrency and other jobs stay fixed.
+        default = re.search(r'^  default-suite:\n(.*?)(?=^  [a-z0-9-]+:|\Z)',
+                            self.source, re.MULTILINE | re.DOTALL).group(1)
+        e2e = re.search(r'^  process-e2e:\n(.*?)(?=^  [a-z0-9-]+:|\Z)',
+                        self.source, re.MULTILINE | re.DOTALL).group(1)
+        self.assertIn('GOFLAGS: "-p=2"', default)
+        self.assertNotIn('GOFLAGS: "-p=2 -json"', default)
+        self.assertNotIn('GOFLAGS:', e2e)
 
     def test_cleanup_covers_only_owned_session_and_fails_closed(self):
         text = self.runner
@@ -85,10 +125,10 @@ class CandidateWorkflowContract(unittest.TestCase):
 
     def test_source_failure_and_upload_evidence(self):
         text = self.source
-        self.assertEqual(text.count('ref: ${{ github.sha }}'), 2)
-        self.assertEqual(text.count('git diff --exit-code HEAD --'), 2)
-        self.assertEqual(text.count('if: always()'), 4)
-        self.assertEqual(text.count('retention-days: 14'), 2)
+        self.assertEqual(text.count('ref: ${{ github.sha }}'), 3)
+        self.assertEqual(text.count('git diff --exit-code HEAD --'), 3)
+        self.assertEqual(text.count('if: always()'), 6)
+        self.assertEqual(text.count('retention-days: 14'), 3)
         self.assertIn('source_sha', text)
         self.assertIn('policy_sha256', text)
         self.assertIn('binary.sha256', text)

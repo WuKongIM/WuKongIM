@@ -46,7 +46,8 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 	}
 	if local.Profile != ProfileLocal || local.Mode != ModeSoak || local.Workload.Sync.CompletedCoverage != 0 ||
 		local.Workload.OnlineUsers != 2_500 || local.Workload.BootstrapLoginsPerSecond != 200 ||
-		local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
+		local.Workload.NewUsersPerDay != 250_000 || local.Workload.SendRatePerSecond != 500 ||
+		local.Workload.MaxGlobalBurst != 1_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
 		local.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 ||
 		local.Thresholds.Latency.HotSendACK.P99 != 400*time.Millisecond ||
 		local.Workload.MaxChannelsPerNode != 50_000 ||

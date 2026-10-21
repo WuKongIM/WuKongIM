@@ -468,7 +468,8 @@ handle_operator_signal() {
     OPERATOR_SIGNAL_STATUS="$exit_status"
     log "received $signal_name; waiting for the active step to seal and exit"
     forward_operator_signal_to_active_step
-    return
+    # Keep the interrupted wait's status from aborting the child join on Bash 5.
+    return 0
   fi
   log "received another operator signal ($signal_name); forwarding it while retaining the first status and join"
   if [[ -n "$ACTIVE_STEP_PID" ]] && kill -0 "$ACTIVE_STEP_PID" 2>/dev/null; then

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -156,6 +157,12 @@ cat "$FAKE_PS_FIXTURE"
 }
 
 func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *testing.T) {
+	for _, rate := range []int{0, 400} {
+		t.Run(fmt.Sprintf("send_rate_%d", rate), func(t *testing.T) { testShakeoutBuildWindowAndRenderedPorts(t, rate) })
+	}
+}
+
+func testShakeoutBuildWindowAndRenderedPorts(t *testing.T, rate int) {
 	root := repoRoot(t)
 	testRoot := t.TempDir()
 	scriptsDir := filepath.Join(testRoot, "scripts")
@@ -206,7 +213,7 @@ commit_coordinator_shards = 1
 	}
 	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
 timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
-workload: {send_rate_per_second: 100, max_global_burst: 200}
+workload: {send_rate_per_second: 500, max_global_burst: 1000}
 thresholds:
   latency:
     hot_sendack: {p99: 400ms, p999: 1s}
@@ -264,7 +271,11 @@ fi
 		}
 	}
 	runDir := filepath.Join(testRoot, "run")
-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
+	args := []string{shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000"}
+	if rate > 0 {
+		args = append(args, "--send-rate", strconv.Itoa(rate))
+	}
+	command := exec.Command("bash", args...)
 	command.Dir = testRoot
 	command.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -302,6 +313,16 @@ fi
 		t.Fatalf("runtime-defaults node config removed unrelated setting:\n%s", renderedNode)
 	}
 	rendered := readFile(t, filepath.Join(runDir, "chat-lifecycle.yaml"))
+	expectedRate := rate
+	if expectedRate == 0 {
+		expectedRate = 500
+	}
+	if identity["offered_send_rate_per_second"] != strconv.Itoa(expectedRate) {
+		t.Fatalf("identity rate=%q; want rendered rate %d", identity["offered_send_rate_per_second"], expectedRate)
+	}
+	if want := fmt.Sprintf("workload: {send_rate_per_second: %d, max_global_burst: %d}", expectedRate, expectedRate*2); !strings.Contains(rendered, want) {
+		t.Fatalf("rendered grant budget missing %q: %s", want, rendered)
+	}
 	for _, want := range []string{
 		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
 		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
@@ -418,6 +439,169 @@ func TestChatLifecycleShakeoutScriptIntegration(t *testing.T) {
 	assertChatLifecyclePIDsExited(t, filepath.Join(runDir, "pids"))
 }
 
+func TestSignalJoinFixtureOperatorRejectsFailuresAndCleansChildren(t *testing.T) {
+	sentinel := exec.Command("sleep", "30")
+	if err := sentinel.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sentinel.Process.Kill(); _ = sentinel.Wait() }()
+	for _, tc := range []struct {
+		name     string
+		body     string
+		wantExit int
+	}{
+		{name: "early successful exit", body: "exit 0", wantExit: -1},
+		{name: "original exit 17", body: "exit 17", wantExit: 17},
+		{name: "original exit 255", body: "exit 255", wantExit: 255},
+		{name: "missing ready", body: "wait \"$child\"", wantExit: -1},
+		{name: "malformed ready", body: "printf 'invalid\\n' >\"$WK_TEST_READY_PATH\"; wait \"$child\"", wantExit: -1},
+		{name: "wrong parent ready", body: "printf '1 %s\\n' \"$child\" >\"$WK_TEST_READY_PATH\"; wait \"$child\"", wantExit: -1},
+		{name: "deadline after ready", body: "printf '%s %s\\n' \"$$\" \"$child\" >\"$WK_TEST_READY_PATH\"; wait \"$child\"", wantExit: -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runDir := t.TempDir()
+			readyPath := filepath.Join(runDir, "ready")
+			childPath := filepath.Join(runDir, "child.pid")
+			body := "trap '' TERM\nsleep 30 >/dev/null 2>&1 &\nchild=$!\nprintf '%s\\n' \"$child\" >\"$WK_TEST_CHILD_PID\"\n" + tc.body
+			// Allow shell startup contention without changing the real join tests' deadlines.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "bash", "-c", body)
+			command.Env = append(os.Environ(), "WK_TEST_READY_PATH="+readyPath, "WK_TEST_CHILD_PID="+childPath)
+			output, err := runSignalJoinFixtureOperator(ctx, command, readyPath)
+			child, parseErr := strconv.Atoi(strings.TrimSpace(readFile(t, childPath)))
+			if parseErr != nil {
+				t.Fatal(parseErr)
+			}
+			defer syscall.Kill(child, syscall.SIGKILL)
+			if err == nil {
+				t.Errorf("fixture failure was accepted: %s", output)
+			}
+			if tc.wantExit >= 0 {
+				var exitErr *exec.ExitError
+				if !errors.As(err, &exitErr) || exitErr.ExitCode() != tc.wantExit {
+					t.Errorf("original exit lost: got %v, want %d", err, tc.wantExit)
+				}
+			}
+			deadline := time.Now().Add(time.Second)
+			for syscall.Kill(child, 0) == nil {
+				// An orphan can briefly remain a zombie awaiting the host reaper.
+				state, stateErr := exec.Command("ps", "-p", strconv.Itoa(child), "-o", "stat=").Output()
+				if stateErr == nil && strings.HasPrefix(strings.TrimSpace(string(state)), "Z") {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Errorf("fixture child %d survived operator failure", child)
+					break
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			if err := sentinel.Process.Signal(syscall.Signal(0)); err != nil {
+				t.Fatalf("unrelated sentinel was affected: %v", err)
+			}
+		})
+	}
+}
+
+// runSignalJoinFixtureOperator acts as an external operator, without adding a
+// Bash signaler job to the shell whose real production join is under test.
+// Every return kills only the new fixture process group and joins its shell.
+func runSignalJoinFixtureOperator(ctx context.Context, command *exec.Cmd, readyPath string) (output []byte, resultErr error) {
+	var combined bytes.Buffer
+	command.Stdout = &combined
+	command.Stderr = &combined
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Cancel = func() error {
+		err := syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	command.WaitDelay = 500 * time.Millisecond
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+	done := make(chan error, 1)
+	go func() { done <- command.Wait() }()
+	joined := false
+	var waitErr error
+	defer func() {
+		cleanupErr := syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		if cleanupErr != nil && !errors.Is(cleanupErr, syscall.ESRCH) {
+			resultErr = errors.Join(resultErr, fmt.Errorf("fixture group cleanup: %w", cleanupErr))
+		} else if cleanupErr == nil && joined && resultErr == nil && waitErr == nil {
+			resultErr = errors.New("fixture left descendants after shell exit")
+		}
+		if !joined {
+			waitErr = <-done
+		}
+		resultErr = errors.Join(resultErr, waitErr)
+		output = combined.Bytes()
+	}()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	targetPID := 0
+	for targetPID == 0 {
+		select {
+		case waitErr = <-done:
+			joined = true
+			return nil, errors.New("fixture exited before operator signal")
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			ready, err := os.ReadFile(readyPath)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("read fixture readiness: %w", err)
+			}
+			if len(ready) > 128 {
+				return nil, errors.New("oversized fixture readiness")
+			}
+			if !bytes.HasSuffix(ready, []byte("\n")) {
+				continue
+			}
+			fields := strings.Fields(string(ready))
+			if len(fields) != 2 {
+				return nil, errors.New("malformed fixture readiness")
+			}
+			parentPID, parentErr := strconv.Atoi(fields[0])
+			childPID, childErr := strconv.Atoi(fields[1])
+			if parentErr != nil || childErr != nil || parentPID != command.Process.Pid || childPID <= 0 || childPID == parentPID {
+				return nil, errors.New("invalid fixture readiness identity")
+			}
+			targetPID = childPID
+		}
+	}
+	// Preserve the original operator delay after the target and TERM trap exist.
+	delay := time.NewTimer(50 * time.Millisecond)
+	defer delay.Stop()
+	select {
+	case waitErr = <-done:
+		joined = true
+		return nil, errors.New("fixture exited before operator signal")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-delay.C:
+	}
+	group, err := syscall.Getpgid(targetPID)
+	if err != nil || group != command.Process.Pid {
+		return nil, fmt.Errorf("fixture target %d is not live in owned group: group=%d error=%v", targetPID, group, err)
+	}
+	if err := command.Process.Signal(syscall.SIGTERM); err != nil {
+		return nil, fmt.Errorf("operator TERM: %w", err)
+	}
+	select {
+	case waitErr = <-done:
+		joined = true
+		return nil, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 func TestChatLifecycleShakeoutJoinSurvivesFirstSignal(t *testing.T) {
 	root := repoRoot(t)
 	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
@@ -427,37 +611,83 @@ WAIT_CHILD_STATUS=0
 PPROF_PID=""
 PPROF_EXIT_STATUS=0
 signal_seen=0
-trap 'signal_seen=1' TERM
+signal_child_alive=0
+trap 'signal_seen=1; if kill -0 "$joined_pid" 2>/dev/null; then signal_child_alive=1; fi' TERM
 ` + extractBashFunction(t, script, "wait_child_uninterrupted") + "\n" +
 		extractBashFunction(t, script, "join_threshold_pprof_capture") + `
+exec 3>"$WK_TEST_TRACE_PATH"
+fixture_phase=initial
+trap 'fixture_status=$?; printf "fixture_exit phase=%s status=%s\n" "$fixture_phase" "$fixture_status" >&3; exit "$fixture_status"' EXIT
+printf 'fixture_shell=%s parent_pid=%s\n' "$BASH_VERSION" "$$" >&3
+# Bash 3 lacks a separate xtrace descriptor; keep phase evidence on FD 3 only.
+if (( BASH_VERSINFO[0] >= 4 )); then
+  BASH_XTRACEFD=3
+  PS4='+ fixture pid=${BASHPID:-$$} line=${LINENO}: '
+  set -x
+fi
 sleep 0.4 &
 PPROF_PID=$!
 joined_pid="$PPROF_PID"
-( sleep 0.05; kill -TERM "$$" ) &
-signaler=$!
+printf 'fixture_child target=%s\n' "$joined_pid" >&3
+fixture_phase=join
+printf '%s %s\n' "$$" "$joined_pid" >"$WK_TEST_READY_PATH"
 join_threshold_pprof_capture
-wait "$signaler"
+join_status=$?
+printf 'fixture_join status=%s child_status=%s\n' "$join_status" "$WAIT_CHILD_STATUS" >&3
+fixture_phase=assertions
 if kill -0 "$joined_pid" 2>/dev/null; then
   exit 91
 fi
-printf 'signal_seen=%s\npprof_pid=%s\npprof_exit_status=%s\n' \
-  "$signal_seen" "$PPROF_PID" "$PPROF_EXIT_STATUS"
+printf 'signal_seen=%s\nsignal_child_alive=%s\npprof_pid=%s\npprof_exit_status=%s\n' \
+  "$signal_seen" "$signal_child_alive" "$PPROF_PID" "$PPROF_EXIT_STATUS"
 `
-	harnessPath := filepath.Join(t.TempDir(), "join-signal.sh")
-	if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	output, err := exec.CommandContext(ctx, "bash", harnessPath).CombinedOutput()
-	if err != nil || ctx.Err() != nil {
-		t.Fatalf("signal-safe join failed: %v/%v\n%s", err, ctx.Err(), output)
-	}
-	for _, want := range []string{"signal_seen=1", "pprof_pid=\n", "pprof_exit_status=0"} {
-		if !strings.Contains(string(output), want) {
-			t.Fatalf("signal-safe join output missing %q:\n%s", want, output)
+	// Retain the first failure from a bounded repeat; successful trace stays quiet.
+	// Each fixture keeps its original five-second deadline and unchanged signal.
+	for iteration := 0; iteration < 3; iteration++ {
+		if !t.Run(fmt.Sprintf("attempt_%02d", iteration+1), func(t *testing.T) {
+			runDir := t.TempDir()
+			harnessPath := filepath.Join(runDir, "join-signal.sh")
+			tracePath := filepath.Join(runDir, "trace.log")
+			readyPath := filepath.Join(runDir, "ready")
+			if err := os.WriteFile(harnessPath, []byte(harness), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "bash", harnessPath)
+			command.Env = append(os.Environ(), "WK_TEST_TRACE_PATH="+tracePath, "WK_TEST_READY_PATH="+readyPath)
+			output, err := runSignalJoinFixtureOperator(ctx, command, readyPath)
+			if err != nil || ctx.Err() != nil {
+				t.Fatalf("signal-safe join failed: %v/%v\n%s\nfixture trace:\n%s", err, ctx.Err(), output, readSignalJoinFixtureTrace(tracePath))
+			}
+			for _, want := range []string{"signal_seen=1", "signal_child_alive=1", "pprof_pid=\n", "pprof_exit_status=0"} {
+				if !strings.Contains(string(output), want) {
+					t.Fatalf("signal-safe join output missing %q:\n%s\nfixture trace:\n%s", want, output, readSignalJoinFixtureTrace(tracePath))
+				}
+			}
+		}) {
+			return
 		}
 	}
+}
+
+// readSignalJoinFixtureTrace bounds diagnostic output without mixing trace into
+// the fixture stdout used by existing assertions. A truncated trace stays explicit.
+func readSignalJoinFixtureTrace(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Sprintf("trace unavailable: %v", err)
+	}
+	defer file.Close()
+	const limit = 64 * 1024
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return fmt.Sprintf("trace read failed: %v", err)
+	}
+	if len(data) > limit {
+		return string(data[:limit]) + "\n[fixture trace truncated after 65536 bytes]\n"
+	}
+	return string(data)
 }
 
 func TestChatLifecycleMeasuredHostOverlapStatusSupportsBashWithoutBASHPID(t *testing.T) {
@@ -974,7 +1204,7 @@ observe_hot_latency_trigger measurement
 join_threshold_pprof_capture
 test "$(wc -l <"$TEST_DIR/captures")" -eq 2
 test "$(cat "$EVIDENCE_DIR/hot-latency-helper-exit-status")" = 0
-rg -q -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
+grep -Fq -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
 # Required terminal evidence preempts an optional hot capture before phase closes.
 PPROF_TRIGGERED=0
 PPROF_TRIGGER_KIND=''
@@ -989,7 +1219,7 @@ printf 'drain\n' >"$PHASE_STATE_FILE"
 join_threshold_pprof_capture
 test "$PPROF_EXIT_STATUS" = 0
 test "$PPROF_TRIGGER_KIND" = terminal_product_failure
-rg -q -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
+grep -Fq -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
 # A trigger delayed beyond measurement remains explicitly uncollected.
 HOT_PPROF_PENDING='pending'
 HOT_PPROF_TRIGGERED=0

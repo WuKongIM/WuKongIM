@@ -4,7 +4,8 @@ import "testing"
 
 func TestDefaultSlabsBoundRoundingOverhead(t *testing.T) {
 	for n := 512; n <= 1<<20; n++ {
-		for _, class := range DefaultSlabPool.classes {
+		for i := range DefaultSlabPool.classes {
+			class := &DefaultSlabPool.classes[i]
 			if class.size < n {
 				continue
 			}

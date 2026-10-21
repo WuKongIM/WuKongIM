@@ -14,6 +14,17 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Complete Analysis close and local cleanup after failures on Bash 5, and join
+  active chat-lifecycle steps after operator signals while preserving the
+  original exit status. / 修复 Bash 5 下失败退出时跳过 Analysis 关闭和本地清理、
+  操作员发出信号后未等待聊天生命周期活动步骤结束的问题，保留原始退出码。
+
+- Raise the local chat-lifecycle shakeout's default SEND budget to 500/s so its
+  2,500-user bootstrap can complete mandatory conversation activity before
+  expiry; retain all latency and correctness thresholds. / 本地聊天生命周期预检
+  默认发送预算提高至 500 条/秒，使 2,500 用户的启动会话活动能在到期前完成；
+  延迟和正确性门槛保持不变。
+
 - Stop nested MQTT subscription cleanup when the original caller is canceled,
   before further contention reads or source sealing; preserve owner fencing
   and deadlines. / MQTT 订阅清理的嵌套操作及时检查原始调用方取消，停止后续争用

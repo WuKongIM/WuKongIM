@@ -118,6 +118,14 @@ Use a fresh run directory. The helper builds binaries and owns three service
 processes, three workers, three host-metrics processes, the coordinator, PID
 files, logs, report output, and graceful cleanup.
 
+The default keeps 2,500 online sessions and offers 500 SEND/s, with the existing
+two-second burst credit yielding a 1,000-message burst budget. This budget lets
+the fixed bootstrap scenario clear its mandatory initial conversations inside
+the unchanged five-minute eligibility window; the former 100 SEND/s default
+could not. The 400 ms hot SENDACK P99 and correctness thresholds still apply.
+A fixed-clock grant test and the Linux 500 SEND/s regression do not prove the
+local workstation can sustain this load; retain any failure from this run.
+
 ```bash
 export WK_BENCH_API_TOKEN='replace-local-bench-token'
 export WK_BENCH_WORKER_TOKEN='replace-local-worker-token'
