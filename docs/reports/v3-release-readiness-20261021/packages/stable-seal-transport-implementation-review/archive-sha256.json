@@ -1,0 +1,57 @@
+[
+  {
+    "path": "final-freeze-v1/freeze-verification.json",
+    "size": 14061,
+    "sha256": "b3b419c5774ac960f32151bffb0f7e039f3993153895562e6c90dea815990f14"
+  },
+  {
+    "path": "final-freeze-v1/replayed-resolution-probe.json",
+    "size": 610,
+    "sha256": "891c39dbbab34cd7658b1a318513b372b552852e3d31a6e8c00408581e62fe4f"
+  },
+  {
+    "path": "final-freeze-v1/resolution-double-read-probe.json",
+    "size": 649,
+    "sha256": "2757944685123d2df89d4988ab715961a718bcd950ae41188fa33164c22da93d"
+  },
+  {
+    "path": "final-freeze-v1/review.md",
+    "size": 3864,
+    "sha256": "22025da9beb21fa297570edda96cd088c4a5412d6c4c4a192964ab2bcd6beefa"
+  },
+  {
+    "path": "final-freeze-v2/review.md",
+    "size": 2219,
+    "sha256": "543eae60459877f2393ab2cb9f0d816232a8bd421ddbb68d3d6ea9e375577afb"
+  },
+  {
+    "path": "final-freeze-v2/reviewed-evidence.json",
+    "size": 2617,
+    "sha256": "b3990af15d2c3cd646fda64c7a3660d56e28a613b388bbf4817422a555bfa70f"
+  },
+  {
+    "path": "final-freeze-v2/validation-addendum.json",
+    "size": 1282,
+    "sha256": "32bce502bfc03ba8c7abcf9c448a39e78c5685503507002dde0190cad5e177b1"
+  },
+  {
+    "path": "final-freeze-v2/validation-addendum.md",
+    "size": 771,
+    "sha256": "ad0c60d024c0c0a81809d2df760a7fe53f3f35da6e634fed7d0e3c0dbc9dd5e7"
+  },
+  {
+    "path": "resolution_anchor_probe.py",
+    "size": 3169,
+    "sha256": "af42ad379894908e7b13dd2387f0a32f4d8c997d8e6a6515a703795f9233f338"
+  },
+  {
+    "path": "v2-resolution-probe.json",
+    "size": 609,
+    "sha256": "4297987250d2ba71acd85df3596c9e63f812ac63bbdcf68324c55fa0058273f0"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 361,
+    "sha256": "14a6da97fc703d2c34bbb2e216c9fa72b1d0a74a712cbecb225646fe5263663d"
+  }
+]

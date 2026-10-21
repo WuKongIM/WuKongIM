@@ -1,0 +1,22 @@
+[
+  {
+    "path": "README.md",
+    "size": 816,
+    "sha256": "8a5d8beaf7e64c5ae58a113d0a18e647dce1f53b01db2097666e2e250990741d"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 45,
+    "sha256": "40c18610aa6036ca2ed28977459aee8d4172fc7d7e981351419e583ad3cacc11"
+  },
+  {
+    "path": "get-schema.json",
+    "size": 861,
+    "sha256": "c1e031ace74a753171e81ddd299e7b57f702478c96941781d8e2ef20308383f8"
+  },
+  {
+    "path": "search-schema.json",
+    "size": 995,
+    "sha256": "e6b5d6da3fa0c469d3cf8a16f5b22801a61f0ae8fee48583d2a59676667f8106"
+  }
+]

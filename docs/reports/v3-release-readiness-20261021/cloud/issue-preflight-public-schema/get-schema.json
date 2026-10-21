@@ -1,0 +1,36 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "--hostname",
+    "github.com",
+    "--method",
+    "GET",
+    "/repos/WuKongIM/WuKongIM/issues/1015"
+  ],
+  "observed_at": "2026-10-21T10:38:05.464136+00:00",
+  "exit_code": 0,
+  "item": {
+    "id": 5937474967,
+    "number": 1015,
+    "title": "[Bug] v2.2.5 同一消息在 conversation/sync 和 channel/messagesync 接口返回的 red_dot 不一致。",
+    "state": "open",
+    "comments": 3,
+    "repository_url": "https://api.github.com/repos/WuKongIM/WuKongIM",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/issues/1015",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1015",
+    "locked": false
+  },
+  "present_fields": [
+    "comments",
+    "html_url",
+    "id",
+    "locked",
+    "number",
+    "repository_url",
+    "state",
+    "title",
+    "url"
+  ],
+  "has_pull_request": false
+}

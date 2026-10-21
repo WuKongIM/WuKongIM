@@ -1,0 +1,122 @@
+test_actual_history_bytes_and_ancestry_are_checked (test_stable_seal_inputs.StableControlAuthenticationTest.test_actual_history_bytes_and_ancestry_are_checked) ... ERROR
+test_coherent_local_rewrite_does_not_change_remote_git_history (test_stable_seal_inputs.StableControlAuthenticationTest.test_coherent_local_rewrite_does_not_change_remote_git_history) ... ERROR
+test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) ... 
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='diverged') ... ERROR
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='moved main') ... ERROR
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='truncated') ... ERROR
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='symlink') ... ERROR
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='duplicate') ... ERROR
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='missing') ... ERROR
+  test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='wrong blob') ... ERROR
+
+======================================================================
+ERROR: test_actual_history_bytes_and_ancestry_are_checked (test_stable_seal_inputs.StableControlAuthenticationTest.test_actual_history_bytes_and_ancestry_are_checked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 66, in test_actual_history_bytes_and_ancestry_are_checked
+    result=self.check()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_coherent_local_rewrite_does_not_change_remote_git_history (test_stable_seal_inputs.StableControlAuthenticationTest.test_coherent_local_rewrite_does_not_change_remote_git_history)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 77, in test_coherent_local_rewrite_does_not_change_remote_git_history
+    with self.assertRaisesRegex(P.StableInputError,'blob|historical|bytes'): self.check()
+                                                                             ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='diverged')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='moved main')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='truncated')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='symlink')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='duplicate')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+======================================================================
+ERROR: test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) (label='wrong blob')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 89, in test_history_tree_ancestry_and_blob_fail_closed
+    with self.assertRaises(P.StableInputError): self.check()
+                                                ~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 63, in check
+    return P.verify_control(reader=self.reader,plan_path=self.path,
+           ^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'verify_control'
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.033s
+
+FAILED (errors=9)

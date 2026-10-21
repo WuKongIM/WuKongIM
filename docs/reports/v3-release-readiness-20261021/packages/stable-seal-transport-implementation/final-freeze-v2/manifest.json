@@ -1,0 +1,230 @@
+{
+  "frozen_utc": "2026-10-21T10:45:21.256403+00:00",
+  "base": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "equal_tree_merged_main": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport",
+  "branch": "codex/stable-audit-seal-transport",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "9037565b7cd883e913be0c3eae20b43d7c9689e8224ec62a2a4f1b97bc25e051",
+      "size": 1883
+    },
+    "README.md": {
+      "sha256": "5277c2df505cc17522b8edf3f811b4a875e992a7a94dfaf6b6c4104fbd5567b8",
+      "size": 10554
+    },
+    "docs/release-contract.md": {
+      "sha256": "dcf3a282a0c93cd87ead65d6637550d461c11c77f0a54d4645b98597f47c1bcb",
+      "size": 45690
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "9aacf50ccf447afe21942d6aa46d3da0a2b63c2aa997cffcbe8cbcf04332a01f",
+      "size": 6119
+    },
+    "scripts/bind-audit-release.py": {
+      "sha256": "6e26cf867d7663825f6d76ce87ce4940b703bbe59b006989cf0cee9af14332be",
+      "size": 18653
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "b45845f469c5081b7bbb2e5eb8aaa73cc6faa14aa1985df75756032d0639128f",
+      "size": 34845
+    },
+    "scripts/resolve-audit-release.py": {
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb",
+      "size": 25685
+    },
+    "scripts/seal-audit-release.py": {
+      "sha256": "156d350c65eb1cf2de0f658c252ca96f4d86aee5843cf5cb869a4d6649895012",
+      "size": 26100
+    },
+    "scripts/verify-stable-seal-inputs.py": {
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e",
+      "size": 21424
+    },
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "7547aff5c5c72e79d33492abc5f10f00720ee346c4b7016db40bfba8c60c8377",
+      "size": 32029
+    },
+    "tests/native_stable_seal_transport_drill.py": {
+      "sha256": "fba5187558f2b8808e0faf4c966732f0a71859560490eed62ffcd953b93b72c3",
+      "size": 8555
+    },
+    "tests/stable_audit_fixture.py": {
+      "sha256": "5e00526ca4c0f528320746c24b8b4f47b3d5957805a58b6a811ec80a22f70b3a",
+      "size": 4454
+    },
+    "tests/test_composite_storage_plan.py": {
+      "sha256": "e26dae520a1e1d160d7c6d69c44df16627fe7207bfd09b330df550412e5333ee",
+      "size": 5804
+    },
+    "tests/test_stable_audit_transport.py": {
+      "sha256": "5766e360fd682cc0204a3440e7ce1f92791be185d385f211667e8e3c4b686f13",
+      "size": 8751
+    },
+    "tests/test_stable_seal_inputs.py": {
+      "sha256": "f27b31af2c0344dcae5f4dcdd347f827bd55f1aa1d04c34eb719d82a185e617f",
+      "size": 10578
+    }
+  },
+  "patch_sha256": "fdea1157cbd368d8657e627c96091ea425a71cf1e3f17e373739c8c9319e99e1",
+  "protected": {
+    ".github/CODEOWNERS": {
+      "expected": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "actual": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    ".github/workflows/native-package-audit-bind.yml": {
+      "expected": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e",
+      "actual": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e"
+    },
+    ".github/workflows/native-package-audit-draft.yml": {
+      "expected": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281",
+      "actual": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281"
+    },
+    ".github/workflows/native-package-cli-acceptance.yml": {
+      "expected": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+      "actual": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    ".github/workflows/native-package-immutable-public-reverify.yml": {
+      "expected": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432",
+      "actual": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432"
+    },
+    ".github/workflows/native-package-publish.yml": {
+      "expected": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+      "actual": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "expected": "8bf1ade11f7ff5a7d008152a501fc509fa40a4ae4f286f3038e6a91ab35bc5c7",
+      "actual": "8bf1ade11f7ff5a7d008152a501fc509fa40a4ae4f286f3038e6a91ab35bc5c7"
+    },
+    ".github/workflows/native-package-signing-preflight.yml": {
+      "expected": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81",
+      "actual": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81"
+    },
+    ".github/workflows/native-package-signing-toolchain.yml": {
+      "expected": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1",
+      "actual": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1"
+    },
+    ".github/workflows/pages.yml": {
+      "expected": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "actual": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    ".github/workflows/source-release-preflight.yml": {
+      "expected": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+      "actual": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b"
+    },
+    "keys/README.md": {
+      "expected": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "actual": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    "keys/apt-preview.asc": {
+      "expected": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "actual": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    "keys/apt-stable.asc": {
+      "expected": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "actual": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+    },
+    "keys/rpm-preview.asc": {
+      "expected": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "actual": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    "keys/rpm-stable.asc": {
+      "expected": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "actual": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+    },
+    "manifests/audit-access.json": {
+      "expected": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "actual": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    "manifests/bootstrap-packages.json": {
+      "expected": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "actual": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    "manifests/channels.json": {
+      "expected": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "actual": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    "manifests/preview-signing.json": {
+      "expected": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "actual": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    "manifests/signing-toolchain.json": {
+      "expected": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "actual": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    "manifests/source-read.json": {
+      "expected": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "actual": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    "manifests/stable-public-keys.json": {
+      "expected": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "actual": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+    },
+    "manifests/trusted-toolchain.json": {
+      "expected": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "actual": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    "site/index.html": {
+      "expected": "2ba98f220e612423af3894d98b3d334a8c84cef162e760b39ea7c55e9d46d6d3",
+      "actual": "2ba98f220e612423af3894d98b3d334a8c84cef162e760b39ea7c55e9d46d6d3"
+    },
+    "site/status.json": {
+      "expected": "fd3d2dd70c1d02eb9e72417a5ce2e9be3fe6f04e8f5c9bd9a134f18940148086",
+      "actual": "fd3d2dd70c1d02eb9e72417a5ce2e9be3fe6f04e8f5c9bd9a134f18940148086"
+    },
+    "scripts/archive-package-snapshot.py": {
+      "expected": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+      "actual": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6"
+    },
+    "scripts/build-repository-bootstrap-packages.py": {
+      "expected": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c",
+      "actual": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c"
+    },
+    "scripts/compose-package-site.py": {
+      "expected": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+      "actual": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7"
+    },
+    "scripts/package-audit-receipt.py": {
+      "expected": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475",
+      "actual": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475"
+    },
+    "scripts/plan-package-publication.py": {
+      "expected": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff",
+      "actual": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff"
+    },
+    "scripts/prepare-package-site.py": {
+      "expected": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd",
+      "actual": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd"
+    },
+    "scripts/sign-package-family.py": {
+      "expected": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "actual": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0"
+    },
+    "scripts/validate-control.py": {
+      "expected": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "actual": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b"
+    },
+    "scripts/validate-signing-material.py": {
+      "expected": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "actual": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4"
+    },
+    "scripts/verify-production-package-site.py": {
+      "expected": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+      "actual": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f"
+    },
+    "scripts/verify-source-attestations.py": {
+      "expected": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "actual": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0"
+    },
+    "scripts/verify-source-package-metadata.py": {
+      "expected": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+      "actual": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a"
+    }
+  },
+  "status": "v2: only R1 same-byte resolution parse and regression; final native validation running",
+  "previous_manifest_sha256": "692d2baae02c843403b260ae557b15b84f00082f88b02ed8e857b0db99179c6f",
+  "changed_since_v1": [
+    "scripts/plan-object-storage-publication.py",
+    "tests/test_composite_storage_plan.py"
+  ]
+}

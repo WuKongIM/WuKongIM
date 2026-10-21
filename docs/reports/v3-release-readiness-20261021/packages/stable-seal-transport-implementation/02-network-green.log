@@ -1,0 +1,7 @@
+test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) ... ok
+test_test_reader_rejects_every_redirect_without_second_request (test_stable_audit_transport.StableReaderNetworkTest.test_test_reader_rejects_every_redirect_without_second_request) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.041s
+
+OK

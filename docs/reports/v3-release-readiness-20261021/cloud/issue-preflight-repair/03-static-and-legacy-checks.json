@@ -1,0 +1,36 @@
+[
+  {
+    "command": [
+      "bash",
+      "-n",
+      "scripts/chat-lifecycle/comment-request-issue.sh"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "gofmt",
+      "-l",
+      "scripts/chat_lifecycle_issue_preflight_integration_test.go"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "check": "original no-flag implementation suffix byte-identical",
+    "passed": true
+  }
+]

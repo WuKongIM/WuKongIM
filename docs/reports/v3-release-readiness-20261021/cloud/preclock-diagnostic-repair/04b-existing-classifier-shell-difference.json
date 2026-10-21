@@ -1,0 +1,34 @@
+[
+  {
+    "shell": "/bin/bash",
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/baseline-state-classifier.sh",
+    "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+    "exit": 0,
+    "stdout": "running\n",
+    "stderr": ""
+  },
+  {
+    "shell": "/bin/bash",
+    "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/classify-stage-service-state.sh",
+    "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+    "exit": 0,
+    "stdout": "running\n",
+    "stderr": ""
+  },
+  {
+    "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/baseline-state-classifier.sh",
+    "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor\n"
+  },
+  {
+    "shell": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+    "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/classify-stage-service-state.sh",
+    "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor\n"
+  }
+]

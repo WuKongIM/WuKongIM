@@ -1,0 +1,23 @@
+{
+  "reviewer": "root",
+  "observed_at_utc": "2026-10-21T10:36:45.691125+00:00",
+  "base": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "files": {
+    "scripts/chat-lifecycle/comment-request-issue.sh": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0",
+    "scripts/chat_lifecycle_issue_preflight_integration_test.go": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3"
+  },
+  "result": "no actionable findings in frozen Issue preflight slice",
+  "checks": [
+    "read complete source and integration cases",
+    "all GitHub invocations in new mode are explicit GET to github.com",
+    "exact one non-PR title, complete bounded search, exact Issue identity/readback/open/unlocked validation",
+    "reject missing/duplicate/malformed/unknown args before mutation; suppress raw GitHub stderr",
+    "original no-flag implementation byte-identical",
+    "bash -n passed"
+  ],
+  "limits": [
+    "did not independently rerun the agent green suite; combined final regression remains pending",
+    "preflight cannot prove later comment write permission or prevent concurrent Issue state changes",
+    "does not explain prior pre-clock readiness exit"
+  ]
+}

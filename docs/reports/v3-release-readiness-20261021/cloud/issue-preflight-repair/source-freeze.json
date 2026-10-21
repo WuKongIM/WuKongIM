@@ -1,0 +1,23 @@
+{
+  "base_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "frozen_at": "2026-10-21T10:31:27.834612+00:00",
+  "files": [
+    {
+      "path": "scripts/chat-lifecycle/comment-request-issue.sh",
+      "bytes": 6706,
+      "sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0"
+    },
+    {
+      "path": "scripts/chat_lifecycle_issue_preflight_integration_test.go",
+      "bytes": 11066,
+      "sha256": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3"
+    }
+  ],
+  "patch_sha256": "851662d5eb8ed8ef50a1d02b6cff9b8c1d6fd309ea81a00004d7e5646f0da113",
+  "no_flag_original_suffix_byte_identical": true,
+  "preflight_scenarios": 35,
+  "new_top_level_tests": 4,
+  "existing_regression_tests": 2,
+  "github_real_reads_or_writes": 0,
+  "commit_or_push": false
+}

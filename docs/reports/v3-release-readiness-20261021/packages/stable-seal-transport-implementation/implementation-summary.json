@@ -1,0 +1,178 @@
+{
+  "schema": "wukongim/stable-seal-transport-local-implementation/v1",
+  "created_utc": "2026-10-21T10:48:08.290910+00:00",
+  "status": "ready_for_parent_delivery; independent review has no remaining blocking finding",
+  "base": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "equal_tree_main_reported_by_parent": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "branch": "codex/stable-audit-seal-transport",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport",
+  "committed": false,
+  "pushed": false,
+  "pull_request_created": false,
+  "final_freeze": "final-freeze-v2",
+  "final_manifest_sha256": "0022c1b90c56af64c00859430eaad17b63987e6837a6b8690b9ed730409ec841",
+  "final_patch_sha256": "fdea1157cbd368d8657e627c96091ea425a71cf1e3f17e373739c8c9319e99e1",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "9037565b7cd883e913be0c3eae20b43d7c9689e8224ec62a2a4f1b97bc25e051",
+      "size": 1883
+    },
+    "README.md": {
+      "sha256": "5277c2df505cc17522b8edf3f811b4a875e992a7a94dfaf6b6c4104fbd5567b8",
+      "size": 10554
+    },
+    "docs/release-contract.md": {
+      "sha256": "dcf3a282a0c93cd87ead65d6637550d461c11c77f0a54d4645b98597f47c1bcb",
+      "size": 45690
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "9aacf50ccf447afe21942d6aa46d3da0a2b63c2aa997cffcbe8cbcf04332a01f",
+      "size": 6119
+    },
+    "scripts/bind-audit-release.py": {
+      "sha256": "6e26cf867d7663825f6d76ce87ce4940b703bbe59b006989cf0cee9af14332be",
+      "size": 18653
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "b45845f469c5081b7bbb2e5eb8aaa73cc6faa14aa1985df75756032d0639128f",
+      "size": 34845
+    },
+    "scripts/resolve-audit-release.py": {
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb",
+      "size": 25685
+    },
+    "scripts/seal-audit-release.py": {
+      "sha256": "156d350c65eb1cf2de0f658c252ca96f4d86aee5843cf5cb869a4d6649895012",
+      "size": 26100
+    },
+    "scripts/verify-stable-seal-inputs.py": {
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e",
+      "size": 21424
+    },
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "7547aff5c5c72e79d33492abc5f10f00720ee346c4b7016db40bfba8c60c8377",
+      "size": 32029
+    },
+    "tests/native_stable_seal_transport_drill.py": {
+      "sha256": "fba5187558f2b8808e0faf4c966732f0a71859560490eed62ffcd953b93b72c3",
+      "size": 8555
+    },
+    "tests/stable_audit_fixture.py": {
+      "sha256": "5e00526ca4c0f528320746c24b8b4f47b3d5957805a58b6a811ec80a22f70b3a",
+      "size": 4454
+    },
+    "tests/test_composite_storage_plan.py": {
+      "sha256": "e26dae520a1e1d160d7c6d69c44df16627fe7207bfd09b330df550412e5333ee",
+      "size": 5804
+    },
+    "tests/test_stable_audit_transport.py": {
+      "sha256": "5766e360fd682cc0204a3440e7ce1f92791be185d385f211667e8e3c4b686f13",
+      "size": 8751
+    },
+    "tests/test_stable_seal_inputs.py": {
+      "sha256": "f27b31af2c0344dcae5f4dcdd347f827bd55f1aa1d04c34eb719d82a185e617f",
+      "size": 10578
+    }
+  },
+  "protected_file_count": 38,
+  "validation": {
+    "v1_full_python": {
+      "tests": 468,
+      "elapsed_seconds": 106.606,
+      "status": "passed",
+      "existing_native_rpm_skip": 1,
+      "log": "33-final-full-python.log"
+    },
+    "v1_contract": {
+      "tests": 4,
+      "status": "passed",
+      "log": "34-final-contract.log"
+    },
+    "v2_delta": {
+      "production_change": "parse the already hash-checked resolution_raw; retain duplicate-key and canonical JSON rejection",
+      "files": [
+        "scripts/plan-object-storage-publication.py",
+        "tests/test_composite_storage_plan.py"
+      ],
+      "delta_patch": "final-freeze-v2/delta-from-v1.patch"
+    },
+    "v2_focused": {
+      "composite_tests": 3,
+      "legacy_planner_tests": 31,
+      "status": "passed",
+      "receipt": "37-generation-2-regression.json"
+    },
+    "v2_native": {
+      "candidate_cases": 31,
+      "transport_cases": 8,
+      "exit_code": 0,
+      "elapsed_seconds": 56.924311041948386,
+      "receipt": "native-resolution-anchor/native-stable-candidate.json",
+      "command_receipt": "native-resolution-anchor-result.json",
+      "source_hashes": "native-resolution-anchor-inputs.json",
+      "secret_tree_removed": true,
+      "scratch_removed": true
+    },
+    "diff_check": "passed",
+    "independent_review": {
+      "status": "R1 closed; no remaining blocking findings",
+      "directory": "stable-seal-transport-implementation-review/final-freeze-v2",
+      "review_allowlist_manifest_sha256": "37a9926078ab39ee3e9ae02aa6af65f3beaff09d2937174de3626e8b3eee44ac"
+    },
+    "v2_full_python": {
+      "tests": 468,
+      "elapsed_seconds": 104.48374204197899,
+      "status": "passed",
+      "existing_native_rpm_skip": 1,
+      "log": "38-final-v2-full-python.log",
+      "receipt": "38-final-v2-full-python.json"
+    },
+    "v2_contract": {
+      "tests": 4,
+      "status": "passed",
+      "elapsed_seconds": 1.2953908339841291,
+      "log": "39-final-v2-contract.log",
+      "receipt": "39-final-v2-contract.json"
+    }
+  },
+  "boundaries": {
+    "stable_enabled": false,
+    "production_private_keys_read": false,
+    "public_api_writes_performed": false,
+    "production_source_provenance_exercised_live": false,
+    "cloud_access_or_activation": false,
+    "production_workflows_modified": false,
+    "signing_or_exchange_protocol_added": false,
+    "candidate_bytes_rewritten": false,
+    "production_ready_or_GA_claim": false
+  },
+  "known_limits": [
+    "Production source gate is implemented and tested at read-only API/process seams; this session does not attest a live stable product Release.",
+    "Native transport uses real stable TEST ONLY signatures and a structural preview fixture, not independent preview native acceptance.",
+    "Offline composite plan authenticates bytes/signatures but does not authenticate caller-supplied seal JSON as GitHub truth.",
+    "Stable inputs remain first-generation add_release candidates; existing candidate verifier rejects base/rotation/retirement operations.",
+    "No enabled production workflow, OSS/CDN upload/activation, public four-client acceptance or release is delivered here.",
+    "The operator-selected sealing SHA fences current main; full executable checkout Git-tree attestation remains caller responsibility."
+  ],
+  "historical_failures": [
+    {
+      "receipt": "native-first-result.json",
+      "exit_code": 137,
+      "classification": "interrupted, initiator unknown; no OOM assertion",
+      "evidence": [
+        "native-first-docker-events.jsonl",
+        "native-first-correlation.json"
+      ],
+      "repeat": "native-second-result.json was the sole unchanged-limits isolated repetition; passed"
+    },
+    {
+      "receipt": "26-full-python.log",
+      "classification": "two new fixture paths followed macOS /var alias, refused by new no-linked-parent guard; fixtures normalized; 30 and 33 full regressions passed without relaxing guard"
+    },
+    {
+      "receipt": "35-resolution-race-red.log",
+      "classification": "independent R1 reproduced; 36 focused green and v2 independent probe close it"
+    }
+  ],
+  "final_validation_utc": "2026-10-21T10:51:04.963020+00:00"
+}

@@ -1,0 +1,42 @@
+......................................s..................FE.......................................................................................................................................................................................................................................................................................................................................................................................................................
+======================================================================
+ERROR: test_v2_requires_explicit_composite_mode (test_composite_storage_plan.CompositePlannerModeTest.test_v2_requires_explicit_composite_mode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_composite_storage_plan.py", line 18, in test_v2_requires_explicit_composite_mode
+    P.make_plan(path,composite=True)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/plan-object-storage-publication.py", line 480, in make_plan
+    return make_composite_plan(input_path,test_only,output_path)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/plan-object-storage-publication.py", line 383, in make_composite_plan
+    inputs=composite_inputs(input_path,test_only)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/plan-object-storage-publication.py", line 274, in composite_inputs
+    input_path=C.candidate_path(input_path.parent,input_path.name,'composite inputs')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/compose-package-site.py", line 1915, in candidate_path
+    require(stat.S_ISDIR(parent.lstat().st_mode), f'{label} parent must be a real directory')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/compose-package-site.py", line 137, in require
+    raise CompositionError(message)
+storage_plan_composer.CompositionError: composite inputs parent must be a real directory
+
+======================================================================
+FAIL: test_composite_requires_both_current_channels_before_reading_paths (test_composite_storage_plan.CompositePlannerModeTest.test_composite_requires_both_current_channels_before_reading_paths)
+----------------------------------------------------------------------
+storage_plan_composer.CompositionError: composite inputs parent must be a real directory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_composite_storage_plan.py", line 24, in test_composite_requires_both_current_channels_before_reading_paths
+    with self.assertRaisesRegex((P.PlanningError,P.C.CompositionError),'preview|fields'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "preview|fields" does not match "composite inputs parent must be a real directory"
+
+----------------------------------------------------------------------
+Ran 466 tests in 106.230s
+
+FAILED (failures=1, errors=1, skipped=1)
+{"passed": false, "cases": 0, "failure": "required native tool unavailable: gpg", "scratch_removed": true}
+{"cases": [], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1", "size": 9821}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "failure": {"case": "rpm-files", "exit_code": 1, "family": "rpm", "input_mode": "files", "message": "no recognized signer diagnostic"}, "passed": false, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "TEST ONLY version", "dpkg-deb": "TEST ONLY version", "gpg": "TEST ONLY version", "rpm": "TEST ONLY version"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

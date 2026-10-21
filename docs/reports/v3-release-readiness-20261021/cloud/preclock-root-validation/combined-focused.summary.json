@@ -1,0 +1,29 @@
+{
+  "argv": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts/...",
+    "-run",
+    "TestChatLifecycle(IssuePreflight|PreClock|StagePreflight)",
+    "-count=1",
+    "-timeout=3m",
+    "-parallel=2",
+    "-json"
+  ],
+  "started_at_utc": "2026-10-21T10:50:42.554648+00:00",
+  "duration_seconds": 49.503,
+  "exit_code": 0,
+  "environment": {
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2",
+    "GOCACHE": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/go-cache"
+  },
+  "pass_count": 78,
+  "failed": [],
+  "skipped": [
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+    "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier"
+  ]
+}

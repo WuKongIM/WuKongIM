@@ -1,0 +1,80 @@
+=== RUN   TestChatLifecycleIssuePreflightReadOnlyIdentity
+=== RUN   TestChatLifecycleIssuePreflightReadOnlyIdentity/minimal_environment
+=== RUN   TestChatLifecycleIssuePreflightReadOnlyIdentity/ignores_inherited_comment_and_close
+--- PASS: TestChatLifecycleIssuePreflightReadOnlyIdentity (0.29s)
+    --- PASS: TestChatLifecycleIssuePreflightReadOnlyIdentity/minimal_environment (0.15s)
+    --- PASS: TestChatLifecycleIssuePreflightReadOnlyIdentity/ignores_inherited_comment_and_close (0.14s)
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/fuzzy_title
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/pull_request
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/duplicate_including_closed
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/incomplete_search
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/truncated_search
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_completeness
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_count
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_items
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/malformed_json
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/search_api_failure
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_number
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_id
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/foreign_repository
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/wrong_html_url
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_api_failure
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/closed_after_search
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/locked_issue
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_identity_changed
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_title_changed
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_repository_changed
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_pull_request
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_state_missing
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_missing
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_invalid
+--- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue (4.40s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing (0.18s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/fuzzy_title (0.12s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/pull_request (0.12s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/duplicate_including_closed (0.11s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/incomplete_search (0.16s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/truncated_search (0.12s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_completeness (0.11s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_count (0.10s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_items (0.21s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/malformed_json (0.12s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/search_api_failure (0.55s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_number (0.18s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_id (0.22s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/foreign_repository (0.14s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/wrong_html_url (0.12s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_api_failure (0.23s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/closed_after_search (0.17s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/locked_issue (0.14s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_identity_changed (0.25s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_title_changed (0.16s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_repository_changed (0.13s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_pull_request (0.28s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_state_missing (0.15s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_missing (0.13s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_invalid (0.21s)
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GH_TOKEN/GH_TOKEN=
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=../other
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=bad_request
+--- PASS: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI (0.03s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GH_TOKEN/GH_TOKEN= (0.01s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY= (0.01s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=../other (0.01s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID= (0.01s)
+    --- PASS: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=bad_request (0.01s)
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI
+=== PAUSE TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI
+=== RUN   TestChatLifecycleWorkflowsDurablyAdvanceTheExactTrackingIssue
+--- PASS: TestChatLifecycleWorkflowsDurablyAdvanceTheExactTrackingIssue (0.00s)
+=== RUN   TestChatLifecycleIssueUpdaterIsExactAndIdempotent
+--- PASS: TestChatLifecycleIssueUpdaterIsExactAndIdempotent (0.57s)
+=== CONT  TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI
+--- PASS: TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI (0.01s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/scripts	5.656s

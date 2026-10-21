@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/usr/local/bin/docker",
+    "--config",
+    "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/empty-docker-config",
+    "--host",
+    "unix:///Users/tt/.docker/run/docker.sock",
+    "pull",
+    "--platform",
+    "linux/amd64",
+    "ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 24.739481708034873,
+  "credentials": "empty Docker config; no login performed"
+}

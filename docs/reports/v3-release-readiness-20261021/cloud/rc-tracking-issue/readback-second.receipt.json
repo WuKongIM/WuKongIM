@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "gh",
+    "api",
+    "--hostname",
+    "github.com",
+    "--method",
+    "GET",
+    "/repos/WuKongIM/WuKongIM/issues/1018"
+  ],
+  "observed_at_utc": "2026-10-21T10:43:34.136408+00:00",
+  "exit_code": 0
+}

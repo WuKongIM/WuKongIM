@@ -1,0 +1,21 @@
+{
+  "source-freeze": true,
+  "preflight-artifact-freeze": true,
+  "changed_paths": [
+    ".github/workflows/README.md",
+    ".github/workflows/chat-lifecycle-formal.yml",
+    ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "CHANGELOG.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "scripts/chat-lifecycle/classify-pre-clock-summary.sh",
+    "scripts/chat-lifecycle/comment-request-issue.sh",
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py",
+    "scripts/chat-lifecycle/stage-orchestrate.sh",
+    "scripts/chat_lifecycle_issue_preflight_integration_test.go",
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go",
+    "scripts/chat_lifecycle_preclock_diagnostic_test.go",
+    "scripts/chat_lifecycle_preflight_artifact_workflow_test.go"
+  ],
+  "protected_control_files_changed": false,
+  "cloud_calls_or_dispatch": false
+}

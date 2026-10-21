@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "a3fcf2d1cf07ec21b99a42745e1b75a477493f03c9c5efc7ae19e109d436c274",
+      "matches_frozen": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "d400211c3ec827e02dc8efc85e6a2151310cf85bcd50cce0610dac888ed6270c",
+      "matches_frozen": true
+    },
+    {
+      "path": "scripts/chat_lifecycle_preflight_artifact_workflow_test.go",
+      "sha256": "f14597a183f91fe5e7643c973e9c7384c16ce4e1229a1864c4edbf45f507e995",
+      "matches_frozen": true
+    }
+  ],
+  "patch_sha256": "4cc692f92f61b174f07d9b5a9973d32cb284f2207e05c09fad4e2d6a6a06d384",
+  "all_match": true
+}

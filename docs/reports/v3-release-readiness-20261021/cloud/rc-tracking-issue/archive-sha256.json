@@ -1,0 +1,82 @@
+[
+  {
+    "path": "README.md",
+    "size": 1212,
+    "sha256": "0a5f0c16537df45d258b081d61a245f1807db54535906ea8eb93bd577229ba53"
+  },
+  {
+    "path": "body.md",
+    "size": 2471,
+    "sha256": "1971e3be6123ba88af670577e1c0b5142e9ab102a742e544c35af3e1fedc730b"
+  },
+  {
+    "path": "precreate-search.stdout",
+    "size": 79,
+    "sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0"
+  },
+  {
+    "path": "precreate-search.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "precreate-search.receipt.json",
+    "size": 341,
+    "sha256": "0787df1b9247ddb2f0cbe26201ec6e40851d6a9bd2eb0ef3626a8530e9c86c22"
+  },
+  {
+    "path": "create.stdout",
+    "size": 49,
+    "sha256": "ccbc16b53831ea93533c7c9f70913e569ed34342f2640033dc1e3d2180ce79c6"
+  },
+  {
+    "path": "create.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "create.receipt.json",
+    "size": 531,
+    "sha256": "68d33b03ec8e72a5a5109d28458202430ab8efbb6e1aed99cc28d486a10d0bb5"
+  },
+  {
+    "path": "readback-first-failure.json",
+    "size": 189,
+    "sha256": "b2da5fdd1cff2b7d4072aab653e809b864a2544b52fefbcb43751151981338c6"
+  },
+  {
+    "path": "readback-second.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "readback-second.receipt.json",
+    "size": 222,
+    "sha256": "f66c21a5a4dffe4e880716bc2d59aa4356ec65dfb584821a07429453e1f6da1a"
+  },
+  {
+    "path": "issue-readback.json",
+    "size": 2946,
+    "sha256": "070136f9edb885144c87563d6fce930cc04f2cf01aee5d07f7fcef16d5694720"
+  },
+  {
+    "path": "live-preflight.stdout",
+    "size": 258,
+    "sha256": "93dcec4edea472bfb8db29793cf17ae277215d1549ef45794315f680b69a36b0"
+  },
+  {
+    "path": "live-preflight.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "live-preflight.receipt.json",
+    "size": 354,
+    "sha256": "412b41ea85889611382aa9b19b6e6910c3c1f323e8c705de44a2c2749b9d2856"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 316,
+    "sha256": "292125e92e5cc015bd29cbaab67f923a815dbdd008389516dc8aea6690578c36"
+  }
+]

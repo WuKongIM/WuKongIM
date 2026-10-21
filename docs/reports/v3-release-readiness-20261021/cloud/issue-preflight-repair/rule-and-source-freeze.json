@@ -1,0 +1,37 @@
+{
+  "base_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "applicable_flow": [],
+  "flow_discovery": "No root/scripts/chat-lifecycle ancestor FLOW or nested AGENTS; scripts/cloud-deployment/FLOW is outside target subtree.",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "bytes": 1615
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1",
+      "bytes": 79014
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-07-automated-chat-lifecycle-cloud-simulation-design.md",
+      "sha256": "addd6edade792130e1ca28c5f939f960caaceb6bfbee2429826761618b0fa7d2",
+      "bytes": 60148
+    },
+    {
+      "path": "scripts/chat-lifecycle/comment-request-issue.sh",
+      "sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7",
+      "bytes": 2654
+    }
+  ]
+}

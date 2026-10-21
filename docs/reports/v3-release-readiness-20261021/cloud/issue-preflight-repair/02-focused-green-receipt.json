@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^TestChatLifecycleIssuePreflight|^TestChatLifecycleIssueUpdaterIsExactAndIdempotent$|^TestChatLifecycleWorkflowsDurablyAdvanceTheExactTrackingIssue$",
+    "-count=1",
+    "-timeout=2m",
+    "-v"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "go1.25.11",
+    "GOFLAGS": "-p=2",
+    "GOCACHE": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-repair/go-cache"
+  },
+  "started_at": "2026-10-21T10:30:34.232432+00:00",
+  "finished_at": "2026-10-21T10:30:42.774026+00:00",
+  "exit_code": 0,
+  "sources": {
+    "scripts/chat-lifecycle/comment-request-issue.sh": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0",
+    "scripts/chat_lifecycle_issue_preflight_integration_test.go": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3"
+  }
+}

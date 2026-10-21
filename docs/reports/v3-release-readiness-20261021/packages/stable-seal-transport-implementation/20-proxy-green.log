@@ -1,0 +1,12 @@
+test_test_clients_do_not_consult_environment_proxies (test_stable_audit_transport.StableProxyIsolationTest.test_test_clients_do_not_consult_environment_proxies) ... ok
+test_stable_receipt_asset_bytes_must_match_external_anchor (test_stable_audit_transport.StableReadIdentityTest.test_stable_receipt_asset_bytes_must_match_external_anchor) ... ok
+test_stable_two_assets_keep_candidate_bytes_and_external_identity (test_stable_audit_transport.StableReadIdentityTest.test_stable_two_assets_keep_candidate_bytes_and_external_identity) ... ok
+test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) ... ok
+test_test_reader_rejects_every_redirect_without_second_request (test_stable_audit_transport.StableReaderNetworkTest.test_test_reader_rejects_every_redirect_without_second_request) ... ok
+test_bind_only_reserves_empty_stable_draft_and_labels_test_evidence (test_stable_audit_transport.StableWriterTest.test_bind_only_reserves_empty_stable_draft_and_labels_test_evidence) ... ok
+test_seal_invalid_candidate_cannot_upload_or_publish (test_stable_audit_transport.StableWriterTest.test_seal_invalid_candidate_cannot_upload_or_publish) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.236s
+
+OK

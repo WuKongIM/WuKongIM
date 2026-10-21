@@ -1,0 +1,35 @@
+test_actual_history_bytes_and_ancestry_are_checked (test_stable_seal_inputs.StableControlAuthenticationTest.test_actual_history_bytes_and_ancestry_are_checked) ... ok
+test_coherent_local_rewrite_does_not_change_remote_git_history (test_stable_seal_inputs.StableControlAuthenticationTest.test_coherent_local_rewrite_does_not_change_remote_git_history) ... ok
+test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) ... ok
+test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command) ... ERROR
+test_source_identity_ignores_moving_main_only (test_stable_seal_inputs.StableSourceAuthenticationTest.test_source_identity_ignores_moving_main_only) ... ERROR
+
+======================================================================
+ERROR: test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 116, in test_caller_success_json_cannot_replace_actual_attestation_command
+    with mock.patch.object(P,'SOURCE',service), \
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1497, in __enter__
+    original, local = self.get_original()
+                      ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1467, in get_original
+    raise AttributeError(
+        "%s does not have the attribute %r" % (target, name)
+    )
+AttributeError: <module 'verify_stable_seal_inputs.py' from '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/verify-stable-seal-inputs.py'> does not have the attribute 'SOURCE'
+
+======================================================================
+ERROR: test_source_identity_ignores_moving_main_only (test_stable_seal_inputs.StableSourceAuthenticationTest.test_source_identity_ignores_moving_main_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 99, in test_source_identity_ignores_moving_main_only
+    self.assertEqual(P.source_identity(original),P.source_identity(fresh))
+                     ^^^^^^^^^^^^^^^^^
+AttributeError: module 'verify_stable_seal_inputs.py' has no attribute 'source_identity'
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.044s
+
+FAILED (errors=2)

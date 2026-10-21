@@ -1,0 +1,11 @@
+{
+  "head": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "files": {
+    "scripts/chat-lifecycle/stage-orchestrate.sh": "81876a76e2b114b8a209c1c1f74cbb9a4b5470483e0aaa2e37aa09eae25cbc7d",
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24",
+    "scripts/chat-lifecycle/classify-pre-clock-summary.sh": "7d72d5e83b590a74eab8cda6db70f3f347adf71865a7c3661597de662431d415",
+    "scripts/chat_lifecycle_preclock_diagnostic_test.go": "a6da05ccde2247e5ee27715df2efbfd46014203f97c10973049d5c3104ff9583",
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": "288b13777186f6eff710313b092c98f7bc76eb55cba0d3a1be45ef497549cc5d"
+  },
+  "patch_sha256": "99d571574dee6fbf72cc6446271de85abf858606cea40982ac7c116b759ca961"
+}

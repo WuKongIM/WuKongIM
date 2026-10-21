@@ -1,0 +1,33 @@
+{
+  "name": "workflow-contracts",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_arguments": [
+    "go",
+    "test",
+    "./scripts/...",
+    "-run",
+    "Workflow|ReviewAgent",
+    "-count=1"
+  ],
+  "executed_command": [
+    "go",
+    "test",
+    "./scripts/...",
+    "-run",
+    "Workflow|ReviewAgent",
+    "-count=1"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics",
+  "environment_overrides": {
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/gocache",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2",
+    "LC_ALL": "C"
+  },
+  "timeout_seconds": 900,
+  "max_output_bytes": 8388608,
+  "started_at": "2026-10-21T10:46:18.654710+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T10:46:23.637325+00:00",
+  "log_sha256": "d9f609d70db89b391d80ac897b5ecf3b5a123e41d98206715a33007d343fb0aa"
+}

@@ -1,0 +1,42 @@
+test_actual_history_bytes_and_ancestry_are_checked (test_stable_seal_inputs.StableControlAuthenticationTest.test_actual_history_bytes_and_ancestry_are_checked) ... ok
+test_coherent_local_rewrite_does_not_change_remote_git_history (test_stable_seal_inputs.StableControlAuthenticationTest.test_coherent_local_rewrite_does_not_change_remote_git_history) ... ok
+test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) ... ok
+test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command) ... ERROR
+test_source_identity_ignores_moving_main_only (test_stable_seal_inputs.StableSourceAuthenticationTest.test_source_identity_ignores_moving_main_only) ... ok
+
+======================================================================
+ERROR: test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/verify-stable-seal-inputs.py", line 216, in verify_source
+    run_checked_helper('verify-source-attestations.py',[
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        '--channel','stable','--receipt',str(receipt),'--asset-dir',str(scratch/'assets'),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        '--evidence-dir',str(scratch/'attestations')],home=scratch,source_token=source_token)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1228, in _execute_mock_call
+    raise effect
+verify_stable_seal_inputs.py.StableInputError: actual attestation failed
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 119, in test_caller_success_json_cannot_replace_actual_attestation_command
+    P.verify_source(source_root=source,source_token='TEST ONLY')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/verify-stable-seal-inputs.py", line 224, in verify_source
+    except (SOURCE.ResolutionError,C.CompositionError,OSError,ValueError,KeyError,TypeError) as error:
+        raise StableInputError(str(error)) from error
+TypeError: catching classes that do not inherit from BaseException is not allowed
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.042s
+
+FAILED (errors=1)

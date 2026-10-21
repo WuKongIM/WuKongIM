@@ -1,0 +1,63 @@
+{
+  "at": "2026-10-21T10:59:21.598611+00:00",
+  "files": 3107,
+  "json": 1700,
+  "known_empty": [
+    "packages/pr70-merge/merged-pr-read2.json",
+    "packages/pr70-merge/merged-pr.json",
+    "ci/scripts-wait255-fixture-repair/runs-initial.json"
+  ],
+  "go_jsonl_named_json": [
+    {
+      "path": "cloud/preclock-diagnostic-repair/05-write-failure-red.json",
+      "go_jsonl_events": 186
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/04-branches.json",
+      "go_jsonl_events": 231
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/12-preflight-artifact-green.json",
+      "go_jsonl_events": 16
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/02-green.json",
+      "go_jsonl_events": 67
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/06-bash3-green.json",
+      "go_jsonl_events": 184
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/01-red.json",
+      "go_jsonl_events": 61
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/10-bash5-final.json",
+      "go_jsonl_events": 203
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/07-bash5-green.json",
+      "go_jsonl_events": 386
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/09-bash3-final.json",
+      "go_jsonl_events": 203
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/11-preflight-artifact-red.json",
+      "go_jsonl_events": 18
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/08-bash5-green.json",
+      "go_jsonl_events": 189
+    },
+    {
+      "path": "cloud/preclock-diagnostic-repair/03-green.json",
+      "go_jsonl_events": 64
+    }
+  ],
+  "authored_links": 72,
+  "private_key_headers_found": false,
+  "links_passed": true
+}

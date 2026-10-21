@@ -1,0 +1,9 @@
+{
+  "source_sha256": "e9d374278f44cc4450a505470555c2b454eabfa187d62eddf954b52e15b3823f",
+  "actually_parsed_published_at": "2026-10-22T00:00:00Z",
+  "reached_candidate_gate": true,
+  "original_sha256": "9c182212059ed6dd0cea7a404ca4f6119da4f6714ea7cd376425dee7d34f98d4",
+  "replacement_sha256": "56b47162e2cf70d5108327dc1edbd2c72cbecefffb586b34f721d75194702f91",
+  "parsed_bytes_match_anchor": false,
+  "scope": "Only resolution hash/parse boundary; candidate verifier stopped deliberately. Original freeze body with unchanged reviewed sibling dependencies. No full plan/signature/GitHub verification claim."
+}

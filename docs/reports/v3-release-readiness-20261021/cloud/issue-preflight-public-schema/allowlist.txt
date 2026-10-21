@@ -1,0 +1,3 @@
+README.md
+get-schema.json
+search-schema.json

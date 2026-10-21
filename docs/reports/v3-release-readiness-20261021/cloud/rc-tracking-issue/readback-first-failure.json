@@ -1,0 +1,5 @@
+{
+  "outcome": "first gh GET returned nonzero before evidence writer; assertion message preserved in tool log",
+  "stderr_retained": false,
+  "cause": "unknown; no write retry performed"
+}

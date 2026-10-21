@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "gh",
+    "api",
+    "--hostname",
+    "github.com",
+    "--method",
+    "GET",
+    "/search/issues",
+    "-f",
+    "q=repo:WuKongIM/WuKongIM is:issue in:title \"[chat-lifecycle] chat-20261021T095421Z-cf11d65c\"",
+    "-f",
+    "per_page=10"
+  ],
+  "observed_at_utc": "2026-10-21T10:41:19.449546+00:00",
+  "exit_code": 0
+}

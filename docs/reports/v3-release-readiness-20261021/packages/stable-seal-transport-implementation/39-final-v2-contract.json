@@ -1,0 +1,10 @@
+{
+  "command": [
+    "bash",
+    "tests/contract.sh"
+  ],
+  "started_utc": "2026-10-21T10:50:47.094366+00:00",
+  "frozen_manifest_sha256": "0022c1b90c56af64c00859430eaad17b63987e6837a6b8690b9ed730409ec841",
+  "exit_code": 0,
+  "elapsed_seconds": 1.2953908339841291
+}

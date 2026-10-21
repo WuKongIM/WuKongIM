@@ -1,0 +1,20 @@
+test_actual_history_bytes_and_ancestry_are_checked (test_stable_seal_inputs.StableControlAuthenticationTest.test_actual_history_bytes_and_ancestry_are_checked) ... ok
+test_coherent_local_rewrite_does_not_change_remote_git_history (test_stable_seal_inputs.StableControlAuthenticationTest.test_coherent_local_rewrite_does_not_change_remote_git_history) ... ok
+test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) ... ok
+test_linked_plan_parent_is_rejected_before_api_reads (test_stable_seal_inputs.StableControlAuthenticationTest.test_linked_plan_parent_is_rejected_before_api_reads) ... FAIL
+test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command) ... ok
+test_source_identity_ignores_moving_main_only (test_stable_seal_inputs.StableSourceAuthenticationTest.test_source_identity_ignores_moving_main_only) ... ok
+
+======================================================================
+FAIL: test_linked_plan_parent_is_rejected_before_api_reads (test_stable_seal_inputs.StableControlAuthenticationTest.test_linked_plan_parent_is_rejected_before_api_reads)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 76, in test_linked_plan_parent_is_rejected_before_api_reads
+    with self.assertRaisesRegex(P.StableInputError,'parent|linked'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: StableInputError not raised
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.052s
+
+FAILED (failures=1)

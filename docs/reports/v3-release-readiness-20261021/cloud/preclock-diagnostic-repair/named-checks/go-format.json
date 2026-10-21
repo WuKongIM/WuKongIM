@@ -1,0 +1,27 @@
+{
+  "name": "go-format",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_arguments": [
+    "review-agent-check",
+    "go-format"
+  ],
+  "executed_command": [
+    "go",
+    "run",
+    "./cmd/wkreviewcheck",
+    "go-format"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics",
+  "environment_overrides": {
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/gocache",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2",
+    "LC_ALL": "C"
+  },
+  "timeout_seconds": 300,
+  "max_output_bytes": 1048576,
+  "started_at": "2026-10-21T10:46:17.617854+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T10:46:18.653764+00:00",
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

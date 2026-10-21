@@ -1,0 +1,9 @@
+{
+  "helper": "capture_pre_clock_step",
+  "collector_stub_exit": 9,
+  "command_expected_exit_without_collector_failure": 17,
+  "process_exit": 0,
+  "stdout": "status=17\ncleanup\n",
+  "stderr": "",
+  "scope": "Actual extracted function + unavailable/failed diagnostic collector, fake owned child only; no SSH/cloud/native/build."
+}

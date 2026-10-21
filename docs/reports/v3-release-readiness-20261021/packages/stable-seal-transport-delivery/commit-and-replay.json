@@ -1,0 +1,12 @@
+{
+  "observed_at_utc": "2026-10-21T10:52:12.239253+00:00",
+  "original_base": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "merged_base": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "original_commit": "fb746c54e6df69f82ccdff6a4582e4f0d540a765",
+  "new_commit": "59549efe1074562928b8ae175faeda8778849e0e",
+  "tree": "6237c709d8cca42cc716a7aee796760c3cd867a9",
+  "reviewed_manifest_sha256": "0022c1b90c56af64c00859430eaad17b63987e6837a6b8690b9ed730409ec841",
+  "file_count": 15,
+  "protected_unchanged": 38,
+  "same_tree_replay": true
+}

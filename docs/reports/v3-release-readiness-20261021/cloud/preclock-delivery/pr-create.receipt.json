@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "gh",
+    "pr",
+    "create",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--base",
+    "main",
+    "--head",
+    "codex/v3-rc-preclock-diagnostics",
+    "--draft",
+    "--title",
+    "Validate cloud tracking Issue before procurement and retain pre-clock diagnostics",
+    "--body-file",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-delivery/pr-body.md"
+  ],
+  "exit_code": 0,
+  "observed_at_utc": "2026-10-21T10:53:58.877488+00:00"
+}

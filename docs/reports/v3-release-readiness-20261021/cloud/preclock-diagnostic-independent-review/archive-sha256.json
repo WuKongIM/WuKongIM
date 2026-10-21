@@ -1,0 +1,32 @@
+[
+  {
+    "path": "artifact-source-verification.json",
+    "size": 706,
+    "sha256": "22e27bef8510972584af70b901a037910fa8b50d6f80a75bc1a92c7119e5db0c"
+  },
+  {
+    "path": "collector-failure-probe.json",
+    "size": 332,
+    "sha256": "9bbea2436d7d124986781fcf2408a05cd88e56a3744a4dc42e05212e53f8aaea"
+  },
+  {
+    "path": "review.md",
+    "size": 3666,
+    "sha256": "1062ea075d298f315be212df31d0f7972bfa328863a506e1ec43e6fd54677aeb"
+  },
+  {
+    "path": "reviewed-evidence.json",
+    "size": 4955,
+    "sha256": "0bd7650846b5232b0be3b9f44bf6449854b90bde0ba02809e9b1a9b9d8e63e29"
+  },
+  {
+    "path": "source-verification.json",
+    "size": 1232,
+    "sha256": "75fd4f099457bfae54bc7ad2eeff2d2aa7ceeba6a377ce9ca506c421ad6d4619"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 121,
+    "sha256": "a021bebadb26199bf08b431c4d5f60529bff2d47441a4c82f38b09836a1152d9"
+  }
+]

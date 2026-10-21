@@ -1,0 +1,42 @@
+test_actual_history_bytes_and_ancestry_are_checked (test_stable_seal_inputs.StableControlAuthenticationTest.test_actual_history_bytes_and_ancestry_are_checked) ... ok
+test_coherent_local_rewrite_does_not_change_remote_git_history (test_stable_seal_inputs.StableControlAuthenticationTest.test_coherent_local_rewrite_does_not_change_remote_git_history) ... ok
+test_history_tree_ancestry_and_blob_fail_closed (test_stable_seal_inputs.StableControlAuthenticationTest.test_history_tree_ancestry_and_blob_fail_closed) ... ok
+test_linked_plan_parent_is_rejected_before_api_reads (test_stable_seal_inputs.StableControlAuthenticationTest.test_linked_plan_parent_is_rejected_before_api_reads) ... ok
+test_fresh_final_source_changes_are_typed_rejections (test_stable_seal_inputs.StableFinalSourceFenceTest.test_fresh_final_source_changes_are_typed_rejections) ... ok
+test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command) ... ERROR
+test_source_identity_ignores_moving_main_only (test_stable_seal_inputs.StableSourceAuthenticationTest.test_source_identity_ignores_moving_main_only) ... ok
+test_replaced_source_json_cannot_change_verified_plan_identity (test_stable_seal_inputs.StableSourceBytesAnchorTest.test_replaced_source_json_cannot_change_verified_plan_identity) ... 
+  test_replaced_source_json_cannot_change_verified_plan_identity (test_stable_seal_inputs.StableSourceBytesAnchorTest.test_replaced_source_json_cannot_change_verified_plan_identity) (changed='resolution.json') ... ERROR
+  test_replaced_source_json_cannot_change_verified_plan_identity (test_stable_seal_inputs.StableSourceBytesAnchorTest.test_replaced_source_json_cannot_change_verified_plan_identity) (changed='metadata.json') ... ERROR
+
+======================================================================
+ERROR: test_caller_success_json_cannot_replace_actual_attestation_command (test_stable_seal_inputs.StableSourceAuthenticationTest.test_caller_success_json_cannot_replace_actual_attestation_command)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 127, in test_caller_success_json_cannot_replace_actual_attestation_command
+    P.verify_source(source_root=source,source_token='TEST ONLY',source_files=anchors)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_source() got an unexpected keyword argument 'source_files'. Did you mean 'source_token'?
+
+======================================================================
+ERROR: test_replaced_source_json_cannot_change_verified_plan_identity (test_stable_seal_inputs.StableSourceBytesAnchorTest.test_replaced_source_json_cannot_change_verified_plan_identity) (changed='resolution.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 149, in test_replaced_source_json_cannot_change_verified_plan_identity
+    P.verify_source(source_root=source,source_token=None,source_files=anchors)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_source() got an unexpected keyword argument 'source_files'. Did you mean 'source_token'?
+
+======================================================================
+ERROR: test_replaced_source_json_cannot_change_verified_plan_identity (test_stable_seal_inputs.StableSourceBytesAnchorTest.test_replaced_source_json_cannot_change_verified_plan_identity) (changed='metadata.json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_seal_inputs.py", line 149, in test_replaced_source_json_cannot_change_verified_plan_identity
+    P.verify_source(source_root=source,source_token=None,source_files=anchors)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_source() got an unexpected keyword argument 'source_files'. Did you mean 'source_token'?
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.217s
+
+FAILED (errors=3)

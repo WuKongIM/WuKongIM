@@ -1,0 +1,798 @@
+{
+  "observed_at": "2026-10-21T10:41:34.718133+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification",
+  "head": "7a60385111ef2ed9503bf5c1d0aa0186c829bc63",
+  "rules": "Root AGENTS.md applies; no applicable docs/reports subtree FLOW found. Read-only factual evidence review; no code/package analysis or Docker.",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "docs/reports/2026-10-21-v3-release-readiness.md",
+      "size": 48453,
+      "sha256": "5e8f70591fc54e0b2e5d6766a91dc778effa0479ccf09d4fcd477f3efba9e010"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/README.md",
+      "size": 19312,
+      "sha256": "c0887d4a519a9050ff1f813280aa0058f00ba8e1df21cbc0e87a8a2ba6b6a7e7"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/README.md",
+      "size": 693,
+      "sha256": "7b61e527f6bafdd11646849c8c1e1efcaf410baf259d3ae3c767fe075d891009"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/acquire-start-jobs.json",
+      "size": 6805,
+      "sha256": "934616d5206d2c580d3f0ebc7e0865fbb859cf8dd3953ea2532b49701b4ebf55"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/artifact-metadata.json",
+      "size": 792,
+      "sha256": "c3b1ee046b235b7a81f7bebe394efb0d0bd15c6066ff1b818ecb6d1eeaa379b1"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/download-receipt.json",
+      "size": 351,
+      "sha256": "92faccefa4ba2ea18cd14439d39adbbe8647eb612bdc0ac2e6387a02267aad88"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/jobs-final.json",
+      "size": 5868,
+      "sha256": "af84cc068eb89ed83bf56fc9cfbcae7495ebd53249e3cf2b74cc66982460d209"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/request-runs.json",
+      "size": 2371,
+      "sha256": "3eee22de64187326f0109a34d2c61a412130f77164de92313e4c287673ed3e22"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/summary.json",
+      "size": 1326,
+      "sha256": "8147737f94582f63e691c6b53eb50040fd47d7e29e9d91d17c179dd45778c13a"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/quote-fc182/verification.json",
+      "size": 343,
+      "sha256": "141027132208df96bf35552a5145a9241e39830e7bd41846e35e36b86dadb6c9"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/README.md",
+      "size": 826,
+      "sha256": "128295fbe3b224f9eafef2520866fefef1ffb4f55fb78157a23fb7a6a45ec708"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/artifact-metadata.json",
+      "size": 793,
+      "sha256": "fb52d3daba6a1d4b0752bb181ecb6d5e1afa719a2966478d256502ff99b2d07c"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/download-receipt.json",
+      "size": 352,
+      "sha256": "80d255f6c20c3789e7e3cddd6d9b0960fdb02cea0461c2474ec3d9a2659bd310"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/expected-selector.json",
+      "size": 367,
+      "sha256": "200e0f9f077aaf70ab908e941d7ec8905d6e037782daca62968846fdde4e8bab"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/jobs-final.json",
+      "size": 7263,
+      "sha256": "e6d8ffdfa706cf1e3d5d20d5e8c1e04a6d63deda907c4aaed8b916b98ce74ec3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/receipt.json",
+      "size": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/request-runs.json",
+      "size": 2974,
+      "sha256": "b70bb121d773adaea8ac0b5f7d97fd15cb4dc15ef99780f023afda06334c6622"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/summary.json",
+      "size": 1319,
+      "sha256": "48ac7ad864450f7ad4ffb06be4eb51f4baa03c18975ed3f9fbb3b0bc43968d85"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/acquire-fc182/verification.json",
+      "size": 563,
+      "sha256": "88efed385be32c830db18d3350fff76bc2b30d41cb2874941ec1b33fae5197a9"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/ARCHIVE_ALLOWLIST.json",
+      "size": 2058,
+      "sha256": "a00c74bc7f5973fef8b204c194313e7cc54eb5bb11f81474e18eaca0959df626"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/README.md",
+      "size": 304,
+      "sha256": "161ef29cc88e7bff7e9c467ea7a55325cb749d962c1e793793f41157f7fdced0"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/analysis-endpoint.json",
+      "size": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/artifact-metadata.json",
+      "size": 769,
+      "sha256": "293665b3e47730a121ffe3adc5f9b9adbbc4b57bbd60b3da4618f4d2a0ec2c7d"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/deployment-outcome.json",
+      "size": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/deployment-plan.json",
+      "size": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/download-receipt.json",
+      "size": 352,
+      "sha256": "dd70075b6164d0e0cea28f4056605955c8e4b20a3cbdb2b561dbb1eb10935e1b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/encrypted-access.json",
+      "size": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/encrypted-deployment-identity.json",
+      "size": 2316,
+      "sha256": "852b50bede82dc2400a4746aafe2e18fd36eb56cf7eb2ea53e826638ca7e3726"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/identity-verification.json",
+      "size": 382,
+      "sha256": "cacaf8f7dacaee52af09528ca3d64e7035da7d4b5928eba1440dfdd92bd5381d"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/jobs.json",
+      "size": 5632,
+      "sha256": "e22d6d780effd0b5dd367a5928c48dffff25e62bdc2314dde7a6997804ccaf63"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/readiness-snapshot.json",
+      "size": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/deployment-fc182/verification.json",
+      "size": 1542,
+      "sha256": "a3d9069d4131e0cec1fe26ef08fde318458826ef1cb3a13aaa176c5e0f8d80b8"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/ARCHIVE_ALLOWLIST.json",
+      "size": 10105,
+      "sha256": "4b01915239810272272bd227f2f664417bf5485abbc6d6e9c7c6783a6c46fe1b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/README.md",
+      "size": 3080,
+      "sha256": "748c98b359332c4e7cbe3557ab44f4d27d2cea2f5d7ca4acfc8a262c6ccc8ed8"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/artifact-12338781445.json",
+      "size": 805,
+      "sha256": "23e1a6feb9b9ce8ff5b2b59127e1fb232878105aba8b91d43505a3ace71892ce"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/artifact-12339131183.json",
+      "size": 805,
+      "sha256": "a5674a00880108d3a637339bfc8313d343d18aa8499ab96300ef79408041a059"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/cleanup-download.json",
+      "size": 353,
+      "sha256": "8b130b85e38b011fa6d6c8cc225b953c3baf23e42a3a765fe8fe5f2b6061c4c2"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/receipt.json",
+      "size": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/bootstrap-access.json",
+      "size": 251,
+      "sha256": "67aad04ec4219eb3e52b24dddcdb9a5714bd39eaf36a75fdd5f18faed2b1539b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/analysis-endpoint.json",
+      "size": 577,
+      "sha256": "d44dd50f6cd07c5711c56569f20008e9dd7512cfa894b7ce446f057089d5bd51"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-outcome.json",
+      "size": 2496,
+      "sha256": "e1e608974b3f219d7af63c9749230d9093474f554273b9619265b100b551fb19"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/deployment-plan.json",
+      "size": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/encrypted-access.json",
+      "size": 1316,
+      "sha256": "7d92812bf2cc3d23d6121d1bb2153c8a2b93de34b4d4075717b96514176f6cce"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/deployment-1-artifact/cloud-deployment-39582829931/readiness-snapshot.json",
+      "size": 4129,
+      "sha256": "b47c084fa9485b40ba2b292eb56a2874658476ff9906f97c9ccc1f47f5f71aa3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/deployment-plan.json",
+      "size": 3169,
+      "sha256": "d8b4babf58809eae54b93f42d2c2983cf46532e5f24aec8b23641639ee0dc0db"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/lease-plan.json",
+      "size": 1892,
+      "sha256": "35b85d7a5b807a7d90697535a56d2f4fcd3245bdfa3a5b19ff0dd7a21ce0d9bf"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/preflight-quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T095421Z-cf11d65c/quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/quote.json",
+      "size": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/receipt-selector.json",
+      "size": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/receipt.json",
+      "size": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/release-selector.json",
+      "size": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/attempt-1/run-plan.json",
+      "size": 2361,
+      "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/cleanup.json",
+      "size": 172,
+      "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/deployment-repair-pending.json",
+      "size": 624,
+      "sha256": "1bf3a22914a29dbe8c1fcfb3065dde5ccece7f7d15dde7425e500cd57018d846"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/release-1-1/cloud-lease-release-chat-20261021T095421Z-cf11d65c/release.json",
+      "size": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/release-selector.json",
+      "size": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/verification.json",
+      "size": 11764,
+      "sha256": "2d51e1c0573d2e349b7d80888e9d5394178f599fcd2691b9e438cb3f228a859c"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/evidence/zero-inventory.json",
+      "size": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/failure-excerpt.txt",
+      "size": 1044,
+      "sha256": "eb7cd8b2671474b19c65dab1ccc3855a800df9a38a649d966997bdf68273d319"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/handoff-named-download.json",
+      "size": 353,
+      "sha256": "63ed689907c860bc590cda4a22524cceee385ac03c1b5829f890bb993fbabb21"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/issue-search-jq-replay.json",
+      "size": 688,
+      "sha256": "ffa8885b7c8dfa348e20bd1ea371d8e9aa202def4fd7d261030f8a94852b05fb"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/issue-search.json",
+      "size": 79,
+      "sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/redaction-scan.json",
+      "size": 435,
+      "sha256": "3e78440400aa900be9f539afcae151fa849950766e579cd6d8538c22370b73dc"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/release/artifact-metadata.json",
+      "size": 790,
+      "sha256": "0086ba9ada43c58893516c12d18a743df7e0dc21dc81e159e1d44e88018a6e6d"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/release/download-receipt.json",
+      "size": 351,
+      "sha256": "175a1fe86a498f40b1a7e91bd039a2465e1452eb52b0b6bd1932dbed365a4144"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/release/jobs.json",
+      "size": 5626,
+      "sha256": "dd9c28159f6a3a79a5b6a1e640923cd3eb334157d10df2b0a38a957bc7385542"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/release/release.json",
+      "size": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/release/verification.json",
+      "size": 346,
+      "sha256": "e51537d6a3b9360d993f95051d63841eb335012759012134b37eea43eb641da3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/source/.github/workflows/chat-lifecycle-rehearsal.yml",
+      "size": 8607,
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/source/.github/workflows/cloud-lease-release.yml",
+      "size": 5948,
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/source-identity.json",
+      "size": 1706,
+      "sha256": "0c1cf2cc7c7d3f7b5f49fa07e226d10d50bea82126b453522f32d59c3ef8af80"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/summary.json",
+      "size": 3523,
+      "sha256": "c942af0f0c3c4ec8c4faec3814704d7ab92de27d642147a1a15de8f2af2d5218"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/terminal-run-summary.json",
+      "size": 9604,
+      "sha256": "d5d0d47791d1f29a70cbc48d58d2ebf7f0262f7d9f86f7ff86a5e2e82c34a50c"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/top-jobs.json",
+      "size": 6796,
+      "sha256": "693057588cabdb16cb6348a236be1fffbbf8cb0e8b3fba388799f0705cd0fd59"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/top-log-retrieval.json",
+      "size": 457,
+      "sha256": "9d661df2e0804912c70847f9151ed16d14bbb3860de25c7a049eadec7a987b83"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/cloud/rc-terminal-fc182/top-log.redacted.txt.gz",
+      "size": 18905,
+      "sha256": "f4eb6f0c419c78f344e15c27d3dffd0ea4883b3204a14621265e6d0e44282f2f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/ARCHIVE_ALLOWLIST.txt",
+      "size": 681,
+      "sha256": "5f61f310b289328b0dcf2b7d5ccb4887bc6c626a2cc698f411baa4d9aa57d97b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/README.md",
+      "size": 1437,
+      "sha256": "b1b11dc6d11253111d6bb9d340152fd6ba152516cf56d67995ba6ab495f51484"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/authorization.json",
+      "size": 273,
+      "sha256": "5a245eb099c86e8f21cf28b71e8691cc8705265b6aa2690beddfb526581817fb"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/git-proof-and-cleanup.json",
+      "size": 429,
+      "sha256": "7397e9e48c9051b0e353f1aaf386b2aa22eed6f769967423d40fe8530a2a91ed"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/guard.json",
+      "size": 279,
+      "sha256": "56d5ed8eb1f2d90072b59a9145c295436784416d1892da4e557a9a088066b83e"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merge-commit.receipt.json",
+      "size": 159,
+      "sha256": "07fbbf19dafd4f300c2cf9c65ce4785c6d2f3d2ea436d7ad87bdac9aa79f9a99"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merge-commit.stdout",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merge-input.json",
+      "size": 78,
+      "sha256": "f5ccd92382ac6b2d96ae044b36d2cd8a63f602df3fd790edb6e5a0e0ec0d47c7"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merge-result.json",
+      "size": 123,
+      "sha256": "195bc390029b1349dc23015bfa4bb6af180062f356b3b4a10271c4f604652c2f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merge-result.receipt.json",
+      "size": 273,
+      "sha256": "6ada0e47ca2ee9d63afa895d7536a721bef9c28ab9bfc453bcb40069dcef6d4f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merge-result.stdout",
+      "size": 109,
+      "sha256": "5b08822bfcfdc11f6244c8b2abbe192e172d2151be7b00708810a2fb35a32811"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merged-pr-read2.json",
+      "size": 21989,
+      "sha256": "b05ecece566b22fa836885a7f0b54741bc8234d12e335bb7de8eac4767f61b4b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merged-pr-read2.receipt.json",
+      "size": 115,
+      "sha256": "89bc31d3a8220520a7df5552c124ea7c024c281819b888ad74374753538609ae"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merged-pr-read2.stdout",
+      "size": 19047,
+      "sha256": "269aeb01b082f4dd0c052231c66807d34848a28af7b4dbc4d8b314c211a57e79"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/merged-pr.stdout",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/01-run-read.receipt.json",
+      "size": 170,
+      "sha256": "735dc6773568cd597e0e16ac3da61a97da56d9026ec7e77ec59b464442d21ca0"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/01-run-read.stdout",
+      "size": 11967,
+      "sha256": "69726bae66e18a86e23f9bc66eda53aaabf624e7780134819567c9194222d38e"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/02-jobs-read.receipt.json",
+      "size": 188,
+      "sha256": "5322f6e1af58e30ebf2f67b67ef703cdb3d7795c904bf10bb67ca9b7f64c06c6"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/02-jobs-read.stdout",
+      "size": 1805,
+      "sha256": "2d023be5ee0ef1cbf75c6219697e7b9c07815c3239b604bee143adbdaa6e2135"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/03-read.receipt.json",
+      "size": 170,
+      "sha256": "98eaba1d2db59f6b9c6730f3ee0959d7ed5b4170a6e4a5bf7d18ca352246581c"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/03-read.stdout",
+      "size": 11970,
+      "sha256": "70a1330fc117097c63e47c629abdd4d81cc17fd18c57531e5da775058c44b5a3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/04-read.receipt.json",
+      "size": 188,
+      "sha256": "7468d73d40cd45fbbadf5e0c41c42710c6166fed759e0b67a47dfb631875bed3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/04-read.stdout",
+      "size": 3035,
+      "sha256": "df2d973413d79a55d6ed38129e7572847cf6afb2a93d9099b5478796530d46ac"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/05-complete-job-log.log",
+      "size": 18951,
+      "sha256": "bb087c270c27847ac3cf4fcdc9831995de7af3a81af06c0bd3aba5da9e883f17"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/05-complete-job-log.receipt.json",
+      "size": 201,
+      "sha256": "96545b0a2ef3265982c9d8344e9fdfbdba78182d0f434294f02fc877de8dd64b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/06-artifacts.receipt.json",
+      "size": 193,
+      "sha256": "4c8d5df12ab06a6d191f9752651c7d25ead6da105c9de0e93a2410515d857ed2"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/06-artifacts.stdout",
+      "size": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/README.md",
+      "size": 1871,
+      "sha256": "503f6810c61d058e5d0a6a7b1885cab2cc3aaa66943ff98a7a2d39938485fd0a"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/allowlist.txt",
+      "size": 486,
+      "sha256": "206c622ec2299ebab4021312b1ad88e8b67b2c3cbbea6f719ac418f4a9dd48c2"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/git-tree-proof.txt",
+      "size": 164,
+      "sha256": "be37976156a9b6d76a51c6c6cb64b45974e39779eaab66991bac83659eca861d"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/identity-and-cleanup.json",
+      "size": 557,
+      "sha256": "df6198d218c4a35902d62384dabe0aec8a155ad4a16b0fd79b55018b6bb648bc"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/log-excerpt.json",
+      "size": 3568,
+      "sha256": "313e759e76166cbd8bdaece936bfd9f02bca5fcf9f03b778d0ee7b5cba3c9056"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/sha256.json",
+      "size": 3552,
+      "sha256": "1d26d545a9f6769756ff5b86af78363532e0e77f13f9b65112da3e2f517f80fa"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/summary.json",
+      "size": 2085,
+      "sha256": "d0aaab5d7eb67cbfe712e21034b8fc670561da945176a9d19df83ba1e27862c5"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/postmerge-ci/workflow-source.yml",
+      "size": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/pr-before.json",
+      "size": 1778,
+      "sha256": "f1aba961393e25fdc7f3ccee2a88cd23eace316c6a636f2d1072f403d60f3dfa"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/pr-before.receipt.json",
+      "size": 331,
+      "sha256": "5f0fb459b3b2c82785a3bb0dbd966c64a33e421211277905c8449822fee67c30"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/pr-before.stdout",
+      "size": 1496,
+      "sha256": "cfff5f6576e4a32c2e3d6c6e67ac1384d541881c5f6311a1cd3f64796133749f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/protection.json",
+      "size": 1552,
+      "sha256": "11c9682058ebc954be048902a3be7b012681556797986e70ff373a22eae69c80"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/protection.receipt.json",
+      "size": 161,
+      "sha256": "2d7d3c9c80c419f5a54399a26690fe543e34631dd9b5314245632e6218a908bd"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/protection.stdout",
+      "size": 1292,
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/repository.json",
+      "size": 7674,
+      "sha256": "0d3c011ab5da2f21e76617d49d4c2edd26234ed78fda1025c806f2241c4795ed"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/repository.receipt.json",
+      "size": 136,
+      "sha256": "cd2937e31827e7bd69e7b1c3632777728301d47b9b844b0198870a2c4f28fdf2"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/repository.stdout",
+      "size": 6878,
+      "sha256": "21443c15bd5bd4a2b8560886fb0397b0b2a4d3ae6d3fd467f286263643bcf098"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/runs-initial.json",
+      "size": 14241,
+      "sha256": "35add951c14993f973bd4b66678d51a84b1f791e91dc54fd61507cfca8f80bc3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/runs-initial.receipt.json",
+      "size": 181,
+      "sha256": "280dacc19ba7fe2cb5a2d532a018f22425108d33aed50c820dcbb4878a40587f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/pr72-merge/runs-initial.stdout",
+      "size": 12003,
+      "sha256": "d6ecbc3846c3b49fecf0ab74a8ef1de046eb4f79d5888aba3dc110a287676f37"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/README.md",
+      "size": 3720,
+      "sha256": "704cdba4ca5aafda964b62487485b0d791204c36ac5a457b33db1474db2d4305"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/archive-sha256.json",
+      "size": 1437,
+      "sha256": "bb15d3fb51d8165eaa8e45392a74543986387d655842b3538d2f33dcd2dce590"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/console-observations.json",
+      "size": 5061,
+      "sha256": "098659770c396de2810ce5c301d606a72277bb019a2d0da8eb6f6ded01af3e61"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/dns-address.json",
+      "size": 282,
+      "sha256": "3111644a5ce56df3a673ce064e31a7623afd97be26529cb69c018e9217f4cf7d"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/dns-cname.json",
+      "size": 299,
+      "sha256": "233a5f5ddaa86e0e1665b6901fd85661df110ecfc325b08f82a4ce5ac5c2d35a"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/document-freeze.json",
+      "size": 1284,
+      "sha256": "890f18a8761319f26f780a37d28ee26a39871f1aab49f833c86f94f974a6681d"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/public-head.json",
+      "size": 1001,
+      "sha256": "85bba26713940867f7075ede515f5e674457f83afb591f9ed21332997c2db1a3"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/public-tls.json",
+      "size": 1184,
+      "sha256": "da14d2a03614fee55448af966b7861d044e19dda72439f64f25294c48d3f19cc"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/storage-current-readonly/resource-diff-inputs.json",
+      "size": 1826,
+      "sha256": "d86f5441fe04981dabac8ac714f81acd734d5bb3a61c13d068681133f9d896c0"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/ARCHIVE_ALLOWLIST.txt",
+      "size": 101,
+      "sha256": "ad81692ce8b0548f9e45ac9ab3bc0501527fcb0a51af1d1ed478011a0cdd3cca"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/failure-matrix.md",
+      "size": 5524,
+      "sha256": "3467e2dfc04db4fb6b0f3d239edf19d91728ea46d71063e2cf684897d75f398f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/generation-2/ARCHIVE_ALLOWLIST.txt",
+      "size": 84,
+      "sha256": "c3bc403df67ea8045ebed4b70d3abb7d3763ddf857d8ce73022c98dfe4cae221"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/generation-2/scope-amendment.md",
+      "size": 9595,
+      "sha256": "62778e749491b9335de04004892bcb7410a8398af6ce3de14c107184b163ebd0"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/generation-2/source-freeze.json",
+      "size": 1172,
+      "sha256": "ff38112ec0d99ed7e4a9de788727ccb2250812d819358b0c6b88b71d5f1947f5"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/generation-2/summary.json",
+      "size": 1029,
+      "sha256": "2d662cb9ee1c81e4fb8e6a8737c2a2c53a921e427523f495351539775f1af2a4"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/scope-proposal.md",
+      "size": 13338,
+      "sha256": "25340604b32b4e42eff8ef4b707f5ffd0ca70e164dd4ab2d1814913cae9917e1"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/source-freeze.json",
+      "size": 2274,
+      "sha256": "664a2d594b0d4f25262af6eb03be3649d5687a44d2cdf15fdbdfd2f8d5ffb811"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation/summary.json",
+      "size": 1316,
+      "sha256": "7b3c8a98e38268caa6afbcd3adc0b0c3fdced6b4679cf579d07a0fa2b7d53597"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/allowlist.txt",
+      "size": 75,
+      "sha256": "23793884587f27bdfeaae5da9e348162381031632282bcfdafc55e9f70c4fa8b"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/failure-matrix.md",
+      "size": 5524,
+      "sha256": "3467e2dfc04db4fb6b0f3d239edf19d91728ea46d71063e2cf684897d75f398f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/review.json",
+      "size": 3264,
+      "sha256": "0b3f4109592d8f3af0d873e4bbfee8d0e604d22ac40b1ce26bb961519326c9b5"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/review.md",
+      "size": 5933,
+      "sha256": "d77b79f1a0a35aeb1140e40375ca7a9687ef8cbdbd381f4d4456b0da6c1457c5"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/rules-summary.md",
+      "size": 1459,
+      "sha256": "2562b2fcda343e1d39f4c12b16b5cb4decd2f8f2c43958ef41b4b1093c733aa0"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/scope-proposal.md",
+      "size": 13338,
+      "sha256": "25340604b32b4e42eff8ef4b707f5ffd0ca70e164dd4ab2d1814913cae9917e1"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/generation-1/sha256.json",
+      "size": 829,
+      "sha256": "eecd08a0e06a1f4fa97dba107ba159329c8c9e595cf73ab495b521e050e306d2"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/resolution-v2/allowlist.txt",
+      "size": 30,
+      "sha256": "8323e555ec68182f5178ef96a5dc0919b557f97a892dd8594a9767516633037f"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/resolution-v2/resolution.json",
+      "size": 567,
+      "sha256": "2c8866123e010962853825bffd2a1db31f2d15a6eabc1317c8f03cb7fbd288a5"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/resolution-v2/resolution.md",
+      "size": 4996,
+      "sha256": "d8b08ffcf497d906819b56881cbe9ef4e066a7d21d0d1d3ae6f6eb467a425873"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/resolution-v2/sha256.json",
+      "size": 413,
+      "sha256": "46c02c4725b295c2a80cf09a6f70c27ffdb635c6552c34d44129c7511aedea0a"
+    },
+    {
+      "path": "docs/reports/v3-release-readiness-20261021/packages/stable-seal-transport-preparation-review/review-delivery-sha256.json",
+      "size": 1654,
+      "sha256": "e683f47e17157850e520022b5900ec24ab0e35a1ad5b2127514e9d429d3b35b9"
+    }
+  ]
+}

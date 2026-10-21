@@ -1,0 +1,32 @@
+{
+  "observed_at": "2026-10-21T10:51:48.285040+00:00",
+  "final_manifest_sha256": "0022c1b90c56af64c00859430eaad17b63987e6837a6b8690b9ed730409ec841",
+  "full_python_tests": 468,
+  "skipped": 1,
+  "exit_code": 0,
+  "contract_tests": 4,
+  "contract_exit_code": 0,
+  "original_review_preserved": true,
+  "files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/38-final-v2-full-python.json",
+      "size": 384,
+      "sha256": "27e4344bb0c59b23bf3d6a4fdd45adf625fdff094ac5e2794f27d3a755d75888"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/38-final-v2-full-python.log",
+      "size": 2189,
+      "sha256": "c5c2bea7b786f590394d6e36a82bfee3e8ffc3ec668d0d5b7e9092ce051408b5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/39-final-v2-contract.json",
+      "size": 267,
+      "sha256": "9b2a3c46fba18bc386395eab9d5612f00a52ad3674909f9540c680a69bfe3d5d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/39-final-v2-contract.log",
+      "size": 176,
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+    }
+  ]
+}

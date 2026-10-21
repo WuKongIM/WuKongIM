@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "bash",
+    "scripts/chat-lifecycle/comment-request-issue.sh",
+    "--preflight"
+  ],
+  "observed_at_utc": "2026-10-21T10:43:54.100983+00:00",
+  "exit_code": 0,
+  "source_sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0",
+  "scope": "read-only GET validation of historical tracking Issue; no cloud dispatch"
+}

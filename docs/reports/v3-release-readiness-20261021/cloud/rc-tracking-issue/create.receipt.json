@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "gh",
+    "issue",
+    "create",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--title",
+    "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+    "--body-file",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/body.md"
+  ],
+  "started_at_utc": "2026-10-21T10:42:36.249679+00:00",
+  "finished_at_utc": "2026-10-21T10:42:38.099637+00:00",
+  "exit_code": 0,
+  "authorization": "User explicitly approved the cloud RC plan including tracking Issue creation; historical request only, no new paid run"
+}

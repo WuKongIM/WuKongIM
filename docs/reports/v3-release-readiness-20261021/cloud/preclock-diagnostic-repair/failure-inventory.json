@@ -1,0 +1,17 @@
+{
+  "base": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "root_cause_of_original_readiness": "unknown",
+  "failure_modes": [
+    "start exit lost through ! conditional",
+    "SSH/systemctl exit and classifier exit collapsed to unreachable",
+    "terminal/preflight/unknown-summary loses safe codes",
+    "readiness_timeout preset despite early terminal or read failure",
+    "state sampled only after kill destroys original failure",
+    "raw error or journal field leaks secret",
+    "oversize/duplicate/unknown systemd fields are reflected as trusted values",
+    "diagnostic output write failure suppresses original cleanup or replaces original exit",
+    "exact-one Issue preflight missing before any paid or build action"
+  ],
+  "tests_before_implementation": true,
+  "cloud_or_api_calls_allowed": false
+}

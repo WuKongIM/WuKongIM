@@ -1,0 +1,166 @@
+{
+  "entries": [
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/README.md",
+      "path": "cloud/rc-tracking-issue/README.md",
+      "size_bytes": 1212,
+      "sha256": "0a5f0c16537df45d258b081d61a245f1807db54535906ea8eb93bd577229ba53"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/body.md",
+      "path": "cloud/rc-tracking-issue/body.md",
+      "size_bytes": 2471,
+      "sha256": "1971e3be6123ba88af670577e1c0b5142e9ab102a742e544c35af3e1fedc730b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/precreate-search.stdout",
+      "path": "cloud/rc-tracking-issue/precreate-search.stdout",
+      "size_bytes": 79,
+      "sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/precreate-search.stderr",
+      "path": "cloud/rc-tracking-issue/precreate-search.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/precreate-search.receipt.json",
+      "path": "cloud/rc-tracking-issue/precreate-search.receipt.json",
+      "size_bytes": 341,
+      "sha256": "0787df1b9247ddb2f0cbe26201ec6e40851d6a9bd2eb0ef3626a8530e9c86c22"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/create.stdout",
+      "path": "cloud/rc-tracking-issue/create.stdout",
+      "size_bytes": 49,
+      "sha256": "ccbc16b53831ea93533c7c9f70913e569ed34342f2640033dc1e3d2180ce79c6"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/create.stderr",
+      "path": "cloud/rc-tracking-issue/create.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/create.receipt.json",
+      "path": "cloud/rc-tracking-issue/create.receipt.json",
+      "size_bytes": 531,
+      "sha256": "68d33b03ec8e72a5a5109d28458202430ab8efbb6e1aed99cc28d486a10d0bb5"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/readback-first-failure.json",
+      "path": "cloud/rc-tracking-issue/readback-first-failure.json",
+      "size_bytes": 189,
+      "sha256": "b2da5fdd1cff2b7d4072aab653e809b864a2544b52fefbcb43751151981338c6"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/readback-second.stderr",
+      "path": "cloud/rc-tracking-issue/readback-second.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/readback-second.receipt.json",
+      "path": "cloud/rc-tracking-issue/readback-second.receipt.json",
+      "size_bytes": 222,
+      "sha256": "f66c21a5a4dffe4e880716bc2d59aa4356ec65dfb584821a07429453e1f6da1a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/issue-readback.json",
+      "path": "cloud/rc-tracking-issue/issue-readback.json",
+      "size_bytes": 2946,
+      "sha256": "070136f9edb885144c87563d6fce930cc04f2cf01aee5d07f7fcef16d5694720"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/live-preflight.stdout",
+      "path": "cloud/rc-tracking-issue/live-preflight.stdout",
+      "size_bytes": 258,
+      "sha256": "93dcec4edea472bfb8db29793cf17ae277215d1549ef45794315f680b69a36b0"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/live-preflight.stderr",
+      "path": "cloud/rc-tracking-issue/live-preflight.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/live-preflight.receipt.json",
+      "path": "cloud/rc-tracking-issue/live-preflight.receipt.json",
+      "size_bytes": 354,
+      "sha256": "412b41ea85889611382aa9b19b6e6910c3c1f323e8c705de44a2c2749b9d2856"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/allowlist.txt",
+      "path": "cloud/rc-tracking-issue/allowlist.txt",
+      "size_bytes": 316,
+      "sha256": "292125e92e5cc015bd29cbaab67f923a815dbdd008389516dc8aea6690578c36"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-tracking-issue/archive-sha256.json",
+      "path": "cloud/rc-tracking-issue/archive-sha256.json",
+      "size_bytes": 2278,
+      "sha256": "4ba1e85e0fb1573749b9b6e70631a6a9ffa50bdb0be7be2e2f6c0bb2a3b50296"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/evidence-fact-review-20261021/allowlist.txt",
+      "path": "evidence-fact-review/allowlist.txt",
+      "size_bytes": 63,
+      "sha256": "cb2c2d078e80d74b24a754d575f450b75bcde9b3ce893c8779338d6488a7585c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/evidence-fact-review-20261021/postmerge-manifest-recheck.json",
+      "path": "evidence-fact-review/postmerge-manifest-recheck.json",
+      "size_bytes": 3148,
+      "sha256": "1a418ea4828436619d74341ffbca29f1286ee349cefb3f3df5a96c6c0116400a"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/evidence-fact-review-20261021/review.md",
+      "path": "evidence-fact-review/review.md",
+      "size_bytes": 2533,
+      "sha256": "3e4e1a5f6acbfc655e43698d045c2e6808f8cd7021e41a8a561f67e1290729a3"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/evidence-fact-review-20261021/reviewed-inputs.json",
+      "path": "evidence-fact-review/reviewed-inputs.json",
+      "size_bytes": 36522,
+      "sha256": "a8c5a84d2a27b64adc242f6a85ca8a406ff51db9b6698e35548ada6d23ee9af1"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/evidence-fact-review-20261021/archive-sha256.json",
+      "path": "evidence-fact-review/archive-sha256.json",
+      "size_bytes": 571,
+      "sha256": "40f013ecb8d96beec846f3e412ed7b73236965ff296da63e41e55f3de4c757bf"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-public-schema/README.md",
+      "path": "cloud/issue-preflight-public-schema/README.md",
+      "size_bytes": 816,
+      "sha256": "8a5d8beaf7e64c5ae58a113d0a18e647dce1f53b01db2097666e2e250990741d"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-public-schema/allowlist.txt",
+      "path": "cloud/issue-preflight-public-schema/allowlist.txt",
+      "size_bytes": 45,
+      "sha256": "40c18610aa6036ca2ed28977459aee8d4172fc7d7e981351419e583ad3cacc11"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-public-schema/get-schema.json",
+      "path": "cloud/issue-preflight-public-schema/get-schema.json",
+      "size_bytes": 861,
+      "sha256": "c1e031ace74a753171e81ddd299e7b57f702478c96941781d8e2ef20308383f8"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-public-schema/search-schema.json",
+      "path": "cloud/issue-preflight-public-schema/search-schema.json",
+      "size_bytes": 995,
+      "sha256": "e6b5d6da3fa0c469d3cf8a16f5b22801a61f0ae8fee48583d2a59676667f8106"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-public-schema/archive-sha256.json",
+      "path": "cloud/issue-preflight-public-schema/archive-sha256.json",
+      "size_bytes": 549,
+      "sha256": "6272590071c986d251f674c6f9c5515d55040362aaf4817efabf020b14b9174c"
+    }
+  ]
+}

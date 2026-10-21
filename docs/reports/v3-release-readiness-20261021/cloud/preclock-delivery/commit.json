@@ -1,0 +1,23 @@
+{
+  "observed_at_utc": "2026-10-21T10:53:17.183279+00:00",
+  "base": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "head": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "tree": "0acb67250313fc81a463941295082c828a46124c",
+  "files": {
+    ".github/workflows/README.md": "afe54a4b14be7ccad401fdac00234d20bd0d02181fe31228e4648d48ad6e613f",
+    ".github/workflows/chat-lifecycle-formal.yml": "d400211c3ec827e02dc8efc85e6a2151310cf85bcd50cce0610dac888ed6270c",
+    ".github/workflows/chat-lifecycle-rehearsal.yml": "a3fcf2d1cf07ec21b99a42745e1b75a477493f03c9c5efc7ae19e109d436c274",
+    "CHANGELOG.md": "da6d660d0eb3dc8b08a2ab130acaae5f9ea4fc137164d2ae74524ec3c52539e8",
+    "docs/development/PROJECT_KNOWLEDGE.md": "b9fbf5700f09e6d30e13897c80b95c553c2e816af1618c3a5ec3c1ea0be9df2f",
+    "scripts/chat-lifecycle/classify-pre-clock-summary.sh": "7d72d5e83b590a74eab8cda6db70f3f347adf71865a7c3661597de662431d415",
+    "scripts/chat-lifecycle/comment-request-issue.sh": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0",
+    "scripts/chat-lifecycle/pre-clock-diagnostic.py": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24",
+    "scripts/chat-lifecycle/stage-orchestrate.sh": "81876a76e2b114b8a209c1c1f74cbb9a4b5470483e0aaa2e37aa09eae25cbc7d",
+    "scripts/chat_lifecycle_issue_preflight_integration_test.go": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3",
+    "scripts/chat_lifecycle_preclock_capture_integration_test.go": "288b13777186f6eff710313b092c98f7bc76eb55cba0d3a1be45ef497549cc5d",
+    "scripts/chat_lifecycle_preclock_diagnostic_test.go": "a6da05ccde2247e5ee27715df2efbfd46014203f97c10973049d5c3104ff9583",
+    "scripts/chat_lifecycle_preflight_artifact_workflow_test.go": "f14597a183f91fe5e7643c973e9c7384c16ce4e1229a1864c4edbf45f507e995"
+  },
+  "paid_workflow_dispatched": false,
+  "summary_ssh_linux_coverage_pending": true
+}

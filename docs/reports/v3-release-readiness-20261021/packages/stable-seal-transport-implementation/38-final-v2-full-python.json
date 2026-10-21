@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py"
+  ],
+  "started_utc": "2026-10-21T10:49:02.610564+00:00",
+  "frozen_manifest_sha256": "0022c1b90c56af64c00859430eaad17b63987e6837a6b8690b9ed730409ec841",
+  "exit_code": 0,
+  "elapsed_seconds": 104.48374204197899
+}

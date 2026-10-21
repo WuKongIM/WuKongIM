@@ -1,0 +1,137 @@
+{
+  "total_directory_files": 26,
+  "allowlist_payload_count": 24,
+  "manifest_type": "array",
+  "manifest_entries": 25,
+  "manifest_covers_allowlist_file": true,
+  "total_manifest_payload_bytes": 60705,
+  "all_verified": true,
+  "checks": [
+    {
+      "path": "01-run-read.receipt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "01-run-read.stderr",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "01-run-read.stdout",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "02-jobs-read.receipt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "02-jobs-read.stderr",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "02-jobs-read.stdout",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "03-read.receipt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "03-read.stderr",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "03-read.stdout",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "04-read.receipt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "04-read.stderr",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "04-read.stdout",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "05-complete-job-log.log",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "05-complete-job-log.receipt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "05-complete-job-log.stderr",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "06-artifacts.receipt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "06-artifacts.stderr",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "06-artifacts.stdout",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "README.md",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "git-tree-proof.txt",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "identity-and-cleanup.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "log-excerpt.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "summary.json",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "workflow-source.yml",
+      "size_matches": true,
+      "sha256_matches": true
+    },
+    {
+      "path": "allowlist.txt",
+      "size_matches": true,
+      "sha256_matches": true
+    }
+  ],
+  "interpretation": "26 total = 24 payload files + allowlist.txt + sha256.json; 25 digest entries = 24 payload files + allowlist.txt. No missing payload or digest mismatch; manifest intentionally cannot include its own hash."
+}

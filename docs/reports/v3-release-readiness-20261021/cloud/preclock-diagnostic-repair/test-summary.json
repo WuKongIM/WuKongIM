@@ -1,0 +1,173 @@
+{
+  "01-red": {
+    "root_pass": [],
+    "fail": [
+      "TestChatLifecyclePreClockSafeUnitMetadata/terminal",
+      "TestChatLifecyclePreClockSafeUnitMetadata/secret_value",
+      "TestChatLifecyclePreClockSafeUnitMetadata/duplicate",
+      "TestChatLifecyclePreClockSafeUnitMetadata/oversize",
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/preflight",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/runtime",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/unknown_field",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/extra_line",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "skip": [],
+    "package_elapsed": 0.663,
+    "sha256": "6e78a15c9ebd3d09fac8ca97dcaa5c85223dabbbc65cacca157f47451fd879d3"
+  },
+  "02-green": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision"
+    ],
+    "fail": [
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams/0",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams/17",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams/255",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "skip": [],
+    "package_elapsed": 1.7469999999999999,
+    "sha256": "ed0899484ba18fb6d43359acad146e06980d594f37d0dafcaa4d947cb7a49c0a"
+  },
+  "03-green": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams"
+    ],
+    "fail": [],
+    "skip": [],
+    "package_elapsed": 1.014,
+    "sha256": "afad8319e664590f0db72b6ff396ca6defdb91712c9847507f6b85b501f283b3"
+  },
+  "04-branches": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction"
+    ],
+    "fail": [
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/classifier_rejected",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "skip": [],
+    "package_elapsed": 6.34,
+    "sha256": "e991b14aacc2c36e4f9f9d1109987282df6aff812ac2b4197ef2eb54a81da2a7"
+  },
+  "05-write-failure-red": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill"
+    ],
+    "fail": [
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup/missing_directory_false",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup/missing_directory_true",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "skip": [],
+    "package_elapsed": 5.061,
+    "sha256": "ae1f6fa7f22cc9c49bfb6619646d2bb18d604463a34d134dc60a1246f8e5ffa5"
+  },
+  "06-bash3-green": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill"
+    ],
+    "fail": [],
+    "skip": [],
+    "package_elapsed": 3.7560000000000002,
+    "sha256": "115d0fa198c935ef00a253dcc8b306609968d6918ac268c2cc975cb2ebf33399"
+  },
+  "07-bash5-green": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction"
+    ],
+    "fail": [
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill",
+      "github.com/WuKongIM/WuKongIM/scripts"
+    ],
+    "skip": [],
+    "package_elapsed": 3.863,
+    "sha256": "65cbef7ed1b3f7d8013133dfe93f6b370e273357dd1149ca35045d74d7bf236f"
+  },
+  "08-bash5-green": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill"
+    ],
+    "fail": [],
+    "skip": [],
+    "package_elapsed": 4.932,
+    "sha256": "be8b01ce81834c8126069ca746fd8e33615959afb469ec0c774ff3540f55836b"
+  },
+  "09-bash3-final": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill"
+    ],
+    "fail": [],
+    "skip": [
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier"
+    ],
+    "package_elapsed": 3.572,
+    "sha256": "fe1f1d931e60bcd94f6159811cbd0416ab6923844baf756301d16c1b41d39118"
+  },
+  "10-bash5-final": {
+    "root_pass": [
+      "TestChatLifecyclePreClockSafeUnitMetadata",
+      "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+      "TestChatLifecyclePreClockSummaryClassification",
+      "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+      "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction",
+      "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill"
+    ],
+    "fail": [],
+    "skip": [
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+      "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier"
+    ],
+    "package_elapsed": 3.738,
+    "sha256": "9625e839d457dc64fa4ad567b49d996e73a3a92bc389643d9bf37063d0f9ad7f"
+  }
+}

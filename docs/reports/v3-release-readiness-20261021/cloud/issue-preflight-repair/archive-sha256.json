@@ -1,0 +1,76 @@
+{
+  "files": [
+    {
+      "path": "01-red-receipt.json",
+      "sha256": "d74317b7e9039cc528e5c4a55cbc9d1d9f139026febfd5f8d54b9d7b8bea1759",
+      "bytes": 704
+    },
+    {
+      "path": "01-red.log",
+      "sha256": "cd2723cf478d227cbea8a9a893d97a0f521f47b198e486e841c94a3b63c17bef",
+      "bytes": 18351
+    },
+    {
+      "path": "02-focused-green-receipt.json",
+      "sha256": "55e7fd616993161b57080e97ff6dc2b540dec577868d3b9fced4094a2b3955a2",
+      "bytes": 916
+    },
+    {
+      "path": "02-focused-green.log",
+      "sha256": "9bc71eac029f89f5e89bc16e5e7e9b557ec96edf5bf42c617c7fe4a2e2184845",
+      "bytes": 7274
+    },
+    {
+      "path": "03-static-and-legacy-checks.json",
+      "sha256": "3247051b174dd0e4fd83473a187b421486bc9a6dd02b0a60c263d6a12307dfb2",
+      "bytes": 584
+    },
+    {
+      "path": "README.md",
+      "sha256": "d2733469cdbf308c496bcce29b3eb3d7c2481be3ee414624a95002420e8d1cea",
+      "bytes": 1946
+    },
+    {
+      "path": "before-comment-request-issue.sh",
+      "sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7",
+      "bytes": 2654
+    },
+    {
+      "path": "chat_lifecycle_issue_preflight_integration_test.go.frozen",
+      "sha256": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3",
+      "bytes": 11066
+    },
+    {
+      "path": "comment-request-issue.sh.frozen",
+      "sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0",
+      "bytes": 6706
+    },
+    {
+      "path": "failure-inventory.md",
+      "sha256": "b265a1a9fef41af40f197db08876ae2797d2b0d2d8eebaaaf9d4185e5bf5efd1",
+      "bytes": 1840
+    },
+    {
+      "path": "review.patch",
+      "sha256": "851662d5eb8ed8ef50a1d02b6cff9b8c1d6fd309ea81a00004d7e5646f0da113",
+      "bytes": 16125
+    },
+    {
+      "path": "rule-and-source-freeze.json",
+      "sha256": "49857958c8fc32ea8f4abe27a7aa1c8cc1e81c037e8f50bbd8ffbf405e6131a2",
+      "bytes": 1266
+    },
+    {
+      "path": "source-freeze.json",
+      "sha256": "8aaff6f5b96f1ca2c584388fc7bd776dfec25470be511783717309e439ee7b0b",
+      "bytes": 795
+    },
+    {
+      "path": "tests-first.go.txt",
+      "sha256": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3",
+      "bytes": 11066
+    }
+  ],
+  "count": 14,
+  "total_bytes": 81293
+}

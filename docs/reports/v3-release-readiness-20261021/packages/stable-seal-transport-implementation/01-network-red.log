@@ -1,0 +1,57 @@
+test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) ... 
+  test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) (test_only=False, base='http://127.0.0.1:1') ... ERROR
+  test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) (test_only=False, base='https://example.invalid') ... ERROR
+  test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) (test_only=True, base='https://api.github.com') ... ERROR
+test_test_reader_rejects_every_redirect_without_second_request (test_stable_audit_transport.StableReaderNetworkTest.test_test_reader_rejects_every_redirect_without_second_request) ... ERROR
+
+======================================================================
+ERROR: test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) (test_only=False, base='http://127.0.0.1:1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 30, in test_production_override_and_test_remote_fail_before_output_or_request
+    R.resolve_audit_release(release_id=42, expected_control_sha='a'*40,
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        output_dir=output, api_base_url=base, download_base_url=base,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        token=None, channel='stable', test_only=test_only)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: resolve_audit_release() got an unexpected keyword argument 'channel'
+
+======================================================================
+ERROR: test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) (test_only=False, base='https://example.invalid')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 30, in test_production_override_and_test_remote_fail_before_output_or_request
+    R.resolve_audit_release(release_id=42, expected_control_sha='a'*40,
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        output_dir=output, api_base_url=base, download_base_url=base,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        token=None, channel='stable', test_only=test_only)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: resolve_audit_release() got an unexpected keyword argument 'channel'
+
+======================================================================
+ERROR: test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) (test_only=True, base='https://api.github.com')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 30, in test_production_override_and_test_remote_fail_before_output_or_request
+    R.resolve_audit_release(release_id=42, expected_control_sha='a'*40,
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        output_dir=output, api_base_url=base, download_base_url=base,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        token=None, channel='stable', test_only=test_only)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: resolve_audit_release() got an unexpected keyword argument 'channel'
+
+======================================================================
+ERROR: test_test_reader_rejects_every_redirect_without_second_request (test_stable_audit_transport.StableReaderNetworkTest.test_test_reader_rejects_every_redirect_without_second_request)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 40, in test_test_reader_rejects_every_redirect_without_second_request
+    reader=R.GitHubReader(api, download, 'TEST ONLY', deny_redirects=True)
+TypeError: GitHubReader.__init__() got an unexpected keyword argument 'deny_redirects'
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.015s
+
+FAILED (errors=4)

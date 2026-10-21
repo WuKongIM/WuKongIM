@@ -1,0 +1,57 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/final-freeze-v2/manifest.json",
+    "size": 11401,
+    "sha256": "0022c1b90c56af64c00859430eaad17b63987e6837a6b8690b9ed730409ec841"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/final-freeze-v2/review.patch",
+    "size": 117785,
+    "sha256": "fdea1157cbd368d8657e627c96091ea425a71cf1e3f17e373739c8c9319e99e1"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/final-freeze-v2/delta-from-v1.patch",
+    "size": 3274,
+    "sha256": "b896e5117b6ae28b149218fabb56219f832680df42271929af72b803d777769e"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/35-resolution-race-red.log",
+    "size": 1784,
+    "sha256": "99b6f8f3477d42b89eb21f1ec1a0b02ebd295ca99c632c5de912a42b1d01b1e9"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/36-resolution-race-green.log",
+    "size": 646,
+    "sha256": "3b3b9e97df69f5731859d9755eac657033e5f672e77bc098a87dddfe2b0e8335"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/37-generation-2-regression.json",
+    "size": 611,
+    "sha256": "5cb77ea57c5524f44c4d2c3de20a7b84a36101b12b7feb720a5668373a1de828"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/native-resolution-anchor-result.json",
+    "size": 1683,
+    "sha256": "b719c294988568f9049b56ab2c7cdd432eaacbfd54557a5a53270ab684ba4e30"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/native-resolution-anchor-inputs.json",
+    "size": 7098,
+    "sha256": "7afcd5854a8c3ee5c543109f52b7104e13f2d3f1bf86ce8d650e0db70ea603ba"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/native-resolution-anchor/native-stable-candidate.json",
+    "size": 28830,
+    "sha256": "ff725a486f1caa4cb88603aed6dd18f60d784b81dc57078ac59f62a6e0bfa964"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/33-final-full-python.log",
+    "size": 2189,
+    "sha256": "149397f18ae18bac601b1bab49ead5a49f5aae9a1f3c75bc09dd3a18e27847ef"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/stable-seal-transport-implementation/34-final-contract.log",
+    "size": 176,
+    "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+  }
+]

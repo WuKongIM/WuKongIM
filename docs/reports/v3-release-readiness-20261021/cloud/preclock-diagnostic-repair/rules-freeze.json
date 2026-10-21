@@ -1,0 +1,30 @@
+[
+  {
+    "path": "AGENTS.md",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  {
+    "path": "CONTEXT.md",
+    "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+  },
+  {
+    "path": ".github/workflows/README.md",
+    "sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1"
+  },
+  {
+    "path": "internal/bench/FLOW.md",
+    "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+  },
+  {
+    "path": "internal/bench/chatlifecycle/FLOW.md",
+    "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+  },
+  {
+    "path": "docs/adr/0041-use-four-postpaid-hosts-for-automated-chat-lifecycle.md",
+    "sha256": "e9d765f06bb624793e3bdcd5e7382ee2ac3ea6f64146bd0044e5b3374628c7f1"
+  },
+  {
+    "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+    "sha256": "fbd72cff0f2d7345693882321a4ff9156475390b2411837befbaa30a7f4b6b38"
+  }
+]

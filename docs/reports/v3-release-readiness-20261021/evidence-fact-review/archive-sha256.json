@@ -1,0 +1,22 @@
+[
+  {
+    "path": "allowlist.txt",
+    "size": 63,
+    "sha256": "cb2c2d078e80d74b24a754d575f450b75bcde9b3ce893c8779338d6488a7585c"
+  },
+  {
+    "path": "postmerge-manifest-recheck.json",
+    "size": 3148,
+    "sha256": "1a418ea4828436619d74341ffbca29f1286ee349cefb3f3df5a96c6c0116400a"
+  },
+  {
+    "path": "review.md",
+    "size": 2533,
+    "sha256": "3e4e1a5f6acbfc655e43698d045c2e6808f8cd7021e41a8a561f67e1290729a3"
+  },
+  {
+    "path": "reviewed-inputs.json",
+    "size": 36522,
+    "sha256": "a8c5a84d2a27b64adc242f6a85ca8a406ff51db9b6698e35548ada6d23ee9af1"
+  }
+]

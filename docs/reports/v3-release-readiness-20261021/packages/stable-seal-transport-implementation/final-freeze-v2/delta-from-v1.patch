@@ -1,0 +1,54 @@
+--- a/scripts/plan-object-storage-publication.py
++++ b/scripts/plan-object-storage-publication.py
+@@ -302,7 +302,8 @@
+     resolution_raw=C.read_checked(resolution_path,'external seal resolution',maximum_bytes=R.MAX_JSON_BYTES)
+     require(hashlib.sha256(resolution_raw).hexdigest()==item['resolution_sha256'],
+             'seal resolution differs from independent anchor')
+-    resolution=C.load_json(resolution_path,'seal resolution',canonical=True)
++    resolution=json.loads(resolution_raw,object_pairs_hook=C.reject_duplicate_pairs)
++    require(resolution_raw==C.canonical_json(resolution),'seal resolution must use canonical JSON encoding')
+     C.exact(resolution,{'schema','repository','release_id','tag_name','name','prerelease','control_sha',
+         'tag_commit_verified','classification','draft','immutable','published_at','asset_count','total_size',
+         'assets','release_revalidated','id_bound_downloads','channel','test_only','candidate'},'seal resolution')
+--- a/tests/test_composite_storage_plan.py
++++ b/tests/test_composite_storage_plan.py
+@@ -2,6 +2,7 @@
+ from pathlib import Path
+ import tempfile
+ import unittest
++from unittest import mock
+ from test_stable_audit_transport import load
+ from test_stable_offline_candidate import canonical
+ P=load('plan-object-storage-publication.py')
+@@ -57,4 +58,31 @@
+             with self.assertRaisesRegex((P.PlanningError,P.C.CompositionError,ValueError),'archive|candidate|receipt'):
+                 P.make_plan(path,composite=True,test_only=True)
+ 
++            # Replacing the file after its bounded read must not alter the JSON
++            # whose independently supplied digest was just checked.
++            original=resolution_path.read_bytes()
++            real_read=P.C.read_checked
++            replaced=[]
++            def replace_after_read(file,label,**kwargs):
++                raw=real_read(file,label,**kwargs)
++                if file==resolution_path and not replaced:
++                    changed=json.loads(raw);changed['classification']='changed-after-hash'
++                    resolution_path.write_bytes(canonical(changed));replaced.append(True)
++                return raw
++            with mock.patch.object(P.C,'read_checked',side_effect=replace_after_read):
++                with self.assertRaisesRegex((P.PlanningError,P.C.CompositionError,ValueError),'archive|candidate|receipt'):
++                    P.make_plan(path,composite=True,test_only=True)
++            self.assertEqual(replaced,[True])
++            resolution_path.write_bytes(original)
++
++            for raw,reason in ((b' '+original,'canonical'),
++                (original[:-2]+b',"classification":"immutable_complete"}\n','duplicate')):
++                with self.subTest(reason=reason):
++                    resolution_path.write_bytes(raw)
++                    descriptor['resolution_sha256']=hashlib.sha256(raw).hexdigest()
++                    inputs=json.loads(path.read_bytes());inputs['current']['stable']=descriptor
++                    path.write_bytes(canonical(inputs))
++                    with self.assertRaisesRegex((P.PlanningError,P.C.CompositionError,ValueError),reason):
++                        P.make_plan(path,composite=True,test_only=True)
++
+ if __name__=='__main__': unittest.main()

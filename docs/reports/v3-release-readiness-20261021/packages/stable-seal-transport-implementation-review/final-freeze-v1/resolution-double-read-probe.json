@@ -1,0 +1,10 @@
+{
+  "actually_parsed_published_at": "2026-10-22T00:00:00Z",
+  "reached_candidate_gate": true,
+  "result": "passed resolution digest and validation gates",
+  "original_sha256": "9c182212059ed6dd0cea7a404ca4f6119da4f6714ea7cd376425dee7d34f98d4",
+  "actual_parsed_bytes_sha256": "56b47162e2cf70d5108327dc1edbd2c72cbecefffb586b34f721d75194702f91",
+  "hashes_differ": true,
+  "original_published_at": "2026-10-21T00:00:00Z",
+  "scope": "Deterministic filesystem replacement at the bounded read seam; no network, GPG, native packages, source mutation, or full-plan success claim. Candidate verifier deliberately stops execution after resolution gates."
+}

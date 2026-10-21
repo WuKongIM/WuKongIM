@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^TestChatLifecycleIssuePreflight",
+    "-count=1",
+    "-timeout=2m",
+    "-v"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "go1.25.11",
+    "GOFLAGS": "-p=2",
+    "GOCACHE": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-early-release-diagnosis/issue-preflight-repair/go-cache"
+  },
+  "started_at": "2026-10-21T10:29:05.243810+00:00",
+  "finished_at": "2026-10-21T10:29:45.429939+00:00",
+  "exit_code": 1,
+  "test_sha256": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3",
+  "implementation_sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7"
+}

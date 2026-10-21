@@ -1,0 +1,34 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_composite_storage_plan.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.29441816703183576
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_plan_object_storage_publication.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 3.1489150000270456
+  }
+]

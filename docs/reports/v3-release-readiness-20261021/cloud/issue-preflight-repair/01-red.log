@@ -1,0 +1,110 @@
+=== RUN   TestChatLifecycleIssuePreflightReadOnlyIdentity
+=== RUN   TestChatLifecycleIssuePreflightReadOnlyIdentity/minimal_environment
+    chat_lifecycle_issue_preflight_integration_test.go:26: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightReadOnlyIdentity/ignores_inherited_comment_and_close
+    chat_lifecycle_issue_preflight_integration_test.go:26: preflight attempted a non-read-only or non-GitHub command: ["api --method GET /search/issues -f q=repo:WuKongIM/WuKongIM is:issue in:title \"[chat-lifecycle] request-1\" -f per_page=10"]
+--- FAIL: TestChatLifecycleIssuePreflightReadOnlyIdentity (0.40s)
+    --- FAIL: TestChatLifecycleIssuePreflightReadOnlyIdentity/minimal_environment (0.01s)
+    --- FAIL: TestChatLifecycleIssuePreflightReadOnlyIdentity/ignores_inherited_comment_and_close (0.40s)
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/fuzzy_title
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/pull_request
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/duplicate_including_closed
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/incomplete_search
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/truncated_search
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_completeness
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_count
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_items
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/malformed_json
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/search_api_failure
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_number
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_id
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/foreign_repository
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/wrong_html_url
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_api_failure
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/closed_after_search
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/locked_issue
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_identity_changed
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_title_changed
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_repository_changed
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_pull_request
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_state_missing
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_missing
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_invalid
+    chat_lifecycle_issue_preflight_integration_test.go:106: preflight did not return one JSON identity: invalid character '/' looking for beginning of value; err=exit status 1; output=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+--- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue (0.09s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing (0.01s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/fuzzy_title (0.01s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/pull_request (0.01s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/duplicate_including_closed (0.01s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/incomplete_search (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/truncated_search (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_completeness (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_count (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_items (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/malformed_json (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/search_api_failure (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_number (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_id (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/foreign_repository (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/wrong_html_url (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_api_failure (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/closed_after_search (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/locked_issue (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_identity_changed (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_title_changed (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_repository_changed (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_pull_request (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_state_missing (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_missing (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_invalid (0.00s)
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GH_TOKEN/GH_TOKEN=
+    chat_lifecycle_issue_preflight_integration_test.go:125: environment rejection is not JSON: invalid character '/' looking for beginning of value; /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 4: GH_TOKEN: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=
+    chat_lifecycle_issue_preflight_integration_test.go:125: environment rejection is not JSON: invalid character '/' looking for beginning of value; /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 5: GITHUB_REPOSITORY: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=../other
+    chat_lifecycle_issue_preflight_integration_test.go:125: environment rejection is not JSON: invalid character '/' looking for beginning of value; /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=
+    chat_lifecycle_issue_preflight_integration_test.go:125: environment rejection is not JSON: invalid character '/' looking for beginning of value; /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 6: WK_CHAT_REQUEST_ID: required
+=== RUN   TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=bad_request
+    chat_lifecycle_issue_preflight_integration_test.go:125: environment rejection is not JSON: invalid character '/' looking for beginning of value; /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/comment-request-issue.sh: line 7: WK_CHAT_ISSUE_STATE: required
+--- FAIL: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI (0.01s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GH_TOKEN/GH_TOKEN= (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY= (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=../other (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID= (0.00s)
+    --- FAIL: TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=bad_request (0.00s)
+=== RUN   TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI
+=== PAUSE TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI
+=== CONT  TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI
+    chat_lifecycle_issue_preflight_integration_test.go:140: flags ["--typo"] must fail before API; err=exit status 91 calls=["api --method GET /search/issues -f q=repo:WuKongIM/WuKongIM is:issue in:title \"[chat-lifecycle] request-1\" -f per_page=10"] output=
+--- FAIL: TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI (0.13s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/scripts	1.211s
+FAIL

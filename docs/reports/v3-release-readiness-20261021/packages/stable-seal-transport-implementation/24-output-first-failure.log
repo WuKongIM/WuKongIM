@@ -1,0 +1,41 @@
+test_composite_requires_both_current_channels_before_reading_paths (test_composite_storage_plan.CompositePlannerModeTest.test_composite_requires_both_current_channels_before_reading_paths) ... FAIL
+test_v2_requires_explicit_composite_mode (test_composite_storage_plan.CompositePlannerModeTest.test_v2_requires_explicit_composite_mode) ... ERROR
+test_local_immutable_claim_does_not_skip_candidate_archive_verification (test_composite_storage_plan.CompositeSealRejectionTest.test_local_immutable_claim_does_not_skip_candidate_archive_verification) ... ok
+
+======================================================================
+ERROR: test_v2_requires_explicit_composite_mode (test_composite_storage_plan.CompositePlannerModeTest.test_v2_requires_explicit_composite_mode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_composite_storage_plan.py", line 18, in test_v2_requires_explicit_composite_mode
+    P.make_plan(path,composite=True)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/plan-object-storage-publication.py", line 480, in make_plan
+    return make_composite_plan(input_path,test_only,output_path)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/plan-object-storage-publication.py", line 383, in make_composite_plan
+    inputs=composite_inputs(input_path,test_only)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/plan-object-storage-publication.py", line 274, in composite_inputs
+    input_path=C.candidate_path(input_path.parent,input_path.name,'composite inputs')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/compose-package-site.py", line 1915, in candidate_path
+    require(stat.S_ISDIR(parent.lstat().st_mode), f'{label} parent must be a real directory')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/compose-package-site.py", line 137, in require
+    raise CompositionError(message)
+storage_plan_composer.CompositionError: composite inputs parent must be a real directory
+
+======================================================================
+FAIL: test_composite_requires_both_current_channels_before_reading_paths (test_composite_storage_plan.CompositePlannerModeTest.test_composite_requires_both_current_channels_before_reading_paths)
+----------------------------------------------------------------------
+storage_plan_composer.CompositionError: composite inputs parent must be a real directory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_composite_storage_plan.py", line 24, in test_composite_requires_both_current_channels_before_reading_paths
+    with self.assertRaisesRegex((P.PlanningError,P.C.CompositionError),'preview|fields'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "preview|fields" does not match "composite inputs parent must be a real directory"
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.112s
+
+FAILED (failures=1, errors=1)

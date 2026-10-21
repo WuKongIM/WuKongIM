@@ -266,3 +266,21 @@ immutable publication and signed native-package public-client acceptance.
   and public DNS/TLS, with scope limits and no resource mutation.
 - `rc-terminal-and-storage-readonly-archive.json`: byte/hash allowlist copy
   receipts for the terminal cloud evidence and distribution resource inventory.
+
+- `cloud/rc-tracking-issue/`: authorized retrospective Issue #1018 creation and
+  one actual read-only preflight; original omission and first GET limitation retained.
+- `evidence-fact-review/`, `cloud/issue-preflight-public-schema/`: independent
+  review of the latest report changes and real public API field validation.
+- `tracking-issue-and-fact-review-archive.json`: public-only copy receipts.
+
+- `cloud/issue-preflight-repair/`, `cloud/issue-preflight-root-review/`: test-first
+  exact-Issue preflight and independent source review.
+- `cloud/preclock-diagnostic-repair/`, `cloud/preclock-diagnostic-independent-review/`,
+  `cloud/preclock-root-validation/`, `cloud/preclock-delivery/`: reviewed PR #1019,
+  preserved red cases, bounded diagnostics and local validation; Linux coverage pending.
+- `packages/stable-seal-transport-implementation/`,
+  `packages/stable-seal-transport-implementation-review/`,
+  `packages/stable-seal-transport-delivery/`: reviewed PR #73 and all local
+  generations, including the original native exit137 and the closed read race.
+- `preclock-and-stable-transport-delivery-archive.json`: copy receipts for these
+  implementation/review records. No production release or cloud restart occurred.

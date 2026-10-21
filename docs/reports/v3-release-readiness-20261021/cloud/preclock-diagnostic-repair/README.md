@@ -1,0 +1,32 @@
+# Pre-clock evidence and early Issue preflight
+
+Base: `fc18221282f289088ec9b4282fda8e0bfc67a3b8`. This slice does **not** explain or repair the original remote run's startup failure. Original hosts were released; no cloud/API write, workload, workflow dispatch, commit or push occurred in this implementation validation.
+
+`source-freeze.json` and `shipping.patch` identify the five owned files. Parent owns operator documentation; the separate Issue-preflight implementation and tests belong to `ci_audit`.
+
+## Behavior
+
+* `stage-orchestrate.sh` executes the read-only Issue preflight immediately after output/work directory creation. Its original nonzero status stops the script before bundle creation, key generation, Quote or Acquire. The complete script is tested with spies: rejected/missing Issue gives exit 1, one GET search, no other command.
+* Each deployment generation records under `attempt-1/pre-clock-generation-N/`. `diagnostic.json` schema `wukongim.chat_lifecycle.pre_clock_diagnostic/v1` is frozen **before** the existing service kill. It contains request/source/control/bundle/stage/generation, original command/classifier exits, state, actual observation branch and readiness wall-clock epochs.
+* Branches are `stage_start_failed`, `stage_terminal_before_run_start`, `stage_state_read_failed`, `stage_state_parse_failed`, `stage_readiness_deadline_elapsed`, `operator_stop`, and `operator_stop_authority_failed`. The old preset timeout label is removed. A terminal observation is not represented as elapsed deadline.
+* Existing state SSH query additionally reads LoadState/SubState/Result/ExecMainCode/ExecMainStatus. Only original ActiveState/Job are passed to the unchanged business classifier. Unknown/missing new properties mark diagnostics invalid without changing the decision. If start failed, no extra state query is introduced: unobserved state/summary remain unavailable.
+* Unit parser keeps at most 8,192 bytes, publishes only closed systemd values/numeric ranges, fixed field names, byte counts and SHA-256. Duplicate, unknown and oversized input is marked invalid. Original stdout stays in memory; metadata explicitly records shell trailing-newline normalization.
+* Stderr is streamed in 65,536-byte chunks to byte count/SHA-256 only, through an owned FIFO which is removed after completion. The original SSH timeout remains 60 seconds. Collector deadline is 65 seconds, so a pathological inherited descriptor can add at most approximately 5 seconds after that bound, excluding OS scheduling; `complete:false` means the digest is partial. No raw stderr/journal/env/token/private key is persisted by these new collectors.
+* Existing cursor-scoped summary query keeps its 1,025-byte remote ceiling. Optional classifier diagnostic JSON publishes only grammar validity, known coordinator/preflight/grant/runtime/observer codes and digest. Default terminal classification and preflight/unknown repair behavior are unchanged. The original pre-clock terminal receipt retains the validated coordinator code but no longer duplicates raw summary text.
+* Diagnostic write errors are nonfatal; real exit 17 remains 17 and cleanup proceeds when metadata files are unwritable or the diagnostic directory is absent. Original retry counts, poll sleep, readiness timeout and repair/release branches remain intact.
+
+## Test evidence and limits
+
+`01-red.json` is the original missing-implementation red. Subsequent red results are retained, including Bash 3 process-substitution handling (`02-green.json`, despite its historical filename), invalid Job baseline portability (`04-branches.json` plus `04b-existing-classifier-shell-difference.json`), diagnostic write-error output (`05-write-failure-red.json`), and cursor regex coverage discovery (`07-bash5-green.json`). File names do not imply pass; use `test-summary.json`.
+
+Final focused commands use the task-owned `gocache`, `GOWORK=off`, `-p=2`, integration tag and regex `^TestChatLifecycle(PreClock|StagePreflight)`, `-count=1 -timeout=2m -json`:
+
+* `09-bash3-final.json`: 7 roots pass, 0 fail; 3 summary SSH child cases explicitly skip.
+* `10-bash5-final.json`: same result under actual GNU Bash 5.2.21 built on Darwin; not a Linux reproduction.
+* Those three skips are due to **unchanged** cursor regex `{1,512}` exceeding Darwin's regex repetition support. Linux CI must exercise the real summary SSH/classifier branch. Direct summary CLI cases did execute and pass under both shells. Other actual-loop start/read/classifier/terminal/deadline and before-kill assertions execute even where summary extraction is unsupported.
+* `04b-existing-classifier-shell-difference.json` proves an unchanged fc182 malformed-Job classifier difference: Bash 3 accepts it, Bash 5 rejects it. This unrelated baseline behavior was not repaired or used to explain the cloud incident. The state-parser rejection integration test instead uses an unknown ActiveState with the original explicit exit 2.
+* Named `go-format` and `workflow-contracts` pass using arguments/time/output limits read from the exact policy. `named-checks/` records command/identity/logs. Bash 3/5 syntax, external Python compilation and `git diff --check` pass. Full Linux/default/scripts gates remain the subsequent PR validation; no full local suite was rerun.
+
+Existing rehearsal/formal handoff/cleanup artifact uploads include pre-clock diagnostics when their normal markers exist. An additional three-file delta now retains early Issue rejection separately: always upload only issue-preflight.json, ignore a missing file, continue on upload error, 8-day retention, distinct stage-preflight name and no step ID or control-flow reference. Formal binds matrix.request_id; rehearsal binds inputs.request_id. The diagnostic artifact is never a running handoff. preflight-artifact.patch and preflight-artifact-freeze.json identify this delta. 11-preflight-artifact-red.json proves the missing uploads, 12-preflight-artifact-green.json proves the added contracts. The repeated named-checks-delta checks and pinned local actionlint (shellcheck/pyflakes disabled) pass on these two workflows.
+
+No changes were made to protected Issue/Review Agent control files, policies, thresholds, roles, budgets or public/private credentials. The production source used for the historical failed cloud run remains fc182; these uncommitted diagnostics require their own reviewed source identity before any later cloud execution.

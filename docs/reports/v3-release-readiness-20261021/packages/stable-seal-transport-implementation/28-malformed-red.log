@@ -1,0 +1,39 @@
+test_test_clients_do_not_consult_environment_proxies (test_stable_audit_transport.StableProxyIsolationTest.test_test_clients_do_not_consult_environment_proxies) ... ok
+test_malformed_nested_candidate_receipt_is_a_controlled_rejection (test_stable_audit_transport.StableReadIdentityTest.test_malformed_nested_candidate_receipt_is_a_controlled_rejection) ... 
+  test_malformed_nested_candidate_receipt_is_a_controlled_rejection (test_stable_audit_transport.StableReadIdentityTest.test_malformed_nested_candidate_receipt_is_a_controlled_rejection) (field='inputs') ... ERROR
+  test_malformed_nested_candidate_receipt_is_a_controlled_rejection (test_stable_audit_transport.StableReadIdentityTest.test_malformed_nested_candidate_receipt_is_a_controlled_rejection) (field='verification') ... ERROR
+test_stable_receipt_asset_bytes_must_match_external_anchor (test_stable_audit_transport.StableReadIdentityTest.test_stable_receipt_asset_bytes_must_match_external_anchor) ... ok
+test_stable_two_assets_keep_candidate_bytes_and_external_identity (test_stable_audit_transport.StableReadIdentityTest.test_stable_two_assets_keep_candidate_bytes_and_external_identity) ... ok
+test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) ... ok
+test_test_reader_rejects_every_redirect_without_second_request (test_stable_audit_transport.StableReaderNetworkTest.test_test_reader_rejects_every_redirect_without_second_request) ... ok
+test_bind_only_reserves_empty_stable_draft_and_labels_test_evidence (test_stable_audit_transport.StableWriterTest.test_bind_only_reserves_empty_stable_draft_and_labels_test_evidence) ... ok
+test_seal_invalid_candidate_cannot_upload_or_publish (test_stable_audit_transport.StableWriterTest.test_seal_invalid_candidate_cannot_upload_or_publish) ... ok
+
+======================================================================
+ERROR: test_malformed_nested_candidate_receipt_is_a_controlled_rejection (test_stable_audit_transport.StableReadIdentityTest.test_malformed_nested_candidate_receipt_is_a_controlled_rejection) (field='inputs')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 101, in test_malformed_nested_candidate_receipt_is_a_controlled_rejection
+    R.stable.candidate_identity(f.plan,f.receipt,test_only=True)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/verify-stable-seal-inputs.py", line 268, in candidate_identity
+    require(receipt['inputs'].get('audit/plan.json')==plan_facts,'candidate plan differs from receipt anchor')
+            ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+
+======================================================================
+ERROR: test_malformed_nested_candidate_receipt_is_a_controlled_rejection (test_stable_audit_transport.StableReadIdentityTest.test_malformed_nested_candidate_receipt_is_a_controlled_rejection) (field='verification')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 101, in test_malformed_nested_candidate_receipt_is_a_controlled_rejection
+    R.stable.candidate_identity(f.plan,f.receipt,test_only=True)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/verify-stable-seal-inputs.py", line 269, in candidate_identity
+    require(receipt['verification'].get('target_version')==plan['target_version'], 'candidate verified version differs')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.193s
+
+FAILED (errors=2)

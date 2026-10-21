@@ -1,0 +1,27 @@
+{
+  "actionlint_sha256": "c1da13dc71b4bdec6519dc5bed7edd25515f12a3ff2ff84617dd27b5e6216550",
+  "checks": [
+    {
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/ci/actionlint/actionlint",
+        "-shellcheck=",
+        "-pyflakes=",
+        ".github/workflows/chat-lifecycle-rehearsal.yml",
+        ".github/workflows/chat-lifecycle-formal.yml"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

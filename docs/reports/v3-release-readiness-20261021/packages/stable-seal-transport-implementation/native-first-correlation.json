@@ -1,0 +1,69 @@
+{
+  "first_utc": "2026-10-21T10:26:56+00:00",
+  "last_utc": "2026-10-21T10:27:25+00:00",
+  "actions": [
+    {
+      "action": "create",
+      "signal": null
+    },
+    {
+      "action": "attach",
+      "signal": null
+    },
+    {
+      "action": "start",
+      "signal": null
+    },
+    {
+      "action": "exec_create: /bin/sh ",
+      "signal": null
+    },
+    {
+      "action": "exec_start: /bin/sh ",
+      "signal": null
+    },
+    {
+      "action": "kill",
+      "signal": "15"
+    },
+    {
+      "action": "kill",
+      "signal": "9"
+    },
+    {
+      "action": "exec_die",
+      "signal": null
+    },
+    {
+      "action": "exec_create: /bin/sh ",
+      "signal": null
+    },
+    {
+      "action": "exec_start: /bin/sh ",
+      "signal": null
+    },
+    {
+      "action": "stop",
+      "signal": null
+    },
+    {
+      "action": "die",
+      "signal": null
+    },
+    {
+      "action": "destroy",
+      "signal": null
+    }
+  ],
+  "oom_observed": false,
+  "initiator": "unknown; root reports no Docker commands",
+  "owned_command": "one docker run --rm, outer 600s; no docker exec/stop/kill in test drivers",
+  "classification": "interrupted; not a test assertion or proven resource exhaustion",
+  "repeat": "one isolated repeat with unique name and unchanged limits; no further repeat if interrupted",
+  "container_ids": [
+    "ef9062306c7b8a86ae8d670608259ba84b46fd948218f1ddd12a834916157b87"
+  ],
+  "host_input_mtime_utc": "2026-10-21T10:26:47.025868+00:00",
+  "host_result_mtime_utc": "2026-10-21T10:27:25.718400+00:00",
+  "correlation": "One unique container ID and name; event interval aligns with host input/result timestamps and measured 29.266s. This establishes correlation, not an actor identity."
+}

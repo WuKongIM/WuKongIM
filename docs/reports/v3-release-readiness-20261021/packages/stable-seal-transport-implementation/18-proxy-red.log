@@ -1,0 +1,37 @@
+test_test_clients_do_not_consult_environment_proxies (test_stable_audit_transport.StableProxyIsolationTest.test_test_clients_do_not_consult_environment_proxies) ... FAIL
+test_stable_receipt_asset_bytes_must_match_external_anchor (test_stable_audit_transport.StableReadIdentityTest.test_stable_receipt_asset_bytes_must_match_external_anchor) ... ok
+test_stable_two_assets_keep_candidate_bytes_and_external_identity (test_stable_audit_transport.StableReadIdentityTest.test_stable_two_assets_keep_candidate_bytes_and_external_identity) ... ok
+test_production_override_and_test_remote_fail_before_output_or_request (test_stable_audit_transport.StableReaderNetworkTest.test_production_override_and_test_remote_fail_before_output_or_request) ... ok
+test_test_reader_rejects_every_redirect_without_second_request (test_stable_audit_transport.StableReaderNetworkTest.test_test_reader_rejects_every_redirect_without_second_request) ... ok
+test_bind_only_reserves_empty_stable_draft_and_labels_test_evidence (test_stable_audit_transport.StableWriterTest.test_bind_only_reserves_empty_stable_draft_and_labels_test_evidence) ... ok
+test_seal_invalid_candidate_cannot_upload_or_publish (test_stable_audit_transport.StableWriterTest.test_seal_invalid_candidate_cannot_upload_or_publish) ... ok
+
+======================================================================
+FAIL: test_test_clients_do_not_consult_environment_proxies (test_stable_audit_transport.StableProxyIsolationTest.test_test_clients_do_not_consult_environment_proxies)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/tests/test_stable_audit_transport.py", line 51, in test_test_clients_do_not_consult_environment_proxies
+    R.GitHubReader('http://127.0.0.1:1','http://127.0.0.1:1','TEST ONLY',deny_redirects=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport/scripts/resolve-audit-release.py", line 130, in __init__
+    self._no_redirect = urllib.request.build_opener(_NoRedirect())
+                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 567, in build_opener
+    opener.add_handler(klass())
+                       ~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 768, in __init__
+    proxies = getproxies()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/mock.py", line 1228, in _execute_mock_call
+    raise effect
+AssertionError: proxy environment read
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.170s
+
+FAILED (failures=1)

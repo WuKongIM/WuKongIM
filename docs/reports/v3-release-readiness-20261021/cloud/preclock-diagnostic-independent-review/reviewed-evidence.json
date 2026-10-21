@@ -1,0 +1,112 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/source-freeze.json",
+    "size": 790,
+    "sha256": "3b7d4178c94fb65751b78bedb74050c591ea18ee48ef9e9718d6d9fa7606ce75"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/shipping.patch",
+    "size": 39102,
+    "sha256": "99d571574dee6fbf72cc6446271de85abf858606cea40982ac7c116b759ca961"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/preflight-artifact-freeze.json",
+    "size": 481,
+    "sha256": "f56d8c31992034d7edff1efde7b9a3ea972f95cb94370457f05294d9a9818ffc"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/preflight-artifact.patch",
+    "size": 3984,
+    "sha256": "4cc692f92f61b174f07d9b5a9973d32cb284f2207e05c09fad4e2d6a6a06d384"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/plan.md",
+    "size": 3129,
+    "sha256": "1e63ed281b06697343245c45f60481898c08e3618a209a0d8ab9f169409fee41"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/rules-freeze.json",
+    "size": 976,
+    "sha256": "e82a5f2a1379d325ddad44978906feef3fdadba97b544766ebcea6b791591a31"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/test-summary.json",
+    "size": 8329,
+    "sha256": "86dd4839e6f6123c8668786a98f622dfeb7e82e700d3bbc73dc4549f5539a8db"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/01-red.json",
+    "size": 15293,
+    "sha256": "6e78a15c9ebd3d09fac8ca97dcaa5c85223dabbbc65cacca157f47451fd879d3"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/05-write-failure-red.json",
+    "size": 46000,
+    "sha256": "ae1f6fa7f22cc9c49bfb6619646d2bb18d604463a34d134dc60a1246f8e5ffa5"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/09-bash3-final.json",
+    "size": 50805,
+    "sha256": "fe1f1d931e60bcd94f6159811cbd0416ab6923844baf756301d16c1b41d39118"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/10-bash5-final.json",
+    "size": 50808,
+    "sha256": "9625e839d457dc64fa4ad567b49d996e73a3a92bc389643d9bf37063d0f9ad7f"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/11-preflight-artifact-red.json",
+    "size": 4029,
+    "sha256": "0accbfa1fc291f113798e689210b30ac3addeb9ed1fcf25466cae6a3c5fe05fe"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/12-preflight-artifact-green.json",
+    "size": 3415,
+    "sha256": "b968c34a9c9f651271cdd0761afa720390ea3b5a76e9d29e912fa32ca3b17661"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/.github/workflows/README.md",
+    "size": 80690,
+    "sha256": "afe54a4b14be7ccad401fdac00234d20bd0d02181fe31228e4648d48ad6e613f"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/internal/bench/FLOW.md",
+    "size": 6617,
+    "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/internal/bench/chatlifecycle/FLOW.md",
+    "size": 6514,
+    "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/discover-active-handoffs.sh",
+    "size": 3105,
+    "sha256": "8e3b3c34e345ec5633f698fe73fee248bda6bb1005dc11a9bb52bef1f70b2477"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/select-finalization-matrix.jq",
+    "size": 963,
+    "sha256": "1cc6f4437429d66c5e5686a617bb10d7364fa275939c112a68aa2ad09d3737c8"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-preclock-diagnostics/scripts/chat-lifecycle/select-formal-start-matrix.jq",
+    "size": 1109,
+    "sha256": "0905b475cb218d8907b1aff97e60a2b5d83d236021050969cd1dd0715ac18edc"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/preflight-artifact-validation.json",
+    "size": 595,
+    "sha256": "1c56769a71be789e485e99aee5a4655fe309e5bbe89354ce8dc0d8e80f27d5d5"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/named-checks-delta/go-format.json",
+    "size": 837,
+    "sha256": "571d159e84fd43a0c67ca1b83224f570cdb03d92099ebd5bb153b4e76df27295"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/preclock-diagnostic-repair/named-checks-delta/workflow-contracts.json",
+    "size": 936,
+    "sha256": "fadafd49159bdc4d4f8face0897579616ad2646abff711c357a9fc5d82ad588b"
+  }
+]
