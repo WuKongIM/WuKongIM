@@ -994,7 +994,7 @@ observe_hot_latency_trigger measurement
 join_threshold_pprof_capture
 test "$(wc -l <"$TEST_DIR/captures")" -eq 2
 test "$(cat "$EVIDENCE_DIR/hot-latency-helper-exit-status")" = 0
-rg -q -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
+grep -Fq -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
 # Required terminal evidence preempts an optional hot capture before phase closes.
 PPROF_TRIGGERED=0
 PPROF_TRIGGER_KIND=''
@@ -1009,7 +1009,7 @@ printf 'drain\n' >"$PHASE_STATE_FILE"
 join_threshold_pprof_capture
 test "$PPROF_EXIT_STATUS" = 0
 test "$PPROF_TRIGGER_KIND" = terminal_product_failure
-rg -q -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
+grep -Fq -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
 # A trigger delayed beyond measurement remains explicitly uncollected.
 HOT_PPROF_PENDING='pending'
 HOT_PPROF_TRIGGERED=0

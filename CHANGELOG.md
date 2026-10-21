@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Complete Analysis close and local cleanup after failures on Bash 5, and join
+  active chat-lifecycle steps after operator signals while preserving the
+  original exit status. / 修复 Bash 5 下失败退出时跳过 Analysis 关闭和本地清理、
+  操作员发出信号后未等待聊天生命周期活动步骤结束的问题，保留原始退出码。
+
 - Raise the local chat-lifecycle shakeout's default SEND budget to 500/s so its
   2,500-user bootstrap can complete mandatory conversation activity before
   expiry; retain all latency and correctness thresholds. / 本地聊天生命周期预检

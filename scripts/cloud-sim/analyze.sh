@@ -180,17 +180,18 @@ reject_project_codex_overrides() {
 
 dispatch_close_best_effort() {
   local close_status=0
+  # Successful cleanup must not inherit the EXIT trap's original failure status.
   if [[ "$session_open" != true || -z "$repository" || -z "$request_id" || -z "$run_id" ]]; then
-    return
+    return 0
   fi
   if [[ "$close_attempted_request_id" == "$request_id" ]]; then
     printf 'Warning: Analysis close for request %s was already attempted; access-window expiry remains the backstop.\n' \
       "$request_id" >&2
-    return
+    return 0
   fi
   if dispatch_close_once >/dev/null; then
     session_open=false
-    return
+    return 0
   else
     close_status=$?
   fi
@@ -201,7 +202,8 @@ dispatch_close_best_effort() {
 stop_analysis_bridge() {
   local bridge_wait
   if [[ -z "$analysis_bridge_pid" ]]; then
-    return
+    # A no-op cleanup is successful even when entered from a failing EXIT trap.
+    return 0
   fi
   kill "$analysis_bridge_pid" 2>/dev/null || true
   for ((bridge_wait = 0; bridge_wait < 50; bridge_wait += 1)); do
