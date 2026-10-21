@@ -469,3 +469,18 @@ wkbench_host_block_io_available{field="read_write_split",physical_device="unavai
 		})
 	}
 }
+
+// The helper must render the same affordable bootstrap budget as the YAML;
+// this no-background dry run also checks that the documented default is real.
+func TestChatLifecycleShakeoutDefaultSendBudget(t *testing.T) {
+	root := repoRoot(t)
+	cmd := exec.Command("bash", "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh", "--dry-run", "--run-dir", filepath.Join(t.TempDir(), "run"))
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry run: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "offered_send_rate_per_second=500") {
+		t.Fatalf("default budget is not 500 SEND/s: %s", output)
+	}
+}

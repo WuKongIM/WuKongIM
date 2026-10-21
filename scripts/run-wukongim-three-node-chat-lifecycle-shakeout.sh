@@ -7,7 +7,7 @@ RUN_DIR=""
 BASE_PORT=15000
 READY_TIMEOUT=120
 STOP_AFTER=0
-SEND_RATE=100
+SEND_RATE=500
 MEASURE_SECONDS=0
 WARMUP_SECONDS=60
 HOT_SENDACK_P99_MS=400
@@ -76,7 +76,7 @@ usage() {
 #   --base-port PORT    First port in a reserved 64-port range (default 15000).
 #   --ready-timeout S   Readiness deadline in seconds (default 120).
 #   --stop-after S      Request graceful coordinator stop after S seconds; 0 waits.
-#   --send-rate N       Offered SEND rate per second (default 100).
+#   --send-rate N       Offered SEND rate per second (default 500).
 #   --measure-seconds S After warmup, measure for S seconds; 0 keeps legacy mode.
 #   --warmup-seconds S  Traffic warmup before a measured step (default 60).
 #   --drain-timeout S   Maximum graceful drain in seconds (default 90).
@@ -366,8 +366,8 @@ sed \
 	-e "s/__WK_WORKER_1__/$(worker_port 1)/g" -e "s/__WK_WORKER_2__/$(worker_port 2)/g" -e "s/__WK_WORKER_3__/$(worker_port 3)/g" \
 	-e "s/__WK_HOST_METRICS_1__/$(host_metrics_port 1)/g" -e "s/__WK_HOST_METRICS_2__/$(host_metrics_port 2)/g" -e "s/__WK_HOST_METRICS_3__/$(host_metrics_port 3)/g" \
 	-e "s/__WK_LOAD_HOST_METRICS__/$(load_host_metrics_port)/g" \
-	-e "s/send_rate_per_second: 100/send_rate_per_second: $SEND_RATE/" \
-	-e "s/max_global_burst: 200/max_global_burst: $((SEND_RATE * 2))/" \
+	-e "s/send_rate_per_second: 500/send_rate_per_second: $SEND_RATE/" \
+	-e "s/max_global_burst: 1000/max_global_burst: $((SEND_RATE * 2))/" \
 	-e "s/hot_sendack: {p99: 400ms, p999: 1s}/hot_sendack: {p99: ${HOT_SENDACK_P99_MS}ms, p999: 1s}/" \
   "$ROOT_DIR/configs/wkbench/chat-lifecycle/local-shakeout.yaml" >"$LIFECYCLE_CONFIG"
 

@@ -9,9 +9,14 @@ credentials in YAML. `local-shakeout.yaml` keeps the same 12 logical Slot Raft G
 physical hash slots, replicas 3/3, real TCP traffic, and zero-coverage paginated
 conversation sync at smaller scale. Its native-process default keeps 2,500
 simultaneously online users, 500 fixed groups including one 100,000-member
-group, and 100 SEND/s. This is the highest sustained profile validated on the
-shared developer workstation; 5,000 users completed login and sync but made
-the three service nodes and three workers contend on one local filesystem,
+group, and 500 SEND/s with a two-second, 1,000-message burst budget. The former
+100 SEND/s default could not admit its mandatory bootstrap conversation bursts
+before the unchanged five-minute eligibility window. A fixed-clock regression
+checks the configured 500 SEND/s grant budget through that boundary for all three
+workers; the Linux regression also uses 500 SEND/s. Neither check establishes a
+particular developer workstation's sustained capacity: the full local shakeout
+must still run there with the unchanged 400 ms hot SENDACK P99 and correctness
+thresholds. Three service nodes and three workers share one local filesystem,
 which is not representative of the four-host cloud topology. It is not formal
 evidence.
 

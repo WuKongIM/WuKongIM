@@ -1826,6 +1826,13 @@ specification, runbook, report, or module documentation; link to them when neede
   report underdelivery instead of catching up. Qualification after this harness
   repair does not establish performance under the former synchronized bursts.
   See [nightly diagnosis](../reports/2026-10-15-nightly-chat-arrivals.md).
+- A reduced chat-lifecycle SEND rate must still cover the online population's
+  mandatory bootstrap relationship activity inside its eligibility window.
+  Reducing only the rate can make a local profile intrinsically undeliverable,
+  even with immediate ACKs and no host contention. Keep obligations and expiry
+  rules intact; verify the configured worker shares across the deadline boundary.
+  A maximum-work estimate is a conservative support envelope, not proof that
+  every configuration outside it is impossible.
 - A physical commit collection timeout ends waiting for new arrivals. After an
   owner scheduling pause, one captured bounded set of queued requests may still
   join the cohort under the existing request/record/byte and lane-fairness limits;

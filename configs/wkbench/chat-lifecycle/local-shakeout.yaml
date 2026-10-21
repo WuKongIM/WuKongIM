@@ -8,14 +8,14 @@ workload:
   online_users: 2500
   bootstrap_logins_per_second: 200
   new_users_per_day: 250000
-  send_rate_per_second: 100
+  send_rate_per_second: 500
   traffic: {person_percent: 90, group_percent: 10}
   hot_set: {person_channels: 2000, group_channels: 500}
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
   runtime_sampling: {every: 1m, size: 12}
   sync: {completed_coverage: 0, max_conversations: 500}
   burst_credit: 2s
-  max_global_burst: 200
+  max_global_burst: 1000
   max_channels_per_node: 50000
   login: {new_percent: 80, returning_percent: 20}
   sessions:

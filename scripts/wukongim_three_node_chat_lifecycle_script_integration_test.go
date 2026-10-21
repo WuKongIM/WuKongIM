@@ -156,6 +156,12 @@ cat "$FAKE_PS_FIXTURE"
 }
 
 func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *testing.T) {
+	for _, rate := range []int{0, 400} {
+		t.Run(fmt.Sprintf("send_rate_%d", rate), func(t *testing.T) { testShakeoutBuildWindowAndRenderedPorts(t, rate) })
+	}
+}
+
+func testShakeoutBuildWindowAndRenderedPorts(t *testing.T, rate int) {
 	root := repoRoot(t)
 	testRoot := t.TempDir()
 	scriptsDir := filepath.Join(testRoot, "scripts")
@@ -206,7 +212,7 @@ commit_coordinator_shards = 1
 	}
 	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
 timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
-workload: {send_rate_per_second: 100, max_global_burst: 200}
+workload: {send_rate_per_second: 500, max_global_burst: 1000}
 thresholds:
   latency:
     hot_sendack: {p99: 400ms, p999: 1s}
@@ -264,7 +270,11 @@ fi
 		}
 	}
 	runDir := filepath.Join(testRoot, "run")
-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
+	args := []string{shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000"}
+	if rate > 0 {
+		args = append(args, "--send-rate", strconv.Itoa(rate))
+	}
+	command := exec.Command("bash", args...)
 	command.Dir = testRoot
 	command.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -302,6 +312,16 @@ fi
 		t.Fatalf("runtime-defaults node config removed unrelated setting:\n%s", renderedNode)
 	}
 	rendered := readFile(t, filepath.Join(runDir, "chat-lifecycle.yaml"))
+	expectedRate := rate
+	if expectedRate == 0 {
+		expectedRate = 500
+	}
+	if identity["offered_send_rate_per_second"] != strconv.Itoa(expectedRate) {
+		t.Fatalf("identity rate=%q; want rendered rate %d", identity["offered_send_rate_per_second"], expectedRate)
+	}
+	if want := fmt.Sprintf("workload: {send_rate_per_second: %d, max_global_burst: %d}", expectedRate, expectedRate*2); !strings.Contains(rendered, want) {
+		t.Fatalf("rendered grant budget missing %q: %s", want, rendered)
+	}
 	for _, want := range []string{
 		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
 		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
