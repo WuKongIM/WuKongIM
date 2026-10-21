@@ -1,0 +1,43 @@
+{
+  "all_exact_exits_and_reasons": true,
+  "commands": 35,
+  "expected_cases_exact": true,
+  "flags": {
+    "checked_in_control_unchanged": true,
+    "passed": true,
+    "payloads_executed": false,
+    "production_keys_used": false,
+    "published": false,
+    "scratch_removed": true,
+    "secret_tree_removed_before_verification": true,
+    "source_provenance_verified": false,
+    "test_only": true
+  },
+  "head": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "limitations": "TEST ONLY source fixture with null GitHub identities; no stable release/preflight provenance/public installation/CDN proof",
+  "negative_cases": 21,
+  "positive_cases": 10,
+  "public_artifacts": {
+    "archive": {
+      "sha256": "ace4c69b65c966cd8b4b869d23e54dfadae3b528b032edcc7bd6d7660f870044",
+      "size": 151552
+    },
+    "plan": {
+      "sha256": "5a65381e2ee7b06e09b02c12f3055ce3bc71ac505deb7b7a543d27301984887f",
+      "size": 3757
+    },
+    "receipt": {
+      "sha256": "238630759fc7dc6f1bb560b41931aa4ad730b562aa9bc03c49c00b751be0d104",
+      "size": 2624
+    },
+    "snapshot": {
+      "sha256": "9276edd5eaced7d940aa6bebfcf9994ef34a3ec41ecaed77d2e5139a021f95f1",
+      "size": 5945
+    }
+  },
+  "receipt_sha256": "92d51e9b66547e5148533718c0b3c65336a6cabc1ea3257a7bbdd165bbfa1a26",
+  "receipt_size": 25200,
+  "seconds": 20,
+  "source_sha": "6526671784e1c0e0252fcec0709832302ee0df29",
+  "source_tree_equal_to_head": true
+}

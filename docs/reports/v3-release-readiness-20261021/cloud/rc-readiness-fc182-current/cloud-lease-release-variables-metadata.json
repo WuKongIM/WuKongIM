@@ -1,0 +1,19 @@
+{
+  "complete_paginated_snapshot": true,
+  "page_limit": 20,
+  "per_page": 100,
+  "pages": [
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/environments/cloud-lease-release/variables?per_page=100&page=1",
+      "started_at": "2026-10-21T09:47:09.839740+00:00",
+      "observed_at": "2026-10-21T09:47:10.733653+00:00",
+      "exit_code": 0,
+      "total_count": 0,
+      "count": 0,
+      "full_page_json_sha256": "2ce9f1466656cd2968a9bd6da1d4fb3487b394f794ba91ac268708addd0ebb7f"
+    }
+  ],
+  "rows": [],
+  "total_count_stable": true,
+  "values_retained": false
+}

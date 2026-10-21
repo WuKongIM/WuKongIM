@@ -1,0 +1,47 @@
+{
+  "as_of_utc": "2026-10-21T09:44:23.725812+00:00",
+  "packages_read_branch_head": "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb",
+  "scope": "read-only dependency update; no assertion about PR72 final CI/merge",
+  "sources": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/storage-design/design.md": {
+      "size": 21154,
+      "sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311"
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/storage-design/summary.json": {
+      "size": 1983,
+      "sha256": "05fe6b510ee2c4a79c44eb9a14f62a3d9f89d5278876d998c2642141021dfb84"
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/mac-key-preparation/production-public-receipt.json": {
+      "size": 4852,
+      "sha256": "af6fafeea56e0605d9872193537e39070a74e4362d1090d6c572f49b6a6033d3"
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/stable-offline-candidate/final-freeze-v1/manifest.json": {
+      "size": 8703,
+      "sha256": "d2e1453165748d98fa3029f9926b1213f1f9489063ea3c9f39e51d3b28dee18e"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/docs/release-contract.md": {
+      "size": 45055,
+      "sha256": "2e41e1abffda7de0499ef8cf483ccb357089bcfd2fdb7bd3ff4a7260a5b44c0d"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/docs/object-storage-planning.md": {
+      "size": 7359,
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/validate-production-package-clients.py": {
+      "size": 73349,
+      "sha256": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/scripts/plan-object-storage-publication.py": {
+      "size": 19863,
+      "sha256": "ae1ca68e28d6dcf487a2cf56af27944ae92accfa795df35a681e62b0772c3da7"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/.github/workflows/native-package-cli-acceptance.yml": {
+      "size": 5321,
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": {
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  }
+}

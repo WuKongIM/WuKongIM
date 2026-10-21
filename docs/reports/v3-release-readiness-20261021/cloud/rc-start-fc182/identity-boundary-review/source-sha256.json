@@ -1,0 +1,136 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "local_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "source_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "working_copy_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "same_bytes": true
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "size": 79014,
+      "source_sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1",
+      "working_copy_sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+      "same_bytes": false
+    },
+    {
+      "path": ".github/workflows/cloud-lease-oidc-setup.yml",
+      "size": 15064,
+      "source_sha256": "7af130a5cc0d8cb7917088d7daac2126ca4da7bed292d12b75732bb3bb8338fe",
+      "working_copy_sha256": "7af130a5cc0d8cb7917088d7daac2126ca4da7bed292d12b75732bb3bb8338fe",
+      "same_bytes": true
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "size": 8607,
+      "source_sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c",
+      "working_copy_sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c",
+      "same_bytes": true
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-activate.yml",
+      "size": 24727,
+      "source_sha256": "74ca6dba1abe62b07738a3f723220048d64fbcc4347846b479a1359bfbd0933e",
+      "working_copy_sha256": "74ca6dba1abe62b07738a3f723220048d64fbcc4347846b479a1359bfbd0933e",
+      "same_bytes": true
+    },
+    {
+      "path": "cmd/wkcloudleaseoidc/main.go",
+      "size": 7597,
+      "source_sha256": "a7f0ffbe0f95a5535d47b77afc06dacc1ff83cc9835dbc6b2582b4a2bb733f4a",
+      "working_copy_sha256": "a7f0ffbe0f95a5535d47b77afc06dacc1ff83cc9835dbc6b2582b4a2bb733f4a",
+      "same_bytes": true
+    },
+    {
+      "path": "cmd/wkcloudleaseoidc/FLOW.md",
+      "size": 1683,
+      "source_sha256": "c937e8574d203aa0a460e8a95be67af6c6913763614e960dac2b336276dde363",
+      "working_copy_sha256": "c937e8574d203aa0a460e8a95be67af6c6913763614e960dac2b336276dde363",
+      "same_bytes": true
+    },
+    {
+      "path": "cmd/wkcloudlease/FLOW.md",
+      "size": 1998,
+      "source_sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1",
+      "working_copy_sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1",
+      "same_bytes": true
+    },
+    {
+      "path": "cmd/wkchatlifecycle/deployment_identity.go",
+      "size": 11311,
+      "source_sha256": "3107e9e394df408efa8b457092a031cf83784d8c3dc1810c42f5b5415b4fc5ef",
+      "working_copy_sha256": "3107e9e394df408efa8b457092a031cf83784d8c3dc1810c42f5b5415b4fc5ef",
+      "same_bytes": true
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi.go",
+      "size": 44510,
+      "source_sha256": "7199fc093075aba7fcb12438d4ba81756a9ab8e4ad539b32c9a57a78feff6eae",
+      "working_copy_sha256": "7199fc093075aba7fcb12438d4ba81756a9ab8e4ad539b32c9a57a78feff6eae",
+      "same_bytes": true
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap.go",
+      "size": 20394,
+      "source_sha256": "87ebc090e7a414d4d9c0bd00770c3edc23ee6933bbc2c0c173ca2b54ef313846",
+      "working_copy_sha256": "87ebc090e7a414d4d9c0bd00770c3edc23ee6933bbc2c0c173ca2b54ef313846",
+      "same_bytes": true
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "size": 2508,
+      "source_sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28",
+      "working_copy_sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28",
+      "same_bytes": true
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "size": 2327,
+      "source_sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "working_copy_sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "same_bytes": true
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "size": 2691,
+      "source_sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f",
+      "working_copy_sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f",
+      "same_bytes": true
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "size": 4567,
+      "source_sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "working_copy_sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "same_bytes": true
+    },
+    {
+      "path": "scripts/cloud-deployment/FLOW.md",
+      "size": 2788,
+      "source_sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80",
+      "working_copy_sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80",
+      "same_bytes": true
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "size": 40784,
+      "source_sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a",
+      "working_copy_sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a",
+      "same_bytes": true
+    },
+    {
+      "path": "scripts/cloud-lease/configure-github-identity.sh",
+      "size": 6778,
+      "source_sha256": "7122b1b91096c84ed52f459049c969623e83ed6b777b950b4e65fc6fe2d7ea8b",
+      "working_copy_sha256": "7122b1b91096c84ed52f459049c969623e83ed6b777b950b4e65fc6fe2d7ea8b",
+      "same_bytes": true
+    }
+  ],
+  "readme_note": "Exact fc182 README cloud contracts read with git show; local README differs only in unrelated candidate-regression documentation. Runtime source and other rules match fc182.",
+  "public_guard_path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-start-fc182/fresh-public-guard.json",
+  "public_guard_sha256": "98c3d6d668fb1878d2cfb4b836eb30521874369d675d19c60d6c037d89a7ecf2",
+  "scope": "Read-only source audit and existing public guard; no Secret values, cloud API, tests, dispatch, request/key generation, or repository mutations."
+}

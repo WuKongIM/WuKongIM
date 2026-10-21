@@ -1,0 +1,17 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+  "started_at": "2026-10-21T09:46:58.829691+00:00",
+  "observed_at": "2026-10-21T09:46:59.708334+00:00",
+  "exit_code": 0,
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+    "present": true,
+    "redacted_value": "acs:ram::<account-id-redacted>:role/cloudleaseobserver",
+    "value_sha256": "05098740af2bb067f854b489f93416029531f02202ab5bc7c173bc8130c66bb0",
+    "equals_0456_snapshot": true,
+    "created_at": "2026-08-08T13:21:34Z",
+    "updated_at": "2026-08-22T11:29:54Z"
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,442 @@
+{
+  "previous_summary_sha256": "04b4c24ae88a2e0fc4fd807744d5ce2535a341d0247c3d8eea7aa9fa28a87cf6",
+  "historical_structural_results": [
+    {
+      "artifact_id": 9023722477,
+      "request_id": "chat-20260808T151346Z-e0780a64",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260808T151346Z-e0780a64-rehearsal-1",
+        "request_id": "chat-20260808T151346Z-e0780a64",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "1e1dc447c4951651d6f61e1e564f7e190b220f039059015a42497d3d5e0589c4"
+      },
+      "observed_at": "2026-08-08T15:26:32.080965627Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9024601964,
+      "request_id": "chat-20260808T162429Z-cd387a49",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260808T162429Z-cd387a49-rehearsal-1",
+        "request_id": "chat-20260808T162429Z-cd387a49",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "8f9b16fd10d42627aa0ee2a0950923b668c225a13cdb1fd7339ef5475dfc8899"
+      },
+      "observed_at": "2026-08-08T16:40:52.307299078Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9025066577,
+      "request_id": "chat-20260808T165940Z-f7d0120d",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260808T165940Z-f7d0120d-rehearsal-1",
+        "request_id": "chat-20260808T165940Z-f7d0120d",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "ca081b1bf2d5e616fd00ccbbe72630009bac7c4625ffe42c8d276d444bfcb251"
+      },
+      "observed_at": "2026-08-08T17:13:17.068906447Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9032880723,
+      "request_id": "chat-20260809T001130Z-765a662b",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260809T001130Z-765a662b-rehearsal-1",
+        "request_id": "chat-20260809T001130Z-765a662b",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "9a8332a07c4deba34c0237b38c7555b63619216c4d0eb9134427b22649f372be"
+      },
+      "observed_at": "2026-08-09T05:00:02.141308322Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9037976340,
+      "request_id": "chat-20260809T082653Z-d8c14e1c",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260809T082653Z-d8c14e1c-rehearsal-1",
+        "request_id": "chat-20260809T082653Z-d8c14e1c",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "bb85ad329f589213891a0088c3fd496fb83e45c1ba5c701479dc55e90446cfd2"
+      },
+      "observed_at": "2026-08-09T12:25:03.9285749Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9039053298,
+      "request_id": "chat-20260809T123311Z-ae455c06",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260809T123311Z-ae455c06-rehearsal-1",
+        "request_id": "chat-20260809T123311Z-ae455c06",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "13428885d628c2af6548dc5fa0af504680f6b5108bb52a84816484a1a7e8c670"
+      },
+      "observed_at": "2026-08-09T13:55:05.989604643Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9040874463,
+      "request_id": "chat-20260809T142928Z-24d4a8ba",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260809T142928Z-24d4a8ba-rehearsal-1",
+        "request_id": "chat-20260809T142928Z-24d4a8ba",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "4df6d744aec087e8b9f2b5af2a4a118126e8fb1d78793b6036127707b6bfd32f"
+      },
+      "observed_at": "2026-08-09T16:21:37.653649282Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9050966671,
+      "request_id": "chat-20260810T023045Z-9d95c6c7",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260810T023045Z-9d95c6c7-rehearsal-1",
+        "request_id": "chat-20260810T023045Z-9d95c6c7",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "d072b4379e97290da51bc19f01b30eee15b0d05b6776e01a3ef2cc39b9483eb0"
+      },
+      "observed_at": "2026-08-10T04:54:34.539492073Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9054466912,
+      "request_id": "chat-20260810T050656Z-6810f730",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260810T050656Z-6810f730-rehearsal-1",
+        "request_id": "chat-20260810T050656Z-6810f730",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "9878f2b5b72b5fb50d67763e2aef28d84086362c7235b05e8c0cfe81d5ed6378"
+      },
+      "observed_at": "2026-08-10T07:40:52.632165741Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9057720428,
+      "request_id": "chat-20260810T075531Z-163b6403",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260810T075531Z-163b6403-rehearsal-1",
+        "request_id": "chat-20260810T075531Z-163b6403",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "c447e679bb60c1617fc25c9b0ac5f6873d1700493eac60d4e78ea5c925f34d83"
+      },
+      "observed_at": "2026-08-10T09:37:24.913776742Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9064894883,
+      "request_id": "chat-20260810T100148Z-0c660b78",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260810T100148Z-0c660b78-rehearsal-1",
+        "request_id": "chat-20260810T100148Z-0c660b78",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "d8cde03e7176fe6565c030a464f185ea92795edb0d2c059c05bd67bcf97e385c"
+      },
+      "observed_at": "2026-08-10T13:41:22.324463487Z",
+      "same_artifact_selector_matches": true,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9072749467,
+      "request_id": "chat-20260810T143849Z-27e36924",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260810T143849Z-27e36924-rehearsal-1",
+        "request_id": "chat-20260810T143849Z-27e36924",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "8cf71971ce4b0f5a630ff687c085646fdb3f6ae8b0c1bce2484cfefb02514b5e"
+      },
+      "observed_at": "2026-08-10T17:28:23.444250077Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9074621728,
+      "request_id": "chat-20260809T060341Z-275b000c",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260809T060341Z-275b000c-rehearsal-1",
+        "request_id": "chat-20260809T060341Z-275b000c",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "b8ad523fcbc40a7c0397cf0eb76782e495f432022b5b338c908e63beda990447"
+      },
+      "observed_at": "2026-08-09T07:54:50.987664534Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9094350437,
+      "request_id": "chat-20260811T055246Z-520d8e7f",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260811T055246Z-520d8e7f-rehearsal-1",
+        "request_id": "chat-20260811T055246Z-520d8e7f",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "a0eb53038d8ea1940a66d4136ad9902964f6521c959d523d79653e18fc121e49"
+      },
+      "observed_at": "2026-08-11T08:33:08.807179729Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9105424217,
+      "request_id": "chat-20260811T114737Z-2b9a3eb4",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260811T114737Z-2b9a3eb4-rehearsal-1",
+        "request_id": "chat-20260811T114737Z-2b9a3eb4",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "b25479fc5082c05dee83cb23d57afae14e115952f5193c4958a5e1dbdebc456f"
+      },
+      "observed_at": "2026-08-11T14:31:25.929902102Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9112490141,
+      "request_id": "chat-20260811T144437Z-9dcd8fb6",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260811T144437Z-9dcd8fb6-rehearsal-1",
+        "request_id": "chat-20260811T144437Z-9dcd8fb6",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "ad1f61244581baef8885f6e6f45fca06ceefdcaeeae654f0392853f9a1c9ae67"
+      },
+      "observed_at": "2026-08-11T17:50:44.93849846Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9118194818,
+      "request_id": "chat-20260811T175629Z-4ff683f0",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260811T175629Z-4ff683f0-rehearsal-1",
+        "request_id": "chat-20260811T175629Z-4ff683f0",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "901cf06637cbf69d650ea430daf65571cf367aa5e6dab48615f540c792e3f47c"
+      },
+      "observed_at": "2026-08-11T20:45:01.12794566Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9130637056,
+      "request_id": "chat-20260812T031706Z-8e830b19",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260812T031706Z-8e830b19-rehearsal-1",
+        "request_id": "chat-20260812T031706Z-8e830b19",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "d78da3373aab3d39d863f35247c9992a1ce65864c91207fe22c39ba481324f42"
+      },
+      "observed_at": "2026-08-12T06:13:17.281867894Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9135574387,
+      "request_id": "chat-20260812T062008Z-0285ca21",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260812T062008Z-0285ca21-rehearsal-1",
+        "request_id": "chat-20260812T062008Z-0285ca21",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "01d7545f20a374a9b37545e591ee41eca0de19ac6e6353472f1d7e696d3209a2"
+      },
+      "observed_at": "2026-08-12T09:16:00.40806124Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9141005348,
+      "request_id": "chat-20260812T092442Z-58c15d37",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260812T092442Z-58c15d37-rehearsal-1",
+        "request_id": "chat-20260812T092442Z-58c15d37",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "67af5370001deec5d99b353c14357536586b7e49252b0a90a56f585d82787d19"
+      },
+      "observed_at": "2026-08-12T12:19:39.296134393Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9147033084,
+      "request_id": "chat-20260812T122721Z-866200ba",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260812T122721Z-866200ba-rehearsal-1",
+        "request_id": "chat-20260812T122721Z-866200ba",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "739021cc489632756d3e6a11cf7c098bdb350c0259bee8933b8092b1fe317e25"
+      },
+      "observed_at": "2026-08-12T15:08:44.053203406Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9291806793,
+      "request_id": "chat-20260811T030643Z-1495eb53",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260811T030643Z-1495eb53-rehearsal-1",
+        "request_id": "chat-20260811T030643Z-1495eb53",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "3af99a6fe1efdadf100519a1f0deff682bb793435c70914935736a4d21065324"
+      },
+      "observed_at": "2026-08-11T03:21:04.222249838Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9291989064,
+      "request_id": "chat-20260810T011145Z-e654a07e",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260810T011145Z-e654a07e-rehearsal-1",
+        "request_id": "chat-20260810T011145Z-e654a07e",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "ef0ab62caed1c37a532d9eae336a420e89d3b0cb3c4b835e48679d5329f0d7ba"
+      },
+      "observed_at": "2026-08-10T01:40:56.857194874Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9469368790,
+      "request_id": "chat-20260822T014848Z-398fd3ab",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260822T014848Z-398fd3ab-rehearsal-1",
+        "request_id": "chat-20260822T014848Z-398fd3ab",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "36bc01e66fe77af06df66fc92d2dd7a2565b9c0146ccc021684948673588c0e8"
+      },
+      "observed_at": "2026-08-22T03:21:36.356050629Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9472730554,
+      "request_id": "chat-20260822T063603Z-45db6ea8",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260822T063603Z-45db6ea8-rehearsal-1",
+        "request_id": "chat-20260822T063603Z-45db6ea8",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "2df0eeb66a18b582d4b0bd0e63f24d44db1253550e7f8776cd27d16ece476606"
+      },
+      "observed_at": "2026-08-22T07:54:44.008370054Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9474902315,
+      "request_id": "chat-20260822T082549Z-359126e0",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260822T082549Z-359126e0-rehearsal-1",
+        "request_id": "chat-20260822T082549Z-359126e0",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "5c477bc324c24ddef1d498e1199393b683ee2b4ee40a1c692d405ae692a1248b"
+      },
+      "observed_at": "2026-08-22T11:05:05.8343679Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    },
+    {
+      "artifact_id": 9475996879,
+      "request_id": "chat-20260822T113033Z-8d3c0c7a",
+      "structural_check_pass": true,
+      "selector": {
+        "lease_id": "chat-20260822T113033Z-8d3c0c7a-rehearsal-1",
+        "request_id": "chat-20260822T113033Z-8d3c0c7a",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "b259d897f49454aaadc84d3b89b17d6aa0b2cc881f44321ac2f7bff07c1d46b5"
+      },
+      "observed_at": "2026-08-22T12:42:45.752102731Z",
+      "same_artifact_selector_matches": null,
+      "full_producer_and_complete_handoff_authentication_performed": false
+    }
+  ],
+  "all_27_pass": true,
+  "new_artifact_payload_downloaded": false,
+  "current_provider_zero_proved": false,
+  "retained_handoff_count": 0,
+  "runtime_requirement": "Protected startup reauthenticates full retained handoff inventory; provider inventory requires authorized live Observer and exact selectors. No absence is inferred from historical cleanup shapes."
+}

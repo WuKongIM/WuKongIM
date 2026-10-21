@@ -1,0 +1,12 @@
+README.md
+authorization.json
+diagnostic.pub
+fresh-public-guard.json
+historical-selector-boundary.json
+local-identity.json
+oidc-existing-verification-dispatch.json
+prepare.py
+rehearsal-dispatch.json
+request-uniqueness.json
+source-manifest.json
+ARCHIVE_ALLOWLIST

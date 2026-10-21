@@ -1,0 +1,62 @@
+[
+  {
+    "api_digest": "sha256:cc7f8edc24c9afccdfe5db6cdd73ee5e6aadb26169d31e2258594026e868c6bc",
+    "full_zip_sha256": "cc7f8edc24c9afccdfe5db6cdd73ee5e6aadb26169d31e2258594026e868c6bc",
+    "id": 12335747399,
+    "members": [
+      {
+        "crc32": 1767821344,
+        "name": "native-source-metadata.json",
+        "sha256": "1f96044fb1000352eb34ade5da5b19b94f2d56b399c14852b465f301c15b23d0",
+        "size": 4464
+      }
+    ],
+    "name": "native-source-metadata-test-only",
+    "zip_size": 1269
+  },
+  {
+    "api_digest": "sha256:4b71e5d46a3a2272960353f4eabb65ffacbe406bf9f983901d8f5b96a2f3de8b",
+    "full_zip_sha256": "4b71e5d46a3a2272960353f4eabb65ffacbe406bf9f983901d8f5b96a2f3de8b",
+    "id": 12335707612,
+    "members": [
+      {
+        "crc32": 1666744784,
+        "name": "native-local-signing.json",
+        "sha256": "1a6c04459f33506a33bdb64778d3691604589efbb8aadb1ccbc4188c561607ee",
+        "size": 12972
+      }
+    ],
+    "name": "native-local-signing-test-only",
+    "zip_size": 2792
+  },
+  {
+    "api_digest": "sha256:377f4b4ce0ff13c11641bf8e9bf852d3f43b479c5a73b0d2845b09816b3ff146",
+    "full_zip_sha256": "377f4b4ce0ff13c11641bf8e9bf852d3f43b479c5a73b0d2845b09816b3ff146",
+    "id": 12335637823,
+    "members": [
+      {
+        "crc32": 1685592701,
+        "name": "native-stable-candidate.json",
+        "sha256": "92d51e9b66547e5148533718c0b3c65336a6cabc1ea3257a7bbdd165bbfa1a26",
+        "size": 25200
+      }
+    ],
+    "name": "native-stable-candidate-test-only",
+    "zip_size": 3570
+  },
+  {
+    "api_digest": "sha256:96324b2238995f3eae80dd7b70f7681e59f22a19296f611e82cdd97d4bc76fc5",
+    "full_zip_sha256": "96324b2238995f3eae80dd7b70f7681e59f22a19296f611e82cdd97d4bc76fc5",
+    "id": 12334689432,
+    "members": [
+      {
+        "crc32": 564287041,
+        "name": "native-bootstrap-preparation.json",
+        "sha256": "2eb75989b3e4d80b95f896423f0b72954fa0c26356a465a67a2dec7fca78e59f",
+        "size": 44122
+      }
+    ],
+    "name": "native-bootstrap-preparation-test-only",
+    "zip_size": 7151
+  }
+]

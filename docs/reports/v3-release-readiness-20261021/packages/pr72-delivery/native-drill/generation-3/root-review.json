@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-21T09:44:29.137494+00:00",
+  "reviewer": "root independent of repair author",
+  "patch_sha256": "d3420e11e4c7371a37782731de43c7514a4cc46420e7740040296509c9241df4",
+  "scope": [
+    "tests/native_stable_candidate_drill.py",
+    "tests/test_native_stable_candidate_drill.py"
+  ],
+  "status": "no_blocking_findings",
+  "findings": [],
+  "observations": [
+    "Only TEST ONLY scratch prefix shortens; actual first native result and same-tool local long/short probes retained.",
+    "Named phases improve bounded failure attribution without including exception messages or private GPG output.",
+    "Existing production validation, signatures, rejection categories, all31 native cases and workflow bounds unchanged.",
+    "Three red controls precede the narrow fix, followed by15 focused passes and contract pass."
+  ],
+  "limitations": [
+    "Mac Unix socket evidence supports the concrete fixture path defect, but original Linux receipt lacked exact exception detail. New-head native CI is still required."
+  ],
+  "tests_executed_by_reviewer": []
+}

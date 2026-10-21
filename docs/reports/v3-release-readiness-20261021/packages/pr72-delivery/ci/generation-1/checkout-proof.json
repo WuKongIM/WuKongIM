@@ -1,0 +1,19 @@
+{
+  "actual_checkout": "5eb8adb7af1a944684b83a481166aa266daaa746",
+  "head": "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb",
+  "head_tree": "8354de1fceb6b9cead1840931e021d58da15ce2c",
+  "logs": {
+    "native-job.log": {
+      "actual_checkout_sha": "5eb8adb7af1a944684b83a481166aa266daaa746",
+      "sha256": "d90aa234d89299c91c53fd2727c75279843f6bfd4e23af78717fd2c5187304cd",
+      "size": 63561
+    },
+    "pages-job.log": {
+      "actual_checkout_sha": "5eb8adb7af1a944684b83a481166aa266daaa746",
+      "sha256": "68e74fd8e039a69abdcef5e8dbf7c3ad7da5326608947b91c21648f4862fc238",
+      "size": 19619
+    }
+  },
+  "merge_tree": "8354de1fceb6b9cead1840931e021d58da15ce2c",
+  "same_tree": true
+}

@@ -1,0 +1,46 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_observed_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-oidc-setup.yml",
+      "sha256": "7af130a5cc0d8cb7917088d7daac2126ca4da7bed292d12b75732bb3bb8338fe"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "path": "cmd/wkcloudleaseoidc/FLOW.md",
+      "sha256": "c937e8574d203aa0a460e8a95be67af6c6913763614e960dac2b336276dde363"
+    },
+    {
+      "path": "cmd/wkcloudleaseoidc/main.go",
+      "sha256": "a7f0ffbe0f95a5535d47b77afc06dacc1ff83cc9835dbc6b2582b4a2bb733f4a"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi.go",
+      "sha256": "7199fc093075aba7fcb12438d4ba81756a9ab8e4ad539b32c9a57a78feff6eae"
+    },
+    {
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "sha256": "8e3b3c34e345ec5633f698fe73fee248bda6bb1005dc11a9bb52bef1f70b2477"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a"
+    }
+  ]
+}

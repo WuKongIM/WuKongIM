@@ -1,0 +1,55 @@
+{
+  "at": "2026-10-21T09:56:45.770452+00:00",
+  "main": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "workflow": {
+    "id": 329938008,
+    "state": "active",
+    "path": ".github/workflows/cloud-lease-oidc-setup.yml"
+  },
+  "variables": [
+    {
+      "name": "ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+      "value_sha256": "1c4b9299f1420b40de38e421d40fb38b63d9738e0d7a8628132b7505c0d07787",
+      "present": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+      "value_sha256": "05098740af2bb067f854b489f93416029531f02202ab5bc7c173bc8130c66bb0",
+      "present": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+      "value_sha256": "2c921542db4ac1ef91591c6fb0ece035dc77fa8c3989e9910a98b1ca93840069",
+      "present": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+      "value_sha256": "95e8e092f8f2929fb85e086a3ffb73cba78bea940f3c41d06065fecae929c5bc",
+      "present": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN",
+      "value_sha256": "46357a047f5628cb6a8c3c9da4a050fd76d10c3c0c6bdbfadc375dbebad6a028",
+      "present": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_REGION",
+      "value_sha256": "db9626998cd84f890af6af0b568f9e57647682987a7cebc7070fb102d8cc5df6",
+      "present": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+      "value_sha256": "f31bd3e263514685dd6cb9d95c40280a1dd59acf9cc20460a74eb0dffab0be40",
+      "present": true
+    },
+    {
+      "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+      "value_sha256": "7ae35b2950072cc4417be1c6e19cd31d559f0c96de42068e2923bda770dfc4b5",
+      "present": true
+    }
+  ],
+  "configured_count": 7,
+  "expected_path": "use_existing true; no reconciler call",
+  "user_authorized_identity_validation": true,
+  "IAM_changes_authorized": false
+}

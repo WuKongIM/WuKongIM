@@ -1,0 +1,75 @@
+{
+  "cases": [],
+  "checked_in_control_unchanged": false,
+  "commands": [],
+  "failure": {
+    "stage": "preflight",
+    "type": "AssertionError"
+  },
+  "finished_at_unix": 1792575534,
+  "input_control_files": {
+    "keys/README.md": {
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "size": 5439
+    },
+    "keys/apt-preview.asc": {
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "size": 6210
+    },
+    "keys/apt-stable.asc": {
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "size": 4772
+    },
+    "keys/rpm-preview.asc": {
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "size": 6210
+    },
+    "keys/rpm-stable.asc": {
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "size": 4772
+    },
+    "manifests/audit-access.json": {
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "size": 785
+    },
+    "manifests/bootstrap-packages.json": {
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "size": 96
+    },
+    "manifests/channels.json": {
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "size": 2579
+    },
+    "manifests/preview-signing.json": {
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "size": 1110
+    },
+    "manifests/signing-toolchain.json": {
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "size": 295
+    },
+    "manifests/source-read.json": {
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "size": 381
+    },
+    "manifests/stable-public-keys.json": {
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "size": 651
+    },
+    "manifests/trusted-toolchain.json": {
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "size": 898
+    }
+  },
+  "passed": false,
+  "payloads_executed": false,
+  "production_keys_used": false,
+  "published": false,
+  "schema": "wukongim/test-only-native-stable-candidate/v1",
+  "scratch_removed": true,
+  "secret_tree_removed_before_verification": false,
+  "source_provenance_verified": false,
+  "source_sha": "5eb8adb7af1a944684b83a481166aa266daaa746",
+  "started_at_unix": 1792575534,
+  "test_only": true
+}

@@ -1,0 +1,25 @@
+{
+  "head": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "head_tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "logs": {
+    "native-job.log": {
+      "actual_checkout_sha": "6526671784e1c0e0252fcec0709832302ee0df29",
+      "sha256": "0b5896b6cb85bf2213c13e49b9dd07577f06a20cf10abf57b51adc362f39a091",
+      "size": 196410
+    },
+    "pages-job.log": {
+      "actual_checkout_sha": "6526671784e1c0e0252fcec0709832302ee0df29",
+      "sha256": "2adf6f42136b071b88a56b1c5fc8c6aa909515690ed5fbce50814454ea8e4241",
+      "size": 19735
+    }
+  },
+  "merge_parents": [
+    "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+    "c8aae37d13787a0aceceac751d6d35bbc1d89c35"
+  ],
+  "merge_tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "pr_base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "same_tree": true,
+  "status": "actual checkout verified in both final job logs",
+  "synthetic_merge": "6526671784e1c0e0252fcec0709832302ee0df29"
+}

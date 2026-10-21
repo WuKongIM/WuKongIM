@@ -1,0 +1,9 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/rulesets?includes_parents=true&per_page=100",
+  "started_at": "2026-10-21T09:46:56.843482+00:00",
+  "observed_at": "2026-10-21T09:46:57.786158+00:00",
+  "exit_code": 0,
+  "data": [],
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

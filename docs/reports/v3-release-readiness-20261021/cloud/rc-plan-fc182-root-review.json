@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-21T09:49:18.637669+00:00",
+  "reviewer": "root",
+  "source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "source_files_independently_rehashed": 36,
+  "reviewed_tree_matches": true,
+  "budget": "CNY1500 aggregate cap/CNY1350 operational stop; not approved yet",
+  "scope": "formal GitHub OIDC chain, two sequential leases; direct repair lab is separate",
+  "status": "offline_plan_matches_exact_source",
+  "live_OIDC_or_provider_inventory_proven": false,
+  "network_or_provider_called": false
+}

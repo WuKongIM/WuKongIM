@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-21T09:59:45.335910+00:00",
+  "run_id": 39580872225,
+  "source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "attempt": 1,
+  "conclusion": "success",
+  "configured_runtime_environment_nonempty": {
+    "CONFIGURED_REGION": true,
+    "CONFIGURED_ACCOUNT_ID_HASH": true,
+    "CONFIGURED_OIDC_PROVIDER_ARN": true,
+    "CONFIGURED_OIDC_AUDIENCE": true,
+    "CONFIGURED_PROVISIONER_ROLE_ARN": true,
+    "CONFIGURED_OBSERVER_ROLE_ARN": true,
+    "CONFIGURED_RELEASER_ROLE_ARN": true
+  },
+  "selected_existing_binding_path": true,
+  "reconciler_provider_writes_called": false,
+  "role_verification": "three live OIDC and exact policy/trust checks passed",
+  "wrapping_pair_verification": "passed",
+  "jobs": [
+    {
+      "name": "Reconcile repository-owned Alibaba identity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify CloudLeaseReleaser OIDC identity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify CloudLeaseProvisioner OIDC identity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify Chat Lifecycle deployment wrapping identity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify CloudLeaseObserver OIDC identity",
+      "conclusion": "success"
+    }
+  ],
+  "provider_inventory_proven": false,
+  "quote_or_acquire_performed": false
+}

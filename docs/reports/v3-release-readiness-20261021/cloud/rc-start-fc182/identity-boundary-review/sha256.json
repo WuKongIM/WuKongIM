@@ -1,0 +1,22 @@
+[
+  {
+    "path": "review.md",
+    "size": 4209,
+    "sha256": "83cc4866989b142f512fb36da589e37a675a45930996164cd832e75de0fb0a9c"
+  },
+  {
+    "path": "review.json",
+    "size": 894,
+    "sha256": "257055cff8d2b5164dc305dfc27f80b0462800ec5b6cffdf0001c0bfad9857aa"
+  },
+  {
+    "path": "source-sha256.json",
+    "size": 6124,
+    "sha256": "67f23b1f765b77479e179670f4eeab275a50bd8a04eaa4de10f5234d24115bd4"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 41,
+    "sha256": "1ebead5af040d4086e60d8e90f2a3e1193005f4b224e626af9fe706f6e1b121b"
+  }
+]

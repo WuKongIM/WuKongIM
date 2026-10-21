@@ -1,0 +1,27 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/git/commits/fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "started_at": "2026-10-21T09:46:56.841631+00:00",
+  "observed_at": "2026-10-21T09:46:57.786414+00:00",
+  "exit_code": 0,
+  "data": {
+    "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "tree": {
+      "sha": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/3254faa77819a1dc7c4b7230b567ec1115be5a7a"
+    },
+    "parents": [
+      {
+        "sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/ed705c0fbffdea485bbb65608d6e340bb049d97e",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/commit/ed705c0fbffdea485bbb65608d6e340bb049d97e"
+      },
+      {
+        "sha": "ab75c226f4b3c246797aee4f876f23af602d07ce",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/ab75c226f4b3c246797aee4f876f23af602d07ce",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/commit/ab75c226f4b3c246797aee4f876f23af602d07ce"
+      }
+    ]
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

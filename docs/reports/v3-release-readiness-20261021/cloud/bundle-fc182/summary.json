@@ -1,0 +1,16 @@
+{
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "workflow_run": 39581475829,
+  "attempt": 1,
+  "source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "bundle_digest": "sha256:73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88",
+  "status": "runner_bundle_seal_verify_success_and_independent_bytes_pass",
+  "large_zip_not_archived": true,
+  "local_large_zip_path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/bundle/raw/artifact-12336417107-retrieval2.zip",
+  "first_retrieval_failed_preserved": true,
+  "second_retrieval_success": true,
+  "workflow_rerun": false,
+  "payload_executed_locally": false,
+  "cloud_or_workload_validation": false
+}

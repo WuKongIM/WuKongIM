@@ -1,0 +1,15 @@
+{
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "issue_query": "repo:WuKongIM/WuKongIM is:issue in:title \"[chat-lifecycle] chat-20261021T095421Z-cf11d65c\"",
+  "issue_result": {
+    "endpoint": "search/issues",
+    "started_at": "2026-10-21T09:54:26.386168+00:00",
+    "observed_at": "2026-10-21T09:54:27.610666+00:00",
+    "exit_code": 0,
+    "total_count": 0,
+    "incomplete_results": false
+  },
+  "artifact_inventory_sha256": "c2895b75ccc0687915c8ca31f7420ff7971215692246b5f8ec4474a83b179175",
+  "artifact_name_collision": false,
+  "no_new_request_created_in_github": true
+}

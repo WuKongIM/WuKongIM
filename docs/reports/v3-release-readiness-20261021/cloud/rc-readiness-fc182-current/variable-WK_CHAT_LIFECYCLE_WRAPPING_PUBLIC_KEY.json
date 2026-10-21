@@ -1,0 +1,17 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+  "started_at": "2026-10-21T09:46:58.829867+00:00",
+  "observed_at": "2026-10-21T09:46:59.876348+00:00",
+  "exit_code": 0,
+  "data": {
+    "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+    "present": true,
+    "redacted_value": "ssh-ed25519 <public-key-bytes-omitted>",
+    "value_sha256": "7ae35b2950072cc4417be1c6e19cd31d559f0c96de42068e2923bda770dfc4b5",
+    "equals_0456_snapshot": true,
+    "created_at": "2026-08-08T12:30:46Z",
+    "updated_at": "2026-08-08T13:08:51Z"
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

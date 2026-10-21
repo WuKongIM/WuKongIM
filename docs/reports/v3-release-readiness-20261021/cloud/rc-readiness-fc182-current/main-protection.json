@@ -1,0 +1,54 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/branches/main/protection",
+  "started_at": "2026-10-21T09:46:56.843168+00:00",
+  "observed_at": "2026-10-21T09:46:58.407530+00:00",
+  "exit_code": 0,
+  "data": {
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection",
+    "required_status_checks": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_status_checks",
+      "strict": true,
+      "contexts": [],
+      "contexts_url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_status_checks/contexts",
+      "checks": []
+    },
+    "required_pull_request_reviews": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_pull_request_reviews",
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false,
+      "require_last_push_approval": false,
+      "required_approving_review_count": 0
+    },
+    "required_signatures": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_signatures",
+      "enabled": false
+    },
+    "enforce_admins": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/enforce_admins",
+      "enabled": false
+    },
+    "required_linear_history": {
+      "enabled": false
+    },
+    "allow_force_pushes": {
+      "enabled": false
+    },
+    "allow_deletions": {
+      "enabled": false
+    },
+    "block_creations": {
+      "enabled": false
+    },
+    "required_conversation_resolution": {
+      "enabled": false
+    },
+    "lock_branch": {
+      "enabled": false
+    },
+    "allow_fork_syncing": {
+      "enabled": false
+    }
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

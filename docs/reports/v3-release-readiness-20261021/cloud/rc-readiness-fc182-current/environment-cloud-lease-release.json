@@ -1,0 +1,16 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/environments/cloud-lease-release",
+  "started_at": "2026-10-21T09:46:59.709796+00:00",
+  "observed_at": "2026-10-21T09:47:00.744456+00:00",
+  "exit_code": 0,
+  "data": {
+    "id": 19516222490,
+    "name": "cloud-lease-release",
+    "created_at": "2026-08-08T12:14:16Z",
+    "updated_at": "2026-08-08T12:14:16Z",
+    "protection_rules": [],
+    "deployment_branch_policy": null
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

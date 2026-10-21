@@ -1,0 +1,114 @@
+{
+  "observed_at": "2026-10-21T09:47:19.116998+00:00",
+  "protected_workflows": [
+    "cloud-lease-provision.yml",
+    "chat-lifecycle-rehearsal.yml",
+    "chat-lifecycle-formal.yml",
+    "chat-lifecycle-rehearsal-finalize.yml",
+    "chat-lifecycle-formal-finalize.yml",
+    "chat-lifecycle-stop.yml",
+    "cloud-lease-release.yml",
+    "cloud-deployment-activate.yml",
+    "cloud-deployment-bundle.yml",
+    "cloud-lease-oidc-setup.yml",
+    "cloud-lease-observe.yml",
+    "cloud-lease-analyze.yml"
+  ],
+  "filters": [
+    {
+      "complete_paginated_snapshot": true,
+      "page_limit": 20,
+      "per_page": 100,
+      "pages": [
+        {
+          "endpoint": "repos/WuKongIM/WuKongIM/actions/runs?status=queued&per_page=100&page=1",
+          "started_at": "2026-10-21T09:47:14.033479+00:00",
+          "observed_at": "2026-10-21T09:47:15.080333+00:00",
+          "exit_code": 0,
+          "total_count": 0,
+          "count": 0,
+          "full_page_json_sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+        }
+      ],
+      "rows": [],
+      "total_count_stable": true,
+      "status_filter": "queued"
+    },
+    {
+      "complete_paginated_snapshot": true,
+      "page_limit": 20,
+      "per_page": 100,
+      "pages": [
+        {
+          "endpoint": "repos/WuKongIM/WuKongIM/actions/runs?status=in_progress&per_page=100&page=1",
+          "started_at": "2026-10-21T09:47:15.080622+00:00",
+          "observed_at": "2026-10-21T09:47:16.132929+00:00",
+          "exit_code": 0,
+          "total_count": 0,
+          "count": 0,
+          "full_page_json_sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+        }
+      ],
+      "rows": [],
+      "total_count_stable": true,
+      "status_filter": "in_progress"
+    },
+    {
+      "complete_paginated_snapshot": true,
+      "page_limit": 20,
+      "per_page": 100,
+      "pages": [
+        {
+          "endpoint": "repos/WuKongIM/WuKongIM/actions/runs?status=waiting&per_page=100&page=1",
+          "started_at": "2026-10-21T09:47:16.133209+00:00",
+          "observed_at": "2026-10-21T09:47:17.179333+00:00",
+          "exit_code": 0,
+          "total_count": 0,
+          "count": 0,
+          "full_page_json_sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+        }
+      ],
+      "rows": [],
+      "total_count_stable": true,
+      "status_filter": "waiting"
+    },
+    {
+      "complete_paginated_snapshot": true,
+      "page_limit": 20,
+      "per_page": 100,
+      "pages": [
+        {
+          "endpoint": "repos/WuKongIM/WuKongIM/actions/runs?status=requested&per_page=100&page=1",
+          "started_at": "2026-10-21T09:47:17.179569+00:00",
+          "observed_at": "2026-10-21T09:47:18.049817+00:00",
+          "exit_code": 0,
+          "total_count": 0,
+          "count": 0,
+          "full_page_json_sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+        }
+      ],
+      "rows": [],
+      "total_count_stable": true,
+      "status_filter": "requested"
+    },
+    {
+      "complete_paginated_snapshot": true,
+      "page_limit": 20,
+      "per_page": 100,
+      "pages": [
+        {
+          "endpoint": "repos/WuKongIM/WuKongIM/actions/runs?status=pending&per_page=100&page=1",
+          "started_at": "2026-10-21T09:47:18.050058+00:00",
+          "observed_at": "2026-10-21T09:47:19.116847+00:00",
+          "exit_code": 0,
+          "total_count": 0,
+          "count": 0,
+          "full_page_json_sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+        }
+      ],
+      "rows": [],
+      "total_count_stable": true,
+      "status_filter": "pending"
+    }
+  ]
+}

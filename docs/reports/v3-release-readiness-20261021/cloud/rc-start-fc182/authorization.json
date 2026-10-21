@@ -1,0 +1,16 @@
+{
+  "schema": "wukongim.rc_paid_authorization_record/v1",
+  "recorded_at": "2026-10-21T09:54:21.142944+00:00",
+  "evidence_kind": "human_authorization_attested_by_parent_agent",
+  "attesting_agent": "/root",
+  "verbatim_human_message_available_here": false,
+  "human_question_and_answer_location": "current parent conversation",
+  "authorization_relay": "用户已明确授权按fc182在杭州4台4核8G临时主机执行2h预演→释放→新租约72h长稳/≤8h容量/30m恢复，整个request累计CNY1500上限/CNY1350stop；包含临时公网SSH/HTTP、跟踪Issue、清理调度和最终释放。身份/库存/Quote不通过即停止，无自动改IAM/追加预算授权。",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "paid_budget_cny": 1500,
+  "operational_stop_cny": 1350,
+  "iam_dns_cdn_secrets_roles_changes_authorized": false,
+  "dispatch_owner": "/root",
+  "this_preparation_authority": "local request/key and GET-only checks; no dispatch/provider"
+}

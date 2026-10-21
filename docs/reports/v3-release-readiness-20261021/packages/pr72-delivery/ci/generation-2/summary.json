@@ -1,0 +1,80 @@
+{
+  "actual_checkout": "6526671784e1c0e0252fcec0709832302ee0df29",
+  "artifact_digest_boundary": "four small ZIPs fully downloaded; API SHA matches recomputed ZIP SHA; every extracted JSON has CRC and SHA",
+  "attempt": 1,
+  "base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "first_failure_preserved": "../generation-1",
+  "head": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "native": {
+    "bootstrap_preparation_cases": 6,
+    "candidate_cases": 31,
+    "candidate_negative": 21,
+    "candidate_positive": 10,
+    "completed_at": "2026-10-21T09:50:31Z",
+    "conclusion": "success",
+    "full_repository_drill": "success",
+    "job": 119152772341,
+    "local_signing_cases": 10,
+    "metadata_cases": 7,
+    "required_steps": {
+      "Build unsigned TEST ONLY packages": {
+        "completed_at": "2026-10-21T09:49:21Z",
+        "conclusion": "success",
+        "name": "Build unsigned TEST ONLY packages",
+        "number": 17,
+        "started_at": "2026-10-21T09:48:15Z",
+        "status": "completed"
+      },
+      "Build, sign, verify, and install TEST ONLY repositories": {
+        "completed_at": "2026-10-21T09:50:02Z",
+        "conclusion": "success",
+        "name": "Build, sign, verify, and install TEST ONLY repositories",
+        "number": 18,
+        "started_at": "2026-10-21T09:49:21Z",
+        "status": "completed"
+      },
+      "Compose and independently verify TEST ONLY stable offline candidate": {
+        "completed_at": "2026-10-21T09:45:59Z",
+        "conclusion": "success",
+        "name": "Compose and independently verify TEST ONLY stable offline candidate",
+        "number": 12,
+        "started_at": "2026-10-21T09:45:39Z",
+        "status": "completed"
+      },
+      "Reject tracked-tree mutation": {
+        "completed_at": "2026-10-21T09:50:02Z",
+        "conclusion": "success",
+        "name": "Reject tracked-tree mutation",
+        "number": 19,
+        "started_at": "2026-10-21T09:50:02Z",
+        "status": "completed"
+      }
+    },
+    "run": 39579343148,
+    "started_at": "2026-10-21T09:44:56Z"
+  },
+  "pages": {
+    "conclusion": "success",
+    "contract_tests": 4,
+    "deployment": "skipped",
+    "job": 119152774440,
+    "python_tests": 449,
+    "run": 39579343465,
+    "seconds": 102.941,
+    "skipped": 0
+  },
+  "pr": {
+    "draft": false,
+    "merged": false,
+    "number": 72,
+    "state": "open",
+    "url": "https://github.com/WuKongIM/packages/pull/72"
+  },
+  "production_private_keys_used": false,
+  "protected_file_count": 30,
+  "published": false,
+  "same_tree": true,
+  "source_closure": "../../final-source-closure.json",
+  "stable_enabled": false,
+  "tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7"
+}

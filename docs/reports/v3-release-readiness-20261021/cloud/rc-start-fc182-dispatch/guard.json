@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-21T10:00:33.567182+00:00",
+  "source_and_main": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "workflow_state": "active",
+  "prior_exact_request_run_found": false,
+  "live_identity_verification_run": 39580872225,
+  "identity_checks": "all five jobs passed on exact control",
+  "authorization_sha256": "11f947de619281ade7bbd5f25766d89a5c2835d66467b452a115fa1200d814e4",
+  "aggregate_CNY_limit": 1500,
+  "operational_stop_CNY": 1350,
+  "role_or_permission_changes_authorized": false,
+  "source_changes_authorized": false,
+  "runtime_old_lease_quote_budget_cleanup_checks": "delegated to unchanged reviewed top-level workflow; Acquire only follows admitted Quote"
+}

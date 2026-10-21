@@ -1,0 +1,21 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "conclusion": "Seven-variable apply/false path skips reconciler. Three role verifiers are read-only and exact. Fourth existing job proves wrapping pair. Paid launch does not enforce prior setup success. Missing runtime variables can fall back to apply with force_reconcile=false.",
+  "runtime_checks_executed_by_this_review": false,
+  "secrets_read": false,
+  "cloud_actions": false,
+  "repository_mutated": false,
+  "findings": [
+    {
+      "id": "conditional-fast-path",
+      "kind": "execution_boundary",
+      "source": ".github/workflows/cloud-lease-oidc-setup.yml:115-144"
+    },
+    {
+      "id": "wrapping-preflight",
+      "kind": "operator_preflight_required",
+      "source": ".github/workflows/cloud-lease-oidc-setup.yml:282-317",
+      "paid_flow": "scripts/chat-lifecycle/stage-orchestrate.sh:518-529"
+    }
+  ]
+}

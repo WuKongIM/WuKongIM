@@ -1,0 +1,3 @@
+# Authorized cloud RC request dispatch
+
+After successful current identity verification39580872225, one top-level dispatch39581355444 was accepted on fc18221282f289088ec9b4282fda8e0bfc67a3b8 for chat-20261021T095421Z-cf11d65c. This initial receipt proves dispatch only, not Quote, Acquire, remote run-start or qualification. The unchanged orchestrator enforces old-handoff rejection, cleanup arming, bundle, Quote and budget before acquisition. Aggregate authorization covers CNY1500 hard/CNY1350 operational-stop, two sequential leases and exact source fc182 only. Later control or product repair is not automatically authorized to replace that source.

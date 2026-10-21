@@ -1,0 +1,2932 @@
+diff --git a/.github/workflows/native-package-repository-drill.yml b/.github/workflows/native-package-repository-drill.yml
+index baa3af0..7b9c603 100644
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -162,6 +162,42 @@ jobs:
+           if-no-files-found: warn
+           retention-days: 30
+ 
++      - name: Compose and independently verify TEST ONLY stable offline candidate
++        shell: bash
++        run: |
++          set -euo pipefail
++          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
++          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
++          candidate_output="$RUNNER_TEMP/stable-candidate-native"
++          mkdir "$candidate_output"
++          chmod 0777 "$candidate_output"
++          container="wk-stable-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
++          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
++          trap 'exit 130' INT
++          trap 'exit 143' TERM
++          timeout --signal=TERM --kill-after=10s 10m docker run --rm --name "$container" \
++            --platform linux/amd64 --network none --read-only --cap-drop ALL \
++            --security-opt no-new-privileges --user 65532:65532 \
++            --cpus 1 --memory 512m --pids-limit 128 \
++            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
++            --volume "$GITHUB_WORKSPACE:/control:ro" \
++            --volume "$candidate_output:/evidence" \
++            --workdir /tmp "$image" \
++            python3 -B /control/tests/native_stable_candidate_drill.py \
++            --output-dir /evidence --source-sha "$GITHUB_SHA" \
++            --trusted-root /control/.trusted/wukongim
++          jq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and .scratch_removed == true and .checked_in_control_unchanged == true and (.cases | length) == 31 and all(.cases[]; .passed == true)' \
++            "$candidate_output/native-stable-candidate.json" >/dev/null
++
++      - name: Preserve TEST ONLY native stable candidate evidence
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: native-stable-candidate-test-only
++          path: ${{ runner.temp }}/stable-candidate-native/native-stable-candidate.json
++          if-no-files-found: warn
++          retention-days: 30
++
+       - name: Set up fixed GoReleaser toolchain
+         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+         with:
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6f6a67d..288c533 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,11 @@
+ 
+ ## Unreleased
+ 
++- Build and independently verify first-generation stable offline repository
++  candidates with the existing local signing tools and canonical archive
++  recovery. Candidate artifacts remain unsealed and cannot be published by
++  current production consumers; stable publication remains disabled.
++
+ - Prepare separate, unsigned stable repository bootstrap packages from reviewed
+   public controls, with independent package/file ownership and native TEST ONLY
+   coinstallation checks. Stable publication and the existing preview installer
+diff --git a/README.md b/README.md
+index c10261a..e7378a9 100644
+--- a/README.md
++++ b/README.md
+@@ -164,3 +164,20 @@ publicly installable releases: current preview composition, audit and client
+ validation reject their explicit unpublished preparation inventory, and `/repo`
+ continues to select preview. See the [bootstrap contract](docs/release-contract.md#unpublished-stable-bootstrap-preparation)
+ for the remaining signed-repository and public-client acceptance boundaries.
++
++## Stable offline candidate closure
++
++The existing planner, preparer, composer, audit and independent verifier now
++accept an explicit `--channel stable --offline-candidate` mode for one initial
++stable release. It binds the public controls and original source preflight
++bytes, prepares both product and separate bootstrap packages, consumes outputs
++from the existing family signer, and reconstructs a canonical archive after
++independent native signature and repository-closure checks.
++
++These are unsealed local candidates. The stable channel remains disabled;
++production publishers, audit replay and the preview transport planner still
++reject candidate schemas. No production signing keys are read automatically.
++The TEST ONLY native drill uses two ephemeral key families and tiny data-only
++packages; it is not a production signature, a GitHub audit seal, or public
++APT/DNF acceptance. See the [candidate contract](docs/release-contract.md#stable-first-generation-offline-candidate)
++for exact inputs, commands, supported operations and verification boundaries.
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index 9509482..9adb206 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -592,3 +592,130 @@ match current control byte-for-byte, verifies public downloads and all installed
+ clients, and rechecks main. It shares the non-cancelling `packages-pages` group;
+ no control merge, publication, binding or snapshot replacement may race this run.
+ It neither signs nor deploys, creates Releases, or changes immutable audit tags.
++
++
++## Stable first-generation offline candidate
++
++The existing `plan-package-publication.py`, `prepare-package-site.py`,
++`compose-package-site.py`, `package-audit-receipt.py` and
++`verify-production-package-site.py` have an explicit candidate mode. Every
++candidate invocation requires `--channel stable --offline-candidate
++--control-root CONTROL --candidate-source-root SOURCE`; omission is an error,
++not a schema-based fallback. Preview remains the default. The checked-in
++stable channel must stay disabled with no releases and
++`status=object_storage_required`. No production workflow or live site is changed.
++
++This mode supports exactly the first `add_release` of one strict `X.Y.Z`
++version. There is no base, retained/removed payload, key history, rotation,
++bootstrap update, retirement, or prerelease/build-metadata version. The plan's
++`audit_release_id`, `base_audit_release_id` and release `package_release_id`
++are null. The candidate carries `stage=offline_candidate`, `channel=stable`
++and an exact boolean `test_only`; the stage always means unpublished and
++unsealed. Production consumers continue to require their original sealed
++preview protocols and reject candidate inputs.
++
++| Artifact | Candidate schema (explicit opt-in only) |
++| --- | --- |
++| Plan | `wukongim.native_package_publication_plan/v2` |
++| Prepared product inventory | `wukongim.native_package_payload_inventory/v2` |
++| Prepared/signed bootstrap inventory | `wukongim.native_package_bootstrap_inventory/v2` |
++| Snapshot | `wukongim.native_package_snapshot/v4` |
++| Composition result | `wukongim.native_package_site_composition/v2` |
++| Independent verification | `wukongim/production-package-site-verification/v2` |
++| External audit receipt | `wukongim/package-audit-receipt/v3` |
++
++The public control root supplies the existing channels, preview signing,
++stable public roles, bootstrap, trusted-toolchain and signing-toolchain
++manifests plus all four public certificates. There is no additional signing
++manifest, credential environment or exchange protocol. Stable current/next
++roles come exclusively from `stable-public-keys.json`; full fingerprints and
++16/8-hex key IDs must remain distinct across all four families. Actual public
++certificate topology and current-key signatures are checked by the existing
++bootstrap builder and independent verifier, not inferred from receipt strings.
++
++For production input, `SOURCE` contains exactly `resolution.json` (the original
++successful stable source-resolution receipt), `metadata.json` (the original
++v2 stable native-metadata receipt), `assets/` (all seven original source
++assets), and `attestations/` (the exact seven per-asset JSON files plus
++`source-attestations.json`). The planner reuses strict stable source receipt
++validation and binds every asset/evidence SHA-256 and size. Prepare repeats the
++actual metadata-only DEB/RPM inspections against the seven bound assets. No
++source package or maintainer script is executed. Source bytes are bounded by
++750 MiB total, evidence JSON by 8 MiB, and public controls by 1 MiB per file;
++the existing 750 MiB site and 64 MiB decompression limits remain in force.
++Use canonical absolute paths. Control/source roots reject linked parent components or
++hardlinked/special files; outputs must be new and outside all input roots.
++
++`--control-sha` is required for a production candidate. It is the operator's
++**declared** reviewed control revision, not a new proof of a Git tree or online
++GitHub provenance. The independently supplied plan and the exact control,
++source and local producer file bytes are the offline trust anchors. Every
++stage rebuilds that plan against those external bytes; the verifier requires
++an external `--plan` and never trusts the embedded copy as its own anchor.
++The archive retains the original public preflight receipts/evidence, control
++files and signing receipts. Binding their bytes does not rerun GitHub
++attestation verification or authenticate a current GitHub Release. Future
++sealing/publication must repeat the established source and immutable-identity
++checks; local candidate success makes no public-deployment claim.
++
++The TEST ONLY branch additionally requires `--test-only`. Its source root has
++only `resolution.json` and two tiny native assets. The resolution schema is
++`wukongim/test-source-fixture/v1`, with fields `version`, `source_sha:null`,
++`release_id:null`, and exactly two assets `{name,id:null,size,sha256}` named
++`wukongim_X.Y.Z_linux_amd64.deb` and `.rpm`. Scratch control revision is null:
++do not pass `--control-sha`. This branch does not invent GitHub asset IDs,
++commits, attestation claims or a source metadata receipt. Production input
++rejects it. TEST ONLY private material is removed before independent archive
++verification, and only bounded public JSON evidence may leave scratch.
++
++The local sequence uses the original CLI arguments plus the common candidate
++flags above:
++
++1. Plan with `--channels CONTROL/manifests/channels.json`; save canonical
++   stdout as `PLAN`. Production also supplies its declared `--control-sha`.
++2. Prepare with `--plan PLAN --source-assets SOURCE/assets`, the fixed control
++   bootstrap/certificate paths, and the trusted builder whose bytes match
++   `trusted-toolchain.json`. Use this checkout's bootstrap builder, not code
++   from the control root. Save the product and bootstrap inventories; the
++   unsigned trees are `OUTPUT/apt` and `OUTPUT/rpm`.
++3. Invoke the unchanged family signer explicitly. APT uses
++   `--apt-release dists/stable/Release`; RPM uses
++   `--rpm-repository stable/el/9/x86_64`. Its three canonical v1 allowlists
++   name both product and stable bootstrap packages: all are new, none are
++   preserved, and both are active. Select local secret inputs separately;
++   candidate commands never locate or read production private keys.
++4. Compose with the external plan, prepared inventories, signed family trees
++   and signing receipts. `--signing` means the fixed
++   `CONTROL/manifests/stable-public-keys.json` in this explicit mode. The
++   composer itself copies the closed public audit evidence set. The result
++   contains `site/` and `audit/`, including its embedded plan and snapshot.
++5. Independently verify with `--plan PLAN --site-root OUTPUT/site
++   --snapshot OUTPUT/audit/snapshot.json` and the same external controls and
++   source root. This executes actual current-key/SHA256 APT and RPM checks,
++   exact package identities and bootstrap contents, APT cleartext/detached
++   Release/index/gzip/by-hash closure, and RPM signed payload/three metadata
++   compressed/open hash closure. Signed bootstrap downloads must be
++   byte-identical to their indexed packages.
++6. Use the existing canonical archiver. The archive basename is
++   `wukongim-stable-X.Y.Z-SNAPSHOT_SHA256-candidate-site.tar`, with the actual
++   SHA-256 of `audit/snapshot.json`; the external receipt replaces `-site.tar`
++   with `-receipt.json`. Audit `create`/`verify` receives the external plan,
++   family receipts, control/source roots and archive. It extracts canonical
++   members, compares every public evidence copy, and calls the independent
++   verifier again. Extract and verify once more to test local recovery.
++   Determinism means identical frozen signed inputs, not repeated signatures
++   with different creation times.
++
++The candidate `/repo` is clearly marked UNPUBLISHED and is generated for the
++separate stable package names. This private candidate tree does not replace
++public preview `/repo`. Its normal stable bootstrap configuration retains the
++planned mirrorlist endpoint and has no floating baseurl fallback; that endpoint
++is not created or contacted here. No claim is made about client installability,
++atomic repository switching, caches, A/B routing or cloud storage.
++
++A future audit seal must bind the **exact existing candidate archive digest**
++from outside the archive, after independent source/signature verification.
++Filling null IDs inside an existing snapshot would create different bytes and
++must not be described as sealing the same artifact. This slice does not
++implement that seal, upload/activation, production signing or public exact-version
++APT/DNF acceptance. Those remain release completion requirements.
+diff --git a/scripts/compose-package-site.py b/scripts/compose-package-site.py
+index 40a5d6c..6ebfb3d 100755
+--- a/scripts/compose-package-site.py
++++ b/scripts/compose-package-site.py
+@@ -654,18 +654,18 @@ def validate_plan(value: Any, control: dict[str, Any]) -> dict[str, Any]:
+     return plan
+ 
+ 
+-def expected_payload_path(family: str, version: str) -> str:
++def expected_payload_path(family: str, version: str, *, channel: str = "preview") -> str:
+     filename = f"wukongim_{version}_linux_amd64.{ 'deb' if family == 'apt' else 'rpm' }"
+     if family == "apt":
+         return f"apt/pool/main/w/wukongim/{filename}"
+-    return f"rpm/preview/el/9/x86_64/Packages/{filename}"
++    return f"rpm/{channel}/el/9/x86_64/Packages/{filename}"
+ 
+ 
+ def validate_inventory(
+-    value: Any, plan: dict[str, Any], control: dict[str, Any]
++    value: Any, plan: dict[str, Any], control: dict[str, Any], *, channel: str = "preview"
+ ) -> dict[str, dict[str, dict[str, Any]]]:
+     inventory = exact(value, INVENTORY_FIELDS, "payload inventory")
+-    require(inventory["schema"] == INVENTORY_SCHEMA,
++    require(inventory["schema"] == (CANDIDATE_INVENTORY_SCHEMA if channel == "stable" else INVENTORY_SCHEMA),
+             f"payload inventory schema must be {INVENTORY_SCHEMA}")
+     require(inventory["audit_release_id"] == plan["audit_release_id"],
+             "payload inventory audit Release differs from the publication plan")
+@@ -685,7 +685,7 @@ def validate_inventory(
+             version = item["version"]
+             require(isinstance(version, str) and version in expected_versions and version > prior,
+                     f"payload inventory {family} versions must be exact, unique, and sorted")
+-            require(item["path"] == expected_payload_path(family, version),
++            require(item["path"] == expected_payload_path(family, version, channel=channel),
+                     f"payload inventory {family} path is not canonical for {version}")
+             safe_relative(item["path"], f"payload inventory {family} path")
+             for field in ("source_sha256", "published_sha256"):
+@@ -713,23 +713,25 @@ def validate_inventory(
+     return result
+ 
+ 
+-def expected_bootstrap_package(family: str, version: str) -> dict[str, str]:
++def expected_bootstrap_package(family: str, version: str, *, channel: str = "preview") -> dict[str, str]:
++    require(channel in {"preview", "stable"}, "unsupported bootstrap channel")
++    suffix = "-stable" if channel == "stable" else ""
+     if family == "apt":
+-        filename = f"wukongim-archive-keyring_{version}_all.deb"
++        filename = f"wukongim-archive-keyring{suffix}_{version}_all.deb"
+         return {
+-            "name": "wukongim-archive-keyring",
++            "name": "wukongim-archive-keyring" + suffix,
+             "architecture": "all",
+             "filename": filename,
+             "repository_path": f"apt/pool/main/w/wukongim/{filename}",
+             "download_path": f"bootstrap/{filename}",
+         }
+     require(family == "rpm", "bootstrap package family is unsupported")
+-    filename = f"wukongim-release-{version}-1.noarch.rpm"
++    filename = f"wukongim-release{suffix}-{version}-1.noarch.rpm"
+     return {
+-        "name": "wukongim-release",
++        "name": "wukongim-release" + suffix,
+         "architecture": "noarch",
+         "filename": filename,
+-        "repository_path": f"rpm/preview/el/9/x86_64/Packages/{filename}",
++        "repository_path": f"rpm/{channel}/el/9/x86_64/Packages/{filename}",
+         "download_path": f"bootstrap/{filename}",
+     }
+ 
+@@ -742,10 +744,10 @@ def release_version_order(version: str) -> tuple[int, int, int]:
+ 
+ 
+ def validate_bootstrap_inventory(
+-    value: Any, *, prepared: bool, label: str = "bootstrap inventory"
++    value: Any, *, prepared: bool, label: str = "bootstrap inventory", channel: str = "preview"
+ ) -> dict[str, Any]:
+     inventory = exact(value, BOOTSTRAP_INVENTORY_FIELDS, label)
+-    require(inventory["schema"] == BOOTSTRAP_INVENTORY_SCHEMA,
++    require(inventory["schema"] == (CANDIDATE_BOOTSTRAP_SCHEMA if channel == "stable" else BOOTSTRAP_INVENTORY_SCHEMA),
+             f"{label} schema must be {BOOTSTRAP_INVENTORY_SCHEMA}")
+     version = inventory["version"]
+     require(isinstance(version, str) and RELEASE_VERSION_RE.fullmatch(version),
+@@ -755,7 +757,7 @@ def validate_bootstrap_inventory(
+     for family in ("apt", "rpm"):
+         item = exact(packages[family], BOOTSTRAP_PACKAGE_FIELDS,
+                      f"{label} {family} package")
+-        expected = expected_bootstrap_package(family, version)
++        expected = expected_bootstrap_package(family, version, channel=channel)
+         require(item["version"] == version,
+                 f"{label} {family} package version differs from the inventory version")
+         for field, expected_value in expected.items():
+@@ -782,7 +784,7 @@ def validate_bootstrap_inventory(
+ 
+ 
+ def repository_entrypoint_bytes(
+-    bootstrap: dict[str, Any], rpm_certificate_sha256: str
++    bootstrap: dict[str, Any], rpm_certificate_sha256: str, *, channel: str = "preview"
+ ) -> bytes:
+     """Render the fixed POSIX-sh repository bootstrap from reviewed byte identities."""
+     apt = bootstrap["packages"]["apt"]
+@@ -903,6 +905,9 @@ main() {{
+ 
+ main "$@"
+ """
++    if channel == "stable":
++        script = script.replace("preview", "stable").replace("Preview", "Stable")
++        script = script.replace("#!/bin/sh\n", "#!/bin/sh\n# UNPUBLISHED offline candidate; no public installation has been verified.\n", 1)
+     rendered = script.encode("ascii")
+     require(0 < len(rendered) <= MAX_REPOSITORY_ENTRYPOINT_BYTES,
+             "repository entrypoint exceeds its fixed size limit")
+@@ -962,11 +967,11 @@ def validate_bootstrap_transition(
+     return base
+ 
+ 
+-def validate_snapshot_entry(raw: Any, family: str, index: int) -> dict[str, Any]:
++def validate_snapshot_entry(raw: Any, family: str, index: int, *, channel: str = "preview") -> dict[str, Any]:
+     item = exact(raw, SNAPSHOT_ENTRY_FIELDS, f"base {family} payload {index}")
+-    require(isinstance(item["version"], str) and VERSION_RE.fullmatch(item["version"]),
++    require(isinstance(item["version"], str) and (RELEASE_VERSION_RE if channel == "stable" else VERSION_RE).fullmatch(item["version"]),
+             f"base {family} payload version is invalid")
+-    require(item["path"] == expected_payload_path(family, item["version"]),
++    require(item["path"] == expected_payload_path(family, item["version"], channel=channel),
+             f"base {family} payload path is not canonical")
+     for field in ("source_sha256", "published_sha256"):
+         require(isinstance(item[field], str) and SHA256_RE.fullmatch(item[field]),
+@@ -975,9 +980,9 @@ def validate_snapshot_entry(raw: Any, family: str, index: int) -> dict[str, Any]
+     return item
+ 
+ 
+-def validate_public_key_snapshot(raw: Any, family: str, site: Path) -> dict[str, Any]:
++def validate_public_key_snapshot(raw: Any, family: str, site: Path, *, channel: str = "preview") -> dict[str, Any]:
+     item = exact(raw, PUBLIC_KEY_SNAPSHOT_FIELDS, f"base {family} public key")
+-    expected_path = f"keys/{family}-preview.asc"
++    expected_path = f"keys/{family}-{channel}.asc"
+     require(item["path"] == expected_path,
+             f"base {family} public-key path must be {expected_path}")
+     for field in (
+@@ -1419,6 +1424,7 @@ def validate_apt_tree(
+     bootstrap: dict[str, Any],
+     active_versions: list[str],
+     retained_versions: list[str],
++    *, channel: str = "preview",
+ ) -> tuple[dict[str, dict[str, Any]], dict[str, Path], dict[str, Any]]:
+     files, directories = collect_tree(root, "APT signer tree")
+     receipt = load_signing_receipt(receipt_path, "apt")
+@@ -1429,16 +1435,16 @@ def validate_apt_tree(
+         for name in ("inrelease", "release", "release_gpg")
+     }
+     expected_receipt_paths = {
+-        "release": "dists/preview/Release",
+-        "inrelease": "dists/preview/InRelease",
+-        "release_gpg": "dists/preview/Release.gpg",
++        "release": f"dists/{channel}/Release",
++        "inrelease": f"dists/{channel}/InRelease",
++        "release_gpg": f"dists/{channel}/Release.gpg",
+     }
+     for name, expected in expected_receipt_paths.items():
+         require(receipt_artifacts[name]["path"] == expected,
+                 f"APT {name} receipt path must be {expected}")
+         require_artifact_identity(receipt_artifacts[name], files, expected, f"APT {name}")
+ 
+-    packages_path = "dists/preview/main/binary-amd64/Packages"
++    packages_path = f"dists/{channel}/main/binary-amd64/Packages"
+     compressed_path = f"{packages_path}.gz"
+     require(packages_path in files and compressed_path in files,
+             "APT signer tree is missing Packages metadata")
+@@ -1488,11 +1494,11 @@ def validate_apt_tree(
+         require(release_entries[relative] == (facts["sha256"], facts["size"]),
+                 f"APT Release identity differs for {relative}")
+     by_hash_paths = {
+-        f"dists/preview/main/binary-amd64/by-hash/SHA256/{files[path]['sha256']}"
++        f"dists/{channel}/main/binary-amd64/by-hash/SHA256/{files[path]['sha256']}"
+         for path in (packages_path, compressed_path)
+     }
+     for source in (packages_path, compressed_path):
+-        by_hash = f"dists/preview/main/binary-amd64/by-hash/SHA256/{files[source]['sha256']}"
++        by_hash = f"dists/{channel}/main/binary-amd64/by-hash/SHA256/{files[source]['sha256']}"
+         require(by_hash in files and files[by_hash] == files[source],
+                 f"APT by-hash object differs from {source}")
+     payload_paths = {
+@@ -1707,6 +1713,7 @@ def validate_rpm_tree(
+     bootstrap: dict[str, Any],
+     active_versions: list[str],
+     retained_versions: list[str],
++    *, channel: str = "preview",
+ ) -> tuple[dict[str, dict[str, Any]], dict[str, Path], dict[str, Any]]:
+     files, directories = collect_tree(root, "RPM signer tree")
+     receipt = load_signing_receipt(receipt_path, "rpm")
+@@ -1715,7 +1722,7 @@ def validate_rpm_tree(
+         "repodata", "repository", "retired",
+     }, "RPM signing result")
+     repository = result["repository"]
+-    require(repository == "preview/el/9/x86_64", "RPM signing repository path is unsupported")
++    require(repository == f"{channel}/el/9/x86_64", "RPM signing repository path is unsupported")
+     categories = {
+         name: artifact_list(result[name], f"RPM signing result {name}")
+         for name in (
+@@ -1868,14 +1875,305 @@ def write_exclusive(path: Path, data: bytes, label: str) -> None:
+         os.close(descriptor)
+ 
+ 
++# Candidate protocols are explicit and cannot be mistaken for sealed preview output.
++CANDIDATE_PLAN_SCHEMA = 'wukongim.native_package_publication_plan/v2'
++CANDIDATE_SNAPSHOT_SCHEMA = 'wukongim.native_package_snapshot/v4'
++CANDIDATE_INVENTORY_SCHEMA = 'wukongim.native_package_payload_inventory/v2'
++CANDIDATE_BOOTSTRAP_SCHEMA = 'wukongim.native_package_bootstrap_inventory/v2'
++CANDIDATE_CONTROL_FILES = (
++    'manifests/channels.json', 'manifests/preview-signing.json',
++    'manifests/stable-public-keys.json', 'manifests/bootstrap-packages.json',
++    'manifests/signing-toolchain.json', 'manifests/trusted-toolchain.json',
++    'keys/apt-preview.asc', 'keys/rpm-preview.asc',
++    'keys/apt-stable.asc', 'keys/rpm-stable.asc',
++)
++CANDIDATE_PRODUCER_FILES = (
++    'archive-package-snapshot.py', 'build-repository-bootstrap-packages.py',
++    'compose-package-site.py', 'package-audit-receipt.py',
++    'plan-package-publication.py', 'prepare-package-site.py',
++    'sign-package-family.py', 'validate-control.py', 'validate-signing-material.py',
++    'verify-production-package-site.py', 'verify-source-attestations.py',
++    'verify-source-package-metadata.py',
++)
++
++
++def local_module(filename: str) -> Any:
++    """Load checked-in code, never Python supplied by a data/control directory."""
++    import importlib.util
++    path = Path(__file__).resolve().parent / filename
++    spec = importlib.util.spec_from_file_location('_candidate_' + filename.replace('-', '_'), path)
++    require(spec is not None and spec.loader is not None, 'cannot load local candidate dependency')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def candidate_path(root: Path, relative: str, label: str) -> Path:
++    """Reject linked parent components as well as linked/hardlinked leaf inputs."""
++    path = Path(os.path.abspath(root))
++    for parent in reversed((path, *path.parents)):
++        require(stat.S_ISDIR(parent.lstat().st_mode), f'{label} parent must be a real directory')
++    parts = safe_relative(relative, label).parts
++    for part in parts[:-1]:
++        path = path / part
++        require(stat.S_ISDIR(path.lstat().st_mode), f'{label} parent must be a real directory')
++    return path / parts[-1]
++
++
++def candidate_source_files(root: Path) -> dict[str, dict[str, Any]]:
++    """Bound source bytes before hashing; this is an input inventory, not provenance."""
++    candidate_path(root, 'resolution.json', 'candidate source')
++    result = {}
++    total = 0
++    for directory, names, filenames in os.walk(root, followlinks=False):
++        for name in names:
++            require(stat.S_ISDIR((Path(directory)/name).lstat().st_mode), 'source directory is linked')
++        for name in filenames:
++            relative = (Path(directory)/name).relative_to(root).as_posix()
++            path = candidate_path(root, relative, 'candidate source')
++            metadata = path.lstat()
++            require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
++                    'candidate source must contain only single-link regular files')
++            total += metadata.st_size
++            require(total <= SITE_LIMIT_BYTES, 'candidate source exceeds its size limit')
++            maximum = SITE_LIMIT_BYTES if relative.startswith('assets/') else 8*1024*1024
++            result[relative] = hash_file(path, 'candidate source ' + relative, maximum_bytes=maximum)
++    return result
++
++
++def candidate_keys(control_root: Path) -> dict[str, dict[str, Any]]:
++    """Read public stable roles; actual topology/signatures are independently verified."""
++    validator = local_module('validate-control.py')
++    try:
++        validator.validate_channels(control_root, True)
++        validator.validate_toolchain(control_root)
++        validator.validate_signing_toolchain(control_root)
++        stable = validator.load_stable_public_certificates(control_root)
++    except (validator.ContractError, OSError) as error:
++        raise CompositionError(str(error)) from error
++    require(len(stable) == 2, 'stable public roles must be complete')
++    preview = validate_signing_manifest(
++        load_json(control_root/'manifests/preview-signing.json', 'preview signing'),
++        control_root/'keys/apt-preview.asc', control_root/'keys/rpm-preview.asc')
++    result = {}
++    for family, path, primary, subkeys in stable:
++        require(subkeys['historical'] == [], 'first candidate does not support historical keys or rotation')
++        result[family] = {
++            'path': f'keys/{family}-stable.asc',
++            **hash_file(path, family+' stable certificate', maximum_bytes=1024*1024),
++            'primary_fingerprint': primary,
++            'current_signing_subkey_fingerprint': subkeys['current'],
++            'next_signing_subkey_fingerprint': subkeys['next'],
++            'historical_signing_subkey_fingerprints': [],
++        }
++    fingerprints = []
++    for keys in (preview, result):
++        for key in keys.values():
++            fingerprints += [key['primary_fingerprint'], key['current_signing_subkey_fingerprint'],
++                             key['next_signing_subkey_fingerprint'], *key['historical_signing_subkey_fingerprints']]
++    for size in (40, 16, 8):
++        require(len({value[-size:] for value in fingerprints}) == len(fingerprints),
++                'four-family public key identities collide')
++    return result
++
++
++def build_candidate_plan(control_root: Path, source_root: Path, control_sha: str | None,
++                         *, test_only: bool = False) -> dict[str, Any]:
++    """Bind one first-generation stable source to public inputs without a release seal."""
++    require(type(test_only) is bool, 'test_only must be boolean')
++    if test_only:
++        require(control_sha is None, 'TEST ONLY scratch control must not claim a Git commit')
++    else:
++        require(isinstance(control_sha, str) and SHA_RE.fullmatch(control_sha),
++                'production candidate requires a declared control revision')
++    controls = {
++        name: hash_file(candidate_path(control_root, name, 'candidate control'),
++                        'candidate control '+name, maximum_bytes=1024*1024)
++        for name in CANDIDATE_CONTROL_FILES
++    }
++    candidate_keys(control_root)
++    source_files = candidate_source_files(source_root)
++    resolution = load_json(source_root/'resolution.json', 'candidate source resolution')
++    if test_only:
++        value = exact(resolution, {'schema','version','source_sha','release_id','assets'}, 'TEST ONLY fixture')
++        require(value['schema'] == 'wukongim/test-source-fixture/v1', 'TEST ONLY requires explicit test_fixture source')
++        require(value['source_sha'] is None and value['release_id'] is None,
++                'TEST ONLY fixture GitHub identities must be null')
++        version = value['version']
++        require(isinstance(version, str) and RELEASE_VERSION_RE.fullmatch(version),
++                'candidate version must be strict release SemVer')
++        require(isinstance(value['assets'], list) and len(value['assets']) == 2, 'fixture requires two assets')
++        assets = {}
++        for raw in value['assets']:
++            item = exact(raw, {'name','id','sha256','size'}, 'fixture asset')
++            require(item['id'] is None, 'fixture asset ID must be null')
++            require(item['name'] not in assets, 'fixture asset names must be unique')
++            parse_artifact({'path': item['name'], 'sha256':item['sha256'], 'size':item['size']}, 'fixture asset')
++            assets[item['name']] = item
++        required = {f'wukongim_{version}_linux_amd64.{suffix}' for suffix in ('deb','rpm')}
++        require(set(assets) == required, 'fixture native asset names differ from version')
++        expected_files = {'resolution.json'} | {'assets/'+name for name in assets}
++        release_id = source_sha = None
++        kind = 'test_fixture'
++    else:
++        require(isinstance(resolution, dict) and resolution.get('schema') != 'wukongim/test-source-fixture/v1',
++                'TEST ONLY fixture cannot be used as production source')
++        verifier = local_module('verify-source-attestations.py')
++        try:
++            source = verifier._validate_receipt(resolution, 'stable')
++        except verifier.VerificationError as error:
++            raise CompositionError(str(error)) from error
++        version, assets = source['version'], source['assets']
++        release_id, source_sha = source['release_id'], source['source_sha']
++        def asset(name: str) -> dict[str, Any]:
++            return {key: assets[name][key] for key in ('id','name','size','sha256')}
++        deb_name, rpm_name = (f'wukongim_{version}_linux_amd64.{suffix}' for suffix in ('deb','rpm'))
++        metadata = {
++            'schema':'wukongim/source-package-metadata/v2', 'channel':'stable',
++            'source':{'repository':SOURCE_REPOSITORY,'release_id':release_id,'tag':f'v{version}','source_sha':source_sha},
++            'package':'wukongim','version':version,
++            'deb':{'asset':asset(deb_name),'version':version,'architecture':'amd64'},
++            'rpm':{'asset':asset(rpm_name),'version':version,'release':'1','epoch':'0','architecture':'x86_64','signed':False},
++            'assets_revalidated_after_metadata':True,
++        }
++        require(canonical_json(load_json(source_root/'metadata.json', 'source metadata')) == canonical_json(metadata),
++                'source metadata differs from exact stable source resolution')
++        release_view = {'source_sha':source_sha,'source_release_id':release_id,
++                        'deb_sha256':assets[deb_name]['sha256'],'rpm_sha256':assets[rpm_name]['sha256']}
++        _, evidence_files = validate_source_attestations(
++            source_root/'attestations', {'operation':'add_release','target_version':version},
++            {'releases':{version:release_view}})
++        summary = load_json(source_root/'attestations/source-attestations.json', 'source attestation summary', canonical=True)
++        require({item['asset']:item['asset_sha256'] for item in summary['assets']}
++                == {name:item['sha256'] for name,item in assets.items()},
++                'source attestations do not bind all seven original assets')
++        expected_files = {'resolution.json','metadata.json'} | {'assets/'+name for name in assets} | {
++            'attestations/'+name for name in evidence_files}
++        kind = 'stable_preflight'
++    require(set(source_files) == expected_files, 'candidate source file closure differs')
++    for name, item in assets.items():
++        require(source_files['assets/'+name] == {'size':item['size'],'sha256':item['sha256']},
++                'candidate source asset differs: '+name)
++    # Re-read every bound control after validators; no path replacement grants a different input.
++    require(controls == {name:hash_file(candidate_path(control_root,name,'candidate control'),
++            'candidate control '+name,maximum_bytes=1024*1024) for name in controls},
++            'candidate control changed during validation')
++    require(source_files == candidate_source_files(source_root), 'candidate source changed during validation')
++    release = {'version':version,'source_sha':source_sha,'source_release_id':release_id,
++               'package_release_id':None,'state':'active','not_before':None,
++               'deb_sha256':assets[f'wukongim_{version}_linux_amd64.deb']['sha256'],
++               'rpm_sha256':assets[f'wukongim_{version}_linux_amd64.rpm']['sha256']}
++    return {
++        'schema':CANDIDATE_PLAN_SCHEMA,'control_sha':control_sha,'operation':'add_release',
++        'audit_release_id':None,'base_audit_release_id':None,'target_version':version,
++        'active_versions':[version],'retained_versions':[],'new_versions':[version],
++        'removed_versions':[],'not_before':None,'release':release,
++        'candidate':{'stage':'offline_candidate','channel':'stable','test_only':test_only,
++                     'source_kind':kind,'control_files':controls,'source_files':source_files,
++                     'producer_files':{name:hash_file(Path(__file__).parent/name,'candidate producer '+name,
++                          maximum_bytes=1024*1024) for name in CANDIDATE_PRODUCER_FILES}},
++    }
++
++
++def validate_candidate_plan(value: Any, control_root: Path, source_root: Path,
++                            *, test_only: bool = False) -> dict[str, Any]:
++    require(isinstance(value, dict), 'candidate plan must be an object')
++    expected = build_candidate_plan(control_root, source_root, value.get('control_sha'), test_only=test_only)
++    require(canonical_json(value) == canonical_json(expected), 'candidate plan differs from external control/source/producer anchors or first-generation contract')
++    return value
++
++
++def candidate_mode(args: argparse.Namespace) -> bool:
++    """Require both opt-ins; no schema-based fallback into candidate semantics."""
++    channel = getattr(args, 'channel', 'preview')
++    offline = getattr(args, 'offline_candidate', False)
++    require(channel in {'preview','stable'}, 'unsupported channel')
++    require((channel == 'stable') is bool(offline), 'stable requires --offline-candidate; preview forbids it')
++    if channel == 'preview':
++        require(not getattr(args,'test_only',False) and not getattr(args,'control_root',None)
++                and not getattr(args,'candidate_source_root',None), 'candidate arguments are forbidden for preview')
++        return False
++    require(getattr(args,'control_root',None) is not None and getattr(args,'candidate_source_root',None) is not None,
++            'candidate requires external control and source roots')
++    require(getattr(args,'base_root',None) is None and getattr(args,'base_snapshot',None) is None,
++            'first candidate does not support a base')
++    return True
++
++
++def candidate_arguments(parser: argparse.ArgumentParser) -> None:
++    parser.add_argument('--channel', choices=('preview','stable'), default='preview')
++    parser.add_argument('--offline-candidate', action='store_true')
++    parser.add_argument('--test-only', action='store_true')
++    parser.add_argument('--control-root', type=Path)
++    parser.add_argument('--candidate-source-root', type=Path)
++
++
++def candidate_control(plan: dict[str, Any], control_root: Path) -> dict[str, Any]:
++    """A local composition context, never an enabled channel manifest."""
++    return {'manifest':load_json(control_root/'manifests/channels.json','channels'),
++            'releases':{plan['target_version']:plan['release']},
++            'channel_releases':[plan['release']],
++            'retirement':{'phase':'none','version':None,'not_before':None},
++            'publication':{key:plan[key] for key in PUBLICATION_FIELDS}}
++
++
++def require_candidate_paths(args: argparse.Namespace) -> None:
++    for argument, relative in (
++        ('channels','manifests/channels.json'), ('signing','manifests/stable-public-keys.json'),
++        ('signing_toolchain','manifests/signing-toolchain.json'),
++        ('bootstrap_manifest','manifests/bootstrap-packages.json'),
++        ('apt_public_cert','keys/apt-stable.asc'), ('rpm_public_cert','keys/rpm-stable.asc')):
++        if hasattr(args, argument):
++            actual = getattr(args, argument)
++            require(actual is not None and Path(os.path.abspath(actual)) == Path(os.path.abspath(args.control_root/relative)),
++                    'candidate '+argument+' must be the fixed control path')
++
++
++def validate_candidate_output_paths(outputs: tuple[Path, ...], inputs: tuple[Path, ...]) -> None:
++    """Check aliases before mkdir/staging, then compare resolved input boundaries."""
++    roots = tuple(path.resolve(strict=True) for path in inputs)
++    for output in outputs:
++        absolute = Path(os.path.abspath(output))
++        for parent in reversed(absolute.parents):
++            if os.path.lexists(parent):
++                require(stat.S_ISDIR(parent.lstat().st_mode), "candidate output parent must not be linked or special")
++        resolved = absolute.resolve(strict=False)
++        for root in roots:
++            require(not resolved.is_relative_to(root) and not root.is_relative_to(resolved),
++                    "candidate output must not overlap an input root")
++
++
++def candidate_audit_inputs(args: argparse.Namespace, plan: dict[str, Any]) -> dict[str, tuple[Path, dict[str, Any]]]:
++    result = {}
++    for name, facts in plan["candidate"]["control_files"].items():
++        result["audit/control/" + name] = (candidate_path(args.control_root, name, "candidate control"), facts)
++    for name, facts in plan["candidate"]["source_files"].items():
++        if not name.startswith("assets/"):
++            result["audit/source/" + name] = (candidate_path(args.candidate_source_root, name, "candidate source"), facts)
++    for name, path in (("plan.json", args.plan), ("apt-signing.json", args.apt_receipt),
++                       ("rpm-signing.json", args.rpm_receipt)):
++        load_json(path, "candidate " + name, canonical=True)
++        result["audit/" + name] = (path, hash_file(path, "candidate " + name, maximum_bytes=8*1024*1024))
++    return result
++
++
+ def compose(args: argparse.Namespace) -> dict[str, Any]:
+-    control = validate_channels(load_json(args.channels, "channels manifest"))
+-    reviewed_keys = validate_signing_manifest(
+-        load_json(args.signing, "preview signing manifest"),
+-        args.apt_public_cert,
+-        args.rpm_public_cert,
+-    )
+-    plan = validate_plan(load_json(args.plan, "publication plan", canonical=True), control)
++    candidate = candidate_mode(args)
++    channel = "stable" if candidate else "preview"
++    if candidate:
++        require_candidate_paths(args)
++        require(args.source_attestations is None,
++                "candidate evidence must come from the bound source root")
++        plan = validate_candidate_plan(load_json(args.plan, "candidate plan", canonical=True),
++            args.control_root, args.candidate_source_root, test_only=args.test_only)
++        control = candidate_control(plan, args.control_root)
++        reviewed_keys = candidate_keys(args.control_root)
++    else:
++        control = validate_channels(load_json(args.channels, "channels manifest"))
++        reviewed_keys = validate_signing_manifest(
++            load_json(args.signing, "preview signing manifest"),
++            args.apt_public_cert, args.rpm_public_cert)
++        plan = validate_plan(load_json(args.plan, "publication plan", canonical=True), control)
+     toolchain_value = load_json(args.signing_toolchain, "signing toolchain manifest")
+     toolchain_manifest_facts = hash_file(
+         args.signing_toolchain, "signing toolchain manifest", maximum_bytes=1024 * 1024
+@@ -1883,32 +2181,40 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+     require(load_json(args.signing_toolchain, "signing toolchain manifest") == toolchain_value,
+             "signing toolchain manifest changed during validation")
+     toolchain = validate_signing_toolchain(toolchain_value, toolchain_manifest_facts)
+-    source_attestations, source_attestation_files = validate_source_attestations(
+-        args.source_attestations, plan, control
+-    )
++    if candidate:
++        source_attestations, source_attestation_files = None, {}
++    else:
++        source_attestations, source_attestation_files = validate_source_attestations(
++            args.source_attestations, plan, control)
+     inventory = validate_inventory(
+-        load_json(args.inventory, "payload inventory", canonical=True), plan, control
++        load_json(args.inventory, "payload inventory", canonical=True), plan, control, channel=channel
+     )
+     bootstrap_inventory = validate_bootstrap_inventory(
+         load_json(args.bootstrap_inventory, "bootstrap inventory", canonical=True),
+-        prepared=True,
++        prepared=True, channel=channel,
+     )
+-    _, base_site, base_entries = load_base(args.base_root, plan, inventory, control)
++    if candidate:
++        base_site, base_entries = None, {"apt": {}, "rpm": {}}
++    else:
++        _, base_site, base_entries = load_base(args.base_root, plan, inventory, control)
+     validate_bootstrap_transition(base_site, plan, bootstrap_inventory)
+     apt_files, apt_sources, apt_key = validate_apt_tree(
+         args.apt_tree, args.apt_receipt, inventory["apt"],
+         bootstrap_inventory["packages"]["apt"],
+-        plan["active_versions"], plan["retained_versions"],
++        plan["active_versions"], plan["retained_versions"], channel=channel,
+     )
+     rpm_files, rpm_sources, rpm_key = validate_rpm_tree(
+         args.rpm_tree, args.rpm_receipt, inventory["rpm"],
+         bootstrap_inventory["packages"]["rpm"],
+-        plan["active_versions"], plan["retained_versions"],
++        plan["active_versions"], plan["retained_versions"], channel=channel,
+     )
+     require_reviewed_key_receipt(apt_key, reviewed_keys["apt"], "apt")
+     require_reviewed_key_receipt(rpm_key, reviewed_keys["rpm"], "rpm")
+ 
+     output = args.output_root
++    if candidate:
++        validate_candidate_output_paths((output,),
++            (args.control_root, args.candidate_source_root, args.apt_tree, args.rpm_tree))
+     require(not os.path.lexists(output), "output root must not already exist")
+     output.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+     require(stat.S_ISDIR(output.parent.lstat().st_mode),
+@@ -1920,6 +2226,9 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+     try:
+         site = stage / "site"
+         site.mkdir(mode=0o755)
++        if candidate:
++            for relative, (source, facts) in candidate_audit_inputs(args, plan).items():
++                copy_checked(source, stage / relative, facts, "candidate evidence " + relative)
+         copy_checked(
+             args.signing_toolchain,
+             stage / "audit/signing-toolchain.json",
+@@ -1993,7 +2302,7 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+                 })
+ 
+         published_bootstrap = {
+-            "schema": BOOTSTRAP_INVENTORY_SCHEMA,
++            "schema": CANDIDATE_BOOTSTRAP_SCHEMA if candidate else BOOTSTRAP_INVENTORY_SCHEMA,
+             "version": bootstrap_inventory["version"],
+             "packages": {},
+         }
+@@ -2027,22 +2336,24 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+         write_exclusive(
+             site / REPOSITORY_ENTRYPOINT_PATH,
+             repository_entrypoint_bytes(
+-                published_bootstrap, reviewed_keys["rpm"]["sha256"]
++                published_bootstrap, reviewed_keys["rpm"]["sha256"], channel=channel
+             ),
+             "repository setup entrypoint",
+         )
+ 
+         snapshot = {
+-            "schema": SNAPSHOT_SCHEMA,
++            "schema": CANDIDATE_SNAPSHOT_SCHEMA if candidate else SNAPSHOT_SCHEMA,
+             "audit_release_id": plan["audit_release_id"],
+             "control_sha": plan["control_sha"],
+-            "releases": control["preview"]["releases"],
++            "releases": control["channel_releases"] if candidate else control["preview"]["releases"],
+             "retirement": control["retirement"],
+             "payloads": snapshot_payloads,
+             "public_keys": reviewed_keys,
+             "source_attestations": source_attestations,
+             "toolchain": toolchain,
+         }
++        if candidate:
++            snapshot["candidate_plan"] = plan
+         snapshot_path = stage / "audit/snapshot.json"
+         write_exclusive(snapshot_path, canonical_json(snapshot), "snapshot inventory")
+         snapshot_facts = hash_file(snapshot_path, "snapshot inventory")
+@@ -2057,6 +2368,9 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+             "operation": plan["operation"],
+             "target_version": plan["target_version"],
+         }
++        if candidate:
++            status.update(schema="wukongim.native_package_repository_status/v3", reason="offline_candidate",
++                          test_only=plan["candidate"]["test_only"], channel="stable")
+         write_exclusive(site / "status.json", canonical_json(status), "site status")
+         signing_manifest = (
+             "TEST_ONLY=false\n"
+@@ -2069,6 +2383,9 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+             "APT_RELEASE=apt/dists/preview/Release\n"
+             "RPM_REPOSITORY=rpm/preview/el/9/x86_64\n"
+         ).encode("ascii")
++        if candidate:
++            signing_manifest = signing_manifest.replace(b"TEST_ONLY=false", b"TEST_ONLY=" + str(plan["candidate"]["test_only"]).lower().encode()).replace(b"/preview/", b"/stable/")
++            signing_manifest += b"STAGE=offline_candidate\n"
+         write_exclusive(site / "signing-manifest.txt", signing_manifest,
+                         "site signing manifest")
+         index = (
+@@ -2077,6 +2394,9 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+             "<h1>WuKongIM Linux packages</h1>\n"
+             "<p>The signed preview APT and RPM repositories and bootstrap packages are ready.</p>\n"
+         ).encode("utf-8")
++        if candidate:
++            index = index.replace(b"The signed preview APT and RPM repositories and bootstrap packages are ready.",
++                                  b"UNPUBLISHED stable offline candidate. Public installation has not been verified.")
+         write_exclusive(site / "index.html", index, "site index")
+ 
+         site_files, _ = collect_tree(site, "composed site")
+@@ -2085,6 +2405,8 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+             site_size, control["manifest"]["site_warning_bytes"],
+             control["manifest"]["site_limit_bytes"],
+         )
++        if candidate:
++            validate_candidate_plan(plan, args.control_root, args.candidate_source_root, test_only=args.test_only)
+         require(not os.path.lexists(output), "output root appeared during composition")
+         try:
+             os.chmod(stage, 0o755)
+@@ -2092,13 +2414,16 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
+             raise CompositionError(
+                 f"cannot export composed snapshot: {error}"
+             ) from error
+-        os.replace(stage, output)
++        if candidate:
++            local_module("prepare-package-site.py").rename_directory_exclusive(stage, output)
++        else:
++            os.replace(stage, output)
+     except BaseException:
+         if os.path.lexists(stage):
+             shutil.rmtree(stage)
+         raise
+     return {
+-        "schema": COMPOSITION_SCHEMA,
++        "schema": "wukongim.native_package_site_composition/v2" if candidate else COMPOSITION_SCHEMA,
+         "audit_release_id": plan["audit_release_id"],
+         "control_sha": plan["control_sha"],
+         "active_versions": plan["active_versions"],
+@@ -2129,6 +2454,7 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--source-attestations", type=Path)
+     parser.add_argument("--base-root", type=Path)
+     parser.add_argument("--output-root", required=True, type=Path)
++    candidate_arguments(parser)
+     return parser
+ 
+ 
+diff --git a/scripts/package-audit-receipt.py b/scripts/package-audit-receipt.py
+index 8aad481..97a612c 100755
+--- a/scripts/package-audit-receipt.py
++++ b/scripts/package-audit-receipt.py
+@@ -28,6 +28,10 @@ snapshot_archive = importlib.util.module_from_spec(ARCHIVE_SPEC)
+ ARCHIVE_SPEC.loader.exec_module(snapshot_archive)
+ 
+ 
++COMPOSER_SPEC = importlib.util.spec_from_file_location("_audit_composer", ROOT/"scripts/compose-package-site.py")
++C = importlib.util.module_from_spec(COMPOSER_SPEC)
++COMPOSER_SPEC.loader.exec_module(C)
++
+ RECEIPT_SCHEMA = "wukongim/package-audit-receipt/v2"
+ CHANNELS_SCHEMA = "wukongim.native_package_channels/v3"
+ SIGNING_SCHEMA = "wukongim.native_package_signing/v3"
+@@ -1072,6 +1076,53 @@ def _require_archived_copy(
+     return archived_raw
+ 
+ 
++def candidate_archive_names(version: str, snapshot_sha256: str) -> tuple[str, str]:
++    """Name an unsealed archive by content, never by a nonexistent audit Release."""
++    require(isinstance(version, str) and C.RELEASE_VERSION_RE.fullmatch(version),
++            "candidate version must be strict release SemVer")
++    require(isinstance(snapshot_sha256, str) and LOWER_SHA256.fullmatch(snapshot_sha256),
++            "candidate snapshot digest must be SHA-256")
++    stem = f"wukongim-stable-{version}-{snapshot_sha256}-candidate"
++    return stem + "-site.tar", stem + "-receipt.json"
++
++
++def build_candidate_audit_receipt(args: argparse.Namespace, archive_path: Path) -> dict[str, Any]:
++    """Reconstruct an unsealed receipt from external anchors and real verification."""
++    C.require_candidate_paths(args)
++    plan = C.validate_candidate_plan(C.load_json(args.plan, "external candidate plan", canonical=True),
++        args.control_root, args.candidate_source_root, test_only=args.test_only)
++    archive_facts = C.hash_file(archive_path, "candidate archive", maximum_bytes=ARCHIVE_MAX_TOTAL_BYTES)
++    with tempfile.TemporaryDirectory(prefix="wk-candidate-audit-") as temporary:
++        extracted = Path(temporary).resolve()/"snapshot"
++        snapshot_archive.extract_snapshot(archive_path=archive_path, output_dir=extracted,
++            max_members=snapshot_archive.DEFAULT_MAX_MEMBERS, max_total_size=ARCHIVE_MAX_TOTAL_BYTES)
++        snapshot_facts = C.hash_file(extracted/"audit/snapshot.json", "candidate snapshot", maximum_bytes=MAX_JSON_BYTES)
++        archive_name, _ = candidate_archive_names(plan["target_version"], snapshot_facts["sha256"])
++        require(archive_path.name == archive_name, "candidate archive name differs from version/snapshot identity")
++        external_inputs = C.candidate_audit_inputs(args, plan)
++        for relative, (external, facts) in external_inputs.items():
++            archived = C.read_checked(extracted/relative, "archived " + relative, expected=facts, maximum_bytes=MAX_JSON_BYTES)
++            require(archived == C.read_checked(external, "external " + relative, expected=facts, maximum_bytes=MAX_JSON_BYTES),
++                    "archived candidate evidence differs from external input: " + relative)
++        verifier = C.local_module("verify-production-package-site.py")
++        verification_args = argparse.Namespace(**vars(args), site_root=extracted/"site",
++                                               snapshot=extracted/"audit/snapshot.json")
++        try:
++            verification = verifier.verify(verification_args)
++        except (verifier.VerificationError, verifier.C.CompositionError) as error:
++            raise AuditReceiptError(str(error)) from error
++        require(C.hash_file(archive_path, "candidate archive", maximum_bytes=ARCHIVE_MAX_TOTAL_BYTES) == archive_facts,
++                "candidate archive changed during verification")
++    return {
++        "schema":"wukongim/package-audit-receipt/v3", "stage":"offline_candidate",
++        "channel":"stable", "test_only":args.test_only, "audit_release_id":None,
++        "control_sha":plan["control_sha"],
++        "archive":{"name":archive_name, **archive_facts, "snapshot_sha256":snapshot_facts["sha256"]},
++        "inputs":{relative:facts for relative, (_, facts) in sorted(external_inputs.items())},
++        "verification":verification,
++    }
++
++
+ def build_audit_receipt(
+     *,
+     channels_path: Path,
+@@ -1084,7 +1135,23 @@ def build_audit_receipt(
+     apt_receipt_path: Path,
+     rpm_receipt_path: Path,
+     archive_path: Path,
++    channel: str = "preview",
++    offline_candidate: bool = False,
++    control_root: Path | None = None,
++    candidate_source_root: Path | None = None,
++    test_only: bool = False,
+ ) -> dict[str, Any]:
++    candidate_args = argparse.Namespace(channel=channel, offline_candidate=offline_candidate,
++        control_root=control_root, candidate_source_root=candidate_source_root, test_only=test_only,
++        channels=channels_path, signing=signing_path, signing_toolchain=signing_toolchain_path,
++        apt_public_cert=apt_public_cert_path, rpm_public_cert=rpm_public_cert_path,
++        plan=plan_path, apt_receipt=apt_receipt_path, rpm_receipt=rpm_receipt_path)
++    if C.candidate_mode(candidate_args):
++        require(source_attestations_path is None, "candidate source evidence uses the bound source root")
++        try:
++            return build_candidate_audit_receipt(candidate_args, archive_path)
++        except snapshot_archive.ArchiveError as error:
++            raise AuditReceiptError(f"package archive validation failed: {error}") from error
+     channels_value, _ = load_json(Path(channels_path), "channels manifest")
+     signing_value, _ = load_json(Path(signing_path), "preview signing manifest")
+     toolchain_value, toolchain_raw = load_json(
+@@ -1368,7 +1435,12 @@ def _write_exclusive(path: Path, value: dict[str, Any]) -> None:
+ 
+ def create_audit_receipt(*, output_path: Path, **inputs: Any) -> dict[str, Any]:
+     receipt = build_audit_receipt(**inputs)
+-    expected_name = f"wukongim-preview-r{receipt['audit_release_id']}-receipt.json"
++    if inputs.get("offline_candidate"):
++        C.validate_candidate_output_paths((Path(output_path),),
++            (inputs["control_root"], inputs["candidate_source_root"], inputs["plan_path"],
++             inputs["apt_receipt_path"], inputs["rpm_receipt_path"], inputs["archive_path"]))
++    expected_name = (candidate_archive_names(receipt["verification"]["target_version"], receipt["archive"]["snapshot_sha256"])[1]
++                     if inputs.get("offline_candidate") else f"wukongim-preview-r{receipt['audit_release_id']}-receipt.json")
+     require(Path(output_path).name == expected_name,
+             f"external receipt name must be {expected_name}")
+     _write_exclusive(Path(output_path), receipt)
+@@ -1377,12 +1449,13 @@ def create_audit_receipt(*, output_path: Path, **inputs: Any) -> dict[str, Any]:
+ 
+ def verify_audit_receipt(*, receipt_path: Path, **inputs: Any) -> dict[str, Any]:
+     expected = build_audit_receipt(**inputs)
+-    expected_name = f"wukongim-preview-r{expected['audit_release_id']}-receipt.json"
++    expected_name = (candidate_archive_names(expected["verification"]["target_version"], expected["archive"]["snapshot_sha256"])[1]
++                     if inputs.get("offline_candidate") else f"wukongim-preview-r{expected['audit_release_id']}-receipt.json")
+     require(Path(receipt_path).name == expected_name,
+             f"external receipt name must be {expected_name}")
+     actual_value, _ = load_json(Path(receipt_path), "external audit receipt", canonical=True)
+-    actual = validate_external_receipt(actual_value)
+-    require(actual == expected,
++    actual = actual_value if inputs.get("offline_candidate") else validate_external_receipt(actual_value)
++    require(canonical_json(actual) == canonical_json(expected),
+             "external audit receipt differs from the current reviewed inputs or archive")
+     return actual
+ 
+@@ -1398,6 +1471,7 @@ def _common_arguments(parser: argparse.ArgumentParser) -> None:
+     parser.add_argument("--apt-receipt", required=True, type=Path)
+     parser.add_argument("--rpm-receipt", required=True, type=Path)
+     parser.add_argument("--archive", required=True, type=Path)
++    C.candidate_arguments(parser)
+ 
+ 
+ def _parser() -> argparse.ArgumentParser:
+@@ -1425,13 +1499,16 @@ def main(argv: list[str] | None = None) -> int:
+         "apt_receipt_path": args.apt_receipt,
+         "rpm_receipt_path": args.rpm_receipt,
+         "archive_path": args.archive,
++        "channel":args.channel, "offline_candidate":args.offline_candidate,
++        "control_root":args.control_root, "candidate_source_root":args.candidate_source_root,
++        "test_only":args.test_only,
+     }
+     try:
+         if args.command == "create":
+             receipt = create_audit_receipt(output_path=args.output, **inputs)
+         else:
+             receipt = verify_audit_receipt(receipt_path=args.receipt, **inputs)
+-    except AuditReceiptError as error:
++    except (AuditReceiptError, C.CompositionError, OSError) as error:
+         print(f"package audit receipt operation failed: {error}", file=sys.stderr)
+         return 1
+     print(canonical_json(receipt).decode("utf-8"), end="")
+diff --git a/scripts/plan-package-publication.py b/scripts/plan-package-publication.py
+index 5a45d66..79c355d 100755
+--- a/scripts/plan-package-publication.py
++++ b/scripts/plan-package-publication.py
+@@ -5,6 +5,7 @@ from __future__ import annotations
+ 
+ import argparse
+ import json
++import importlib.util
+ import re
+ import shutil
+ import subprocess
+@@ -14,6 +15,10 @@ from pathlib import Path, PurePosixPath
+ from typing import Any
+ 
+ 
++_C_SPEC = importlib.util.spec_from_file_location("_plan_composer", Path(__file__).with_name("compose-package-site.py"))
++C = importlib.util.module_from_spec(_C_SPEC)
++_C_SPEC.loader.exec_module(C)
++
+ CHANNELS_SCHEMA = "wukongim.native_package_channels/v3"
+ SNAPSHOT_SCHEMA = "wukongim.native_package_snapshot/v3"
+ PLAN_SCHEMA = "wukongim.native_package_publication_plan/v1"
+@@ -503,13 +508,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("--channels", type=Path, required=True)
+     parser.add_argument("--base-snapshot", type=Path)
+-    parser.add_argument("--control-sha", required=True)
++    parser.add_argument("--control-sha")
++    C.candidate_arguments(parser)
+     return parser.parse_args(argv)
+ 
+ 
+ def main(argv: list[str] | None = None) -> int:
+     args = parse_args(argv)
+     try:
++        if C.candidate_mode(args):
++            C.require_candidate_paths(args)
++            plan = C.build_candidate_plan(args.control_root, args.candidate_source_root,
++                                          args.control_sha, test_only=args.test_only)
++            sys.stdout.buffer.write(C.canonical_json(plan))
++            return 0
++        require(args.control_sha is not None, "preview requires --control-sha")
+         channels = load_json(args.channels)
+         preview = channels.get("channels", {}).get("preview", {}) if isinstance(channels, dict) else {}
+         publication = preview.get("publication", {}) if isinstance(preview, dict) else {}
+@@ -517,7 +530,7 @@ def main(argv: list[str] | None = None) -> int:
+         base = load_base(args.base_snapshot, base_id)
+         plan = build_plan(channels, base, args.control_sha, datetime.now(timezone.utc))
+         validate_native_version_transition(plan, base)
+-    except PlanError as error:
++    except (PlanError, C.CompositionError, OSError) as error:
+         print(f"publication planning failed: {error}", file=sys.stderr)
+         return 1
+     json.dump(plan, sys.stdout, sort_keys=True, separators=(",", ":"))
+diff --git a/scripts/prepare-package-site.py b/scripts/prepare-package-site.py
+index 19c1753..2b5f8bb 100755
+--- a/scripts/prepare-package-site.py
++++ b/scripts/prepare-package-site.py
+@@ -8,6 +8,7 @@ import ctypes
+ import errno
+ import hashlib
+ import json
++import importlib.util
+ import os
+ import re
+ import shutil
+@@ -19,6 +20,10 @@ from pathlib import Path, PurePosixPath
+ from typing import Any
+ 
+ 
++_C_SPEC = importlib.util.spec_from_file_location("_prepare_composer", Path(__file__).with_name("compose-package-site.py"))
++C = importlib.util.module_from_spec(_C_SPEC)
++_C_SPEC.loader.exec_module(C)
++
+ PLAN_SCHEMA = "wukongim.native_package_publication_plan/v1"
+ SNAPSHOT_SCHEMA = "wukongim.native_package_snapshot/v3"
+ INVENTORY_SCHEMA = "wukongim.native_package_payload_inventory/v1"
+@@ -485,6 +490,10 @@ def build_bootstrap_packages(
+         "--rpm-public-cert", str(args.rpm_public_cert.resolve()),
+         "--output-dir", str(output),
+     ]
++    candidate = getattr(args, "offline_candidate", False)
++    if candidate:
++        command = [str(args.bootstrap_builder.resolve()), "--channel", "stable",
++                   "--control-root", str(args.control_root), "--output-dir", str(output)]
+     result = subprocess.run(command, check=False, capture_output=True)
+     require(result.returncode == 0, "trusted bootstrap package builder failed")
+     require(len(result.stdout) <= 4 * 1024 * 1024,
+@@ -499,12 +508,19 @@ def build_bootstrap_packages(
+         ) from error
+     require(result.stdout == canonical_json(value),
+             "trusted bootstrap package builder inventory is not canonical JSON")
+-    inventory = validate_bootstrap_inventory(
+-        value,
+-        label="bootstrap builder inventory",
+-        expected_version=manifest["version"],
+-        require_builder_state=True,
+-    )
++    if candidate:
++        C.exact(value, {"schema", "channel", "published", "version", "packages"}, "stable bootstrap preparation")
++        C.require(value["schema"] == "wukongim.stable_bootstrap_preparation/v1"
++                  and value["channel"] == "stable" and value["published"] is False,
++                  "stable bootstrap builder did not return unpublished preparation")
++        inventory = C.validate_bootstrap_inventory(
++            {"schema":C.CANDIDATE_BOOTSTRAP_SCHEMA, "version":value["version"], "packages":value["packages"]},
++            prepared=True, channel="stable")
++        C.require(inventory["version"] == manifest["version"] and all(item["new"] is True for item in inventory["packages"].values()),
++                  "stable bootstrap builder version/new state differs")
++    else:
++        inventory = validate_bootstrap_inventory(value, label="bootstrap builder inventory",
++            expected_version=manifest["version"], require_builder_state=True)
+     try:
+         output_metadata = output.lstat()
+         entries = list(output.iterdir())
+@@ -625,23 +641,51 @@ def rename_directory_exclusive(source: Path, destination: Path) -> None:
+ 
+ 
+ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+-    channels = load_json(args.channels)
+-    plan = load_json(args.plan)
++    candidate = C.candidate_mode(args)
++    channel = "stable" if candidate else "preview"
++    if candidate:
++        C.require_candidate_paths(args)
++        plan = C.validate_candidate_plan(C.load_json(args.plan, "candidate plan", canonical=True),
++            args.control_root, args.candidate_source_root, test_only=args.test_only)
++        C.validate_candidate_output_paths((args.output, args.inventory, args.bootstrap_inventory),
++                                          (args.control_root, args.candidate_source_root))
++        C.require(args.source_assets.absolute() == (args.candidate_source_root/"assets").absolute(),
++                  "candidate assets must come from the bound source root")
++        trusted = C.load_json(args.control_root/"manifests/trusted-toolchain.json", "trusted toolchain")
++        C.require(C.hash_file(args.builder, "trusted repository builder", maximum_bytes=1024*1024)["sha256"]
++                  == trusted["files"]["scripts/build-native-package-repositories.sh"],
++                  "repository builder SHA differs from pinned control")
++        C.require(args.bootstrap_builder.resolve() == Path(__file__).with_name("build-repository-bootstrap-packages.py").resolve(),
++                  "candidate bootstrap builder must be the frozen local producer")
++        if not args.test_only:
++            metadata_verifier = C.local_module("verify-source-package-metadata.py")
++            try:
++                actual_metadata = metadata_verifier.verify_metadata(
++                    args.candidate_source_root/"resolution.json", args.source_assets, "stable")
++            except metadata_verifier.VerificationError as error:
++                raise PreparationError(str(error)) from error
++            C.require(C.canonical_json(actual_metadata) == C.canonical_json(C.load_json(args.candidate_source_root/"metadata.json", "source metadata")),
++                      "actual source package metadata differs from preflight evidence")
++        audit_id = base_id = base_snapshot = base_site = base_bootstrap = None
++        releases = [plan["release"]]
++    else:
++        channels = load_json(args.channels)
++        plan = load_json(args.plan)
++        require(isinstance(channels, dict) and channels.get("schema") == "wukongim.native_package_channels/v3",
++                "channels manifest must use schema v3")
++        require(isinstance(plan, dict) and plan.get("schema") == PLAN_SCHEMA,
++                f"publication plan schema must be {PLAN_SCHEMA}")
++        audit_id = plan.get("audit_release_id")
++        require(type(audit_id) is int and audit_id > 0, "publication plan has no audit Release")
++        base_id = plan.get("base_audit_release_id")
++        base_snapshot, base_site = load_base(args.base_root, base_id)
++        base_bootstrap = load_base_bootstrap(base_site)
++        preview = channels.get("channels", {}).get("preview", {})
++        releases = preview.get("releases")
+     bootstrap_manifest = load_bootstrap_manifest(args.bootstrap_manifest)
+-    require(isinstance(channels, dict) and channels.get("schema") == "wukongim.native_package_channels/v3",
+-            "channels manifest must use schema v3")
+-    require(isinstance(plan, dict) and plan.get("schema") == PLAN_SCHEMA,
+-            f"publication plan schema must be {PLAN_SCHEMA}")
+-    audit_id = plan.get("audit_release_id")
+-    require(type(audit_id) is int and audit_id > 0, "publication plan has no audit Release")
+-    base_id = plan.get("base_audit_release_id")
+-    base_snapshot, base_site = load_base(args.base_root, base_id)
+-    base_bootstrap = load_base_bootstrap(base_site)
+-    preview = channels.get("channels", {}).get("preview", {})
+-    releases = preview.get("releases")
+-    require(isinstance(releases, list), "preview releases must be an array")
++    require(isinstance(releases, list), "selected releases must be an array")
+     release_by_version = {item.get("version"): item for item in releases if isinstance(item, dict)}
+-    require(len(release_by_version) == len(releases), "preview release versions must be unique")
++    require(len(release_by_version) == len(releases), "release versions must be unique")
+     active = plan.get("active_versions")
+     retained = plan.get("retained_versions")
+     new_versions = plan.get("new_versions")
+@@ -665,8 +709,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+     bootstrap_inventory_absolute = Path(os.path.abspath(args.bootstrap_inventory))
+     require(len({output_absolute, inventory_absolute, bootstrap_inventory_absolute}) == 3,
+             "repository and inventory outputs must differ")
+-    for candidate in (inventory_absolute, bootstrap_inventory_absolute):
+-        require(not candidate.is_relative_to(output_absolute),
++    for inventory_path in (inventory_absolute, bootstrap_inventory_absolute):
++        require(not inventory_path.is_relative_to(output_absolute),
+                 "inventory output must not be inside repository output")
+     checked_file(args.builder, "trusted repository builder")
+     checked_file(args.bootstrap_builder, "trusted bootstrap package builder")
+@@ -696,8 +740,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+     )
+     require(len({output, inventory_output, bootstrap_inventory_output}) == 3,
+             "repository and inventory outputs must differ")
+-    for candidate in (inventory_output, bootstrap_inventory_output):
+-        require(not candidate.is_relative_to(output),
++    for inventory_path in (inventory_output, bootstrap_inventory_output):
++        require(not inventory_path.is_relative_to(output),
+                 "inventory output must not be inside repository output")
+     require(not os.path.lexists(output), "output must not already exist or be a link")
+     require(not os.path.lexists(inventory_output),
+@@ -705,6 +749,9 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+     require(not os.path.lexists(bootstrap_inventory_output),
+             "bootstrap inventory output must not already exist or be a link")
+ 
++    if candidate:
++        C.validate_candidate_output_paths((output, inventory_output, bootstrap_inventory_output),
++                                          (args.control_root, args.candidate_source_root))
+     output_identity: tuple[int, int] | None = None
+     inventory_identity: tuple[int, int] | None = None
+     bootstrap_inventory_identity: tuple[int, int] | None = None
+@@ -727,7 +774,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+                     require(isinstance(expected_source, str) and SHA256_RE.fullmatch(expected_source),
+                             f"reviewed {family} source digest is invalid for {version}")
+                     if is_new:
+-                        source = find_new_asset(source_root, release, suffix)
++                        source = (source_root / f"wukongim_{version}_linux_amd64{suffix}" if candidate
++                                  else find_new_asset(source_root, release, suffix))
+                         published = expected_source
+                         filename = source.name
+                     else:
+@@ -749,7 +797,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+                     repository_path = (
+                         f"apt/pool/main/w/wukongim/{filename}"
+                         if family == "apt"
+-                        else f"rpm/preview/el/9/x86_64/Packages/{filename}"
++                        else f"rpm/{channel}/el/9/x86_64/Packages/{filename}"
+                     )
+                     prepared[family].append({
+                         "version": version,
+@@ -784,7 +832,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+                 )
+             )
+             bootstrap_prepared = {
+-                "schema": BOOTSTRAP_INVENTORY_SCHEMA,
++                "schema": C.CANDIDATE_BOOTSTRAP_SCHEMA if candidate else BOOTSTRAP_INVENTORY_SCHEMA,
+                 "version": built_bootstrap["version"],
+                 "packages": {},
+             }
+@@ -828,9 +876,9 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+                 str(args.builder.resolve()),
+                 "--packages-dir", str(active_packages),
+                 "--output", str(repository),
+-                "--apt-suite", "preview",
++                "--apt-suite", channel,
+                 "--apt-architecture", "amd64",
+-                "--rpm-channel", "preview",
++                "--rpm-channel", channel,
+                 "--rpm-basearch", "x86_64",
+             ]
+             result = subprocess.run(command, check=False, capture_output=True, text=True)
+@@ -862,7 +910,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+                 )
+ 
+             inventory = {
+-                "schema": INVENTORY_SCHEMA,
++                "schema": C.CANDIDATE_INVENTORY_SCHEMA if candidate else INVENTORY_SCHEMA,
+                 "audit_release_id": audit_id,
+                 "active_versions": active,
+                 "retained_versions": retained,
+@@ -871,6 +919,11 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
+                     for family in ("apt", "rpm")
+                 },
+             }
++            if candidate:
++                C.require(C.hash_file(args.builder, "trusted repository builder", maximum_bytes=1024*1024)["sha256"]
++                          == trusted["files"]["scripts/build-native-package-repositories.sh"],
++                          "repository builder changed during preparation")
++                C.validate_candidate_plan(plan, args.control_root, args.candidate_source_root, test_only=args.test_only)
+             inventory_raw = canonical_json(inventory)
+             bootstrap_inventory_raw = canonical_json(bootstrap_prepared)
+             inventory_identity = write_inventory_exclusive(inventory_output, inventory_raw)
+@@ -910,6 +963,7 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--output", required=True, type=Path)
+     parser.add_argument("--inventory", required=True, type=Path)
+     parser.add_argument("--bootstrap-inventory", required=True, type=Path)
++    C.candidate_arguments(parser)
+     return parser
+ 
+ 
+@@ -917,7 +971,7 @@ def main(argv: list[str] | None = None) -> int:
+     args = build_parser().parse_args(argv)
+     try:
+         inventory = prepare(args)
+-    except PreparationError as error:
++    except (PreparationError, C.CompositionError, OSError) as error:
+         print(f"package-site preparation failed: {error}", file=sys.stderr)
+         return 1
+     json.dump(inventory, sys.stdout, sort_keys=True, separators=(",", ":"))
+diff --git a/scripts/verify-production-package-site.py b/scripts/verify-production-package-site.py
+index 57aa134..71b2d45 100755
+--- a/scripts/verify-production-package-site.py
++++ b/scripts/verify-production-package-site.py
+@@ -490,28 +490,69 @@ def validate_key_topology(
+     }
+ 
+ 
++def validate_candidate_audit(args: argparse.Namespace, plan: dict[str, Any], root: Path) -> None:
++    """Close archived public evidence against independent external input bytes."""
++    expected = {"audit/snapshot.json", "audit/plan.json", "audit/apt-signing.json",
++                "audit/rpm-signing.json", "audit/signing-toolchain.json"}
++    require(read_checked(root/"audit/plan.json", "archived candidate plan", maximum=8*1024*1024)
++            == read_checked(args.plan, "external candidate plan", maximum=8*1024*1024),
++            "archived plan differs from external plan")
++    for family in ("apt", "rpm"):
++        receipt = C.load_signing_receipt(root/f"audit/{family}-signing.json", family)
++        C.require_reviewed_key_receipt(receipt["key"], C.candidate_keys(args.control_root)[family], family)
++    for name, facts in plan["candidate"]["control_files"].items():
++        path = "audit/control/" + name
++        C.read_checked(root/path, "archived control " + name, expected=facts, maximum_bytes=1024*1024)
++        expected.add(path)
++    for name, facts in plan["candidate"]["source_files"].items():
++        if not name.startswith("assets/"):
++            path = "audit/source/" + name
++            C.read_checked(root/path, "archived source " + name, expected=facts, maximum_bytes=8*1024*1024)
++            expected.add(path)
++    require(hash_file(root/"audit/signing-toolchain.json", "archived signing toolchain", maximum=1024*1024)
++            == plan["candidate"]["control_files"]["manifests/signing-toolchain.json"],
++            "archived signing toolchain differs from external control")
++    files, directories = collect_tree(root, "candidate archive")
++    require_tree_closure(files, directories, expected | {name for name in files if name.startswith("site/")},
++                         "candidate archive")
++
++
+ def validate_snapshot_and_control(args: argparse.Namespace) -> dict[str, Any]:
++    candidate = C.candidate_mode(args)
++    channel = "stable" if candidate else "preview"
+     try:
+-        control = C.validate_channels(load_json(args.channels, "channels manifest"))
+-        reviewed_keys = C.validate_signing_manifest(
+-            load_json(args.signing, "preview signing manifest"),
+-            args.apt_public_cert,
+-            args.rpm_public_cert,
+-        )
++        if candidate:
++            C.require_candidate_paths(args)
++            require(getattr(args, "plan", None) is not None,
++                    "candidate verification requires an external plan")
++            plan = C.validate_candidate_plan(load_json(args.plan, "external candidate plan", canonical=True),
++                args.control_root, args.candidate_source_root, test_only=args.test_only)
++            control = C.candidate_control(plan, args.control_root)
++            reviewed_keys = C.candidate_keys(args.control_root)
++        else:
++            require(getattr(args, "plan", None) is None, "preview verifier forbids a candidate plan")
++            control = C.validate_channels(load_json(args.channels, "channels manifest"))
++            reviewed_keys = C.validate_signing_manifest(
++                load_json(args.signing, "preview signing manifest"), args.apt_public_cert, args.rpm_public_cert)
+     except C.CompositionError as error:
+         raise VerificationError(str(error)) from error
+ 
+     snapshot_raw = read_checked(args.snapshot, "snapshot", maximum=8 * 1024 * 1024)
+     snapshot = exact(load_json(args.snapshot, "snapshot", canonical=True),
+-                     SNAPSHOT_FIELDS, "snapshot")
+-    require(snapshot["schema"] == C.SNAPSHOT_SCHEMA,
++                     SNAPSHOT_FIELDS | ({"candidate_plan"} if candidate else set()), "snapshot")
++    require(snapshot["schema"] == (C.CANDIDATE_SNAPSHOT_SCHEMA if candidate else C.SNAPSHOT_SCHEMA),
+             f"snapshot schema must be {C.SNAPSHOT_SCHEMA}")
+     publication = control["publication"]
+     require(snapshot["audit_release_id"] == publication["audit_release_id"],
+             "snapshot audit Release differs from reviewed channels")
+-    require(isinstance(snapshot["control_sha"], str) and C.SHA_RE.fullmatch(snapshot["control_sha"]),
+-            "snapshot control_sha is invalid")
+-    require(snapshot["releases"] == control["preview"]["releases"],
++    if candidate:
++        require(canonical_json(snapshot["candidate_plan"]) == canonical_json(plan),
++                "snapshot candidate plan differs from external plan")
++        require(snapshot["control_sha"] == plan["control_sha"], "snapshot control identity differs")
++    else:
++        require(isinstance(snapshot["control_sha"], str) and C.SHA_RE.fullmatch(snapshot["control_sha"]),
++                "snapshot control_sha is invalid")
++    require(snapshot["releases"] == (control["channel_releases"] if candidate else control["preview"]["releases"]),
+             "snapshot releases differ from reviewed channels")
+     require(snapshot["retirement"] == control["retirement"],
+             "snapshot retirement differs from reviewed channels")
+@@ -526,7 +567,7 @@ def validate_snapshot_and_control(args: argparse.Namespace) -> dict[str, Any]:
+         prior = ""
+         for index, raw in enumerate(values):
+             try:
+-                item = C.validate_snapshot_entry(raw, family, index)
++                item = C.validate_snapshot_entry(raw, family, index, channel=channel)
+             except C.CompositionError as error:
+                 raise VerificationError(str(error)) from error
+             version = item["version"]
+@@ -554,7 +595,7 @@ def validate_snapshot_and_control(args: argparse.Namespace) -> dict[str, Any]:
+     for family, external in (("apt", args.apt_public_cert), ("rpm", args.rpm_public_cert)):
+         reviewed = reviewed_keys[family]
+         try:
+-            archived = C.validate_public_key_snapshot(public_keys[family], family, args.site_root)
++            archived = C.validate_public_key_snapshot(public_keys[family], family, args.site_root, channel=channel)
+         except C.CompositionError as error:
+             raise VerificationError(str(error)) from error
+         require(archived == reviewed,
+@@ -595,32 +636,35 @@ def validate_snapshot_and_control(args: argparse.Namespace) -> dict[str, Any]:
+             "snapshot toolchain differs from its archived manifest")
+ 
+     operation = publication["operation"]
+-    evidence = root / "audit/source-attestations"
+-    evidence_arg = evidence if operation == "add_release" else None
+-    plan_view = {"operation": operation, "target_version": publication["target_version"]}
+-    try:
+-        expected_source, _ = C.validate_source_attestations(evidence_arg, plan_view, control)
+-        actual_source = C.validate_source_attestation_snapshot(
+-            snapshot["source_attestations"], root, "snapshot source attestations"
+-        )
+-    except C.CompositionError as error:
+-        raise VerificationError(str(error)) from error
+-    require(actual_source == expected_source,
+-            "snapshot source-attestation inventory differs from archived evidence")
+-
+-    status = exact(load_json(args.site_root / "status.json", "site status", canonical=True),
+-                   STATUS_FIELDS, "site status")
+-    require(status == {
+-        "schema": C.STATUS_SCHEMA,
+-        "apt": True,
+-        "rpm": True,
+-        "reason": "ready",
+-        "audit_release_id": snapshot["audit_release_id"],
+-        "control_sha": snapshot["control_sha"],
+-        "snapshot_sha256": digest_bytes(snapshot_raw),
+-        "operation": operation,
++    if candidate:
++        require(snapshot["source_attestations"] is None,
++                "candidate source evidence must use its bound source inventory")
++        validate_candidate_audit(args, plan, root)
++    else:
++        evidence = root / "audit/source-attestations"
++        evidence_arg = evidence if operation == "add_release" else None
++        plan_view = {"operation": operation, "target_version": publication["target_version"]}
++        try:
++            expected_source, _ = C.validate_source_attestations(evidence_arg, plan_view, control)
++            actual_source = C.validate_source_attestation_snapshot(
++                snapshot["source_attestations"], root, "snapshot source attestations")
++        except C.CompositionError as error:
++            raise VerificationError(str(error)) from error
++        require(actual_source == expected_source,
++                "snapshot source-attestation inventory differs from archived evidence")
++
++    status = load_json(args.site_root / "status.json", "site status", canonical=True)
++    expected_status = {
++        "schema": C.STATUS_SCHEMA, "apt": True, "rpm": True, "reason": "ready",
++        "audit_release_id": snapshot["audit_release_id"], "control_sha": snapshot["control_sha"],
++        "snapshot_sha256": digest_bytes(snapshot_raw), "operation": operation,
+         "target_version": publication["target_version"],
+-    }, "site status differs from snapshot and reviewed publication")
++    }
++    if candidate:
++        expected_status.update(schema="wukongim.native_package_repository_status/v3", reason="offline_candidate",
++                               test_only=plan["candidate"]["test_only"], channel="stable")
++    require(canonical_json(status) == canonical_json(expected_status),
++            "site status differs from snapshot and reviewed publication")
+ 
+     target = publication["target_version"]
+     if operation == "add_release":
+@@ -636,6 +680,7 @@ def validate_snapshot_and_control(args: argparse.Namespace) -> dict[str, Any]:
+         require(target not in control["releases"],
+                 "remove_payloads target must be absent from the resulting snapshot")
+     return {
++        "channel": channel,
+         "control": control,
+         "snapshot": snapshot,
+         "payloads": payloads,
+@@ -671,7 +716,7 @@ def validate_bootstrap_manifest(
+                 canonical=True,
+             ),
+             prepared=False,
+-            label="site bootstrap manifest",
++            label="site bootstrap manifest", channel=context.get("channel", "preview"),
+         )
+     except C.CompositionError as error:
+         raise VerificationError(str(error)) from error
+@@ -727,7 +772,7 @@ def validate_bootstrap_manifest(
+         maximum=C.MAX_REPOSITORY_ENTRYPOINT_BYTES,
+     )
+     expected_entrypoint = C.repository_entrypoint_bytes(
+-        manifest, context["keys"]["rpm"]["sha256"]
++        manifest, context["keys"]["rpm"]["sha256"], channel=context.get("channel", "preview")
+     )
+     require(entrypoint == expected_entrypoint,
+             "repository setup entrypoint differs from reviewed bootstrap identities")
+@@ -827,6 +872,7 @@ def inspect_apt_bootstrap_package(
+     package: Path,
+     version: str,
+     certificate: Path,
++    *, channel: str = "preview",
+ ) -> None:
+     """Require the DEB to contain only the reviewed keyring and source config."""
+     try:
+@@ -836,7 +882,7 @@ def inspect_apt_bootstrap_package(
+         keyring = B.dearmor_public_certificate(
+             certificate_bytes, "reviewed APT certificate"
+         )
+-        B.inspect_deb(package, version, keyring)
++        B.inspect_deb(package, version, keyring, layout=B.STABLE_LAYOUT if channel == "stable" else B.PREVIEW_LAYOUT)
+     except B.BootstrapBuildError as error:
+         raise VerificationError(f"APT bootstrap package content is invalid: {error}") from error
+ 
+@@ -845,14 +891,16 @@ def inspect_rpm_bootstrap_package(
+     package: Path,
+     _version: str,
+     certificate: Path,
++    *, channel: str = "preview",
+ ) -> None:
+     """Require the RPM to be data-only and contain the exact reviewed repo files."""
+     certificate_bytes = read_checked(
+         certificate, "reviewed RPM certificate", maximum=MAX_CERT_BYTES
+     )
++    layout = B.STABLE_LAYOUT if channel == "stable" else B.PREVIEW_LAYOUT
+     expected_digests = {
+-        f"/{B.RPM_KEY_PATH}": digest_bytes(certificate_bytes),
+-        f"/{B.RPM_REPO_PATH}": digest_bytes(B.RPM_REPOSITORY),
++        f"/{layout.rpm_key_path}": digest_bytes(certificate_bytes),
++        f"/{layout.rpm_repo_path}": digest_bytes(layout.rpm_repository),
+     }
+     rpm = _tool("rpm")
+     files = run_command([rpm, "-qpl", str(package)], "RPM bootstrap file-list query")
+@@ -895,7 +943,7 @@ def inspect_rpm_bootstrap_package(
+         require(filename in parsed,
+                 "RPM bootstrap package content is invalid: expected payload is missing")
+         digest, flags, mode = parsed[filename]
+-        expected_flags = "17" if filename == f"/{B.RPM_REPO_PATH}" else "0"
++        expected_flags = "17" if filename == f"/{layout.rpm_repo_path}" else "0"
+         require(digest == expected_digest and flags == expected_flags and mode == "-rw-r--r--",
+                 f"RPM bootstrap package content is invalid for {filename}")
+     digest_check = run_command(
+@@ -936,7 +984,7 @@ def parse_apt_package_stanzas(data: bytes) -> list[dict[str, str]]:
+     return paragraphs
+ 
+ 
+-def validate_release_policy_headers(data: bytes) -> None:
++def validate_release_policy_headers(data: bytes, *, channel: str = "preview") -> None:
+     try:
+         lines = data.decode("utf-8").splitlines()
+     except UnicodeDecodeError as error:
+@@ -965,8 +1013,8 @@ def validate_release_policy_headers(data: bytes) -> None:
+     expected = {
+         "Origin": "WuKongIM",
+         "Label": "WuKongIM",
+-        "Suite": "preview",
+-        "Codename": "preview",
++        "Suite": channel,
++        "Codename": channel,
+         "Architectures": "amd64",
+         "Components": "main",
+         "Acquire-By-Hash": "yes",
+@@ -998,11 +1046,12 @@ def validate_apt(
+     site_files: dict[str, dict[str, Any]],
+     bootstrap_manifest: dict[str, Any] | None = None,
+ ) -> set[str]:
++    channel = context.get("channel", "preview")
+     root = args.site_root / "apt"
+-    release_relative = "apt/dists/preview/Release"
+-    inrelease_relative = "apt/dists/preview/InRelease"
+-    detached_relative = "apt/dists/preview/Release.gpg"
+-    packages_relative = "apt/dists/preview/main/binary-amd64/Packages"
++    release_relative = f"apt/dists/{channel}/Release"
++    inrelease_relative = f"apt/dists/{channel}/InRelease"
++    detached_relative = f"apt/dists/{channel}/Release.gpg"
++    packages_relative = f"apt/dists/{channel}/main/binary-amd64/Packages"
+     packages_gz_relative = f"{packages_relative}.gz"
+     for relative in (release_relative, inrelease_relative, detached_relative,
+                      packages_relative, packages_gz_relative):
+@@ -1029,7 +1078,7 @@ def validate_apt(
+             "APT InRelease signature must use OpenPGP SHA-256 (8)")
+     release_bytes = read_checked(args.site_root / release_relative, "APT Release",
+                                  maximum=C.MAX_METADATA_BYTES)
+-    validate_release_policy_headers(release_bytes)
++    validate_release_policy_headers(release_bytes, channel=channel)
+     require(inline["cleartext"] == release_bytes,
+             "APT InRelease cleartext differs byte-for-byte from Release")
+ 
+@@ -1108,9 +1157,11 @@ def validate_apt(
+             "version": bootstrap["version"],
+             "architecture": bootstrap["architecture"],
+         }, "APT bootstrap package header identity differs from its manifest")
+-        inspect_apt_bootstrap_package(
+-            args.site_root / path, bootstrap["version"], args.apt_public_cert
+-        )
++        if channel == "stable":
++            inspect_apt_bootstrap_package(args.site_root / path, bootstrap["version"],
++                                            args.apt_public_cert, channel="stable")
++        else:
++            inspect_apt_bootstrap_package(args.site_root / path, bootstrap["version"], args.apt_public_cert)
+     require(indexed == expected_indexed,
+             "APT Packages does not exactly contain active reviewed and bootstrap payloads")
+     stanzas = parse_apt_package_stanzas(packages_bytes)
+@@ -1137,7 +1188,7 @@ def validate_apt(
+ 
+     by_hash_paths: set[str] = set()
+     for site_name in (packages_relative, packages_gz_relative):
+-        relative = f"apt/dists/preview/main/binary-amd64/by-hash/SHA256/{site_files[site_name]['sha256']}"
++        relative = f"apt/dists/{channel}/main/binary-amd64/by-hash/SHA256/{site_files[site_name]['sha256']}"
+         require(relative in site_files and site_files[relative] == site_files[site_name],
+                 f"APT by-hash copy differs from {site_name}")
+         require(read_checked(args.site_root / relative, f"APT by-hash {relative}",
+@@ -1216,7 +1267,8 @@ def validate_rpm(
+     site_files: dict[str, dict[str, Any]],
+     bootstrap_manifest: dict[str, Any] | None = None,
+ ) -> set[str]:
+-    repository = "rpm/preview/el/9/x86_64"
++    channel = context.get("channel", "preview")
++    repository = f"rpm/{channel}/el/9/x86_64"
+     repomd_relative = f"{repository}/repodata/repomd.xml"
+     signature_relative = f"{repomd_relative}.asc"
+     require(repomd_relative in site_files and signature_relative in site_files,
+@@ -1324,9 +1376,11 @@ def validate_rpm(
+             "version": bootstrap["version"], "release": "1",
+             "architecture": bootstrap["architecture"],
+         }, "RPM bootstrap package header identity differs from its manifest")
+-        inspect_rpm_bootstrap_package(
+-            args.site_root / path, bootstrap["version"], args.rpm_public_cert
+-        )
++        if channel == "stable":
++            inspect_rpm_bootstrap_package(args.site_root / path, bootstrap["version"],
++                                            args.rpm_public_cert, channel="stable")
++        else:
++            inspect_rpm_bootstrap_package(args.site_root / path, bootstrap["version"], args.rpm_public_cert)
+ 
+     primary_root = _xml(records["primary"][1], "metadata", "RPM primary metadata")
+     primary_packages = [item for item in primary_root if C.local_name(item.tag) == "package"]
+@@ -1408,6 +1462,7 @@ def validate_rpm(
+ 
+ def verify(args: argparse.Namespace) -> dict[str, Any]:
+     context = validate_snapshot_and_control(args)
++    candidate = context["channel"] == "stable"
+     site_files, site_directories = collect_tree(args.site_root, "production package site")
+     site_size = sum(item["size"] for item in site_files.values())
+     limit = context["control"]["manifest"]["site_limit_bytes"]
+@@ -1416,6 +1471,13 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
+     bootstrap_manifest, bootstrap_expected = validate_bootstrap_manifest(
+         args, context, site_files
+     )
++    if candidate:
++        require(bootstrap_manifest is not None, "candidate requires both bootstrap packages")
++        plan = context["snapshot"]["candidate_plan"]
++        for family, validator in (("apt", C.validate_apt_tree), ("rpm", C.validate_rpm_tree)):
++            inventory = {version:{**item, "new":True} for version,item in context["payloads"][family].items()}
++            validator(args.site_root/family, args.snapshot.parent/f"{family}-signing.json",
++                      inventory, bootstrap_manifest["packages"][family], plan["active_versions"], [], channel="stable")
+     apt_expected = validate_apt(args, context, site_files, bootstrap_manifest)
+     rpm_expected = validate_rpm(args, context, site_files, bootstrap_manifest)
+     apt_key = context["keys"]["apt"]
+@@ -1431,6 +1493,9 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
+         "APT_RELEASE=apt/dists/preview/Release\n"
+         "RPM_REPOSITORY=rpm/preview/el/9/x86_64\n"
+     ).encode("ascii")
++    if candidate:
++        manifest = manifest.replace(b"TEST_ONLY=false", b"TEST_ONLY=" + str(args.test_only).lower().encode()).replace(b"/preview/", b"/stable/")
++        manifest += b"STAGE=offline_candidate\n"
+     require(read_checked(args.site_root / "signing-manifest.txt", "site signing manifest",
+                          maximum=16 * 1024) == manifest,
+             "site signing manifest differs from reviewed signing control")
+@@ -1448,16 +1513,22 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
+             "<h1>WuKongIM Linux packages</h1>\n"
+             "<p>The signed preview APT and RPM repositories and bootstrap packages are ready.</p>\n"
+         ).encode("utf-8")
++    if candidate:
++        index = index.replace(b"The signed preview APT and RPM repositories and bootstrap packages are ready.",
++                              b"UNPUBLISHED stable offline candidate. Public installation has not been verified.")
+     require(read_checked(args.site_root / "index.html", "site index", maximum=64 * 1024) == index,
+             "site index differs from the fixed production page")
+     expected_files = apt_expected | rpm_expected | bootstrap_expected | {
+         "index.html", "status.json", "signing-manifest.txt",
+-        "keys/apt-preview.asc", "keys/rpm-preview.asc",
++        context["keys"]["apt"]["path"], context["keys"]["rpm"]["path"],
+     }
+     require_tree_closure(site_files, site_directories, expected_files,
+                          "production package site")
++    if candidate:
++        C.validate_candidate_plan(context["snapshot"]["candidate_plan"], args.control_root,
++                                  args.candidate_source_root, test_only=args.test_only)
+     return {
+-        "schema": VERIFICATION_SCHEMA,
++        "schema": "wukongim/production-package-site-verification/v2" if candidate else VERIFICATION_SCHEMA,
+         "audit_release_id": context["snapshot"]["audit_release_id"],
+         "control_sha": context["snapshot"]["control_sha"],
+         "operation": context["operation"],
+@@ -1477,6 +1548,8 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--signing", required=True, type=Path)
+     parser.add_argument("--apt-public-cert", required=True, type=Path)
+     parser.add_argument("--rpm-public-cert", required=True, type=Path)
++    parser.add_argument("--plan", type=Path)
++    C.candidate_arguments(parser)
+     return parser
+ 
+ 
+@@ -1484,7 +1557,7 @@ def main(argv: list[str] | None = None) -> int:
+     args = build_parser().parse_args(argv)
+     try:
+         receipt = verify(args)
+-    except (VerificationError, OSError) as error:
++    except (VerificationError, C.CompositionError, OSError) as error:
+         print(f"production package-site verification failed: {error}", file=sys.stderr)
+         return 1
+     print(canonical_json(receipt).decode("utf-8"), end="")
+diff --git a/tests/native_stable_candidate_drill.py b/tests/native_stable_candidate_drill.py
+new file mode 100644
+index 0000000..43d3f4e
+--- /dev/null
++++ b/tests/native_stable_candidate_drill.py
+@@ -0,0 +1,528 @@
++#!/usr/bin/env python3
++"""TEST ONLY: compose, sign and verify an unpublished stable offline candidate.
++
++Run in the existing non-root, network-disabled Linux signing image. Tiny native
++packages contain only data. Only a bounded public JSON receipt leaves scratch;
++ephemeral private keys, packages and candidate archives are never uploaded.
++"""
++from __future__ import annotations
++
++import argparse
++from contextlib import contextmanager
++import gzip
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import sys
++import tempfile
++import time
++import xml.etree.ElementTree as ET
++
++
++ROOT = Path(__file__).resolve().parents[1]
++VERSION = '3.0.0'
++APT_RELEASE = 'dists/stable/Release'
++RPM_REPOSITORY = 'stable/el/9/x86_64'
++CASES = (
++    'plan', 'prepare', 'sign-apt', 'sign-rpm', 'compose',
++    'verify-after-secret-removal', 'archive-repeat', 'audit-create', 'audit-verify',
++    'extracted-verify', 'reject-apt-detached-receipt-integrity', 'reject-apt-cleartext-receipt-integrity',
++    'reject-next-key-receipt-integrity', 'reject-wrong-family-key-receipt-integrity',
++    'reject-next-key-crypto', 'reject-wrong-family-key-crypto',
++    'reject-deb-bytes', 'reject-rpm-bytes', 'reject-source-anchor', 'reject-control-anchor',
++    'reject-bootstrap-bytes', 'reject-download-alias', 'reject-apt-index',
++    'reject-apt-gzip', 'reject-apt-by-hash', 'reject-rpm-compressed-metadata',
++    'reject-rpm-signed-repomd-integrity', 'reject-archive-plan', 'reject-default-verifier',
++    'reject-default-audit', 'reject-default-transport',
++)
++
++# Match the actual validator layer, not merely a nonzero process exit. Patterns
++# are complete diagnostic lines; missing-input, usage and traceback text cannot
++# count as a successful negative. Only these public categories enter the receipt.
++VERIFY_PREFIX = 'production package-site verification failed: '
++AUDIT_PREFIX = 'package audit receipt operation failed: '
++TRANSPORT_PREFIX = 'object-storage planning failed: '
++REJECTIONS = {
++    'reject-apt-detached-receipt-integrity': ('apt-signature-receipt-integrity', VERIFY_PREFIX,
++        r'APT release_gpg identity differs from its signing receipt: dists/stable/Release\.gpg'),
++    'reject-apt-cleartext-receipt-integrity': ('apt-signature-receipt-integrity', VERIFY_PREFIX,
++        r'APT inrelease identity differs from its signing receipt: dists/stable/InRelease'),
++    'reject-next-key-receipt-integrity': ('apt-signature-receipt-integrity', VERIFY_PREFIX,
++        r'APT release_gpg identity differs from its signing receipt: dists/stable/Release\.gpg'),
++    'reject-wrong-family-key-receipt-integrity': ('apt-signature-receipt-integrity', VERIFY_PREFIX,
++        r'APT release_gpg identity differs from its signing receipt: dists/stable/Release\.gpg'),
++    'reject-next-key-crypto': ('apt-exact-current-signer', VERIFY_PREFIX,
++        r'APT Release\.gpg was not signed by the exact current signing subkey'),
++    'reject-wrong-family-key-crypto': ('apt-untrusted-signature', VERIFY_PREFIX,
++        r'OpenPGP signature is bad, revoked, or untrusted'),
++    'reject-deb-bytes': ('apt-index-payload-integrity', VERIFY_PREFIX,
++        r'APT Packages index does not exactly contain active payloads'),
++    'reject-rpm-bytes': ('rpm-payload-receipt-integrity', VERIFY_PREFIX,
++        r'RPM payload identity differs from its signing receipt: stable/el/9/x86_64/Packages/wukongim_3\.0\.0_linux_amd64\.rpm'),
++    'reject-source-anchor': ('external-source-asset-anchor', VERIFY_PREFIX,
++        r'candidate source asset differs: wukongim_3\.0\.0_linux_amd64\.deb'),
++    'reject-control-anchor': ('external-control-plan-anchor', VERIFY_PREFIX,
++        r'candidate plan differs from external control/source/producer anchors or first-generation contract'),
++    'reject-bootstrap-bytes': ('bootstrap-indexed-integrity', VERIFY_PREFIX,
++        r'indexed APT bootstrap package differs from its manifest'),
++    'reject-download-alias': ('bootstrap-download-integrity', VERIFY_PREFIX,
++        r'direct APT bootstrap download differs from its manifest'),
++    'reject-apt-index': ('apt-index-gzip-closure', VERIFY_PREFIX,
++        r'APT Packages\.gz differs from Packages'),
++    'reject-apt-gzip': ('apt-index-gzip-closure', VERIFY_PREFIX,
++        r'APT Packages\.gz differs from Packages'),
++    'reject-apt-by-hash': ('apt-by-hash-integrity', VERIFY_PREFIX,
++        r'APT by-hash object differs from dists/stable/main/binary-amd64/Packages(?:\.gz)?'),
++    'reject-rpm-compressed-metadata': ('rpm-metadata-receipt-integrity', VERIFY_PREFIX,
++        r'RPM repodata identity differs from its signing receipt: stable/el/9/x86_64/repodata/[A-Za-z0-9_.-]{1,256}'),
++    'reject-rpm-signed-repomd-integrity': ('rpm-repomd-receipt-integrity', VERIFY_PREFIX,
++        r'RPM repodata identity differs from its signing receipt: stable/el/9/x86_64/repodata/repomd\.xml'),
++    'reject-archive-plan': ('archive-plan-external-anchor', AUDIT_PREFIX,
++        r'archived audit/plan\.json identity differs from its reviewed receipt'),
++    'reject-default-verifier': ('preview-verifier-control-schema', VERIFY_PREFIX,
++        r'preview signing manifest fields must be exactly \[[^\n]{1,2048}\]'),
++    'reject-default-audit': ('preview-audit-plan-schema', AUDIT_PREFIX,
++        r'publication plan fields must be exactly \[[^\n]{1,2048}\]'),
++    'reject-default-transport': ('preview-only-transport-scope', TRANSPORT_PREFIX,
++        r'only preview offline transport planning is supported'),
++}
++
++
++def require(value: bool, message: str) -> None:
++    if not value:
++        raise RuntimeError(message)
++
++
++def canonical(value: dict) -> bytes:
++    return json.dumps(value, sort_keys=True, separators=(',', ':')).encode() + b'\n'
++
++
++def facts(path: Path) -> dict:
++    raw = path.read_bytes()
++    return {'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw)}
++
++
++def mutate_json_anchor(raw: bytes, path: tuple, value) -> bytes:
++    """Change one existing leaf while keeping all other parsed JSON intact."""
++    document = json.loads(raw)
++    parent = document
++    for component in path[:-1]:
++        parent = parent[component]
++    require(parent[path[-1]] != value, 'JSON mutation must change an existing anchor')
++    parent[path[-1]] = value
++    return canonical(document)
++
++
++def rebind_apt_signature_receipt(raw: bytes, signature: bytes) -> bytes:
++    """Pass receipt byte closure to reach the existing real crypto validator."""
++    receipt = json.loads(raw)
++    artifact = receipt['result']['release_gpg']
++    artifact['sha256'] = hashlib.sha256(signature).hexdigest()
++    artifact['size'] = len(signature)
++    return canonical(receipt)
++
++
++def load_fixture(name: str, filename: str):
++    spec = importlib.util.spec_from_file_location(name, ROOT / 'tests' / filename)
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[name] = module
++    spec.loader.exec_module(module)
++    return module
++
++
++def invoke(evidence: dict, name: str, command: list[str], environment: dict,
++           *, reject: bool = False, case: bool = True) -> subprocess.CompletedProcess:
++    """Record actual exit and bounded output facts, never child output or secrets."""
++    evidence['phase'] = name
++    record = {'stage': name, 'program': Path(command[0]).name, 'exit_code': None,
++              'expected_rejection': reject, 'timed_out': False}
++    evidence['commands'].append(record)
++    try:
++        result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
++                                env=environment, timeout=180)
++    except subprocess.TimeoutExpired:
++        record['timed_out'] = True
++        raise RuntimeError('native command exceeded its bounded deadline') from None
++    record['exit_code'] = result.returncode
++    for field, raw in (('stdout', result.stdout), ('stderr', result.stderr)):
++        record[field] = {'size': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
++    bounded = len(result.stdout) <= 8 * 1024 * 1024 and len(result.stderr) <= 1024 * 1024
++    category = None
++    if reject:
++        expected = REJECTIONS.get(name)
++        if expected and bounded and result.returncode == 1 and not result.stdout:
++            declared, prefix, reason = expected
++            diagnostic = result.stderr.decode('utf-8', errors='replace')
++            if re.fullmatch(re.escape(prefix) + reason + r'\n?', diagnostic):
++                category = declared
++        passed = category is not None
++    else:
++        passed = result.returncode == 0 and bounded
++    record['rejection_category'] = category
++    if case:
++        evidence['cases'].append({'case': name, 'passed': passed, 'exit_code': result.returncode,
++                                  'expected_rejection': reject, 'rejection_category': category})
++    require(passed, 'native command outcome differs from its declared case')
++    return result
++
++
++def cli(filename: str, *arguments) -> list[str]:
++    return [sys.executable, '-B', str(ROOT / 'scripts' / filename), *map(str, arguments)]
++
++
++def common(control: Path, source: Path) -> list[str]:
++    return ['--channel', 'stable', '--offline-candidate', '--control-root', str(control),
++            '--candidate-source-root', str(source), '--test-only']
++
++
++def fixture_source(scratch: Path) -> Path:
++    fixtures = load_fixture('stable_candidate_native_packages', 'native_source_metadata_drill.py')
++    build = scratch / 'package-build'
++    build.mkdir()
++    deb, rpm = fixtures.build_packages(build, VERSION, VERSION)
++    source = scratch / 'source'
++    assets = source / 'assets'
++    assets.mkdir(parents=True)
++    records = []
++    for extension, path in (('deb', deb), ('rpm', rpm)):
++        name = f'wukongim_{VERSION}_linux_amd64.{extension}'
++        shutil.copyfile(path, assets / name)
++        records.append({'name': name, 'id': None, **facts(assets / name)})
++    (source / 'resolution.json').write_bytes(canonical({
++        'schema': 'wukongim/test-source-fixture/v1', 'version': VERSION,
++        'source_sha': None, 'release_id': None, 'assets': records,
++    }))
++    return source
++
++
++def generate_control(scratch: Path, factory, keys) -> tuple[Path, dict]:
++    control = scratch / 'control'
++    control.mkdir()
++    for directory in ('manifests', 'keys'):
++        shutil.copytree(ROOT / directory, control / directory)
++    roles = json.loads((control / 'manifests/stable-public-keys.json').read_bytes())
++    generated = {}
++    for family in ('apt', 'rpm'):
++        key = factory.generate(f'STABLE-CANDIDATE-{family.upper()}', signing_expiration='90d',
++                               add_encryption_subkey=False, algorithm='rsa3072')
++        factory._gpg(key.home, ['--pinentry-mode', 'loopback', '--passphrase-fd', '0',
++                               '--quick-add-key', key.primary_fingerprint, 'rsa3072', 'sign', '180d'],
++                     input_bytes=keys.PASSPHRASE + b'\n')
++        _, subkeys = factory._fingerprints(key.home)
++        require(len(subkeys) == 2 and subkeys[0] == key.signing_subkey_fingerprint,
++                'TEST ONLY key topology differs')
++        certificate = control / f'keys/{family}-stable.asc'
++        certificate.write_bytes(factory._gpg(key.home, ['--armor', '--export', key.primary_fingerprint]))
++        roles[family] = {'public_key': f'keys/{family}-stable.asc',
++                         'primary_fingerprint': key.primary_fingerprint,
++                         'signing_subkeys': {'current': subkeys[0], 'next': subkeys[1], 'historical': []}}
++        generated[family] = (key, subkeys[1])
++    (control / 'manifests/stable-public-keys.json').write_bytes(canonical(roles))
++    require(json.loads((control / 'manifests/channels.json').read_bytes())['channels']['stable']['enabled'] is False,
++            'TEST ONLY scratch unexpectedly enabled stable')
++    return control, generated
++
++
++def sign_family(scratch: Path, family: str, key, successor: str, control: Path,
++                unsigned: Path, evidence: dict, env: dict) -> tuple[Path, Path]:
++    output = scratch / f'signed-{family}'
++    args = cli('sign-package-family.py', '--family', family, '--input-root', unsigned / family,
++               '--output-root', output, '--public-cert', control / f'keys/{family}-stable.asc',
++               '--primary-fingerprint', key.primary_fingerprint,
++               '--signing-subkey-fingerprint', key.signing_subkey_fingerprint,
++               '--next-signing-subkey-fingerprint', successor,
++               '--secret-subkey-base64-file', key.selected_secret_base64,
++               '--passphrase-file', key.passphrase_file)
++    if family == 'apt':
++        args += ['--apt-release', APT_RELEASE]
++    else:
++        repository = unsigned / family / RPM_REPOSITORY
++        paths = sorted(p.relative_to(repository).as_posix() for p in (repository / 'Packages').glob('*.rpm'))
++        require(len(paths) == 2, 'RPM allowlist must cover product and stable bootstrap')
++        for name, value in (
++            ('new', {'schema': 'wukongim/rpm-package-allowlist/v1',
++                     'packages': [{'path': path, **facts(repository / path)} for path in paths]}),
++            ('signed', {'schema': 'wukongim/rpm-package-allowlist/v1', 'packages': []}),
++            ('active', {'schema': 'wukongim/rpm-active-allowlist/v1', 'paths': paths}),
++        ):
++            path = scratch / f'{name}-allowlist.json'
++            path.write_bytes(canonical(value))
++            args += [f'--{name}-rpm-allowlist', str(path)]
++        args += ['--rpm-repository', RPM_REPOSITORY]
++    result = invoke(evidence, f'sign-{family}', args, env)
++    receipt = scratch / f'{family}-receipt.json'
++    receipt.write_bytes(result.stdout)
++    parsed = json.loads(result.stdout)
++    require(parsed['schema'] == 'wukongim/package-family-signing-receipt/v1', 'unexpected signer receipt')
++    require(parsed['key']['signing_subkey_fingerprint'] == key.signing_subkey_fingerprint,
++            'signer receipt current key differs')
++    return output, receipt
++
++
++@contextmanager
++def changed(path: Path, raw: bytes):
++    original, mode = path.read_bytes(), path.stat().st_mode & 0o777
++    path.chmod(0o600)
++    try:
++        path.write_bytes(raw)
++        yield
++    finally:
++        path.write_bytes(original)
++        path.chmod(mode)
++
++
++def only(paths) -> Path:
++    paths = sorted(paths)
++    require(len(paths) == 1, 'native candidate path selection is not exact')
++    return paths[0]
++
++
++def pipeline(scratch: Path, trusted: Path, evidence: dict, env: dict) -> None:
++    evidence['phase'] = 'source-fixture'
++    source = fixture_source(scratch)
++    evidence['phase'] = 'key-fixture-import'
++    keys = load_fixture('stable_candidate_test_keys', 'test_validate_signing_material.py')
++    private = scratch / 'private-test-keys'
++    factory = keys.TestKeyFactory(private)
++    plan, inventory, bootstrap = (scratch / name for name in ('plan.json', 'inventory.json', 'bootstrap.json'))
++    unsigned, composed = scratch / 'unsigned', scratch / 'composed'
++    bad_signatures = {}
++    try:
++        evidence['phase'] = 'test-key-generation'
++        control, generated = generate_control(scratch, factory, keys)
++        shared = common(control, source)
++        channels = control / 'manifests/channels.json'
++        result = invoke(evidence, 'plan', cli('plan-package-publication.py', '--channels', channels, *shared), env)
++        plan.write_bytes(result.stdout)
++        value = json.loads(result.stdout)
++        require(value['schema'] == 'wukongim.native_package_publication_plan/v2' and value['control_sha'] is None,
++                'TEST ONLY candidate plan identity differs')
++        invoke(evidence, 'prepare', cli('prepare-package-site.py', '--channels', channels, '--plan', plan,
++               '--source-assets', source / 'assets', '--bootstrap-manifest', control / 'manifests/bootstrap-packages.json',
++               '--apt-public-cert', control / 'keys/apt-stable.asc', '--rpm-public-cert', control / 'keys/rpm-stable.asc',
++               '--bootstrap-builder', ROOT / 'scripts/build-repository-bootstrap-packages.py',
++               '--builder', trusted / 'scripts/build-native-package-repositories.sh', '--output', unsigned,
++               '--inventory', inventory, '--bootstrap-inventory', bootstrap, *shared), env)
++        require(json.loads(inventory.read_bytes())['schema'] == 'wukongim.native_package_payload_inventory/v2'
++                and json.loads(bootstrap.read_bytes())['schema'] == 'wukongim.native_package_bootstrap_inventory/v2',
++                'candidate preparation schemas differ')
++        signed, receipts = {}, {}
++        for family in ('apt', 'rpm'):
++            key, successor = generated[family]
++            signed[family], receipts[family] = sign_family(scratch, family, key, successor, control,
++                                                          unsigned, evidence, env)
++        # Manufacture actual wrong-issuer signatures while TEST ONLY secrets exist.
++        for name, family, use_next in (('next', 'apt', True), ('wrong-family', 'rpm', False)):
++            key, successor = generated[family]
++            fingerprint = successor if use_next else key.signing_subkey_fingerprint
++            path = scratch / f'{name}.sig'
++            factory._gpg(key.home, ['--pinentry-mode', 'loopback', '--passphrase-fd', '0',
++                                   '--local-user', fingerprint + '!', '--digest-algo', 'SHA256',
++                                   '--output', str(path), '--detach-sign', str(signed['apt'] / APT_RELEASE)],
++                         input_bytes=keys.PASSPHRASE + b'\n')
++            bad_signatures[name] = path
++        invoke(evidence, 'compose', cli('compose-package-site.py', '--channels', channels,
++               '--signing', control / 'manifests/stable-public-keys.json',
++               '--signing-toolchain', control / 'manifests/signing-toolchain.json', '--plan', plan,
++               '--inventory', inventory, '--bootstrap-inventory', bootstrap,
++               '--apt-tree', signed['apt'], '--apt-receipt', receipts['apt'],
++               '--apt-public-cert', control / 'keys/apt-stable.asc',
++               '--rpm-tree', signed['rpm'], '--rpm-receipt', receipts['rpm'],
++               '--rpm-public-cert', control / 'keys/rpm-stable.asc', '--output-root', composed, *shared), env)
++    finally:
++        factory.close()
++        if private.exists():
++            shutil.rmtree(private)
++    evidence['secret_tree_removed_before_verification'] = not private.exists()
++    require(evidence['secret_tree_removed_before_verification'], 'TEST ONLY secret cleanup failed')
++    site, snapshot = composed / 'site', composed / 'audit/snapshot.json'
++    require(json.loads(snapshot.read_bytes())['schema'] == 'wukongim.native_package_snapshot/v4',
++            'candidate snapshot schema differs')
++    anchors = ['--channels', str(channels), '--signing', str(control / 'manifests/stable-public-keys.json'),
++               '--apt-public-cert', str(control / 'keys/apt-stable.asc'),
++               '--rpm-public-cert', str(control / 'keys/rpm-stable.asc')]
++
++    def verifier(root: Path, candidate: bool = True) -> list[str]:
++        return cli('verify-production-package-site.py', '--site-root', root / 'site',
++                   '--snapshot', root / 'audit/snapshot.json', *anchors,
++                   *(['--plan', str(plan), *shared] if candidate else []))
++
++    result = invoke(evidence, 'verify-after-secret-removal', verifier(composed), env)
++    require(json.loads(result.stdout)['schema'] == 'wukongim/production-package-site-verification/v2',
++            'candidate verification schema differs')
++    archive_name = f'wukongim-stable-{VERSION}-{facts(snapshot)["sha256"]}-candidate-site.tar'
++    archive = scratch / archive_name
++    invoke(evidence, 'archive-create', cli('archive-package-snapshot.py', 'create', '--source-dir', composed,
++                                          '--archive', archive), env, case=False)
++    repeat_dir = scratch / 'archive-repeat'; repeat_dir.mkdir()
++    repeated = repeat_dir / archive_name
++    invoke(evidence, 'archive-repeat', cli('archive-package-snapshot.py', 'create', '--source-dir', composed,
++                                          '--archive', repeated), env)
++    require(facts(archive) == facts(repeated), 'canonical archive bytes differ for identical signed inputs')
++    receipt = scratch / archive_name.replace('-site.tar', '-receipt.json')
++
++    def audit(mode: str, path: Path, candidate: bool = True) -> list[str]:
++        return cli('package-audit-receipt.py', mode, *anchors,
++                   '--signing-toolchain', control / 'manifests/signing-toolchain.json', '--plan', plan,
++                   '--apt-receipt', receipts['apt'], '--rpm-receipt', receipts['rpm'],
++                   '--archive', path, *(shared if candidate else []))
++
++    invoke(evidence, 'audit-create', [*audit('create', archive), '--output', str(receipt)], env)
++    require(json.loads(receipt.read_bytes())['schema'] == 'wukongim/package-audit-receipt/v3',
++            'candidate audit schema differs')
++    invoke(evidence, 'audit-verify', [*audit('verify', archive), '--receipt', str(receipt)], env)
++    extracted = scratch / 'extracted'
++    invoke(evidence, 'archive-inspect', cli('archive-package-snapshot.py', 'inspect', '--archive', archive), env, case=False)
++    invoke(evidence, 'archive-extract', cli('archive-package-snapshot.py', 'extract', '--archive', archive,
++                                          '--output-dir', extracted), env, case=False)
++    invoke(evidence, 'extracted-verify', verifier(extracted), env)
++
++    release = site / 'apt' / APT_RELEASE
++    repodata = site / 'rpm' / RPM_REPOSITORY / 'repodata'
++    repomd = repodata / 'repomd.xml'
++    namespace = '{http://linux.duke.edu/metadata/repo}'
++    xml = ET.fromstring(repomd.read_bytes())
++    entries = xml.findall(f'{namespace}data')
++    require(len(entries) == 3, 'native RPM metadata inventory differs')
++    metadata = repodata.parent / entries[0].find(f'{namespace}location').attrib['href']
++    by_hash = sorted(p for p in (site / 'apt').rglob('*') if p.is_file() and 'by-hash' in p.parts)
++    require(bool(by_hash), 'candidate lacks APT by-hash objects')
++    targets = {
++        'reject-apt-detached-receipt-integrity': release.with_name('Release.gpg'),
++        'reject-apt-cleartext-receipt-integrity': release.with_name('InRelease'),
++        'reject-deb-bytes': only((site / 'apt').rglob('wukongim_*.deb')),
++        'reject-rpm-bytes': only((site / 'rpm').rglob('wukongim_*.rpm')),
++        'reject-bootstrap-bytes': only((site / 'apt').rglob('wukongim-archive-keyring-stable_*.deb')),
++        'reject-download-alias': only((site / 'bootstrap').glob('*.deb')),
++        'reject-apt-index': release.parent / 'main/binary-amd64/Packages',
++        'reject-apt-by-hash': by_hash[0],
++        'reject-rpm-compressed-metadata': metadata,
++    }
++    for name, path in targets.items():
++        with changed(path, path.read_bytes() + b'\nTEST ONLY mutation\n'):
++            invoke(evidence, name, verifier(composed), env, reject=True)
++    # Keep the gzip structurally valid so this tests decompressed byte closure.
++    compressed = release.parent / 'main/binary-amd64/Packages.gz'
++    with changed(compressed, gzip.compress(gzip.decompress(compressed.read_bytes()) + b'\n', mtime=0)):
++        invoke(evidence, 'reject-apt-gzip', verifier(composed), env, reject=True)
++    resolution = source / 'resolution.json'
++    current_digest = json.loads(resolution.read_bytes())['assets'][0]['sha256']
++    wrong_digest = ('1' if current_digest[0] == '0' else '0') + current_digest[1:]
++    with changed(resolution, mutate_json_anchor(resolution.read_bytes(), ('assets', 0, 'sha256'), wrong_digest)):
++        invoke(evidence, 'reject-source-anchor', verifier(composed), env, reject=True)
++    control_bootstrap = control / 'manifests/bootstrap-packages.json'
++    with changed(control_bootstrap, mutate_json_anchor(control_bootstrap.read_bytes(), ('version',), '1.1.1')):
++        invoke(evidence, 'reject-control-anchor', verifier(composed), env, reject=True)
++    apt_receipt = composed / 'audit/apt-signing.json'
++    for name, path in bad_signatures.items():
++        # First retain the complete candidate's original receipt-integrity refusal.
++        with changed(release.with_name('Release.gpg'), path.read_bytes()):
++            invoke(evidence, f'reject-{name}-key-receipt-integrity', verifier(composed), env, reject=True)
++            # Rebind only archived signature bytes, keeping reviewed current key
++            # and external original family receipt intact. This reaches the
++            # existing full verifier's actual OpenPGP/current-signer checks.
++            with changed(apt_receipt, rebind_apt_signature_receipt(apt_receipt.read_bytes(), path.read_bytes())):
++                invoke(evidence, f'reject-{name}-key-crypto', verifier(composed), env, reject=True)
++    entries[0].find(f'{namespace}open-checksum').text = '0' * 64
++    with changed(repomd, ET.tostring(xml) + b'\n'):
++        # The signing receipt catches these changed XML bytes first. This is
++        # deliberately not claimed as native open-checksum semantic coverage.
++        invoke(evidence, 'reject-rpm-signed-repomd-integrity', verifier(composed), env, reject=True)
++    embedded = composed / 'audit/plan.json'
++    with changed(embedded, mutate_json_anchor(embedded.read_bytes(), ('target_version',), '3.0.1')):
++        bad_dir = scratch / 'bad-archive'; bad_dir.mkdir()
++        bad_archive = bad_dir / archive_name
++        invoke(evidence, 'archive-mutated-plan', cli('archive-package-snapshot.py', 'create',
++               '--source-dir', composed, '--archive', bad_archive), env, case=False)
++        invoke(evidence, 'reject-archive-plan', [*audit('create', bad_archive), '--output',
++               str(bad_dir / receipt.name)], env, reject=True)
++    invoke(evidence, 'reject-default-verifier', verifier(composed, False), env, reject=True)
++    invoke(evidence, 'reject-default-audit', [*audit('verify', archive, False), '--receipt', str(receipt)], env, reject=True)
++    descriptor = scratch / 'transport-inputs.json'
++    transport_controls = ('manifests/channels.json', 'manifests/preview-signing.json',
++                          'manifests/signing-toolchain.json', 'manifests/bootstrap-packages.json',
++                          'keys/apt-preview.asc', 'keys/rpm-preview.asc')
++    descriptor.write_bytes(canonical({'schema': 'wukongim.object_storage_plan_inputs/v1', 'channel': 'stable',
++        'current': {'archive': str(archive), 'receipt': str(receipt), 'control_dir': str(control),
++                    'audit_release_id': None, 'control_sha': None, 'archive_sha256': facts(archive)['sha256'],
++                    'archive_size': facts(archive)['size'], 'receipt_sha256': facts(receipt)['sha256'],
++                    'snapshot_sha256': facts(snapshot)['sha256'],
++                    'source': {'repository': 'WuKongIM/WuKongIM', 'version': VERSION,
++                               'release_id': None, 'source_sha': None},
++                    'control_files_sha256': {name: facts(control / name)['sha256'] for name in transport_controls}},
++        'retain': []}))
++    invoke(evidence, 'reject-default-transport', cli('plan-object-storage-publication.py', '--inputs', descriptor,
++           '--output', scratch / 'forbidden-transport.json'), env, reject=True)
++    require({case['case'] for case in evidence['cases']} == set(CASES) and len(evidence['cases']) == len(CASES),
++            'native case inventory differs from its predeclared set')
++    evidence['public_artifacts'] = {name: facts(path) for name, path in
++                                    [('plan', plan), ('snapshot', snapshot), ('archive', archive), ('receipt', receipt)]}
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output-dir', required=True, type=Path)
++    parser.add_argument('--source-sha', required=True)
++    parser.add_argument('--trusted-root', required=True, type=Path)
++    args = parser.parse_args(argv)
++    if not re.fullmatch('[0-9a-f]{40}', args.source_sha):
++        parser.error('--source-sha must be a full lowercase commit')
++    output = args.output_dir / 'native-stable-candidate.json'
++    # Reserve before all work; a first result cannot be overwritten by a retry.
++    with output.open('x') as stream:
++        evidence = {'schema': 'wukongim/test-only-native-stable-candidate/v1', 'source_sha': args.source_sha,
++                    'test_only': True, 'passed': False, 'scratch_removed': False,
++                    'secret_tree_removed_before_verification': False, 'production_keys_used': False,
++                    'payloads_executed': False, 'published': False, 'source_provenance_verified': False,
++                    'checked_in_control_unchanged': False,
++                    'phase': 'preflight', 'cases': [], 'commands': [], 'failure': None,
++                    'started_at_unix': int(time.time())}
++        scratch = None
++        old_environment = dict(os.environ)
++        try:
++            # Leave room for all GnuPG Unix-domain socket suffixes under the
++            # fixture factory's nested homes on both Linux and macOS.
++            with tempfile.TemporaryDirectory(prefix='wk-sc-', dir='/tmp') as tmp:
++                scratch = Path(tmp).resolve()
++                require(sys.platform.startswith('linux') and os.geteuid() != 0,
++                        'native candidate requires the isolated non-root Linux container')
++                for tool in ('gpg', 'gpgconf', 'rpm', 'rpmbuild', 'rpmsign', 'rpmkeys', 'createrepo_c',
++                             'dpkg-deb', 'dpkg-scanpackages', 'apt-ftparchive'):
++                    require(shutil.which(tool) is not None, 'required native tool unavailable')
++                env = {'PATH': '/usr/bin:/bin', 'HOME': str(scratch), 'LANG': 'C', 'LC_ALL': 'C', 'TZ': 'UTC'}
++                os.environ.clear(); os.environ.update(env)
++                controls = [path for name in ('manifests', 'keys') for path in (ROOT / name).rglob('*') if path.is_file()]
++                before = {str(path.relative_to(ROOT)): facts(path) for path in controls}
++                evidence['input_control_files'] = before
++                trusted = args.trusted_root.resolve(strict=True)
++                manifest = json.loads((ROOT / 'manifests/trusted-toolchain.json').read_bytes())
++                builder = 'scripts/build-native-package-repositories.sh'
++                require(facts(trusted / builder)['sha256'] == manifest['files'][builder], 'trusted builder bytes differ')
++                pipeline(scratch, trusted, evidence, env)
++                require(before == {str(path.relative_to(ROOT)): facts(path) for path in controls},
++                        'checked-in control changed during native drill')
++                evidence['checked_in_control_unchanged'] = True
++                evidence['passed'] = all(case['passed'] for case in evidence['cases'])
++        except Exception as error:
++            # Child output/private GPG diagnostics never enter the public receipt.
++            evidence['failure'] = {'type': type(error).__name__,
++                                   'stage': evidence['phase']}
++        finally:
++            os.environ.clear(); os.environ.update(old_environment)
++            evidence['scratch_removed'] = scratch is not None and not scratch.exists()
++            evidence['passed'] = evidence['passed'] and evidence['scratch_removed']
++            evidence['finished_at_unix'] = int(time.time())
++            raw = json.dumps(evidence, sort_keys=True, indent=2) + '\n'
++            require(len(raw.encode()) <= 1024 * 1024, 'public native receipt exceeds one MiB')
++            stream.write(raw)
++        print(json.dumps({'passed': evidence['passed'], 'cases': len(evidence['cases']), 'failure': evidence['failure']}))
++        return 0 if evidence['passed'] else 1
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+diff --git a/tests/test_native_stable_candidate_drill.py b/tests/test_native_stable_candidate_drill.py
+new file mode 100644
+index 0000000..6c3b22e
+--- /dev/null
++++ b/tests/test_native_stable_candidate_drill.py
+@@ -0,0 +1,214 @@
++from __future__ import annotations
++
++import importlib.util
++import json
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[1]
++SCRIPT = ROOT / 'tests/native_stable_candidate_drill.py'
++
++
++class NativeStableCandidateDrillTests(unittest.TestCase):
++    def load(self):
++        self.assertTrue(SCRIPT.is_file(), 'missing native stable candidate drill')
++        spec = importlib.util.spec_from_file_location('stable_candidate_drill_test', SCRIPT)
++        module = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(module)
++        return module
++
++    def test_help_never_builds_signs_or_installs(self):
++        self.load()
++        result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--help'], capture_output=True, timeout=5)
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        self.assertIn(b'TEST ONLY', result.stdout)
++        for flag in (b'--source-sha', b'--trusted-root', b'--output-dir'):
++            self.assertIn(flag, result.stdout)
++
++    def test_missing_tool_preserves_public_failure_receipt(self):
++        drill = self.load()
++        with tempfile.TemporaryDirectory() as tmp:
++            output = Path(tmp)
++            with mock.patch.object(drill.shutil, 'which', return_value=None), \
++                 mock.patch.object(drill.os, 'geteuid', return_value=65532), \
++                 mock.patch.object(drill.sys, 'platform', 'linux'):
++                status = drill.main(['--output-dir', tmp, '--source-sha', 'a' * 40, '--trusted-root', tmp])
++            self.assertEqual(status, 1)
++            receipt = json.loads((output / 'native-stable-candidate.json').read_bytes())
++            self.assertFalse(receipt['passed'])
++            self.assertTrue(receipt['test_only'])
++            self.assertTrue(receipt['scratch_removed'])
++            self.assertFalse(receipt['production_keys_used'])
++            self.assertFalse(receipt['published'])
++            self.assertFalse(receipt['source_provenance_verified'])
++            self.assertEqual(receipt['source_sha'], 'a' * 40)
++            self.assertEqual(receipt['cases'], [])
++            self.assertEqual(list(output.iterdir()), [output / 'native-stable-candidate.json'])
++
++    def test_real_scratch_layout_leaves_room_for_agent_socket_names(self):
++        drill = self.load()
++        real_temporary_directory = tempfile.TemporaryDirectory
++        scratch_paths = []
++        def temporary_directory(*args, **kwargs):
++            result = real_temporary_directory(*args, **kwargs)
++            scratch_paths.append(Path(result.name))
++            return result
++        with real_temporary_directory() as output:
++            with mock.patch.object(drill.tempfile, 'TemporaryDirectory', side_effect=temporary_directory), \
++                 mock.patch.object(drill.shutil, 'which', return_value=None), \
++                 mock.patch.object(drill.os, 'geteuid', return_value=65532), \
++                 mock.patch.object(drill.sys, 'platform', 'linux'):
++                self.assertEqual(drill.main(['--output-dir', output, '--source-sha', 'a' * 40,
++                                             '--trusted-root', output]), 1)
++        self.assertEqual(len(scratch_paths), 1)
++        # GnuPG also creates browser/extra sockets. 103 bytes is the smaller
++        # macOS/Linux pathname budget, excluding the terminating NUL byte.
++        socket = scratch_paths[0] / 'private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/S.gpg-agent.browser'
++        self.assertLessEqual(len(bytes(socket)), 103)
++
++    def test_source_setup_failure_retains_a_nonsecret_phase(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        with mock.patch.object(drill, 'fixture_source', side_effect=AssertionError('TEST ONLY secret detail')):
++            with self.assertRaises(AssertionError):
++                drill.pipeline(Path('/tmp/unused'), Path('/tmp/unused'), evidence, {})
++        self.assertEqual(evidence.get('phase'), 'source-fixture')
++        self.assertNotIn('secret detail', json.dumps(evidence))
++
++    def test_key_setup_failure_retains_a_nonsecret_phase(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        with tempfile.TemporaryDirectory() as temporary:
++            with mock.patch.object(drill, 'fixture_source', return_value=Path(temporary)), \
++                 mock.patch.object(drill, 'load_fixture', return_value=mock.Mock()), \
++                 mock.patch.object(drill, 'generate_control', side_effect=AssertionError('TEST ONLY secret detail')):
++                with self.assertRaises(AssertionError):
++                    drill.pipeline(Path(temporary), Path(temporary), evidence, {})
++        self.assertEqual(evidence.get('phase'), 'test-key-generation')
++        self.assertNotIn('secret detail', json.dumps(evidence))
++
++    def test_first_failure_cannot_be_overwritten(self):
++        drill = self.load()
++        with tempfile.TemporaryDirectory() as tmp:
++            path = Path(tmp) / 'native-stable-candidate.json'
++            path.write_text('first failure\n')
++            with self.assertRaises(FileExistsError):
++                drill.main(['--output-dir', tmp, '--source-sha', 'a' * 40, '--trusted-root', tmp])
++            self.assertEqual(path.read_text(), 'first failure\n')
++
++    def test_actual_child_exit_is_retained_without_secret_stderr(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        secret = b'TEST ONLY secret stdout or stderr'
++        child = subprocess.CompletedProcess(['python3'], 17, secret, secret)
++        with mock.patch.object(drill.subprocess, 'run', return_value=child):
++            with self.assertRaises(RuntimeError):
++                drill.invoke(evidence, 'positive-plan', ['python3'], {}, reject=False)
++        self.assertEqual(evidence['commands'][0]['exit_code'], 17)
++        self.assertNotIn(secret.decode(), json.dumps(evidence))
++
++    def test_expected_rejection_cannot_accept_success(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        child = subprocess.CompletedProcess(['python3'], 0, b'{}', b'')
++        with mock.patch.object(drill.subprocess, 'run', return_value=child):
++            with self.assertRaises(RuntimeError):
++                drill.invoke(evidence, 'expected-reject', ['python3'], {}, reject=True)
++        self.assertFalse(evidence['cases'][-1]['passed'])
++
++    def test_expected_rejection_cannot_accept_a_crashed_child(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        child = subprocess.CompletedProcess(['python3'], -9, b'', b'')
++        with mock.patch.object(drill.subprocess, 'run', return_value=child):
++            with self.assertRaises(RuntimeError):
++                drill.invoke(evidence, 'expected-reject', ['python3'], {}, reject=True)
++        self.assertFalse(evidence['cases'][-1]['passed'])
++
++    def test_rejection_requires_exact_controlled_reason_not_usage_crash_or_other_failure(self):
++        drill = self.load()
++        expected = b'production package-site verification failed: APT release_gpg identity differs from its signing receipt: dists/stable/Release.gpg\n'
++        for code, diagnostic in (
++            (2, b'usage: verifier --required INPUT\n' + expected),
++            (1, b'Traceback (most recent call last):\n' + expected),
++            (1, b'production package-site verification failed: cannot inspect snapshot\n'),
++            (1, b'production package-site verification failed: APT Packages.gz differs from Packages\n'),
++        ):
++            with self.subTest(code=code, diagnostic=diagnostic):
++                evidence = {'cases': [], 'commands': []}
++                child = subprocess.CompletedProcess(['python3'], code, b'', diagnostic)
++                with mock.patch.object(drill.subprocess, 'run', return_value=child):
++                    with self.assertRaises(RuntimeError):
++                        drill.invoke(evidence, 'reject-next-key-receipt-integrity', ['python3'], {}, reject=True)
++                self.assertFalse(evidence['cases'][-1]['passed'])
++
++    def test_controlled_rejection_records_only_declared_category(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        child = subprocess.CompletedProcess(['python3'], 1, b'',
++            b'production package-site verification failed: APT release_gpg identity differs from its signing receipt: dists/stable/Release.gpg\n')
++        with mock.patch.object(drill.subprocess, 'run', return_value=child):
++            drill.invoke(evidence, 'reject-next-key-receipt-integrity', ['python3'], {}, reject=True)
++        self.assertTrue(evidence['cases'][-1]['passed'])
++        self.assertEqual(evidence['cases'][-1]['rejection_category'], 'apt-signature-receipt-integrity')
++        self.assertNotIn('verification failed:', json.dumps(evidence))
++
++    def test_json_anchor_mutation_preserves_json_and_changes_only_requested_leaf(self):
++        drill = self.load()
++        original = {'schema': 'fixture', 'assets': [{'sha256': 'a' * 64, 'id': None}], 'other': [1, 2]}
++        raw = drill.canonical(original)
++        changed = drill.mutate_json_anchor(raw, ('assets', 0, 'sha256'), 'b' * 64)
++        self.assertEqual(json.loads(raw), original)
++        self.assertEqual(json.loads(changed), {**original, 'assets': [{'sha256': 'b' * 64, 'id': None}]})
++        self.assertEqual(changed, drill.canonical(json.loads(changed)))
++
++    def test_signature_receipt_rebinding_changes_only_signature_facts(self):
++        drill = self.load()
++        original = {'schema': 'receipt', 'key': {'signing_subkey_fingerprint': 'C' * 40},
++                    'result': {'release': {'sha256': 'd' * 64},
++                               'release_gpg': {'path': 'dists/stable/Release.gpg', 'sha256': 'a' * 64, 'size': 2}}}
++        raw = drill.canonical(original)
++        changed = json.loads(drill.rebind_apt_signature_receipt(raw, b'actual public signature'))
++        self.assertEqual(changed['key'], original['key'])
++        self.assertEqual(changed['result']['release'], original['result']['release'])
++        self.assertEqual(changed['result']['release_gpg']['path'], 'dists/stable/Release.gpg')
++        self.assertEqual(changed['result']['release_gpg']['size'], len(b'actual public signature'))
++        self.assertNotEqual(changed['result']['release_gpg']['sha256'], 'a' * 64)
++        self.assertEqual(json.loads(raw), original)
++
++    def test_declared_negative_cases_have_bounded_reason_and_layer(self):
++        drill = self.load()
++        self.assertEqual(set(drill.REJECTIONS), {name for name in drill.CASES if name.startswith('reject-')})
++        for category, prefix, reason in drill.REJECTIONS.values():
++            self.assertTrue(category)
++            self.assertTrue(prefix.endswith(': '))
++            self.assertTrue(reason)
++        self.assertIn('reject-next-key-crypto', drill.CASES)
++        self.assertIn('reject-wrong-family-key-crypto', drill.CASES)
++        self.assertNotIn('reject-rpm-open-checksum', drill.CASES)
++
++    def test_workflow_preserves_isolation_pins_and_public_only_upload(self):
++        workflow = (ROOT / '.github/workflows/native-package-repository-drill.yml').read_text()
++        start = workflow.index('      - name: Compose and independently verify TEST ONLY stable offline candidate')
++        end = workflow.index('      - name: Set up fixed GoReleaser toolchain', start)
++        step = workflow[start:end]
++        self.assertIn(f'(.cases | length) == {len(self.load().CASES)}', step)
++        for required in ('--network none', '--read-only', '--cap-drop ALL', '--user 65532:65532',
++                         '--security-opt no-new-privileges', '--cpus 1 --memory 512m --pids-limit 128',
++                         'manifests/signing-toolchain.json', 'native_stable_candidate_drill.py',
++                         '--trusted-root /control/.trusted/wukongim', '--source-sha "$GITHUB_SHA"',
++                         'if: always()', 'native-stable-candidate-test-only',
++                         'stable-candidate-native/native-stable-candidate.json',
++                         'secret_tree_removed_before_verification == true', 'scratch_removed == true'):
++            self.assertIn(required, step)
++        for forbidden in ('secrets.', 'environment:', 'contents: write', 'pages: write', '--privileged',
++                          '--cap-add', '--network host', 'docker.sock'):
++            self.assertNotIn(forbidden, step)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/test_stable_candidate_audit.py b/tests/test_stable_candidate_audit.py
+new file mode 100644
+index 0000000..2e97a7d
+--- /dev/null
++++ b/tests/test_stable_candidate_audit.py
+@@ -0,0 +1,53 @@
++"""Candidate audit opt-in is separate from the sealed preview receipt schema."""
++import importlib.util
++import tempfile
++from pathlib import Path
++import unittest
++
++from test_stable_offline_candidate import CandidateFixture, canonical
++
++ROOT=Path(__file__).resolve().parents[1]
++spec=importlib.util.spec_from_file_location('stable_audit',ROOT/'scripts/package-audit-receipt.py')
++A=importlib.util.module_from_spec(spec);spec.loader.exec_module(A)
++
++class StableCandidateAuditContracts(unittest.TestCase):
++    def test_explicit_candidate_parser_keeps_external_inputs(self):
++        args=A._parser().parse_args(['create','--channels','channels','--signing','signing',
++            '--signing-toolchain','toolchain','--apt-public-cert','apt','--rpm-public-cert','rpm',
++            '--plan','plan','--apt-receipt','apt-receipt','--rpm-receipt','rpm-receipt','--archive','archive',
++            '--output','output','--channel','stable','--offline-candidate','--control-root','control',
++            '--candidate-source-root','source','--test-only'])
++        self.assertTrue(args.offline_candidate);self.assertTrue(args.test_only)
++        self.assertEqual(args.control_root,Path('control'));self.assertEqual(args.plan,Path('plan'))
++
++    def test_unsealed_candidate_is_not_a_legacy_external_receipt(self):
++        with self.assertRaises(A.AuditReceiptError):
++            A.validate_external_receipt({'schema':'wukongim/package-audit-receipt/v3',
++                'stage':'offline_candidate','audit_release_id':None})
++
++    def test_malformed_candidate_archive_has_controlled_audit_error(self):
++        with tempfile.TemporaryDirectory() as temporary:
++            root=Path(temporary).resolve();fixture=CandidateFixture(root)
++            plan=root/'plan.json';plan.write_bytes(canonical(fixture.plan()))
++            archive=root/'malformed.tar';archive.write_bytes(b'TEST ONLY invalid archive')
++            with self.assertRaisesRegex(A.AuditReceiptError, 'package archive validation failed'):
++                A.build_audit_receipt(
++                    channels_path=fixture.control/'manifests/channels.json',
++                    signing_path=fixture.control/'manifests/stable-public-keys.json',
++                    signing_toolchain_path=fixture.control/'manifests/signing-toolchain.json',
++                    apt_public_cert_path=fixture.control/'keys/apt-stable.asc',
++                    rpm_public_cert_path=fixture.control/'keys/rpm-stable.asc',
++                    source_attestations_path=None,plan_path=plan,
++                    apt_receipt_path=root/'apt.json',rpm_receipt_path=root/'rpm.json',
++                    archive_path=archive,channel='stable',offline_candidate=True,
++                    control_root=fixture.control,candidate_source_root=fixture.source,test_only=True)
++
++    def test_names_bind_version_snapshot_without_fictitious_release_id(self):
++        names=A.candidate_archive_names('3.0.0','a'*64)
++        self.assertEqual(names,('wukongim-stable-3.0.0-'+'a'*64+'-candidate-site.tar',
++                               'wukongim-stable-3.0.0-'+'a'*64+'-candidate-receipt.json'))
++        for version,sha in [('3.0.0-rc.1','a'*64),('../3.0.0','a'*64),('3.0.0','a'*63)]:
++            with self.subTest(version=version,sha=sha),self.assertRaises(A.AuditReceiptError):
++                A.candidate_archive_names(version,sha)
++
++if __name__=='__main__':unittest.main()
+diff --git a/tests/test_stable_candidate_closure.py b/tests/test_stable_candidate_closure.py
+new file mode 100644
+index 0000000..4548836
+--- /dev/null
++++ b/tests/test_stable_candidate_closure.py
+@@ -0,0 +1,71 @@
++"""Stable layout uses the existing closure engine; these are structural fixtures only."""
++import copy
++import importlib.util
++import json
++from pathlib import Path
++import tempfile
++import unittest
++
++from test_compose_package_site import Fixture, canonical, digest
++
++ROOT=Path(__file__).resolve().parents[1]
++spec=importlib.util.spec_from_file_location('stable_closure_composer',ROOT/'scripts/compose-package-site.py')
++C=importlib.util.module_from_spec(spec); spec.loader.exec_module(C)
++
++class StableClosureContracts(unittest.TestCase):
++    def setUp(self):
++        self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
++        self.f=Fixture(Path(self.temp.name).resolve())
++        self.version='3.0.0'
++        self.apt=b'TEST ONLY DEB'; self.rpm=b'TEST ONLY signed RPM'; self.unsigned=b'TEST ONLY unsigned RPM'
++        self.f.write_apt({self.version:self.apt},[self.version])
++        self.f.write_rpm({self.version:self.rpm},[self.version],[self.version],unsigned_payloads={self.version:self.unsigned})
++
++    def inventory(self,family):
++        source=self.apt if family=='apt' else self.unsigned
++        return {self.version:{'version':self.version,'path':C.expected_payload_path(family,self.version,channel='stable'),
++            'source_sha256':digest(source),'published_sha256':digest(source),'new':True,'indexed':True}}
++
++    def test_stable_apt_closure_and_by_hash_tamper(self):
++        (self.f.apt_tree/'dists/preview').rename(self.f.apt_tree/'dists/stable')
++        receipt=json.loads(self.f.apt_receipt.read_bytes())
++        for entry in receipt['result'].values(): entry['path']=entry['path'].replace('dists/preview/','dists/stable/')
++        self.f.apt_receipt.write_bytes(canonical(receipt))
++        C.validate_apt_tree(self.f.apt_tree,self.f.apt_receipt,self.inventory('apt'),self.f.bootstrap('apt'),[self.version],[],channel='stable')
++        with self.assertRaises(C.CompositionError):
++            C.validate_apt_tree(self.f.apt_tree,self.f.apt_receipt,self.inventory('apt'),self.f.bootstrap('apt'),[self.version],[])
++        path=next((self.f.apt_tree/'dists/stable/main/binary-amd64/by-hash/SHA256').iterdir()); path.write_bytes(b'tampered')
++        with self.assertRaises(C.CompositionError):
++            C.validate_apt_tree(self.f.apt_tree,self.f.apt_receipt,self.inventory('apt'),self.f.bootstrap('apt'),[self.version],[],channel='stable')
++
++    def test_stable_rpm_closure_rejects_metadata_tamper(self):
++        (self.f.rpm_tree/'preview').rename(self.f.rpm_tree/'stable')
++        receipt=json.loads(self.f.rpm_receipt.read_bytes()); receipt['result']['repository']='stable/el/9/x86_64'
++        self.f.rpm_receipt.write_bytes(canonical(receipt))
++        bootstrap=self.f.bootstrap('rpm'); bootstrap['repository_path']=bootstrap['repository_path'].replace('/preview/','/stable/')
++        C.validate_rpm_tree(self.f.rpm_tree,self.f.rpm_receipt,self.inventory('rpm'),bootstrap,[self.version],[],channel='stable')
++        with self.assertRaises(C.CompositionError):
++            C.validate_rpm_tree(self.f.rpm_tree,self.f.rpm_receipt,self.inventory('rpm'),bootstrap,[self.version],[])
++        path=self.f.rpm_tree/'stable/el/9/x86_64/repodata/repomd.xml'; path.write_bytes(path.read_bytes()+b'bad')
++        with self.assertRaises(C.CompositionError):
++            C.validate_rpm_tree(self.f.rpm_tree,self.f.rpm_receipt,self.inventory('rpm'),bootstrap,[self.version],[],channel='stable')
++
++    def test_stable_bootstrap_inventory_is_not_preview_inventory(self):
++        value=json.loads(self.f.bootstrap_inventory.read_bytes())
++        value['schema']='wukongim.native_package_bootstrap_inventory/v2'
++        for family,item in value['packages'].items():
++            item.update(C.expected_bootstrap_package(family,value['version'],channel='stable'))
++        C.validate_bootstrap_inventory(value,prepared=True,channel='stable')
++        with self.assertRaises(C.CompositionError): C.validate_bootstrap_inventory(value,prepared=True)
++        value['packages']['rpm']['name']='wukongim-release'
++        with self.assertRaises(C.CompositionError): C.validate_bootstrap_inventory(value,prepared=True,channel='stable')
++
++    def test_stable_entrypoint_is_explicitly_unpublished(self):
++        bootstrap=json.loads(self.f.bootstrap_inventory.read_bytes())
++        for family,item in bootstrap['packages'].items(): item.update(C.expected_bootstrap_package(family,bootstrap['version'],channel='stable'))
++        raw=C.repository_entrypoint_bytes(bootstrap,'a'*64,channel='stable')
++        self.assertIn(b'UNPUBLISHED',raw)
++        self.assertIn(b'wukongim-release-stable',raw)
++        self.assertNotIn(b'Preview repository configured',raw)
++
++if __name__=='__main__': unittest.main()
+diff --git a/tests/test_stable_candidate_prepare.py b/tests/test_stable_candidate_prepare.py
+new file mode 100644
+index 0000000..6fca38a
+--- /dev/null
++++ b/tests/test_stable_candidate_prepare.py
+@@ -0,0 +1,92 @@
++"""Preparation routing contracts with fake builder I/O, not native package proof."""
++from argparse import Namespace
++import importlib.util
++import json
++from pathlib import Path
++import shutil
++import tempfile
++import unittest
++from unittest import mock
++
++from test_stable_offline_candidate import CandidateFixture, canonical, C
++
++ROOT=Path(__file__).resolve().parents[1]
++spec=importlib.util.spec_from_file_location('stable_prepare',ROOT/'scripts/prepare-package-site.py')
++P=importlib.util.module_from_spec(spec);spec.loader.exec_module(P)
++
++class StablePrepareContracts(unittest.TestCase):
++    def setUp(self):
++        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
++        self.root=Path(self.tmp.name).resolve();self.f=CandidateFixture(self.root)
++        self.builder=self.root/'builder.sh';self.builder.write_bytes(b'#!/bin/sh\nexit 99\n');self.builder.chmod(0o755)
++        toolchain_path=self.f.control/'manifests/trusted-toolchain.json'
++        toolchain=json.loads(toolchain_path.read_bytes())
++        toolchain['files']['scripts/build-native-package-repositories.sh']=C.hash_file(self.builder,'test builder')['sha256']
++        toolchain_path.write_bytes(canonical(toolchain))
++        self.plan=self.f.plan();(self.root/'plan.json').write_bytes(canonical(self.plan))
++        self.args=Namespace(channel='stable',offline_candidate=True,test_only=True,
++            control_root=self.f.control,candidate_source_root=self.f.source,
++            channels=self.f.control/'manifests/channels.json',plan=self.root/'plan.json',base_root=None,
++            source_assets=self.f.source/'assets',bootstrap_manifest=self.f.control/'manifests/bootstrap-packages.json',
++            apt_public_cert=self.f.control/'keys/apt-stable.asc',rpm_public_cert=self.f.control/'keys/rpm-stable.asc',
++            bootstrap_builder=ROOT/'scripts/build-repository-bootstrap-packages.py',builder=self.builder,
++            output=self.root/'output',inventory=self.root/'inventory.json',bootstrap_inventory=self.root/'bootstrap.json')
++
++    def run_fake_builder(self,command,**kwargs):
++        args=dict(zip(command[1::2],command[2::2]))
++        if Path(command[0])==self.builder:
++            self.assertEqual(args['--apt-suite'],'stable');self.assertEqual(args['--rpm-channel'],'stable')
++            root=Path(args['--output'])
++            for path in Path(args['--packages-dir']).iterdir():
++                target=root/('apt/pool/main/w/wukongim' if path.suffix=='.deb' else 'rpm/stable/el/9/x86_64/Packages')/path.name
++                target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)
++            return Namespace(returncode=0,stdout=b'',stderr=b'')
++        self.assertEqual(args['--channel'],'stable');self.assertEqual(Path(args['--control-root']),self.f.control)
++        output=Path(args['--output-dir']);output.mkdir()
++        version=json.loads(self.args.bootstrap_manifest.read_bytes())['version'];packages={}
++        for family in ('apt','rpm'):
++            entry=C.expected_bootstrap_package(family,version,channel='stable');path=output/entry['filename'];path.write_bytes(b'TEST ONLY bootstrap '+family.encode())
++            facts=C.hash_file(path,'fixture')
++            packages[family]={**entry,'version':version,'source_sha256':facts['sha256'],'source_size':facts['size'],
++                              'published_sha256':facts['sha256'],'published_size':facts['size'],'new':True}
++        receipt={'schema':'wukongim.stable_bootstrap_preparation/v1','channel':'stable','published':False,'version':version,'packages':packages}
++        return Namespace(returncode=0,stdout=canonical(receipt),stderr=b'')
++
++    def test_candidate_uses_pinned_builders_and_stable_paths(self):
++        with mock.patch.object(P.subprocess,'run',side_effect=self.run_fake_builder) as runner:
++            result=P.prepare(self.args)
++        self.assertEqual(runner.call_count,2)
++        self.assertEqual(result['schema'],'wukongim.native_package_payload_inventory/v2')
++        self.assertIsNone(result['audit_release_id'])
++        self.assertEqual(result['payloads']['rpm'][0]['path'],'rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm')
++        bootstrap=json.loads(self.args.bootstrap_inventory.read_bytes())
++        self.assertEqual(bootstrap['schema'],'wukongim.native_package_bootstrap_inventory/v2')
++        self.assertEqual(bootstrap['packages']['rpm']['name'],'wukongim-release-stable')
++
++    def test_unpinned_builder_rejected_before_execution(self):
++        self.builder.write_bytes(b'#!/bin/sh\nexit 0\n')
++        with mock.patch.object(P.subprocess,'run') as runner,self.assertRaisesRegex(ValueError,'builder|SHA'):
++            P.prepare(self.args)
++        runner.assert_not_called();self.assertFalse(self.args.output.exists())
++
++    def test_candidate_rejects_input_output_overlap(self):
++        self.args.output=self.f.source/'nested'
++        with mock.patch.object(P.subprocess,'run') as runner,self.assertRaisesRegex(ValueError,'overlap|inside'):
++            P.prepare(self.args)
++        runner.assert_not_called()
++
++    def test_ancestor_alias_into_inputs_rejected_before_any_builder(self):
++        for name,root in (("control",self.f.control),("source",self.f.source)):
++            with self.subTest(root=name):
++                directory=root/"existing";directory.mkdir(exist_ok=True)
++                alias=self.root/(name+"-alias");alias.symlink_to(root,target_is_directory=True)
++                self.args.output=alias/"existing"/"new-output"
++                self.args.inventory=self.root/(name+"-inventory.json")
++                self.args.bootstrap_inventory=self.root/(name+"-bootstrap.json")
++                with mock.patch.object(P.subprocess,"run",side_effect=self.run_fake_builder) as runner:
++                    with self.assertRaisesRegex(ValueError,"overlap|linked|parent"):
++                        P.prepare(self.args)
++                    runner.assert_not_called()
++                self.assertEqual(list(directory.iterdir()),[])
++
++if __name__=='__main__':unittest.main()
+diff --git a/tests/test_stable_candidate_verifier.py b/tests/test_stable_candidate_verifier.py
+new file mode 100644
+index 0000000..7e60442
+--- /dev/null
++++ b/tests/test_stable_candidate_verifier.py
+@@ -0,0 +1,29 @@
++"""Explicit verifier boundary and existing header engine parameterization."""
++from datetime import datetime, timezone
++from email.utils import format_datetime
++import importlib.util
++from pathlib import Path
++import unittest
++
++ROOT=Path(__file__).resolve().parents[1]
++spec=importlib.util.spec_from_file_location('stable_verifier',ROOT/'scripts/verify-production-package-site.py')
++V=importlib.util.module_from_spec(spec);spec.loader.exec_module(V)
++
++class StableVerifierContracts(unittest.TestCase):
++    def test_stable_release_headers_use_same_strict_allowlist(self):
++        data=('Origin: WuKongIM\nLabel: WuKongIM\nSuite: stable\nCodename: stable\nArchitectures: amd64\nComponents: main\nAcquire-By-Hash: yes\nDate: '+format_datetime(datetime.now(timezone.utc).replace(microsecond=0))+'\nMD5Sum:\nSHA1:\nSHA256:\nSHA512:\n').encode()
++        V.validate_release_policy_headers(data,channel='stable')
++        with self.assertRaises(V.VerificationError):V.validate_release_policy_headers(data)
++        for old,new in [(b'Codename: stable',b'Codename: preview'),(b'Acquire-By-Hash: yes',b'Acquire-By-Hash: no')]:
++            with self.subTest(old=old),self.assertRaises(V.VerificationError):
++                V.validate_release_policy_headers(data.replace(old,new),channel='stable')
++
++    def test_parser_exposes_explicit_candidate_and_external_plan(self):
++        args=V.build_parser().parse_args(['--site-root','site','--snapshot','snapshot','--channels','channels',
++            '--signing','roles','--apt-public-cert','apt','--rpm-public-cert','rpm','--channel','stable',
++            '--offline-candidate','--control-root','control','--candidate-source-root','source','--test-only','--plan','plan'])
++        self.assertEqual(args.channel,'stable');self.assertEqual(args.plan,Path('plan'))
++        with self.assertRaises((V.VerificationError,V.C.CompositionError,OSError)):
++            args.plan=None;V.verify(args)
++
++if __name__=='__main__':unittest.main()
+diff --git a/tests/test_stable_offline_candidate.py b/tests/test_stable_offline_candidate.py
+new file mode 100644
+index 0000000..20823c0
+--- /dev/null
++++ b/tests/test_stable_offline_candidate.py
+@@ -0,0 +1,162 @@
++"""Input/identity contracts; native signatures are exercised by the Linux drill."""
++from __future__ import annotations
++
++import copy
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++import unittest
++
++ROOT = Path(__file__).resolve().parents[1]
++spec = importlib.util.spec_from_file_location('stable_candidate_composer', ROOT/'scripts/compose-package-site.py')
++C = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(C)
++
++
++def canonical(value):
++    return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()+b'\n'
++
++
++class CandidateFixture:
++    def __init__(self, root):
++        self.root = root
++        self.control = root/'control'
++        for directory in ('manifests', 'keys'):
++            shutil.copytree(ROOT/directory, self.control/directory)
++        self.source = root/'source'
++        (self.source/'assets').mkdir(parents=True)
++        self.assets=[]
++        for suffix in ('deb', 'rpm'):
++            name=f'wukongim_3.0.0_linux_amd64.{suffix}'
++            raw=f'TEST ONLY {suffix}'.encode()
++            (self.source/'assets'/name).write_bytes(raw)
++            self.assets.append({'name': name, 'id': None, 'size': len(raw),
++                                'sha256': hashlib.sha256(raw).hexdigest()})
++        self.resolution={'schema':'wukongim/test-source-fixture/v1','version':'3.0.0',
++                         'source_sha':None,'release_id':None,'assets':self.assets}
++        self.write_resolution()
++
++    def write_resolution(self):
++        (self.source/'resolution.json').write_bytes(canonical(self.resolution))
++
++    def plan(self):
++        return C.build_candidate_plan(self.control, self.source, None, test_only=True)
++
++
++class StableCandidateContracts(unittest.TestCase):
++    def setUp(self):
++        self.temp=tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.f=CandidateFixture(Path(self.temp.name).resolve())
++
++    def test_fixture_plan_preserves_nonpublication_identity(self):
++        plan=self.f.plan()
++        self.assertEqual(plan['schema'],'wukongim.native_package_publication_plan/v2')
++        self.assertEqual(plan['candidate']['stage'],'offline_candidate')
++        self.assertEqual(plan['candidate']['channel'],'stable')
++        self.assertIs(plan['candidate']['test_only'],True)
++        for key in ('audit_release_id','base_audit_release_id','control_sha'):
++            self.assertIsNone(plan[key])
++        self.assertIsNone(plan['release']['package_release_id'])
++        self.assertIsNone(plan['release']['source_sha'])
++        self.assertIsNone(plan['release']['source_release_id'])
++        self.assertEqual(plan['active_versions'],['3.0.0'])
++        self.assertEqual(plan['retained_versions'],[])
++        C.validate_candidate_plan(plan,self.f.control,self.f.source,test_only=True)
++
++    def test_fixture_never_accepted_as_production_source(self):
++        with self.assertRaisesRegex(C.CompositionError,'fixture|production|TEST ONLY'):
++            C.build_candidate_plan(self.f.control,self.f.source,'1'*40,test_only=False)
++
++    def test_false_source_id_or_sha_rejected(self):
++        for field,value in [('source_sha','1'*40),('release_id',1),('release_id',True)]:
++            with self.subTest(field=field,value=value):
++                self.f.resolution[field]=value; self.f.write_resolution()
++                with self.assertRaises(C.CompositionError): self.f.plan()
++                self.f.resolution[field]=None
++        self.f.resolution['assets'][0]['id']=1; self.f.write_resolution()
++        with self.assertRaises(C.CompositionError): self.f.plan()
++
++    def test_first_generation_rejects_nonstable_versions(self):
++        for version in ['3.0.0-beta.1','3.0.0+build','03.0.0','3.0','v3.0.0']:
++            with self.subTest(version=version):
++                self.f.resolution['version']=version; self.f.write_resolution()
++                with self.assertRaises(C.CompositionError): self.f.plan()
++
++    def test_source_closure_mutation_extra_symlink_hardlink_rejected(self):
++        asset=self.f.source/'assets'/self.f.assets[0]['name']; raw=asset.read_bytes()
++        asset.write_bytes(raw+b'changed')
++        with self.assertRaises(C.CompositionError): self.f.plan()
++        asset.write_bytes(raw)
++        extra=self.f.source/'unexpected'; extra.write_text('extra')
++        with self.assertRaises(C.CompositionError): self.f.plan()
++        extra.unlink()
++        asset.unlink(); asset.symlink_to(self.f.source/'resolution.json')
++        with self.assertRaises(C.CompositionError): self.f.plan()
++        asset.unlink(); asset.hardlink_to(self.f.source/'resolution.json')
++        with self.assertRaises(C.CompositionError): self.f.plan()
++
++    def test_duplicate_unknown_and_bool_size_rejected(self):
++        self.f.resolution['assets'][0]['size']=True; self.f.write_resolution()
++        with self.assertRaises(C.CompositionError): self.f.plan()
++        self.f.resolution['assets'][0]['size']=len(b'TEST ONLY deb')
++        self.f.resolution['unknown']=True; self.f.write_resolution()
++        with self.assertRaises(C.CompositionError): self.f.plan()
++        (self.f.source/'resolution.json').write_bytes(b'{"schema":1,"schema":2}')
++        with self.assertRaises(C.CompositionError): self.f.plan()
++
++    def test_stable_enabled_or_missing_roles_rejected(self):
++        path=self.f.control/'manifests/channels.json'; raw=path.read_bytes()
++        value=json.loads(raw); value['channels']['stable']['enabled']=True
++        path.write_bytes(canonical(value))
++        with self.assertRaises(C.CompositionError): self.f.plan()
++        path.write_bytes(raw)
++        (self.f.control/'manifests/stable-public-keys.json').unlink()
++        with self.assertRaises(C.CompositionError): self.f.plan()
++
++    def test_plan_and_external_anchor_changes_rejected(self):
++        plan=self.f.plan()
++        for field,value in [('audit_release_id',12),('base_audit_release_id',12),
++                            ('operation','remove_indexes'),('retained_versions',['2.0.0'])]:
++            changed=copy.deepcopy(plan); changed[field]=value
++            with self.subTest(field=field),self.assertRaises(C.CompositionError):
++                C.validate_candidate_plan(changed,self.f.control,self.f.source,test_only=True)
++        for field,value in [('stage','sealed'),('test_only',False),('channel','preview')]:
++            changed=copy.deepcopy(plan); changed['candidate'][field]=value
++            with self.subTest(field=field),self.assertRaises(C.CompositionError):
++                C.validate_candidate_plan(changed,self.f.control,self.f.source,test_only=True)
++        path=self.f.control/'manifests/bootstrap-packages.json'
++        path.write_bytes(path.read_bytes()+b' ')
++        with self.assertRaises(C.CompositionError):
++            C.validate_candidate_plan(plan,self.f.control,self.f.source,test_only=True)
++
++    def test_stable_layout_does_not_change_preview_default(self):
++        self.assertEqual(C.expected_payload_path('rpm','3.0.0',channel='stable'),
++                         'rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm')
++        self.assertEqual(C.expected_bootstrap_package('rpm','1.1.0',channel='stable')['name'],
++                         'wukongim-release-stable')
++        self.assertEqual(C.expected_bootstrap_package('rpm','1.1.0')['name'],'wukongim-release')
++        with self.assertRaises(C.CompositionError):
++            C.validate_plan(self.f.plan(),{'publication':{}})
++
++    def test_production_consumers_require_explicit_opt_in(self):
++        plan=self.f.plan(); path=self.f.root/'plan.json'; path.write_bytes(canonical(plan))
++        p=subprocess.run([sys.executable,str(ROOT/'scripts/plan-package-publication.py'),
++            '--channels',str(self.f.control/'manifests/channels.json'),
++            '--control-root',str(self.f.control),'--candidate-source-root',str(self.f.source),
++            '--channel','stable','--offline-candidate','--test-only'],capture_output=True,timeout=10)
++        self.assertEqual(p.returncode,0,p.stderr.decode())
++        self.assertEqual(json.loads(p.stdout),plan)
++        p=subprocess.run([sys.executable,str(ROOT/'scripts/plan-package-publication.py'),
++            '--channels',str(self.f.control/'manifests/channels.json'),
++            '--control-root',str(self.f.control),'--candidate-source-root',str(self.f.source),
++            '--channel','stable','--test-only'],capture_output=True,timeout=10)
++        self.assertNotEqual(p.returncode,0)
++
++
++if __name__ == '__main__': unittest.main()

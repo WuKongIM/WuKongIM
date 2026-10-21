@@ -23,7 +23,9 @@ regression attempts; it is not a published release or a long-run qualification.
   logs. CI on the final PR source is recorded independently.
 - `cloud/`: bounded read-only preparation audit, exact public configuration,
   frozen control sources, historical cleanup payloads and their limitations.
-  This does not establish today's provider inventory or authorize procurement.
+  Those original preparation receipts did not establish provider inventory or
+  authorize procurement. The subsequently authorized exact cloud request is
+  recorded separately below.
   `local-shakeout-preconditions.json` records the initial host below the existing
   5-percent disk reserve; no local 30-minute run had then been attempted.
   `disk-followup/` measures the same reserve after merge and inventories only
@@ -222,3 +224,25 @@ The source evidence branch remains separate from the small product repair PR to
 respect the repository's review-size limit. This does not change or hide the
 candidate's original failures. A final tag still requires its own release gates,
 immutable publication and signed native-package public-client acceptance.
+
+- `cloud/rc-readiness-fc182-current/`, `cloud/rc-plan-fc182-root-review.json`: fresh
+  read-only GitHub inventory and independent exact-source plan verification.
+- `cloud/rc-start-fc182/`: explicit human authorization, four-input request, public
+  diagnostic key and source/control guard; private keys are excluded. Its
+  `identity-boundary-review/` independently distinguishes the configured existing
+  binding path from the setup workflow fallback that can modify IAM.
+- `cloud/rc-oidc-existing-verification/`: successful exact-fc182 live OIDC, policy,
+  trust and wrapping-pair verification, with complete compressed run log.
+- `cloud/rc-start-fc182-dispatch/`: one authorized paid top-level dispatch and its
+  initial run state. This does not claim procurement or remote workload success.
+- `packages/pr72-delivery/`: final c8aae37 public allowlist, all 449+4 checks,
+  31 real candidate cases and complete signed-repository drill success; initial
+  failure remains preserved. PR ready, separate merge approval pending.
+- `packages/stable-post-candidate-plan/`: follow-on seal/transport preparation,
+  with no production activation or external writes.
+- `cloud-authorization-and-candidate-followup-archive.json`: original paths,
+  sizes and digests for these public allowlist copies.
+
+- `cloud/bundle-fc182/`: complete exact-source bundle verification, all payload
+  member digests and reproducible verifier; first read-only download failure
+  retained. Large binary ZIP and private material are excluded.

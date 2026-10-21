@@ -1,0 +1,18 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/oidc/customization/sub",
+  "started_at": "2026-10-21T09:46:56.842611+00:00",
+  "observed_at": "2026-10-21T09:46:58.331133+00:00",
+  "exit_code": 0,
+  "data": {
+    "use_default": false,
+    "use_immutable_subject": false,
+    "include_claim_keys": [
+      "repo",
+      "context",
+      "job_workflow_ref"
+    ],
+    "sub_claim_prefix": "repo:WuKongIM/WuKongIM"
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

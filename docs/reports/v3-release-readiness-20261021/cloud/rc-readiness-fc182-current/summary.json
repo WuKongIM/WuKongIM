@@ -1,0 +1,567 @@
+{
+  "schema": "wukongim.rc_github_readiness_snapshot/v1",
+  "status": "read_only_snapshot_ready_for_paid_scope_review_not_execution",
+  "observation_utc": {
+    "started_at": "2026-10-21T09:46:56.840674+00:00",
+    "finished_at": "2026-10-21T09:47:41.292481+00:00"
+  },
+  "scope": {
+    "github_get_only": true,
+    "secret_values_requested": false,
+    "nonallowlisted_variable_values_discarded": true,
+    "account_arn_ids_redacted": true,
+    "artifact_payload_downloaded": false,
+    "provider_called": false,
+    "quote_called": false,
+    "dispatch_or_enable": false,
+    "permissions_modified": false,
+    "keys_created_or_read": false
+  },
+  "source": {
+    "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+    "parents": [
+      "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "ab75c226f4b3c246797aee4f876f23af602d07ce"
+    ],
+    "main_before": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "main_after": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "previous_main": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "unrelated_local_main_not_used": true
+  },
+  "identity_variables": [
+    {
+      "name": "ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+      "present": true,
+      "value_sha256": "1c4b9299f1420b40de38e421d40fb38b63d9738e0d7a8628132b7505c0d07787",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "05098740af2bb067f854b489f93416029531f02202ab5bc7c173bc8130c66bb0",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+      "present": true,
+      "value_sha256": "2c921542db4ac1ef91591c6fb0ece035dc77fa8c3989e9910a98b1ca93840069",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+      "present": true,
+      "value_sha256": "95e8e092f8f2929fb85e086a3ffb73cba78bea940f3c41d06065fecae929c5bc",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "46357a047f5628cb6a8c3c9da4a050fd76d10c3c0c6bdbfadc375dbebad6a028",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_REGION",
+      "present": true,
+      "value_sha256": "db9626998cd84f890af6af0b568f9e57647682987a7cebc7070fb102d8cc5df6",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "f31bd3e263514685dd6cb9d95c40280a1dd59acf9cc20460a74eb0dffab0be40",
+      "equals_0456_snapshot": true
+    },
+    {
+      "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+      "present": true,
+      "value_sha256": "7ae35b2950072cc4417be1c6e19cd31d559f0c96de42068e2923bda770dfc4b5",
+      "equals_0456_snapshot": true
+    }
+  ],
+  "oidc_subject": {
+    "use_default": false,
+    "use_immutable_subject": false,
+    "include_claim_keys": [
+      "repo",
+      "context",
+      "job_workflow_ref"
+    ],
+    "sub_claim_prefix": "repo:WuKongIM/WuKongIM"
+  },
+  "oidc_subject_unchanged": true,
+  "environments": [
+    {
+      "id": 19516668968,
+      "name": "cloud-deployment",
+      "created_at": "2026-08-08T12:30:44Z",
+      "updated_at": "2026-08-08T12:30:44Z",
+      "protection_rules": [],
+      "deployment_branch_policy": null
+    },
+    {
+      "id": 19516668544,
+      "name": "cloud-lease-observe",
+      "created_at": "2026-08-08T12:30:43Z",
+      "updated_at": "2026-08-08T12:30:43Z",
+      "protection_rules": [],
+      "deployment_branch_policy": null
+    },
+    {
+      "id": 19516668052,
+      "name": "cloud-lease-provision",
+      "created_at": "2026-08-08T12:30:42Z",
+      "updated_at": "2026-08-08T12:30:42Z",
+      "protection_rules": [],
+      "deployment_branch_policy": null
+    },
+    {
+      "id": 19516222490,
+      "name": "cloud-lease-release",
+      "created_at": "2026-08-08T12:14:16Z",
+      "updated_at": "2026-08-08T12:14:16Z",
+      "protection_rules": [],
+      "deployment_branch_policy": null
+    }
+  ],
+  "environment_protection_unchanged": true,
+  "main_protection_unchanged": true,
+  "main_protection": {
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection",
+    "required_status_checks": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_status_checks",
+      "strict": true,
+      "contexts": [],
+      "contexts_url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_status_checks/contexts",
+      "checks": []
+    },
+    "required_pull_request_reviews": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_pull_request_reviews",
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false,
+      "require_last_push_approval": false,
+      "required_approving_review_count": 0
+    },
+    "required_signatures": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_signatures",
+      "enabled": false
+    },
+    "enforce_admins": {
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/enforce_admins",
+      "enabled": false
+    },
+    "required_linear_history": {
+      "enabled": false
+    },
+    "allow_force_pushes": {
+      "enabled": false
+    },
+    "allow_deletions": {
+      "enabled": false
+    },
+    "block_creations": {
+      "enabled": false
+    },
+    "required_conversation_resolution": {
+      "enabled": false
+    },
+    "lock_branch": {
+      "enabled": false
+    },
+    "allow_fork_syncing": {
+      "enabled": false
+    }
+  },
+  "rulesets": [],
+  "metadata": {
+    "cloud-deployment-secrets-metadata.json": {
+      "total_count": 1,
+      "allowlisted_names": [
+        "WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY"
+      ],
+      "non_allowlisted_secret_metadata_count": 0,
+      "complete": true
+    },
+    "cloud-deployment-variables-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": null,
+      "non_allowlisted_secret_metadata_count": null,
+      "complete": true
+    },
+    "cloud-lease-observe-secrets-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": [],
+      "non_allowlisted_secret_metadata_count": 0,
+      "complete": true
+    },
+    "cloud-lease-observe-variables-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": null,
+      "non_allowlisted_secret_metadata_count": null,
+      "complete": true
+    },
+    "cloud-lease-provision-secrets-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": [],
+      "non_allowlisted_secret_metadata_count": 0,
+      "complete": true
+    },
+    "cloud-lease-provision-variables-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": null,
+      "non_allowlisted_secret_metadata_count": null,
+      "complete": true
+    },
+    "cloud-lease-release-secrets-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": [],
+      "non_allowlisted_secret_metadata_count": 0,
+      "complete": true
+    },
+    "cloud-lease-release-variables-metadata.json": {
+      "total_count": 0,
+      "allowlisted_names": null,
+      "non_allowlisted_secret_metadata_count": null,
+      "complete": true
+    },
+    "repository-secrets-metadata.json": {
+      "total_count": 5,
+      "allowlisted_names": [
+        "ALIBABA_CLOUD_ACCESS_KEY_ID",
+        "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
+      ],
+      "non_allowlisted_secret_metadata_count": 3,
+      "complete": true
+    },
+    "repository-variables-metadata.json": {
+      "total_count": 26,
+      "allowlisted_names": null,
+      "non_allowlisted_secret_metadata_count": null,
+      "complete": true
+    }
+  },
+  "workflow_states": {
+    "chat-lifecycle-formal-finalize.yml": "disabled_manually",
+    "chat-lifecycle-formal.yml": "disabled_manually",
+    "chat-lifecycle-rehearsal-finalize.yml": "disabled_manually",
+    "chat-lifecycle-rehearsal.yml": "active",
+    "chat-lifecycle-stop.yml": "active",
+    "cloud-deployment-activate.yml": "active",
+    "cloud-deployment-bundle.yml": "active",
+    "cloud-lease-analyze.yml": "active",
+    "cloud-lease-observe.yml": "active",
+    "cloud-lease-oidc-setup.yml": "active",
+    "cloud-lease-provision.yml": "active",
+    "cloud-lease-release.yml": "disabled_manually"
+  },
+  "workflow_state_changes_since_0456": [],
+  "nonterminal_runs": {
+    "queued": {
+      "count": 0,
+      "pages": 1,
+      "complete": true
+    },
+    "in_progress": {
+      "count": 0,
+      "pages": 1,
+      "complete": true
+    },
+    "waiting": {
+      "count": 0,
+      "pages": 1,
+      "complete": true
+    },
+    "requested": {
+      "count": 0,
+      "pages": 1,
+      "complete": true
+    },
+    "pending": {
+      "count": 0,
+      "pages": 1,
+      "complete": true
+    }
+  },
+  "artifact_inventory": {
+    "total_observed": 505,
+    "unique_ids": 505,
+    "pages": 6,
+    "per_page": 100,
+    "page_limit": 200,
+    "complete": true,
+    "selected_count": 136,
+    "previous_total": 445,
+    "previous_selected_count": 136,
+    "selected_ids_added": [],
+    "selected_ids_removed": [],
+    "signals": {
+      "handoff": [],
+      "transition": [],
+      "cleanup-pending": [],
+      "operator-stop": [
+        {
+          "id": 9475954943,
+          "name": "chat-lifecycle-operator-stop-chat-20260822T113033Z-8d3c0c7a",
+          "size_in_bytes": 288,
+          "created_at": "2026-08-22T12:39:14Z",
+          "updated_at": "2026-08-22T12:39:14Z",
+          "expires_at": "2026-11-20T12:39:05Z",
+          "expired": false,
+          "digest": "sha256:a9408b90f983a841878c276671179cffb65be8fcd629d7806b59d8feaf62a60f",
+          "workflow_run": {
+            "id": 32573560442,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "1dbe159926bccc63fded3f632c8164ad98345c6f"
+          }
+        },
+        {
+          "id": 9472686388,
+          "name": "chat-lifecycle-operator-stop-chat-20260822T063603Z-45db6ea8",
+          "size_in_bytes": 289,
+          "created_at": "2026-08-22T07:51:11Z",
+          "updated_at": "2026-08-22T07:51:11Z",
+          "expires_at": "2026-11-20T07:51:03Z",
+          "expired": false,
+          "digest": "sha256:2bc709bab971dad74cd05b762dad54ecbf30e141a2afcd7c61e66f93ae97d16f",
+          "workflow_run": {
+            "id": 32560705723,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "072831275a8cc2f03c758b7f9ffd321bbb2b3e0d"
+          }
+        },
+        {
+          "id": 9469312925,
+          "name": "chat-lifecycle-operator-stop-chat-20260822T014848Z-398fd3ab",
+          "size_in_bytes": 290,
+          "created_at": "2026-08-22T03:17:54Z",
+          "updated_at": "2026-08-22T03:17:54Z",
+          "expires_at": "2026-11-20T03:17:46Z",
+          "expired": false,
+          "digest": "sha256:84ebe440e2e219e6700140e25bde872d372bbac69816d69ac6a5b9eac35449ee",
+          "workflow_run": {
+            "id": 32548578380,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "87a1de78063d7d01ca35c0873b368073a05befa7"
+          }
+        },
+        {
+          "id": 9112309724,
+          "name": "chat-lifecycle-operator-stop-chat-20260811T144437Z-9dcd8fb6",
+          "size_in_bytes": 290,
+          "created_at": "2026-08-11T17:45:32Z",
+          "updated_at": "2026-08-11T17:45:32Z",
+          "expires_at": "2026-11-09T17:45:23Z",
+          "expired": false,
+          "digest": "sha256:a1df1ced011e48c9516ae5ac8492170579b0fbfff55e0855601c1d8d11ffacdf",
+          "workflow_run": {
+            "id": 31519187207,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "168bca71aca9f3412974441de03b37ab1509dae7"
+          }
+        },
+        {
+          "id": 9105268555,
+          "name": "chat-lifecycle-operator-stop-chat-20260811T114737Z-2b9a3eb4",
+          "size_in_bytes": 289,
+          "created_at": "2026-08-11T14:27:45Z",
+          "updated_at": "2026-08-11T14:27:45Z",
+          "expires_at": "2026-11-09T14:27:35Z",
+          "expired": false,
+          "digest": "sha256:dcb0f2def57eb4e106dffc403152babb825b2fca0ab06094fc48967f64587b38",
+          "workflow_run": {
+            "id": 31501637222,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "a4b281224e600a771e3699da86a0d53e4a111aac"
+          }
+        },
+        {
+          "id": 9064843800,
+          "name": "chat-lifecycle-operator-stop-chat-20260810T100148Z-0c660b78",
+          "size_in_bytes": 288,
+          "created_at": "2026-08-10T13:40:02Z",
+          "updated_at": "2026-08-10T13:40:02Z",
+          "expires_at": "2026-11-08T13:39:55Z",
+          "expired": false,
+          "digest": "sha256:ff9286059835991356b1eb2cd61f4eccd6ff5f33ece3f13b0e2fcbf7092bb420",
+          "workflow_run": {
+            "id": 31394033444,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "e3b93fceff03cc0c697790b939e2c794ab8980be"
+          }
+        },
+        {
+          "id": 9057599621,
+          "name": "chat-lifecycle-operator-stop-chat-20260810T075531Z-163b6403",
+          "size_in_bytes": 290,
+          "created_at": "2026-08-10T09:33:37Z",
+          "updated_at": "2026-08-10T09:33:37Z",
+          "expires_at": "2026-11-08T09:33:20Z",
+          "expired": false,
+          "digest": "sha256:422e93e2b763e11ae4f69ad04e9accbd8eb86f674e21c7dd0064c11b8e0b91ce",
+          "workflow_run": {
+            "id": 31375142624,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "d2ce71c9ba72cda9ed0cc938f836ee69c3f37484"
+          }
+        },
+        {
+          "id": 9050906769,
+          "name": "chat-lifecycle-operator-stop-chat-20260810T023045Z-9d95c6c7",
+          "size_in_bytes": 290,
+          "created_at": "2026-08-10T04:51:19Z",
+          "updated_at": "2026-08-10T04:51:19Z",
+          "expires_at": "2026-11-08T04:51:04Z",
+          "expired": false,
+          "digest": "sha256:d96aa8ffe2e7c0b0e5e2837af1186a4d302e54a8b57d9197f7301eae4be4f8f0",
+          "workflow_run": {
+            "id": 31356775821,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "58de9bfbbc33c59e69311785da49cb1433bb6894"
+          }
+        },
+        {
+          "id": 9039034884,
+          "name": "chat-lifecycle-operator-stop-chat-20260809T123311Z-ae455c06",
+          "size_in_bytes": 289,
+          "created_at": "2026-08-09T13:53:48Z",
+          "updated_at": "2026-08-09T13:53:48Z",
+          "expires_at": "2026-11-07T13:53:39Z",
+          "expired": false,
+          "digest": "sha256:31c372d3d037a4d3a17a5dedd6bdbe20aab72ab8d34c016d098b44a2aec6c771",
+          "workflow_run": {
+            "id": 31316999771,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "697a5ab07d187163071dccfe918d24bb37227338"
+          }
+        },
+        {
+          "id": 9037959518,
+          "name": "chat-lifecycle-operator-stop-chat-20260809T082653Z-d8c14e1c",
+          "size_in_bytes": 290,
+          "created_at": "2026-08-09T12:23:50Z",
+          "updated_at": "2026-08-09T12:23:50Z",
+          "expires_at": "2026-11-07T12:23:39Z",
+          "expired": false,
+          "digest": "sha256:6a850c81bca669df22865fce677468524f4f1ad06babde982bad3741afc4932e",
+          "workflow_run": {
+            "id": 31313170543,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "697a5ab07d187163071dccfe918d24bb37227338"
+          }
+        },
+        {
+          "id": 9034825672,
+          "name": "chat-lifecycle-operator-stop-chat-20260809T060341Z-275b000c",
+          "size_in_bytes": 290,
+          "created_at": "2026-08-09T07:53:32Z",
+          "updated_at": "2026-08-09T07:53:32Z",
+          "expires_at": "2026-11-07T07:53:23Z",
+          "expired": false,
+          "digest": "sha256:65bde49ee192b213143b7632e52019d9b486f1e5277f0f3314b4d38d493a1272",
+          "workflow_run": {
+            "id": 31302201643,
+            "repository_id": 638054601,
+            "head_repository_id": 638054601,
+            "head_branch": "main",
+            "head_sha": "02dbf055b91d5d5cc6d72a6fa0381085e22e1d93"
+          }
+        }
+      ]
+    },
+    "cleanup_named_count": 31,
+    "payloads_downloaded": false
+  },
+  "prior_offline_plan": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-plan-ab75-premerge/plan.json",
+    "sha256": "54e49ea227ebdefb58a6b7dd2f3d1ff857ec70241aa80502d7885a32a88ec930",
+    "source_matches": true,
+    "budget": {
+      "currency": "CNY",
+      "hard_limit_micros": 1500000000,
+      "operational_stop_micros": 1350000000,
+      "remaining_cleanup_reserve_micros": 150000000,
+      "scope": "one aggregate request across rehearsal/formal, host/disk/network/retention, readiness/diagnosis/report-rescue/cleanup; not per stage",
+      "quote_available": false,
+      "actual_provider_bill_status": "unavailable_not_queried"
+    },
+    "stages": [
+      {
+        "name": "rehearsal",
+        "lease_hours": 12,
+        "measured_seconds": 7200,
+        "admission_minimum_remaining_seconds": 10800,
+        "starts_after": "10000 CONNECT plus new version-zero full syncs plus first complete 2000 SEND/s grant",
+        "required_result": "rehearsal_pass",
+        "must_release_to_exact_zero_before_next": true
+      },
+      {
+        "name": "formal_soak",
+        "new_lease_hours": 96,
+        "measured_seconds": 259200,
+        "qualification_seconds": 86400,
+        "admission_minimum_remaining_seconds": 293400,
+        "required_result": "pass",
+        "reuse_original_source_bundle": true
+      },
+      {
+        "name": "aged_capacity",
+        "maximum_seconds": 28800,
+        "start_send_per_second": 2000,
+        "step_percent": 25,
+        "refine_percent": 10,
+        "stabilize_seconds": 600,
+        "measure_seconds": 1200,
+        "same_process_workers_fence_observer_data": true
+      },
+      {
+        "name": "recovery",
+        "send_per_second": 2000,
+        "seconds": 1800,
+        "same_process_workers_fence_observer_data": true,
+        "required_result": "capacity.recovery_passed=true"
+      }
+    ]
+  },
+  "authorization": {
+    "current_task": "read-only offline planning only",
+    "paid_authorization_received": false,
+    "paid_phrase_template": "授权对 fc18221282f289088ec9b4282fda8e0bfc67a3b8 开始聊天生命周期全流程压测：按仓库正式 GitHub OIDC 方案在阿里云购买临时资源，执行预演、72 小时长稳、容量及恢复，创建跟踪 Issue 并完成清理。整个请求累计预算上限人民币 1,500 元，估算累计达到 1,350 元停止。",
+    "direct_lab_is_diagnostic_only": true,
+    "direct_lab_budget_cannot_authorize_this_chain": true,
+    "permission_changes_authorized": false
+  },
+  "runtime_checks_deferred_to_authorized_fail_closed_start": [
+    "Request uniqueness and fresh control/source/artifact binding",
+    "Live OIDC three-role exchange, exact trust/policy/session checks and wrapping key match",
+    "Backstop arming by existing owner before Quote/Acquire",
+    "Current provider exact-selector inventory/zero proofs, admitted Quote budget/capacity/quota",
+    "One top-level-owned bundle for final source; no duplicate standalone CI build"
+  ],
+  "limitations": [
+    "Sequential non-atomic GitHub snapshot, not a promise of later state",
+    "Metadata names and role variables do not prove live IAM or secret/key usability",
+    "No retained handoff/pending container does not prove provider zero; deleted/expired historical evidence is outside visible inventory",
+    "Old stop markers remain historical and must not be reused as a new request",
+    "No payload downloaded or old zero proofs reauthenticated here; no new readiness blocker inferred from unperformed live checks"
+  ]
+}

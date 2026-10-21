@@ -1,0 +1,15 @@
+README.md
+artifact-metadata.json
+download-first-failure.json
+download-success.json
+expected-deployment-intent.json
+expected-intent-basis.json
+jobs-final.json
+run-final.json
+summary.json
+verified/bundle-manifest-output.json
+verified/bundle-manifest.json
+verified/deployment-intent.json
+verified/verification.json
+verify-bundle-artifact.py
+ARCHIVE_ALLOWLIST

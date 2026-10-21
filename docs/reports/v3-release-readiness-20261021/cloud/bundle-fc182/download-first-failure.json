@@ -1,0 +1,11 @@
+{
+  "artifact_id": 12336417107,
+  "run_id": 39581475829,
+  "started_at": "2026-10-21T10:03:09.966195+00:00",
+  "finished_at": "2026-10-21T10:03:15.927561+00:00",
+  "exit_code": 1,
+  "downloaded_bytes": 0,
+  "stderr_bytes": 706,
+  "stderr_sha256": "4e048d8d8c37d7c09c11eb4d235266e1ae84713df01979f99c6a02302e4c276a",
+  "no_temporary_url_or_credentials_stored": true
+}

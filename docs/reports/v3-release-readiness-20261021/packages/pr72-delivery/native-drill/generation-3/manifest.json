@@ -1,0 +1,25 @@
+{
+  "base_head": "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb",
+  "files": {
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "01c74c566c1655be5e9be36b97a0ee6d48495dbcaa17f65c2c21d097986264ff",
+      "size": 31762
+    },
+    "tests/test_native_stable_candidate_drill.py": {
+      "sha256": "ef8c1a912bfd339140819c37d072c06025304f63d9212b48c69fa66f76a378d4",
+      "size": 12530
+    }
+  },
+  "patch_sha256": "d3420e11e4c7371a37782731de43c7514a4cc46420e7740040296509c9241df4",
+  "reason": "Mac same-tool/args GPG long-path exit2 vs prefix-only short-path exit0; raw agent says socket name too long; not proof of exact Linux first exception",
+  "remaining_freeze_files_unchanged": true,
+  "tests": {
+    "contract": "27-socket-phase-contract.log",
+    "green": "26-socket-phase-green.log",
+    "green_count": 15,
+    "native_linux": "not run; first CI failure has only AssertionError/preflight",
+    "red": "25-socket-phase-complete-red.log",
+    "red_count": 15,
+    "red_failures": 3
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "private_directory": "/Users/tt/.wukongim-cloud-rc-identities/chat-20261021T095421Z-cf11d65c",
+  "private_key_path": "/Users/tt/.wukongim-cloud-rc-identities/chat-20261021T095421Z-cf11d65c/diagnostic_ed25519",
+  "public_key_path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-start-fc182/diagnostic.pub",
+  "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAl6p9QSylCMANtdcaqeBm2QXWZzKI0DXj3XqxIivx9E chat-20261021T095421Z-cf11d65c",
+  "fingerprint": "256 SHA256:lH31J4E/aKW3LuwZxHH+RayGRsAOp7x8opBaAbhKZwk chat-20261021T095421Z-cf11d65c (ED25519)",
+  "directory_mode": "0o700",
+  "private_mode": "0o600",
+  "public_private_match": true,
+  "private_bytes_not_read_by_python_or_archived": true,
+  "private_bytes_never_printed": true,
+  "private_identity_generated_once": true,
+  "generated_at": "2026-10-21T09:54:27.650240+00:00"
+}

@@ -1,0 +1,120 @@
+{
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "main_before": {
+    "endpoint": "repos/WuKongIM/WuKongIM/git/ref/heads/main",
+    "started_at": "2026-10-21T09:54:21.143235+00:00",
+    "observed_at": "2026-10-21T09:54:22.182719+00:00",
+    "exit_code": 0,
+    "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+  },
+  "main_after": {
+    "endpoint": "repos/WuKongIM/WuKongIM/git/ref/heads/main",
+    "started_at": "2026-10-21T09:54:25.351974+00:00",
+    "observed_at": "2026-10-21T09:54:26.386116+00:00",
+    "exit_code": 0,
+    "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+  },
+  "variables": [
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+      "started_at": "2026-10-21T09:54:22.187552+00:00",
+      "observed_at": "2026-10-21T09:54:23.250688+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+      "present": true,
+      "value_sha256": "1c4b9299f1420b40de38e421d40fb38b63d9738e0d7a8628132b7505c0d07787",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+      "started_at": "2026-10-21T09:54:22.187692+00:00",
+      "observed_at": "2026-10-21T09:54:23.261171+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "05098740af2bb067f854b489f93416029531f02202ab5bc7c173bc8130c66bb0",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+      "started_at": "2026-10-21T09:54:22.187791+00:00",
+      "observed_at": "2026-10-21T09:54:23.244454+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+      "present": true,
+      "value_sha256": "2c921542db4ac1ef91591c6fb0ece035dc77fa8c3989e9910a98b1ca93840069",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+      "started_at": "2026-10-21T09:54:22.190541+00:00",
+      "observed_at": "2026-10-21T09:54:23.413578+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+      "present": true,
+      "value_sha256": "95e8e092f8f2929fb85e086a3ffb73cba78bea940f3c41d06065fecae929c5bc",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN",
+      "started_at": "2026-10-21T09:54:23.244573+00:00",
+      "observed_at": "2026-10-21T09:54:24.481326+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "46357a047f5628cb6a8c3c9da4a050fd76d10c3c0c6bdbfadc375dbebad6a028",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_REGION",
+      "started_at": "2026-10-21T09:54:23.250749+00:00",
+      "observed_at": "2026-10-21T09:54:24.460575+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_REGION",
+      "present": true,
+      "value_sha256": "db9626998cd84f890af6af0b568f9e57647682987a7cebc7070fb102d8cc5df6",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+      "started_at": "2026-10-21T09:54:23.261220+00:00",
+      "observed_at": "2026-10-21T09:54:24.309046+00:00",
+      "exit_code": 0,
+      "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "f31bd3e263514685dd6cb9d95c40280a1dd59acf9cc20460a74eb0dffab0be40",
+      "matches_frozen": true
+    },
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+      "started_at": "2026-10-21T09:54:23.413665+00:00",
+      "observed_at": "2026-10-21T09:54:24.309893+00:00",
+      "exit_code": 0,
+      "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+      "present": true,
+      "value_sha256": "7ae35b2950072cc4417be1c6e19cd31d559f0c96de42068e2923bda770dfc4b5",
+      "matches_frozen": true
+    }
+  ],
+  "configured_count": 7,
+  "wrapping_public_present": true,
+  "subject": {
+    "endpoint": "repos/WuKongIM/WuKongIM/actions/oidc/customization/sub",
+    "started_at": "2026-10-21T09:54:24.481838+00:00",
+    "observed_at": "2026-10-21T09:54:25.351906+00:00",
+    "exit_code": 0,
+    "data": {
+      "use_default": false,
+      "use_immutable_subject": false,
+      "include_claim_keys": [
+        "repo",
+        "context",
+        "job_workflow_ref"
+      ],
+      "sub_claim_prefix": "repo:WuKongIM/WuKongIM"
+    }
+  },
+  "guard_pass": true,
+  "scope": "GET public values hashed only; no secret values/provider",
+  "runtime_race_limit": "Inputs are resolved at workflow runtime; this snapshot is not a server-side verify-only guarantee. Stop if any field/control changes."
+}

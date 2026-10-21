@@ -1,0 +1,34 @@
+........F.F..F.
+======================================================================
+FAIL: test_key_setup_failure_retains_a_nonsecret_phase (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_key_setup_failure_retains_a_nonsecret_phase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 91, in test_key_setup_failure_retains_a_nonsecret_phase
+    self.assertEqual(evidence.get('phase'), 'test-key-generation')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 'test-key-generation'
+
+======================================================================
+FAIL: test_real_scratch_layout_leaves_room_for_agent_socket_names (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_real_scratch_layout_leaves_room_for_agent_socket_names)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 71, in test_real_scratch_layout_leaves_room_for_agent_socket_names
+    self.assertLessEqual(len(bytes(socket)), 103)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 111 not less than or equal to 103
+
+======================================================================
+FAIL: test_source_setup_failure_retains_a_nonsecret_phase (test_native_stable_candidate_drill.NativeStableCandidateDrillTests.test_source_setup_failure_retains_a_nonsecret_phase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate/tests/test_native_stable_candidate_drill.py", line 79, in test_source_setup_failure_retains_a_nonsecret_phase
+    self.assertEqual(evidence.get('phase'), 'source-fixture')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 'source-fixture'
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.041s
+
+FAILED (failures=3)
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}

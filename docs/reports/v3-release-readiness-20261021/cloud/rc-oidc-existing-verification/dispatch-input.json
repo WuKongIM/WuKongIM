@@ -1,0 +1,8 @@
+{
+  "ref": "main",
+  "inputs": {
+    "setup_id": "verify-chat-20261021T095421Z-cf11d65c",
+    "operation": "apply",
+    "force_reconcile": false
+  }
+}

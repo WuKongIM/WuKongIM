@@ -1,0 +1,13 @@
+{
+  "head": "c8aae37d13787a0aceceac751d6d35bbc1d89c35",
+  "head_tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "merge_parents": [
+    "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+    "c8aae37d13787a0aceceac751d6d35bbc1d89c35"
+  ],
+  "merge_tree": "5fac246f4234d1652b86f26a72927a4b003bbbe7",
+  "pr_base": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "same_tree": true,
+  "status": "API identity verified; actual checkout log pending",
+  "synthetic_merge": "6526671784e1c0e0252fcec0709832302ee0df29"
+}

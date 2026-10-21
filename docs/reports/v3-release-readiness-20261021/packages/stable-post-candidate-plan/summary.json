@@ -1,0 +1,41 @@
+{
+  "schema": "wukongim.stable_post_candidate_plan/v1",
+  "as_of_utc": "2026-10-21T09:44:23.725812+00:00",
+  "packages_read_branch_head": "d79bff5219f5a69872bb1720cbbaa224b1c7b3eb",
+  "mutations": {
+    "repository": false,
+    "cloud": false,
+    "github": false,
+    "keys": false
+  },
+  "status": "dependency_plan_only",
+  "previous_design_corrections": [
+    "stable independent public certificates are now registered and Mac key preparation/restore proof is complete",
+    "user approved online Mac custody with optional NAS backup; no offline/hardware requirement",
+    "stable bootstrap exists; candidate core implemented/frozen but this report does not infer final native CI/merge",
+    "preview transport planner exists but still rejects stable/multi-channel"
+  ],
+  "next_implementable_without_production_access": [
+    "explicit external stable immutable-seal reader/writer contract and failure tests using existing audit core",
+    "sealed stable/composite deterministic transport planning preserving exact archive bytes and old generations",
+    "stable four-client path and actual mirrorlist/by-hash A/B tests with TEST ONLY local fixtures",
+    "narrow uploader/activator adapters against fake responses, no actual credentials"
+  ],
+  "external_dependencies": [
+    "exact production v3 source target and release qualification",
+    "real immutable audit binding and scoped protected namespace/write authorization",
+    "dedicated OSS bucket/region plus CDN domain/origin/TLS/CNAME/caching and role identities",
+    "specific paid resource/permission/DNS/activation authorization before those writes",
+    "real public four-client exact-version and installed CLI verification"
+  ],
+  "unneeded_requests": [
+    "new hardware or external disk",
+    "new signing custodian",
+    "private keys or passphrases in chat",
+    "NAS backup as a new release gate"
+  ],
+  "whole_site_atomicity_claimed": false,
+  "stable_release_complete": false,
+  "new_product_GA_gate": false,
+  "report": "dependency-matrix.md"
+}

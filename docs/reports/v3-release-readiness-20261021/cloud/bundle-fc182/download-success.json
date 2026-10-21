@@ -1,0 +1,11 @@
+{
+  "artifact_id": 12336417107,
+  "started_at": "2026-10-21T10:03:49.790519+00:00",
+  "finished_at": "2026-10-21T10:04:10.871981+00:00",
+  "exit_code": 0,
+  "downloaded_bytes": 141108866,
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_redacted": "",
+  "private_urls_not_stored": true
+}

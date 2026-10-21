@@ -1,0 +1,17 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+  "started_at": "2026-10-21T09:46:57.787209+00:00",
+  "observed_at": "2026-10-21T09:46:58.827035+00:00",
+  "exit_code": 0,
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+    "present": true,
+    "redacted_value": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+    "value_sha256": "1c4b9299f1420b40de38e421d40fb38b63d9738e0d7a8628132b7505c0d07787",
+    "equals_0456_snapshot": true,
+    "created_at": "2026-08-08T13:21:30Z",
+    "updated_at": "2026-08-22T11:29:48Z"
+  },
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

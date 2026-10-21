@@ -1,0 +1,109 @@
+diff --git a/tests/native_stable_candidate_drill.py b/tests/native_stable_candidate_drill.py
+index 0b6c31f..43d3f4e 100644
+--- a/tests/native_stable_candidate_drill.py
++++ b/tests/native_stable_candidate_drill.py
+@@ -138,6 +138,7 @@ def load_fixture(name: str, filename: str):
+ def invoke(evidence: dict, name: str, command: list[str], environment: dict,
+            *, reject: bool = False, case: bool = True) -> subprocess.CompletedProcess:
+     """Record actual exit and bounded output facts, never child output or secrets."""
++    evidence['phase'] = name
+     record = {'stage': name, 'program': Path(command[0]).name, 'exit_code': None,
+               'expected_rejection': reject, 'timed_out': False}
+     evidence['commands'].append(record)
+@@ -282,7 +283,9 @@ def only(paths) -> Path:
+ 
+ 
+ def pipeline(scratch: Path, trusted: Path, evidence: dict, env: dict) -> None:
++    evidence['phase'] = 'source-fixture'
+     source = fixture_source(scratch)
++    evidence['phase'] = 'key-fixture-import'
+     keys = load_fixture('stable_candidate_test_keys', 'test_validate_signing_material.py')
+     private = scratch / 'private-test-keys'
+     factory = keys.TestKeyFactory(private)
+@@ -290,6 +293,7 @@ def pipeline(scratch: Path, trusted: Path, evidence: dict, env: dict) -> None:
+     unsigned, composed = scratch / 'unsigned', scratch / 'composed'
+     bad_signatures = {}
+     try:
++        evidence['phase'] = 'test-key-generation'
+         control, generated = generate_control(scratch, factory, keys)
+         shared = common(control, source)
+         channels = control / 'manifests/channels.json'
+@@ -476,11 +480,14 @@ def main(argv: list[str] | None = None) -> int:
+                     'secret_tree_removed_before_verification': False, 'production_keys_used': False,
+                     'payloads_executed': False, 'published': False, 'source_provenance_verified': False,
+                     'checked_in_control_unchanged': False,
+-                    'cases': [], 'commands': [], 'failure': None, 'started_at_unix': int(time.time())}
++                    'phase': 'preflight', 'cases': [], 'commands': [], 'failure': None,
++                    'started_at_unix': int(time.time())}
+         scratch = None
+         old_environment = dict(os.environ)
+         try:
+-            with tempfile.TemporaryDirectory(prefix='wk-stable-candidate-TEST-ONLY-', dir='/tmp') as tmp:
++            # Leave room for all GnuPG Unix-domain socket suffixes under the
++            # fixture factory's nested homes on both Linux and macOS.
++            with tempfile.TemporaryDirectory(prefix='wk-sc-', dir='/tmp') as tmp:
+                 scratch = Path(tmp).resolve()
+                 require(sys.platform.startswith('linux') and os.geteuid() != 0,
+                         'native candidate requires the isolated non-root Linux container')
+@@ -504,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
+         except Exception as error:
+             # Child output/private GPG diagnostics never enter the public receipt.
+             evidence['failure'] = {'type': type(error).__name__,
+-                                   'stage': evidence['commands'][-1]['stage'] if evidence['commands'] else 'preflight'}
++                                   'stage': evidence['phase']}
+         finally:
+             os.environ.clear(); os.environ.update(old_environment)
+             evidence['scratch_removed'] = scratch is not None and not scratch.exists()
+diff --git a/tests/test_native_stable_candidate_drill.py b/tests/test_native_stable_candidate_drill.py
+index ddc2090..6c3b22e 100644
+--- a/tests/test_native_stable_candidate_drill.py
++++ b/tests/test_native_stable_candidate_drill.py
+@@ -49,6 +49,48 @@ class NativeStableCandidateDrillTests(unittest.TestCase):
+             self.assertEqual(receipt['cases'], [])
+             self.assertEqual(list(output.iterdir()), [output / 'native-stable-candidate.json'])
+ 
++    def test_real_scratch_layout_leaves_room_for_agent_socket_names(self):
++        drill = self.load()
++        real_temporary_directory = tempfile.TemporaryDirectory
++        scratch_paths = []
++        def temporary_directory(*args, **kwargs):
++            result = real_temporary_directory(*args, **kwargs)
++            scratch_paths.append(Path(result.name))
++            return result
++        with real_temporary_directory() as output:
++            with mock.patch.object(drill.tempfile, 'TemporaryDirectory', side_effect=temporary_directory), \
++                 mock.patch.object(drill.shutil, 'which', return_value=None), \
++                 mock.patch.object(drill.os, 'geteuid', return_value=65532), \
++                 mock.patch.object(drill.sys, 'platform', 'linux'):
++                self.assertEqual(drill.main(['--output-dir', output, '--source-sha', 'a' * 40,
++                                             '--trusted-root', output]), 1)
++        self.assertEqual(len(scratch_paths), 1)
++        # GnuPG also creates browser/extra sockets. 103 bytes is the smaller
++        # macOS/Linux pathname budget, excluding the terminating NUL byte.
++        socket = scratch_paths[0] / 'private-test-keys/01-STABLE-CANDIDATE-APT/gnupg/S.gpg-agent.browser'
++        self.assertLessEqual(len(bytes(socket)), 103)
++
++    def test_source_setup_failure_retains_a_nonsecret_phase(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        with mock.patch.object(drill, 'fixture_source', side_effect=AssertionError('TEST ONLY secret detail')):
++            with self.assertRaises(AssertionError):
++                drill.pipeline(Path('/tmp/unused'), Path('/tmp/unused'), evidence, {})
++        self.assertEqual(evidence.get('phase'), 'source-fixture')
++        self.assertNotIn('secret detail', json.dumps(evidence))
++
++    def test_key_setup_failure_retains_a_nonsecret_phase(self):
++        drill = self.load()
++        evidence = {'cases': [], 'commands': []}
++        with tempfile.TemporaryDirectory() as temporary:
++            with mock.patch.object(drill, 'fixture_source', return_value=Path(temporary)), \
++                 mock.patch.object(drill, 'load_fixture', return_value=mock.Mock()), \
++                 mock.patch.object(drill, 'generate_control', side_effect=AssertionError('TEST ONLY secret detail')):
++                with self.assertRaises(AssertionError):
++                    drill.pipeline(Path(temporary), Path(temporary), evidence, {})
++        self.assertEqual(evidence.get('phase'), 'test-key-generation')
++        self.assertNotIn('secret detail', json.dumps(evidence))
++
+     def test_first_failure_cannot_be_overwritten(self):
+         drill = self.load()
+         with tempfile.TemporaryDirectory() as tmp:

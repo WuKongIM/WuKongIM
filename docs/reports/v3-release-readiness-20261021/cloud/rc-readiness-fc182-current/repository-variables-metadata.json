@@ -1,0 +1,150 @@
+{
+  "complete_paginated_snapshot": true,
+  "page_limit": 20,
+  "per_page": 100,
+  "pages": [
+    {
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/variables?per_page=100&page=1",
+      "started_at": "2026-10-21T09:47:03.549701+00:00",
+      "observed_at": "2026-10-21T09:47:04.594465+00:00",
+      "exit_code": 0,
+      "total_count": 26,
+      "count": 26,
+      "full_page_json_sha256": "617c9f5b7cba506e3388bf074729461ef7a5ccb777a25f86513c8cda431c21a7"
+    }
+  ],
+  "rows": [
+    {
+      "name": "ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+      "created_at": "2026-08-08T13:21:30Z",
+      "updated_at": "2026-08-22T11:29:48Z"
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+      "created_at": "2026-08-08T13:21:34Z",
+      "updated_at": "2026-08-22T11:29:54Z"
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+      "created_at": "2026-08-08T13:21:32Z",
+      "updated_at": "2026-08-22T11:29:51Z"
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+      "created_at": "2026-08-08T13:21:31Z",
+      "updated_at": "2026-08-22T11:29:50Z"
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN",
+      "created_at": "2026-08-08T13:21:33Z",
+      "updated_at": "2026-08-22T11:29:53Z"
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_REGION",
+      "created_at": "2026-08-08T13:21:29Z",
+      "updated_at": "2026-08-22T11:29:47Z"
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+      "created_at": "2026-08-08T13:21:35Z",
+      "updated_at": "2026-08-22T11:29:56Z"
+    },
+    {
+      "name": "ALIYUNHUB_USERNAME",
+      "created_at": "2024-11-29T15:19:11Z",
+      "updated_at": "2024-11-29T15:19:21Z"
+    },
+    {
+      "name": "DOCKERHUB_USERNAME",
+      "created_at": "2024-11-29T15:18:44Z",
+      "updated_at": "2024-11-29T15:18:44Z"
+    },
+    {
+      "name": "DOCS_ACME_EMAIL",
+      "created_at": "2026-09-02T10:08:57Z",
+      "updated_at": "2026-09-02T10:08:57Z"
+    },
+    {
+      "name": "DOCS_CDN_CERTIFICATE_ROLE_ARN",
+      "created_at": "2026-09-02T10:08:56Z",
+      "updated_at": "2026-09-02T10:08:56Z"
+    },
+    {
+      "name": "DOCS_CDN_CNAME",
+      "created_at": "2026-09-02T16:27:23Z",
+      "updated_at": "2026-09-02T16:27:23Z"
+    },
+    {
+      "name": "DOCS_CDN_DOMAIN",
+      "created_at": "2026-09-02T10:08:52Z",
+      "updated_at": "2026-09-02T10:08:52Z"
+    },
+    {
+      "name": "DOCS_CDN_ENABLED",
+      "created_at": "2026-09-03T03:07:18Z",
+      "updated_at": "2026-09-03T03:07:18Z"
+    },
+    {
+      "name": "DOCS_CDN_OIDC_AUDIENCE",
+      "created_at": "2026-09-02T10:08:54Z",
+      "updated_at": "2026-09-02T10:08:54Z"
+    },
+    {
+      "name": "DOCS_CDN_OIDC_PROVIDER_ARN",
+      "created_at": "2026-09-02T10:08:53Z",
+      "updated_at": "2026-09-02T10:08:53Z"
+    },
+    {
+      "name": "DOCS_CDN_PUBLIC_ROUTE_MODE",
+      "created_at": "2026-09-02T16:27:23Z",
+      "updated_at": "2026-09-03T02:09:26Z"
+    },
+    {
+      "name": "DOCS_CDN_REFRESH_ROLE_ARN",
+      "created_at": "2026-09-02T10:08:55Z",
+      "updated_at": "2026-09-02T10:08:55Z"
+    },
+    {
+      "name": "ISSUE_AGENT_APP_ID",
+      "created_at": "2026-07-29T12:29:44Z",
+      "updated_at": "2026-07-29T12:29:44Z"
+    },
+    {
+      "name": "ISSUE_AGENT_APP_INSTALLATION_ID",
+      "created_at": "2026-07-30T11:42:58Z",
+      "updated_at": "2026-07-30T11:42:58Z"
+    },
+    {
+      "name": "ISSUE_AGENT_APP_LOGIN",
+      "created_at": "2026-07-29T12:29:44Z",
+      "updated_at": "2026-07-29T12:29:44Z"
+    },
+    {
+      "name": "ISSUE_AGENT_CHECKPOINT_KEY_ID",
+      "created_at": "2026-07-29T12:36:38Z",
+      "updated_at": "2026-07-29T12:36:38Z"
+    },
+    {
+      "name": "ISSUE_AGENT_CODEX_MODEL",
+      "created_at": "2026-07-29T15:49:11Z",
+      "updated_at": "2026-07-30T03:33:35Z"
+    },
+    {
+      "name": "ISSUE_AGENT_INSTALLATION_ID",
+      "created_at": "2026-07-29T12:29:44Z",
+      "updated_at": "2026-07-29T12:29:44Z"
+    },
+    {
+      "name": "REVIEW_AGENT_APP_LOGIN",
+      "created_at": "2026-07-30T23:03:20Z",
+      "updated_at": "2026-07-30T23:03:20Z"
+    },
+    {
+      "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+      "created_at": "2026-08-08T12:30:46Z",
+      "updated_at": "2026-08-08T13:08:51Z"
+    }
+  ],
+  "total_count_stable": true,
+  "values_retained": false
+}

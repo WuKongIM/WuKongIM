@@ -1,0 +1,21 @@
+{
+  "method": "DefaultIntent implementation unchanged from independently reviewed prior expected intent; change only source_sha/control_sha to exact new commit. Not reuse of old bundle bytes.",
+  "old_expected_path": "/tmp/wukongim-v3-readiness-20261021/cloud/bundle-ed705/independent-review/expected-deployment-intent.json",
+  "old_expected_sha256": "c0ba320bc1d656ea4b7429aa592b306434bc8dccb0fcc088a9f3238bcbb30c85",
+  "byte_identity_checks": [
+    {
+      "path": "cmd/wkcloudbundle/offline_commands.go",
+      "old_source": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "new_source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "sha256": "2ef22efce0f9e3b94305522df1e44fd1f1bc85531f4572377e9e6434be735818",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/usecase/clouddeploy/bundle.go",
+      "old_source": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "new_source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "sha256": "aa07d36f6c99a69885ac8daf02e63c3da8960f3ea188594349c59bc1c12567d9",
+      "byte_equal": true
+    }
+  ]
+}
