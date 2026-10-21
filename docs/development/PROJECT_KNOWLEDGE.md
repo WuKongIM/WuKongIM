@@ -1215,6 +1215,13 @@ specification, runbook, report, or module documentation; link to them when neede
   for host activation, bounded readiness, and typed outcomes. Behavioral tests
   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts
   and validation, not a parallel test-only execution model.
+- New immutable chat-lifecycle requests may lower `request_budget_limit_micros`
+  below the CNY 1,500 default while retaining the exact CNY 150 stop reserve.
+  Existing RunPlan/Lease fields carry the envelope; formal consumers authenticate
+  the original caps and remote `wkcli` enforces the admitted stop. Old released
+  continuation proofs remain default-only. The bundle builds `wkcli` from product
+  source, so changing control alone cannot make an older default-only product
+  accept a lower envelope. This is not a cross-request ledger or paid-start grant.
 - Paid chat-lifecycle orchestration needs one exact open, unlocked tracking Issue
   before procurement. Read-only startup validation cannot promise future write
   permission. A pre-clock failure label alone does not prove the deadline elapsed:

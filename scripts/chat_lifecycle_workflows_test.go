@@ -32,11 +32,12 @@ func TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedConti
 		Required bool   `yaml:"required"`
 		Type     string `yaml:"type"`
 	}{
-		"source_sha":               {Required: true, Type: "string"},
-		"operator":                 {Required: true, Type: "string"},
-		"codex_diagnostic_pubkey":  {Required: true, Type: "string"},
-		"request_id":               {Required: true, Type: "string"},
-		"released_preclock_run_id": {Required: false, Type: "string"},
+		"source_sha":                  {Required: true, Type: "string"},
+		"operator":                    {Required: true, Type: "string"},
+		"codex_diagnostic_pubkey":     {Required: true, Type: "string"},
+		"request_id":                  {Required: true, Type: "string"},
+		"released_preclock_run_id":    {Required: false, Type: "string"},
+		"request_budget_limit_micros": {Required: false, Type: "string"},
 	}
 	if !reflect.DeepEqual(workflow.On.Dispatch.Inputs, want) {
 		t.Fatalf("operator inputs = %#v, want %#v", workflow.On.Dispatch.Inputs, want)
@@ -1842,7 +1843,7 @@ func TestChatLifecycleLedgerSelectorsExecuteAgainstTypedEvidence(t *testing.T) {
 		{
 			name:   "formal committed cost",
 			filter: "select-formal-transition-committed.jq",
-			args:   []string{"--arg", "request", "request-1", "--arg", "source", strings.Repeat("a", 40), "--arg", "bundle", "sha256:" + strings.Repeat("b", 64)},
+			args:   []string{"--arg", "request", "request-1", "--arg", "source", strings.Repeat("a", 40), "--arg", "bundle", "sha256:" + strings.Repeat("b", 64), "--argjson", "operational_stop", "1350000000"},
 			input:  `{"schema":"wukongim.chat_lifecycle.formal_transition/v1","from_stage":"rehearsal","outcome":"rehearsal_pass","zero_inventory":true,"request_id":"request-1","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","committed_micros":123456}`,
 			want:   "123456",
 		},

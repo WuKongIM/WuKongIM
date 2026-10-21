@@ -514,8 +514,64 @@ def write_sidecar(directory, proof, manifest, files):
             stream.write(data)
 
 
+def request_budget_input(raw, predecessor=''):
+    """Lower a new immutable request ceiling; never broaden continuation authority."""
+    require(isinstance(raw, str) and re.fullmatch(r'[1-9][0-9]{0,9}', raw), 'request_budget_invalid')
+    limit = int(raw)
+    require(150000000 < limit <= 1500000000 and
+            (not predecessor or limit == 1500000000), 'request_budget_invalid')
+    return {'limit_micros': limit, 'operational_stop_micros': limit-150000000}
+
+
+def plan_budget(plan):
+    """Check local budget consistency only; producer authenticity belongs to callers."""
+    reason = 'request_budget_identity'
+    lease = plan.get('lease_plan', {})
+    budget = lease.get('budget', {})
+    require(plan.get('schema') == 'wukongim.chat_lifecycle.run_plan/v1' and
+            plan.get('stage') in ['rehearsal', 'formal'] and type(plan.get('attempt')) is int and
+            plan['attempt'] in ([1, 2] if plan['stage'] == 'rehearsal' else [1]) and
+            isinstance(budget, dict) and set(budget) == set(BUDGET) and budget.get('currency') == 'CNY', reason)
+    limit, stop, prior = (budget.get(k) for k in ['limit_micros', 'operational_stop_micros', 'committed_micros'])
+    require(all(type(v) is int for v in [limit, stop, prior, plan.get('operational_stop_micros')]) and
+            150000000 < limit <= 1500000000 and stop == limit-150000000 and 0 <= prior < stop and
+            plan['operational_stop_micros'] == stop and
+            (plan['attempt'] == 1 or limit == 1500000000), reason)
+    return budget
+
+
+def read_budget(arguments):
+    plan = load(arguments.run_plan)
+    budget = plan_budget(plan)
+    lease = plan['lease_plan']
+    receipt_document = load(arguments.receipt)
+    receipt = receipt_document.get('receipt', {})
+    require(receipt_document.get('schema') == 'wukongim.cloud_lease.receipt/v1' and
+            isinstance(receipt.get('budget'), dict) and set(receipt['budget']) == set(budget) and
+            all(type(receipt['budget'].get(k)) is type(v) and receipt['budget'][k] == v for k, v in budget.items()) and
+            all(isinstance(lease.get(k), str) and lease[k] and receipt.get(k) == lease[k]
+                for k in ['request_id', 'lease_id']), 'request_budget_identity')
+    if arguments.deployment_plan:
+        deployment = load(arguments.deployment_plan)
+        actual = deployment.get('budget', {})
+        require(deployment.get('schema') == 'wukongim.cloud_deployment.plan/v2' and
+                all(deployment.get(k) == lease[k] for k in ['request_id', 'lease_id']) and
+                all(type(actual.get(k)) is type(v) and actual[k] == v for k, v in budget.items()),
+                'request_budget_identity')
+    if arguments.matches_run_plan:
+        original = load(arguments.matches_run_plan)
+        expected = plan_budget(original)
+        require(original.get('stage') == 'rehearsal' and
+                original['lease_plan'].get('request_id') == lease['request_id'] and
+                all(budget[k] == expected[k] for k in ['currency', 'limit_micros', 'operational_stop_micros']),
+                'request_budget_identity')
+    print(json.dumps({k: budget[k] for k in ['limit_micros', 'operational_stop_micros']}))
+
+
 def prepare(arguments):
     env = environment()
+    request_budget_input(os.environ.get('WK_CHAT_REQUEST_BUDGET_LIMIT_MICROS', '1500000000'),
+                         env['WK_CHAT_RELEASED_PRECLOCK_RUN_ID'])
     if env['WK_CHAT_RELEASED_PRECLOCK_RUN_ID']:
         old, current = authenticate_sequence(env)
         artifacts = retained_inventory(arguments.inventory)
@@ -535,10 +591,11 @@ def validate(arguments):
     plan = load(arguments.run_plan)
     lease = plan.get('lease_plan', {})
     require(plan.get('schema') == 'wukongim.chat_lifecycle.run_plan/v1' and plan.get('stage') == 'rehearsal', 'sidecar_identity')
-    prior = lease.get('budget', {}).get('committed_micros')
+    budget = plan_budget(plan)
+    prior = budget['committed_micros']
     directory = Path(arguments.directory)/'continuation'
     if prior == 0 and plan.get('attempt') == 1:
-        require(not directory.exists() and lease.get('budget') == BUDGET, 'sidecar_identity')
+        require(not directory.exists(), 'sidecar_identity')
         print(json.dumps({'schema':RESULT,'status':'first_start','attempt':1,'committed_micros':0}))
         return
     require(directory.is_dir() and not directory.is_symlink() and (directory/'proof.json').is_file(), 'sidecar_missing')
@@ -609,9 +666,20 @@ def main():
     command = sub.add_parser('validate')
     command.add_argument('--directory', required=True)
     command.add_argument('--run-plan', required=True)
+    command = sub.add_parser('budget-input')
+    command.add_argument('--limit', required=True)
+    command.add_argument('--released-preclock-run-id', default='')
+    command = sub.add_parser('budget')
+    command.add_argument('--run-plan', required=True)
+    command.add_argument('--receipt', required=True)
+    command.add_argument('--deployment-plan')
+    command.add_argument('--matches-run-plan')
     args = parser.parse_args()
     try:
-        (prepare if args.mode == 'prepare' else validate)(args)
+        if args.mode == 'budget-input':
+            print(json.dumps(request_budget_input(args.limit, args.released_preclock_run_id)))
+        else:
+            {'prepare': prepare, 'validate': validate, 'budget': read_budget}[args.mode](args)
     except Rejected as error:
         print(json.dumps({'schema': RESULT, 'status': 'rejected', 'reason': str(error)}, separators=(',', ':')))
         return 1

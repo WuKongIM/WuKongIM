@@ -8,6 +8,6 @@ select(
   .bundle_digest == $bundle and
   (.committed_micros | type == "number") and
   .committed_micros > 0 and
-  .committed_micros < 1350000000
+  .committed_micros < $operational_stop
 ) |
 .committed_micros

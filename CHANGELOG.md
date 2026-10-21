@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Allow a new cloud chat-lifecycle request to lower its budget ceiling while
+  preserving the cleanup reserve through rehearsal, formal execution and remote
+  cost guards. / 新云端聊天生命周期请求可向下调整预算上限，预演、正式运行和远端
+  费用守卫保持同一预算及清理预留，不扩展既有请求的续跑权限。
+
 - Accept systemd's empty `Job=` as no queued job during cloud chat-lifecycle
   startup, while rejecting missing or malformed state fields consistently on
   Bash 3 and Bash 5. / 云端聊天生命周期启动兼容 systemd 用空 `Job=` 表示无排队

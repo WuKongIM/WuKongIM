@@ -41,9 +41,12 @@ private credentials.
 
 ## Invariants and Failure Semantics
 
-- The shared CNY 1,350 operational stop and CNY 1,500 hard limit cover all
-  stages, including the original released rehearsal's conservative reserve.
-  A reserve is not provider billing evidence.
+- The default CNY 1,350 operational stop and CNY 1,500 hard limit cover all
+  stages. Trusted context may only lower a new immutable request's hard limit,
+  retaining the exact CNY 150 reserve and positive stop. Reviewed templates stay
+  fixed; formal consumers authenticate the original request caps. Released
+  continuation proofs retain only the default envelope and the original
+  rehearsal's conservative reserve, which is not provider billing evidence.
 - Topology is fixed at four Ubuntu x86 hosts, one EIP, and reviewed disk and
   port settings; rehearsal runs two hours and formal runs 72 hours after their
   two-hour readiness windows.

@@ -113,6 +113,9 @@ type OperatorInput struct {
 // TrustedContext is derived only by the protected workflow or a prior typed
 // receipt. It is not an additional operator-controlled surface.
 type TrustedContext struct {
+	// RequestBudgetLimitMicros may only lower the immutable request ceiling; nil preserves the reviewed default.
+	RequestBudgetLimitMicros *int64
+
 	// Repository is the protected workflow repository bound into every Lease selector.
 	Repository string
 	// BundleDigest identifies the already authenticated immutable deployment bundle.
@@ -321,7 +324,20 @@ func DecodeTemplate(reader io.Reader) (Template, error) {
 
 // Materialize binds one immutable Lease attempt to the reviewed template.
 func Materialize(template Template, input OperatorInput, trusted TrustedContext) (RunPlan, error) {
-	if !validTemplate(template) || !validOperatorInput(input) || !validTrustedContext(template, trusted) {
+	if !validTemplate(template) || !validOperatorInput(input) {
+		return RunPlan{}, ErrInvalidInput
+	}
+	if limit := trusted.RequestBudgetLimitMicros; limit != nil {
+		// A lower envelope is a new request, never an extension of the released
+		// pre-clock authority or the separate direct-repair authorization.
+		if template.Stage == StageRepair || *limit <= 150_000_000 || *limit > 1_500_000_000 ||
+			(trusted.ReleasedPreclockProof != nil && *limit != 1_500_000_000) {
+			return RunPlan{}, ErrInvalidInput
+		}
+		template.Budget.HardLimitMicros = *limit
+		template.Budget.OperationalStopMicros = *limit - 150_000_000
+	}
+	if !validTrustedContext(template, trusted) {
 		return RunPlan{}, ErrInvalidInput
 	}
 	if template.Stage == StageFormal && (trusted.Transition.RequestID != input.RequestID ||

@@ -59,8 +59,10 @@ non-secret Lease inventory and has no provider lifecycle authority.
 - SSH activation records first-use host keys in one private Lease-scoped file,
   retains that file across repair generations, and never reads or mutates the
   operator's global user known-hosts file.
-- Five-second cost and expiry guards enforce the immutable stage's admitted CNY
-  1,350 operational stop and CNY 1,500 hard limit. Direct repair preserves the
+- Five-second cost and expiry guards enforce the immutable stage's admitted
+  limits: CNY 1,350 stop / CNY 1,500 hard by default, or a lower positive stop
+  with the same CNY 150 reserve. Deployment digests bind the exact Lease budget;
+  the product-source `wkcli` must support the admitted envelope. Direct repair preserves the
   exact admitted Lease budget: CNY 300/250 by default or an explicit whole-CNY
   hard limit through CNY 1,500 with a CNY 20 operational reserve.
 - A control repair may redeploy only the same Lease, source, bundle, and sealed

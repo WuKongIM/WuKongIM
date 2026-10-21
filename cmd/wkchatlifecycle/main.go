@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -190,6 +191,8 @@ func writePrivateAtomic(path string, body []byte) error {
 }
 
 type materializeOptions struct {
+	requestBudgetLimitMicros                                  string
+	requestBudgetSupplied                                     bool
 	templatePath, sourceSHA, operator, codexPubKey, requestID string
 	repository, bundleDigest, deploymentPubKey, nowValue      string
 	transitionPath, releasedPreclockProofPath                 string
@@ -201,6 +204,7 @@ func addMaterializeCommand(root *cobra.Command) {
 	command := &cobra.Command{
 		Use: "materialize", Short: "Bind the fixed operator surface to the reviewed Run Plan", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			options.requestBudgetSupplied = command.Flags().Changed("request-budget-limit-micros")
 			return runMaterialize(command.OutOrStdout(), options)
 		},
 	}
@@ -216,6 +220,7 @@ func addMaterializeCommand(root *cobra.Command) {
 	flags.StringVar(&options.nowValue, "now", "", "trusted RFC3339 UTC materialization time")
 	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
 	flags.StringVar(&options.releasedPreclockProofPath, "released-preclock-proof", "", "authenticated released rehearsal history from the protected read-only helper")
+	flags.StringVar(&options.requestBudgetLimitMicros, "request-budget-limit-micros", "", "optional downward-only immutable request ceiling in canonical CNY micros")
 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
 	flags.Int64Var(&options.authorizedRepairBudgetCNY, "authorized-repair-budget-cny", 0, "independently authorized whole-CNY direct repair budget")
@@ -246,6 +251,13 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
 		DeploymentPubKey: options.deploymentPubKey, Now: now,
 		Attempt: int(options.attempt), CommittedMicros: options.committedMicros,
 		AuthorizedRepairBudgetCNY: options.authorizedRepairBudgetCNY,
+	}
+	if options.requestBudgetSupplied {
+		limit, err := strconv.ParseInt(options.requestBudgetLimitMicros, 10, 64)
+		if err != nil || strconv.FormatInt(limit, 10) != options.requestBudgetLimitMicros {
+			return chatlifecyclerun.ErrInvalidInput
+		}
+		trusted.RequestBudgetLimitMicros = &limit
 	}
 	if options.transitionPath != "" {
 		var transition chatlifecyclerun.StageTransition

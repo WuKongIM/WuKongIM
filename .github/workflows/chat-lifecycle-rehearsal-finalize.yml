@@ -384,6 +384,13 @@ jobs:
             --directory "$WK_CHAT_HANDOFF_DIR" --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json"
           python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
             --directory "$final_dir" --run-plan "$final_dir/run-plan.json"
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
+            --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json" --receipt "$WK_CHAT_HANDOFF_DIR/receipt.json" \
+            --deployment-plan "$WK_CHAT_HANDOFF_DIR/deployment-plan.json" >/dev/null
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py budget \
+            --run-plan "$final_dir/run-plan.json" --receipt "$final_dir/receipt.json" \
+            --deployment-plan "$final_dir/deployment-plan.json" \
+            --matches-run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json" >/dev/null
       - name: Enable formal continuation before transition publication
         if: steps.continuation.outcome == 'success' && steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
         shell: bash
@@ -439,7 +446,8 @@ jobs:
           network_bytes="$(jq -er .resources.capacity.network_transmit_bytes "$final_dir/final.json")"
           rehearsal_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$final_dir/run-plan.json" "$final_dir/quote.json" "$created_at" "$ended_at" "$network_bytes")"
           committed_micros=$(( prior + rehearsal_cost ))
-          (( committed_micros > 0 && committed_micros < 1350000000 ))
+          operational_stop_micros="$(jq -er .operational_stop_micros "$final_dir/run-plan.json")"
+          (( committed_micros > 0 && committed_micros < operational_stop_micros )) || exit 1
           install -d -m 0700 "$WK_CHAT_TRANSITION_DIR"
           jq -n --arg schema 'wukongim.chat_lifecycle.formal_transition/v1' \
             --arg from_stage rehearsal --arg outcome rehearsal_pass \
@@ -507,7 +515,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Upload zero-inventory proof
-        if: steps.cleanup.outputs.zero == 'true'
+        if: always() && steps.cleanup.outputs.zero == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chat-lifecycle-rehearsal-cleanup-${{ matrix.request_id }}
