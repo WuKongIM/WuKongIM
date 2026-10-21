@@ -1,0 +1,359 @@
+2580:    a child of this shell.  It returns -1 if it fails, or whatever
+2581:    wait_for returns otherwise.  If the child is not found in the
+2582:    jobs table, it returns 127.  If FLAGS doesn't include JWAIT_PERROR,
+2583:    we suppress the error message if PID isn't found. */
+2584: 
+2585: int
+2586: wait_for_single_pid (pid, flags)
+2587:      pid_t pid;
+2588:      int flags;
+2589: {
+2590:   register PROCESS *child;
+2591:   sigset_t set, oset;
+2592:   int r, job, alive;
+2593: 
+2594:   BLOCK_CHILD (set, oset);
+2595:   child = find_pipeline (pid, 0, (int *)NULL);
+2596:   UNBLOCK_CHILD (oset);
+2597: 
+2598:   if (child == 0)
+2599:     {
+2600:       r = bgp_search (pid);
+2601:       if (r >= 0)
+2602: 	return r;
+2603:     }
+2604: 
+2605:   if (child == 0)
+2606:     {
+2607:       if (flags & JWAIT_PERROR)
+2608: 	internal_error (_("wait: pid %ld is not a child of this shell"), (long)pid);
+2609:       return (257);
+2610:     }
+2611: 
+2612:   alive = 0;
+2613:   do
+2614:     {
+2615:       r = wait_for (pid, 0);
+2616:       if ((flags & JWAIT_FORCE) == 0)
+2617: 	break;
+2618: 
+2619:       BLOCK_CHILD (set, oset);
+2620:       alive = PALIVE (child);
+2621:       UNBLOCK_CHILD (oset);
+2622:     }
+2623:   while (alive);
+2624: 
+2625:   /* POSIX.2: if we just waited for a job, we can remove it from the jobs
+2626:      table. */
+2627:   BLOCK_CHILD (set, oset);
+2628:   job = find_job (pid, 0, NULL);
+2629:   if (job != NO_JOB && jobs[job] && DEADJOB (job))
+2630:     jobs[job]->flags |= J_NOTIFIED;
+2631:   UNBLOCK_CHILD (oset);
+2632: 
+2633:   /* If running in posix mode, remove the job from the jobs table immediately */
+2634:   if (posixly_correct)
+2635:     {
+2636:       cleanup_dead_jobs ();
+2637:       bgp_delete (pid);
+2638:     }
+2639: 
+2640:   /* Check for a trapped signal interrupting the wait builtin and jump out */
+2641:   CHECK_WAIT_INTR;
+2642: 
+2643:   return r;
+2644: }
+2645: 
+2646: /* Wait for all of the background processes started by this shell to finish. */
+
+2721: static int wait_sigint_received;
+2722: static int child_caught_sigint;
+2723: 
+2724: int waiting_for_child;
+2725: 
+2726: /* Clean up state after longjmp to wait_intr_buf */
+2727: void
+2728: wait_sigint_cleanup ()
+2729: {
+2730:   queue_sigchld = 0;
+2731:   waiting_for_child = 0;
+2732:   restore_sigint_handler ();
+2733: }
+2734: 
+2735: static void
+2736: restore_sigint_handler ()
+2737: {
+2738:   if (old_sigint_handler != INVALID_SIGNAL_HANDLER)
+2739:     {
+2740:       set_signal_handler (SIGINT, old_sigint_handler);
+2741:       old_sigint_handler = INVALID_SIGNAL_HANDLER;
+2742:       waiting_for_child = 0;
+2743:     }
+2744: }
+2745: 
+2746: /* Handle SIGINT while we are waiting for children in a script to exit.
+2747:    The `wait' builtin should be interruptible, but all others should be
+2748:    effectively ignored (i.e. not cause the shell to exit). */
+2749: static sighandler
+
+2894: /* Wait for pid (one of our children) to terminate, then
+2895:    return the termination state.  Returns 127 if PID is not found in
+2896:    the jobs table.  Returns -1 if waitchld() returns -1, indicating
+2897:    that there are no unwaited-for child processes. */
+2898: int
+2899: wait_for (pid, flags)
+2900:      pid_t pid;
+2901:      int flags;
+2902: {
+2903:   int job, termination_state, r;
+2904:   WAIT s;
+2905:   register PROCESS *child;
+2906:   sigset_t set, oset;
+2907: 
+2908:   /* In the case that this code is interrupted, and we longjmp () out of it,
+2909:      we are relying on the code in throw_to_top_level () to restore the
+2910:      top-level signal mask. */
+2911:   child = 0;
+2912:   BLOCK_CHILD (set, oset);
+2913: 
+2914:   /* Ignore interrupts while waiting for a job run without job control
+2915:      to finish.  We don't want the shell to exit if an interrupt is
+2916:      received, only if one of the jobs run is killed via SIGINT.  If
+2917:      job control is not set, the job will be run in the same pgrp as
+2918:      the shell, and the shell will see any signals the job gets.  In
+2919:      fact, we want this set every time the waiting shell and the waited-
+2920:      for process are in the same process group, including command
+2921:      substitution. */
+2922: 
+2923:   /* This is possibly a race condition -- should it go in stop_pipeline? */
+2924:   wait_sigint_received = child_caught_sigint = 0;
+2925:   if (job_control == 0 || (subshell_environment&SUBSHELL_COMSUB))
+2926:     {
+2927:       SigHandler *temp_sigint_handler;
+2928: 
+2929:       temp_sigint_handler = set_signal_handler (SIGINT, wait_sigint_handler);
+2930:       if (temp_sigint_handler == wait_sigint_handler)
+2931: 	internal_debug ("wait_for: recursively setting old_sigint_handler to wait_sigint_handler: running_trap = %d", running_trap);
+2932:       else
+2933: 	old_sigint_handler = temp_sigint_handler;
+2934:       waiting_for_child = 0;
+2935:       if (old_sigint_handler == SIG_IGN)
+2936: 	set_signal_handler (SIGINT, old_sigint_handler);
+2937:     }
+2938: 
+2939:   termination_state = last_command_exit_value;
+2940: 
+2941:   if (interactive && job_control == 0)
+2942:     QUIT;
+2943:   /* Check for terminating signals and exit the shell if we receive one */
+2944:   CHECK_TERMSIG;
+2945: 
+2946:   /* Check for a trapped signal interrupting the wait builtin and jump out */
+2947:   CHECK_WAIT_INTR;
+2948: 
+2949:   /* If we say wait_for (), then we have a record of this child somewhere.
+2950:      If it and none of its peers are running, don't call waitchld(). */
+2951: 
+2952:   job = NO_JOB;
+2953:   do
+2954:     {
+2955:       if (pid != ANY_PID)
+2956: 	FIND_CHILD (pid, child);
+2957: 
+2958:       /* If this child is part of a job, then we are really waiting for the
+2959: 	 job to finish.  Otherwise, we are waiting for the child to finish.
+2960: 	 We check for JDEAD in case the job state has been set by waitchld
+2961: 	 after receipt of a SIGCHLD. */
+2962:       if (job == NO_JOB && pid != ANY_PID)	/* XXX -- && pid != ANY_PID ? */
+2963: 	job = find_job (pid, 0, NULL);
+2964: 
+2965:       /* waitchld() takes care of setting the state of the job.  If the job
+2966: 	 has already exited before this is called, sigchld_handler will have
+2967: 	 called waitchld and the state will be set to JDEAD. */
+2968: 
+2969:       if (pid == ANY_PID || PRUNNING(child) || (job != NO_JOB && RUNNING (job)))
+2970: 	{
+2971: 	  int old_waiting;
+2972: 
+2973: 	  queue_sigchld = 1;
+2974: 	  old_waiting = waiting_for_child;
+2975: 	  waiting_for_child = 1;
+2976: 	  /* XXX - probably not strictly necessary but we want to catch
+2977: 	     everything that happened before we switch the behavior of
+2978: 	     trap_handler to longjmp on a trapped signal (waiting_for_child) */
+2979: 	  CHECK_WAIT_INTR;
+2980: 	  r = waitchld (pid, 1);	/* XXX */
+2981: 	  waiting_for_child = old_waiting;
+2982: #if 0
+2983: itrace("wait_for: blocking wait for %d returns %d child = %p", (int)pid, r, child);
+2984: #endif
+2985: 	  queue_sigchld = 0;
+2986: 	  if (r == -1 && errno == ECHILD && this_shell_builtin == wait_builtin)
+2987: 	    {
+2988: 	      termination_state = -1;
+2989: 	      /* XXX - restore sigint handler here */
+2990: 	      restore_sigint_handler ();
+2991: 	      goto wait_for_return;
+2992: 	    }
+2993: 
+2994: 	  /* If child is marked as running, but waitpid() returns -1/ECHILD,
+2995: 	     there is something wrong.  Somewhere, wait should have returned
+2996: 	     that child's pid.  Mark the child as not running and the job,
+2997: 	     if it exists, as JDEAD. */
+2998: 	  if (r == -1 && errno == ECHILD)
+2999: 	    {
+3000: 	      if (child)
+3001: 		{
+3002: 		  child->running = PS_DONE;
+3003: 		  WSTATUS (child->status) = 0;	/* XXX -- can't find true status */
+3004: 		}
+3005: 	      js.c_living = 0;		/* no living child processes */
+3006: 	      if (job != NO_JOB)
+3007: 		{
+3008: 		  jobs[job]->state = JDEAD;
+3009: 		  js.c_reaped++;
+3010: 		  js.j_ndead++;
+3011: 		}
+3012: 	      if (pid == ANY_PID)
+3013: 		{
+3014: 		  termination_state = -1;
+3015: 		  break;
+3016: 		}
+3017: 	    }
+3018: 	}
+3019: 
+3020:       /* If the shell is interactive, and job control is disabled, see
+3021: 	 if the foreground process has died due to SIGINT and jump out
+3022: 	 of the wait loop if it has.  waitchld has already restored the
+3023: 	 old SIGINT signal handler. */
+3024:       if (interactive && job_control == 0)
+3025: 	QUIT;
+3026:       /* Check for terminating signals and exit the shell if we receive one */
+3027:       CHECK_TERMSIG;
+3028: 
+3029:       /* Check for a trapped signal interrupting the wait builtin and jump out */
+3030:       CHECK_WAIT_INTR;
+3031: 
+3032:       if (pid == ANY_PID)
+3033: 	{
+3034: 	  /* XXX - could set child but we don't have a handle on what waitchld
+3035: 	    reaps.  Leave termination_state alone. */
+3036: 	  restore_sigint_handler ();
+3037: 	  goto wait_for_return;
+3038: 	}
+3039:     }
+3040:   while (PRUNNING (child) || (job != NO_JOB && RUNNING (job)));
+3041: 
+3042:   /* Restore the original SIGINT signal handler before we return. */
+3043:   restore_sigint_handler ();
+3044: 
+3045:   /* The exit state of the command is either the termination state of the
+3046:      child, or the termination state of the job.  If a job, the status
+3047:      of the last child in the pipeline is the significant one.  If the command
+3048:      or job was terminated by a signal, note that value also. */
+3049:   termination_state = (job != NO_JOB) ? job_exit_status (job)
+3050: 				      : (child ? process_exit_status (child->status) : EXECUTION_SUCCESS);
+
+3206: wait_for_return:
+3207: 
+3208:   UNBLOCK_CHILD (oset);
+3209: 
+3210:   return (termination_state);
+3211: }
+
+3770:      pid_t wpid;
+3771:      int block;
+3772: {
+3773:   WAIT status;
+3774:   PROCESS *child;
+3775:   pid_t pid;
+3776:   int ind;
+3777: 
+3778:   int call_set_current, last_stopped_job, job, children_exited, waitpid_flags;
+3779:   static int wcontinued = WCONTINUED;	/* run-time fix for glibc problem */
+3780: 
+3781:   call_set_current = children_exited = 0;
+3782:   last_stopped_job = NO_JOB;
+3783: 
+3784:   do
+3785:     {
+3786:       /* We don't want to be notified about jobs stopping if job control
+3787: 	 is not active.  XXX - was interactive_shell instead of job_control */
+3788:       waitpid_flags = (job_control && subshell_environment == 0)
+3789: 			? (WUNTRACED|wcontinued)
+3790: 			: 0;
+3791:       if (sigchld || block == 0)
+3792: 	waitpid_flags |= WNOHANG;
+3793: 
+3794:       /* Check for terminating signals and exit the shell if we receive one */
+3795:       CHECK_TERMSIG;
+3796:       /* Check for a trapped signal interrupting the wait builtin and jump out */
+3797:       CHECK_WAIT_INTR;
+3798: 
+3799:       if (block == 1 && queue_sigchld == 0 && (waitpid_flags & WNOHANG) == 0)
+3800: 	{
+3801: 	  internal_warning (_("waitchld: turning on WNOHANG to avoid indefinite block"));
+3802: 	  waitpid_flags |= WNOHANG;
+3803: 	}
+3804: 
+3805:       pid = WAITPID (-1, &status, waitpid_flags);
+3806: 
+3807: #if 0
+3808: if (wpid != -1 && block)
+3809:   itrace("waitchld: blocking waitpid returns %d", pid);
+3810: #endif
+3811: #if 0
+3812: if (wpid != -1)
+3813:   itrace("waitchld: %s waitpid returns %d", block?"blocking":"non-blocking", pid);
+3814: #endif
+3815:       /* WCONTINUED may be rejected by waitpid as invalid even when defined */
+3816:       if (wcontinued && pid < 0 && errno == EINVAL)
+3817: 	{
+3818: 	  wcontinued = 0;
+3819: 	  continue;	/* jump back to the test and retry without WCONTINUED */
+3820: 	}
+3821: 
+3822:       /* The check for WNOHANG is to make sure we decrement sigchld only
+3823: 	 if it was non-zero before we called waitpid. */
+3824:       if (sigchld > 0 && (waitpid_flags & WNOHANG))
+3825: 	sigchld--;
+3826: 
+3827:       /* If waitpid returns -1 with errno == ECHILD, there are no more
+3828: 	 unwaited-for child processes of this shell. */
+3829:       if (pid < 0 && errno == ECHILD)
+3830: 	{
+3831: 	  if (children_exited == 0)
+3832: 	    return -1;
+3833: 	  else
+3834: 	    break;
+3835: 	}
+3836: 
+3837: #if 0
+3838: itrace("waitchld: waitpid returns %d block = %d children_exited = %d", pid, block, children_exited);
+3839: #endif
+3840:       /* If waitpid returns 0, there are running children.  If it returns -1,
+3841: 	 the only other error POSIX says it can return is EINTR. */
+3842:       CHECK_TERMSIG;
+3843:       CHECK_WAIT_INTR;
+3844: 
+3845:       /* If waitpid returns -1/EINTR and the shell saw a SIGINT, then we
+3846: 	 assume the child has blocked or handled SIGINT.  In that case, we
+3847: 	 require the child to actually die due to SIGINT to act on the
+3848: 	 SIGINT we received; otherwise we assume the child handled it and
+3849: 	 let it go. */
+3850:       if (pid < 0 && errno == EINTR && wait_sigint_received)
+3851: 	child_caught_sigint = 1;
+3852: 
+3853:       if (pid <= 0)
+3854: 	continue;	/* jumps right to the test */
+3855: 
+3856:       /* Linux kernels appear to signal the parent but not interrupt the
+3857: 	 waitpid() (or restart it even without SA_RESTART) on SIGINT, so if
+3858: 	 we saw a SIGINT and the process exited or died due to some other
+3859: 	 signal, assume the child caught the SIGINT. */
+3860:       if (wait_sigint_received && (WIFSIGNALED (status) == 0 || WTERMSIG (status) != SIGINT))
+3861: 	child_caught_sigint = 1;
+3862: 
+3863:       /* If the child process did die due to SIGINT, forget our assumption
+3864: 	 that it caught or otherwise handled it. */
+

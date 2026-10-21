@@ -1,0 +1,29 @@
+{
+  "checked_at": "2026-10-21T09:02:03.678276+00:00",
+  "authorized_head": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "expected_base": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "fresh_head": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "fresh_base": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "main": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "draft": false,
+  "mergeable": true,
+  "mergeable_state": "clean",
+  "all_required_workflows_success": true,
+  "checks": [
+    [
+      "Deploy complete Pages snapshot",
+      "skipped"
+    ],
+    [
+      "TEST ONLY signed APT/RPM repository",
+      "success"
+    ],
+    [
+      "Validate complete Pages snapshot",
+      "success"
+    ]
+  ],
+  "merge_method": "rebase",
+  "admin": false,
+  "guard_passed": true
+}

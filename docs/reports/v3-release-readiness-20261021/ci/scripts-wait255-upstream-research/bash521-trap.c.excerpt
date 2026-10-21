@@ -1,0 +1,20 @@
+543:   else
+544:     {
+545:       oerrno = errno;
+546: #if defined (MUST_REINSTALL_SIGHANDLERS)
+547: #  if defined (JOB_CONTROL) && defined (SIGCHLD)
+548:       if (sig != SIGCHLD)
+549: #  endif /* JOB_CONTROL && SIGCHLD */
+550:       set_signal_handler (sig, trap_handler);
+551: #endif /* MUST_REINSTALL_SIGHANDLERS */
+552: 
+553:       set_trap_state (sig);
+554: 
+555:       if (this_shell_builtin && (this_shell_builtin == wait_builtin))
+556: 	{
+557: 	  wait_signal_received = sig;
+558: 	  if (waiting_for_child && wait_intr_flag)
+559: 	    sh_longjmp (wait_intr_buf, 1);
+560: 	}
+561: 
+

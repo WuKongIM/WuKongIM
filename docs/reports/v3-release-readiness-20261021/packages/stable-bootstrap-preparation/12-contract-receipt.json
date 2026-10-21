@@ -1,0 +1,8 @@
+{
+  "command": [
+    "./tests/contract.sh"
+  ],
+  "started_unix": 1792572308.1965408,
+  "ended_unix": 1792572310.023819,
+  "exit_code": 0
+}

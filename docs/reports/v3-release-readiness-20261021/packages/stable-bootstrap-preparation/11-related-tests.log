@@ -1,0 +1,6 @@
+.......s............................................
+----------------------------------------------------------------------
+Ran 52 tests in 6.174s
+
+OK (skipped=1)
+{"passed": false, "cases": 0, "failure": "required native tool unavailable: gpg", "scratch_removed": true}

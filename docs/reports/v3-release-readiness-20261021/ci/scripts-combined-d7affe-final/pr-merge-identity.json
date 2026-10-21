@@ -1,0 +1,13 @@
+{
+  "pr": 1017,
+  "head": "d7affe274935e78a644f901400db15ff1353a2c9",
+  "base": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "synthetic_merge_sha": "61cab03b700ff07439733171cbdcbd9072bfebc5",
+  "synthetic_merge_tree": "7104e17c912ce1d87030cb08b9fd0fe30b112f3c",
+  "head_tree": "7104e17c912ce1d87030cb08b9fd0fe30b112f3c",
+  "trees_equal": true,
+  "merge_parents": [
+    "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "d7affe274935e78a644f901400db15ff1353a2c9"
+  ]
+}

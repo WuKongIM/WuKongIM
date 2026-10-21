@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-10-21T08:43:20.732941+00:00",
+  "base": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "scope": "Working changes on exact base51bfedb; independent read-only review. No production private directory or key access. Native validation not assumed.",
+  "root_AGENTS_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "package_AGENTS_FLOW": "none tracked",
+  "base_contract_sha256": {
+    "README.md": "6815187cb7a67b83d464fffbd1483ad2e6cde5c88b27b582b312a40f2a9b9170",
+    "docs/release-contract.md": "9b245ce1dd0da82a17c5452971ef335d6911a281d6820c970276c7463432de92",
+    "keys/README.md": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+    ".github/workflows/native-package-repository-drill.yml": "8d5516f746de966a868625ec552cc85b2b97a25e5bc71654b5f5d47299ade43a",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "manifests/bootstrap-packages.json": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+    "manifests/stable-public-keys.json": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+  },
+  "review_axes": [
+    "builder stable protocol/input and preview compatibility",
+    "native TEST ONLY evidence vs claimed signed/public installation",
+    "publication remains disabled"
+  ]
+}

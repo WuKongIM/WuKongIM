@@ -1,0 +1,6 @@
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.035s
+
+OK
+{"passed": false, "cases": 0, "failure": "required native tool unavailable: gpg", "scratch_removed": true}

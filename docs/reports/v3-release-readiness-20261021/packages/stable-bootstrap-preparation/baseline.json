@@ -1,0 +1,15 @@
+{
+  "base": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "files": {
+    "scripts/build-repository-bootstrap-packages.py": "bfc5ce71b422eda9695c3a915af83cbb8eb025651e4bcace0f5051c981adcf0b",
+    "scripts/validate-control.py": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+    "manifests/bootstrap-packages.json": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+    "manifests/stable-public-keys.json": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "manifests/preview-signing.json": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+    "scripts/compose-package-site.py": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+    "scripts/prepare-package-site.py": "cd2be85e77cba38e6abece92d011aa2f21e5e4e000be379952d2599a243ae5ad",
+    "scripts/package-audit-receipt.py": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+    "scripts/validate-production-package-clients.py": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a"
+  }
+}

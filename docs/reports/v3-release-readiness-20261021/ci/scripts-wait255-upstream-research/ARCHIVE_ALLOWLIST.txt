@@ -1,0 +1,12 @@
+bash521-builtins-wait.def.excerpt
+bash521-jobs.c.excerpt
+bash521-shell.c.excerpt
+bash521-sig.c.excerpt
+bash521-trap.c.excerpt
+research.md
+retrieval-initial.json
+retrieval-tarball.json
+source-freeze.json
+summary.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

@@ -1,0 +1,32 @@
+[
+  {
+    "artifact_id": 12331628927,
+    "name": "native-local-signing-test-only",
+    "api_digest": "sha256:e4bf07e2ff21a063b0329ded9c128f732f2fb705d65fd69dbc11967a7946f487",
+    "computed_zip_digest": "sha256:e4bf07e2ff21a063b0329ded9c128f732f2fb705d65fd69dbc11967a7946f487",
+    "zip_digest_matches": true,
+    "members": [
+      {
+        "name": "native-local-signing.json",
+        "size": 12972,
+        "crc32": "2b87800e",
+        "sha256": "fcd947ff217cb8902fdebd757a83a7614d4410b2d9b916cc527b007b3890b5cc"
+      }
+    ]
+  },
+  {
+    "artifact_id": 12331548527,
+    "name": "native-source-metadata-test-only",
+    "api_digest": "sha256:7911053229eb84ae4754f8adb723c29786d5ba5585e20f5a8253c147043364b7",
+    "computed_zip_digest": "sha256:7911053229eb84ae4754f8adb723c29786d5ba5585e20f5a8253c147043364b7",
+    "zip_digest_matches": true,
+    "members": [
+      {
+        "name": "native-source-metadata.json",
+        "size": 4464,
+        "crc32": "8e5d03b8",
+        "sha256": "a4e436933b41d8c6433f13305b9263fd96e50e8f0547152f05b503fbb1080883"
+      }
+    ]
+  }
+]

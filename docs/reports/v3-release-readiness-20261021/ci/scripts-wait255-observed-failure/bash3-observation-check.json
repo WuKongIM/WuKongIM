@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^(TestChatLifecycleShakeoutJoinSurvivesFirstSignal|TestSingleNodeTerminalObserverJoinSurvivesParentSignal)$",
+    "-count=1",
+    "-timeout=90s",
+    "-parallel=2"
+  ],
+  "source_head": "d7affe274935e78a644f901400db15ff1353a2c9",
+  "shell": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)",
+  "started_at": "2026-10-21T08:47:53.468793+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T08:48:03.747098+00:00"
+}

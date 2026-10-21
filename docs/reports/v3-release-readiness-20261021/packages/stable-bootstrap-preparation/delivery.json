@@ -1,0 +1,17 @@
+{
+  "head": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+  "parent": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "pr": 71,
+  "url": "https://github.com/WuKongIM/packages/pull/71",
+  "draft": true,
+  "normal_push": true,
+  "artifact_attached": true,
+  "independent_peer_review": "/tmp/wukongim-v3-readiness-20261021/packages/stable-bootstrap-preparation-review/",
+  "peer_manifest_sha256": "a7b5c71af417cba936b1d801bea6bdb8d4e396905804bce4155bdcb4294563bd",
+  "first_runs": [
+    39572187767,
+    39572188094
+  ],
+  "ci_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/pr71-ci-fb62e03/"
+}

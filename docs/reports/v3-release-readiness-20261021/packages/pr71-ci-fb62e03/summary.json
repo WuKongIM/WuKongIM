@@ -1,0 +1,231 @@
+{
+  "actual_checkout_confirmed_in_both_job_logs": true,
+  "checkout": "915097dc67fffda99da2fac55f7def27e08e8c29",
+  "head": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "limits": [
+    "Bootstrap packages are unsigned preparation outputs; current preview publication consumers reject their schema.",
+    "Existing TEST ONLY local signing and full trusted-tool repository drill passed but do not sign or publish these bootstrap bytes.",
+    "Stable whole-channel composition/audit, live mirrorlist, CDN A/B/cache and public exact-version APT/RPM acceptance remain incomplete.",
+    "No cloud, production private key or production publication operation was performed."
+  ],
+  "native_receipts": [
+    {
+      "all_cases_passed": true,
+      "cases": 7,
+      "file": "native-source-metadata.json",
+      "sha256": "a4e436933b41d8c6433f13305b9263fd96e50e8f0547152f05b503fbb1080883"
+    },
+    {
+      "all_cases_passed": true,
+      "cases": 10,
+      "file": "native-local-signing.json",
+      "secret_tree_removed_before_verification": true,
+      "sha256": "fcd947ff217cb8902fdebd757a83a7614d4410b2d9b916cc527b007b3890b5cc"
+    },
+    {
+      "all_cases_passed": true,
+      "case_names": [
+        "preview-reproducible-build",
+        "stable-reproducible-build",
+        "apt-preview-then-stable-and-reinstall",
+        "apt-stable-then-preview-and-reinstall",
+        "rpm-preview-then-stable-and-reinstall",
+        "rpm-stable-then-preview-and-reinstall"
+      ],
+      "cases": 6,
+      "file": "native-bootstrap-preparation.json",
+      "native_commands": 30,
+      "scratch_removed": true,
+      "sha256": "b8d75a00db157350706edf4fe8e760c689c5d16231c83016ec4fe66b16265359",
+      "source_sha": "915097dc67fffda99da2fac55f7def27e08e8c29"
+    }
+  ],
+  "pr": 71,
+  "pr_at_final_body_update": {
+    "body_sha256": "2b80cef7cce44d18cc2a26df2c072ba2a9219e708b59090a491eac919605dc91",
+    "draft": false,
+    "head": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+    "merged": false,
+    "state": "open",
+    "updated_at": "2026-10-21T08:58:24Z"
+  },
+  "production_deployment_executed": false,
+  "python_tests": {
+    "contract_tests": 4,
+    "full_suite": 410,
+    "full_suite_seconds": 104.925,
+    "skipped": 0
+  },
+  "runs": [
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "event": "pull_request",
+      "head_sha": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+      "id": 39572187767,
+      "jobs": [
+        {
+          "completed_at": "2026-10-21T08:51:23Z",
+          "conclusion": "success",
+          "id": 119128853002,
+          "name": "Validate complete Pages snapshot",
+          "started_at": "2026-10-21T08:49:33Z",
+          "steps": [
+            [
+              "Set up job",
+              "success"
+            ],
+            [
+              "Check out exact publication control",
+              "success"
+            ],
+            [
+              "Validate repository contracts",
+              "success"
+            ],
+            [
+              "Configure Pages",
+              "skipped"
+            ],
+            [
+              "Upload complete Pages artifact",
+              "skipped"
+            ],
+            [
+              "Post Check out exact publication control",
+              "success"
+            ],
+            [
+              "Complete job",
+              "success"
+            ]
+          ]
+        },
+        {
+          "completed_at": "2026-10-21T08:51:23Z",
+          "conclusion": "skipped",
+          "id": 119129654434,
+          "name": "Deploy complete Pages snapshot",
+          "started_at": "2026-10-21T08:51:24Z",
+          "steps": []
+        }
+      ],
+      "updated_at": "2026-10-21T08:51:24Z",
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39572187767"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "event": "pull_request",
+      "head_sha": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+      "id": 39572188094,
+      "jobs": [
+        {
+          "completed_at": "2026-10-21T08:54:52Z",
+          "conclusion": "success",
+          "id": 119128854431,
+          "name": "TEST ONLY signed APT/RPM repository",
+          "started_at": "2026-10-21T08:49:33Z",
+          "steps": [
+            [
+              "Set up job",
+              "success"
+            ],
+            [
+              "Check out exact package-repository control",
+              "success"
+            ],
+            [
+              "Validate reviewed control",
+              "success"
+            ],
+            [
+              "Check out immutable trusted repository tools",
+              "success"
+            ],
+            [
+              "Verify trusted repository tool bytes",
+              "success"
+            ],
+            [
+              "Check real native source metadata in isolated TEST ONLY fixtures",
+              "success"
+            ],
+            [
+              "Preserve TEST ONLY native metadata evidence",
+              "success"
+            ],
+            [
+              "Sign and independently verify real TEST ONLY local file inputs",
+              "success"
+            ],
+            [
+              "Preserve TEST ONLY native local signing evidence",
+              "success"
+            ],
+            [
+              "Build and coinstall TEST ONLY preview and stable bootstrap preparations",
+              "success"
+            ],
+            [
+              "Preserve TEST ONLY native bootstrap preparation evidence",
+              "success"
+            ],
+            [
+              "Set up fixed GoReleaser toolchain",
+              "success"
+            ],
+            [
+              "Install fixed GoReleaser version",
+              "success"
+            ],
+            [
+              "Restore exact source Go toolchain",
+              "success"
+            ],
+            [
+              "Build unsigned TEST ONLY packages",
+              "success"
+            ],
+            [
+              "Build, sign, verify, and install TEST ONLY repositories",
+              "success"
+            ],
+            [
+              "Reject tracked-tree mutation",
+              "success"
+            ],
+            [
+              "Post Restore exact source Go toolchain",
+              "success"
+            ],
+            [
+              "Post Set up fixed GoReleaser toolchain",
+              "success"
+            ],
+            [
+              "Post Check out immutable trusted repository tools",
+              "success"
+            ],
+            [
+              "Post Check out exact package-repository control",
+              "success"
+            ],
+            [
+              "Complete job",
+              "success"
+            ]
+          ]
+        }
+      ],
+      "updated_at": "2026-10-21T08:54:53Z",
+      "url": "https://github.com/WuKongIM/packages/actions/runs/39572188094"
+    }
+  ],
+  "synthetic_checkout_tree_equals_head": true,
+  "tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+  "unsigned_bootstrap_only": true,
+  "url": "https://github.com/WuKongIM/packages/pull/71",
+  "workflow_cancellations": 0,
+  "workflow_reruns": 0
+}

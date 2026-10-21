@@ -1,0 +1,69 @@
+FFFFFF.
+======================================================================
+FAIL: test_explicit_preview_remains_byte_identical_to_default_and_frozen_deb (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_explicit_preview_remains_byte_identical_to_default_and_frozen_deb)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 116, in test_explicit_preview_remains_byte_identical_to_default_and_frozen_deb
+    self.assertEqual(second.returncode, 0, second.stderr.decode())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: build-repository-bootstrap-packages.py [-h] --manifest MANIFEST
+                                              --apt-public-cert APT_PUBLIC_CERT
+                                              --rpm-public-cert RPM_PUBLIC_CERT
+                                              --output-dir OUTPUT_DIR
+build-repository-bootstrap-packages.py: error: unrecognized arguments: --channel preview
+
+
+======================================================================
+FAIL: test_stable_build_failure_rolls_back_and_existing_output_is_preserved (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_stable_build_failure_rolls_back_and_existing_output_is_preserved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 174, in test_stable_build_failure_rolls_back_and_existing_output_is_preserved
+    self.assertIn(b'output directory must not already exist', result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'output directory must not already exist' not found in b'usage: build-repository-bootstrap-packages.py [-h] --manifest MANIFEST\n                                              --apt-public-cert APT_PUBLIC_CERT\n                                              --rpm-public-cert RPM_PUBLIC_CERT\n                                              --output-dir OUTPUT_DIR\nbuild-repository-bootstrap-packages.py: error: the following arguments are required: --manifest, --apt-public-cert, --rpm-public-cert\n'
+
+======================================================================
+FAIL: test_stable_build_has_distinct_data_only_packages_and_preparation_inventory (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_stable_build_has_distinct_data_only_packages_and_preparation_inventory)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 78, in test_stable_build_has_distinct_data_only_packages_and_preparation_inventory
+    self.assertEqual(result.returncode, 0, result.stderr.decode())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: build-repository-bootstrap-packages.py [-h] --manifest MANIFEST
+                                              --apt-public-cert APT_PUBLIC_CERT
+                                              --rpm-public-cert RPM_PUBLIC_CERT
+                                              --output-dir OUTPUT_DIR
+build-repository-bootstrap-packages.py: error: the following arguments are required: --manifest, --apt-public-cert, --rpm-public-cert
+
+
+======================================================================
+FAIL: test_stable_forbids_unreviewed_manifest_and_certificate_overrides (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_stable_forbids_unreviewed_manifest_and_certificate_overrides) (flag='--manifest')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 136, in test_stable_forbids_unreviewed_manifest_and_certificate_overrides
+    self.assertIn(b'stable derives manifest and certificates from --control-root', result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'stable derives manifest and certificates from --control-root' not found in b'usage: build-repository-bootstrap-packages.py [-h] --manifest MANIFEST\n                                              --apt-public-cert APT_PUBLIC_CERT\n                                              --rpm-public-cert RPM_PUBLIC_CERT\n                                              --output-dir OUTPUT_DIR\nbuild-repository-bootstrap-packages.py: error: the following arguments are required: --apt-public-cert, --rpm-public-cert\n'
+
+======================================================================
+FAIL: test_stable_forbids_unreviewed_manifest_and_certificate_overrides (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_stable_forbids_unreviewed_manifest_and_certificate_overrides) (flag='--apt-public-cert')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 136, in test_stable_forbids_unreviewed_manifest_and_certificate_overrides
+    self.assertIn(b'stable derives manifest and certificates from --control-root', result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'stable derives manifest and certificates from --control-root' not found in b'usage: build-repository-bootstrap-packages.py [-h] --manifest MANIFEST\n                                              --apt-public-cert APT_PUBLIC_CERT\n                                              --rpm-public-cert RPM_PUBLIC_CERT\n                                              --output-dir OUTPUT_DIR\nbuild-repository-bootstrap-packages.py: error: the following arguments are required: --manifest, --rpm-public-cert\n'
+
+======================================================================
+FAIL: test_stable_forbids_unreviewed_manifest_and_certificate_overrides (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_stable_forbids_unreviewed_manifest_and_certificate_overrides) (flag='--rpm-public-cert')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 136, in test_stable_forbids_unreviewed_manifest_and_certificate_overrides
+    self.assertIn(b'stable derives manifest and certificates from --control-root', result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'stable derives manifest and certificates from --control-root' not found in b'usage: build-repository-bootstrap-packages.py [-h] --manifest MANIFEST\n                                              --apt-public-cert APT_PUBLIC_CERT\n                                              --rpm-public-cert RPM_PUBLIC_CERT\n                                              --output-dir OUTPUT_DIR\nbuild-repository-bootstrap-packages.py: error: the following arguments are required: --manifest, --apt-public-cert\n'
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.784s
+
+FAILED (failures=6)

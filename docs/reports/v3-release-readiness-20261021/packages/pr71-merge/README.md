@@ -1,0 +1,11 @@
+# Packages #71 — authorized merge delivery
+
+The user explicitly approved #71, and parent delegated only the exact approved head `fb62e03bb8ceaf300610becdc1f23ff41558c675`. Fresh REST guards confirmed that head, base/main `51bfedbe88c78758fa05bfb87b13541b4bca4796`, ready/open/mergeable/clean state, both first-attempt PR workflows successful, and the expected skipped deployment check. No new commit was accepted.
+
+The normal REST rebase merge (exact `sha` guard, no admin/bypass option) succeeded at **2026-10-21 09:02:19 UTC**, producing main commit `0cd625cbee214927a81b0a1015d825a6f53fbf28`. Independent PR/main/commit reads confirm it. Its parent remains `51bfedbe...`; its tree `8bffb645f4db3a313c2049b022bed90376df4db8` equals the approved head exactly. Scope remains the same nine files; `channels.json` is byte unchanged and stable remains disabled.
+
+[Automatic postmerge Pages run 39573852736](https://github.com/WuKongIM/packages/actions/runs/39573852736) passed on attempt 1. Actual checkout logs confirm `0cd625c...`; the full suite ran **410 tests in 106.521 s, zero skips**, plus **4 workflow contracts**. Validation job completed at 09:04:19 UTC. Configure Pages, Upload Pages artifact and Deploy all skipped. No workflow was rerun or manually dispatched, no production key was used, and no stable publication occurred.
+
+Cleanup was evaluated after fetching `origin/main`: the original worktree is clean and content-equivalent, but `git merge-base --is-ancestor fb62e03... origin/main` returns **1** after rebase. The original task tip is not contained in the target history. Following the explicit ancestry/no-force-delete rule, both `.worktrees/packages-stable-bootstrap-preparation` and local branch `codex/stable-bootstrap-preparation` are retained. No force deletion or reset was performed.
+
+The guard, merge request/response, postmerge reads, exact tree proof, checkout/test log and cleanup decision are preserved here. `allowlist.json` and `archive-sha256.txt` cover the public evidence files. Prior PR acceptance evidence remains separately frozen under `../pr71-ci-fb62e03/`; this merge record does not rewrite it. The unsigned-bootstrap/signing/public-channel limitations from that acceptance still apply.

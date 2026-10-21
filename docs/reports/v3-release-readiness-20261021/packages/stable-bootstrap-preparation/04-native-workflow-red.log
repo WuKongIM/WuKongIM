@@ -1,0 +1,14 @@
+F...
+======================================================================
+FAIL: test_bootstrap_preparation_drill_uses_only_isolated_native_package_databases (test_source_preflight_workflow.SourcePreflightWorkflowTest.test_bootstrap_preparation_drill_uses_only_isolated_native_package_databases)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_source_preflight_workflow.py", line 65, in test_bootstrap_preparation_drill_uses_only_isolated_native_package_databases
+    self.assertTrue(step, "missing real bootstrap preparation drill")
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '' is not true : missing real bootstrap preparation drill
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+FAILED (failures=1)

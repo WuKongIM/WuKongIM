@@ -157,6 +157,23 @@ regression attempts; it is not a published release or a long-run qualification.
 - `local-completion-archive.json`, `signing-and-scripts-archive.json`: bounded
   allowlist copies with original sizes/hashes for this continuation.
 
+- `packages/stable-bootstrap-preparation/`, `packages/stable-bootstrap-preparation-review/`,
+  `packages/pr71-ci-fb62e03/`, `packages/pr71-merge/`: independently reviewed #71,
+  410+4 checks, six native coexistence/reproducibility cases and the existing signed
+  repository drill; authorized merge to `0cd625c`, exact-tree postmerge checks
+  passed and deployment skipped. Preparation packages remain unsigned/unpublished.
+- `ci/scripts-combined-d7affe-final/`: all previous candidate workflows terminal;
+  E2E/SDK/native/chat passed, with the original scripts failure still retained.
+- `ci/scripts-wait255-observed-failure/`: bounded Linux trace proves the current
+  shakeout join succeeded before the fixture's auxiliary signaler wait returned
+  internal -1/external 255. Fixture repair and a new complete gate remain pending.
+  `ci/scripts-wait255-upstream-research/` retains supporting upstream clues, not
+  an independently confirmed identity for the Ubuntu shell bug.
+- `public-release-recheck/`: fresh public release list still headed by beta.24;
+  the GitHub latest endpoint excludes prereleases and is not the v3 version list.
+- `bootstrap-and-wait-diagnosis-archive.json`: bounded copied-file identities for
+  this continuation, preserving original receipts rather than overwriting failures.
+
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.
 `SHA256SUMS` covers every archived file except itself. Paths and times inside the

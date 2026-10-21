@@ -1,6 +1,6 @@
 # Stable 签名密钥准备单
 
-证据截至 **2026-10-21 08:40Z（北京时间16:40）**。**Mac独立stable APT/RPM生产密钥已生成、完成加密备份恢复及签名验证；生产渠道仍未上线。** 本地签名输入和保管约定的PR #69已合并，公开证书登记PR #70经批准已合并，两项PR CI和合并后400+3项检查均已通过，部署步骤跳过。没有向NAS复制备份、没有将stable私钥放入CI，也没有发布正式软件包。
+证据截至 **2026-10-21 09:06Z（北京时间17:06）**。**Mac独立stable APT/RPM生产密钥已生成、完成加密备份恢复及签名验证；生产渠道仍未上线。** 本地签名输入和保管约定的PR #69已合并，公开证书登记PR #70经批准已合并，两项PR CI和合并后400+3项检查均已通过，部署步骤跳过。没有向NAS复制备份、没有将stable私钥放入CI，也没有发布正式软件包。
 
 ## 保管决定和历史材料
 
@@ -41,9 +41,13 @@ head `c21736edcf67bac4b5c1c495d1cd18490b1d154a` 的387项Python测试、3项work
 
 08:28Z的draft及[08:32:32Z复核](v3-release-readiness-20261021/packages/pr70-review-state.json)的ready待批准状态保留为历史。用户随后批准，08:34:33Z观察到合并成功：merge `51bfedbe88c78758fa05bfb87b13541b4bca4796` 的完整tree与评审head一致（`2c4f7d3a9b24a6f67c18b114b8a5c5f1f5f6fa5e`）。[合并后39570313491](https://github.com/WuKongIM/packages/actions/runs/39570313491)于08:36:26Z首次成功，400项Python测试102.131秒及3项workflow检查通过，Pages配置、上传、部署均跳过。[39568724449](https://github.com/WuKongIM/packages/actions/runs/39568724449)首次通过400项Python及3项workflow检查，Pages部署跳过；[39568724312](https://github.com/WuKongIM/packages/actions/runs/39568724312)于08:27:57Z首次通过metadata7/7、本地签名10/10及完整TEST ONLY仓库构建/签验/安装。五条正向路径在测试秘密删除后独立验签。生产私钥没有进入这些CI；这是公开身份登记验收，不是stable生产发布。
 
+## 安装引导准备已合并
+
+[PR #71](https://github.com/WuKongIM/packages/pull/71)于09:02:19Z按用户授权正常rebase合并为 `0cd625cbee214927a81b0a1015d825a6f53fbf28`，与评审head `fb62e03b` 完整tree相同。独立APT/RPM stable准备包采用独立包名和配置路径；6项真实Linux用例验证可复现、与preview双向共存及重复安装。[合并后CI](https://github.com/WuKongIM/packages/actions/runs/39573852736)在精确merge源码上首次通过410+4项检查，部署全部跳过。准备包尚未签发；既有完整TEST ONLY签名演练通过不等于这些准备包已完成生产签发或公网验收。见[交付记录](v3-release-readiness-20261021/packages/pr71-merge/README.md)。
+
 ## 剩余交付
 
-- 继续接入stable来源控制、bootstrap、审计、快照及OSS/CDN发布路径，并验证跨代缓存闭包和失败/回滚行为。现有preview运输计划器只输出plan_only，不能当生产发布器。
+- 继续接入stable来源控制、完整仓库组装、审计、快照及OSS/CDN发布路径，并验证跨代缓存闭包和失败/回滚行为。现有preview运输计划器只输出plan_only，不能当生产发布器。
 - 在产品候选和既定RC验收条件满足、目标版本确定后签发精确正式版本，完成四发行版公网APT/RPM安装及CLI验收；本地密钥恢复和TEST ONLY签包不替代这些条件。
 
 NAS仍可用于后续备份，但此次未访问、未复制；不把NAS离线性或新增硬件当放行条件。stable仍disabled/object_storage_required，当前总发布结论仍为NO-GO。

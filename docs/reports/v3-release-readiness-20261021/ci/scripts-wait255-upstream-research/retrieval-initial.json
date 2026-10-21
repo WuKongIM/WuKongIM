@@ -1,0 +1,20 @@
+[
+  {
+    "url": "https://git.savannah.gnu.org/cgit/bash.git/plain/jobs.c?h=bash-5.3",
+    "file": "bash53-jobs.c",
+    "observed_at": "2026-10-21T08:50:44.800787+00:00",
+    "error": "HTTP Error 502: Bad Gateway"
+  },
+  {
+    "url": "https://git.savannah.gnu.org/cgit/bash.git/plain/builtins/wait.def?h=bash-5.3",
+    "file": "bash53-wait.def",
+    "observed_at": "2026-10-21T08:50:48.158332+00:00",
+    "error": "HTTP Error 502: Bad Gateway"
+  },
+  {
+    "url": "https://lists.gnu.org/archive/html/bug-bash/2025-04/msg00023.html",
+    "file": "bash53rc-announcement.html",
+    "observed_at": "2026-10-21T08:50:50.848608+00:00",
+    "error": "The read operation timed out"
+  }
+]

@@ -1,0 +1,2 @@
+PR GraphQL read after creation returned EOF; normal creation succeeded and REST PR verified it.
+A later read-only jobs GET for 39572187767 returned EOF after its run metadata was saved; no workflow rerun or cancellation was requested.

@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-21T08:48:57.665637+00:00",
+  "head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "tree": "c8106675086e07e076926e58e1f6ca27241a9aba",
+  "parent": "d7affe274935e78a644f901400db15ff1353a2c9",
+  "clean": true,
+  "files": {
+    "scripts/wukongim_single_node_terminal_cut_integration_test.go": "b7c70257b4a6de60b5e8a4786ce13bbd2763587616e65808b8536c2690366178",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "cf811ce7ee8409351959a88a8afc89c5deddbf527c0d353f9c27de592669740b"
+  },
+  "patch_sha256": "d3f6b7a49628cc951cc381e9c2e4875cef8264e58f09305a4be3c8589cc4cda2"
+}

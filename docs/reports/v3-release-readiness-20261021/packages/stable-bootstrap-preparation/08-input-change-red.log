@@ -1,0 +1,14 @@
+....F.
+======================================================================
+FAIL: test_stable_rejects_certificate_changed_after_native_public_validation (test_stable_bootstrap_preparation.StableBootstrapPreparationTests.test_stable_rejects_certificate_changed_after_native_public_validation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_stable_bootstrap_preparation.py", line 186, in test_stable_rejects_certificate_changed_after_native_public_validation
+    self.assertNotEqual(result.returncode, 0, 'changed certificate must never become a bootstrap payload')
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : changed certificate must never become a bootstrap payload
+
+----------------------------------------------------------------------
+Ran 6 tests in 2.513s
+
+FAILED (failures=1)

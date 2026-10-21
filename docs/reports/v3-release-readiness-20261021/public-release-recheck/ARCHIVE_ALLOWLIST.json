@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "path": "read.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "releases.json",
+      "size_bytes": 307369,
+      "sha256": "6585545f965e25cb72ffb1d13dc4bb102836ff306fff967b77f2a2a27c38284d"
+    },
+    {
+      "path": "summary.json",
+      "size_bytes": 3027,
+      "sha256": "7dac5585781b5a71825b2df7a0f3afe2da0e6a1267430da206c5d7473cb4a302"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "artifact": {
+    "id": 12332981809,
+    "node_id": "MDg6QXJ0aWZhY3QxMjMzMjk4MTgwOQ==",
+    "name": "v3-candidate-default-39572139549-1",
+    "size_in_bytes": 8253,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12332981809",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12332981809/zip",
+    "expired": false,
+    "digest": "sha256:eb603b7526164cccdee0fd9c6f9f6a0108e80289ebeb2d440e8d58874057f0c2",
+    "created_at": "2026-10-21T08:56:24Z",
+    "updated_at": "2026-10-21T08:56:24Z",
+    "expires_at": "2026-11-04T08:56:23Z",
+    "workflow_run": {
+      "id": 39572139549,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-shakeout-grant-repair",
+      "head_sha": "76a3ba23303e288345dbd37bc354b41d81b6f070"
+    }
+  },
+  "observed_sha256": "eb603b7526164cccdee0fd9c6f9f6a0108e80289ebeb2d440e8d58874057f0c2",
+  "observed_size": 8253,
+  "zip_crc_pass": true,
+  "downloaded_at": "2026-10-21T08:57:33.432086+00:00",
+  "directory": "/private/tmp/wukongim-v3-readiness-20261021/scripts-wait255-diagnosis/candidate-artifacts/artifact-12332981809"
+}

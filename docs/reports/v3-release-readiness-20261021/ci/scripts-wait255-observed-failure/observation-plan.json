@@ -1,0 +1,49 @@
+{
+  "frozen_at": "2026-10-21T08:45:09.981280+00:00",
+  "source": "d7affe274935e78a644f901400db15ff1353a2c9",
+  "original_failure": {
+    "run": 39569706125,
+    "test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal",
+    "exit": 255,
+    "seconds": 0.41
+  },
+  "hypotheses": [
+    {
+      "id": "H1",
+      "prediction": "join returns successfully, then fixture final wait signaler returns 255"
+    },
+    {
+      "id": "H2",
+      "prediction": "production wait_child or join returns/records nonzero before final signaler wait"
+    },
+    {
+      "id": "H3",
+      "prediction": "target child or signaler has abnormal exit/signal before parent wait anomaly"
+    }
+  ],
+  "failure_inventory": [
+    "diagnostic instrumentation suppresses original nonzero wait",
+    "trap traces source initialization and exposes unrelated environment",
+    "repeat continues after first failure and masks it",
+    "wait status or PID attribution missing",
+    "fixture repeats reuse observer stop file or PID receipt",
+    "diagnostic repetition expands package/workflow timeout",
+    "xtrace changes scheduling, so green cannot prove failure absent"
+  ],
+  "plan": {
+    "files": [
+      "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "scripts/wukongim_single_node_terminal_cut_integration_test.go"
+    ],
+    "production_modified": false,
+    "iterations_per_fixture": 20,
+    "context_seconds_each": 5,
+    "stop_on_first_failure": true,
+    "expected_total_seconds": 16,
+    "theoretical_two_test_context_budget_seconds": 200,
+    "unchanged_global_limits": "Go 9m, runner 600s; no retries/filters added to workflow",
+    "trace": "FD3 points at fresh per-attempt file; Bash4+ BASH_XTRACEFD keeps trace out of stdout and stderr, Bash3 emits explicit phase markers only; failure-only reader caps displayed trace at 64KiB and marks truncation; original stdout assertions are unchanged",
+    "trace_limit": "failure-only file read uses io.LimitReader(65537); display at most65536+truncation marker; source fixture still has5s timeout",
+    "timing_caveat": "xtrace and phase prints perturb scheduling; failure evidence is informative, all-green repeats do not close original root-cause claim"
+  }
+}

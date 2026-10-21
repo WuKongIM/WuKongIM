@@ -1,0 +1,1021 @@
+diff --git a/.github/workflows/native-package-repository-drill.yml b/.github/workflows/native-package-repository-drill.yml
+index 9131bf0..baa3af0 100644
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -125,6 +125,43 @@ jobs:
+           if-no-files-found: warn
+           retention-days: 30
+ 
++      - name: Build and coinstall TEST ONLY preview and stable bootstrap preparations
++        shell: bash
++        run: |
++          set -euo pipefail
++          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
++          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
++          bootstrap_output="$RUNNER_TEMP/bootstrap-preparation-native"
++          mkdir "$bootstrap_output"
++          chmod 0777 "$bootstrap_output"
++          container="wk-bootstrap-preparation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
++          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
++          trap 'exit 130' INT
++          trap 'exit 143' TERM
++          # Root and SYS_CHROOT are limited to scratch native package databases.
++          # This data-only installation drill has no signing input or network.
++          timeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \
++            --platform linux/amd64 --network none --read-only --cap-drop ALL \
++            --cap-add SYS_CHROOT --security-opt no-new-privileges --user 0:0 \
++            --cpus 1 --memory 512m --pids-limit 128 \
++            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
++            --volume "$GITHUB_WORKSPACE:/control:ro" \
++            --volume "$bootstrap_output:/evidence" \
++            --workdir /tmp "$image" \
++            python3 -B /control/tests/native_bootstrap_preparation_drill.py \
++            --output-dir /evidence --source-sha "$GITHUB_SHA"
++          jq -e '.test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 6 and all(.cases[]; .passed == true)' \
++            "$bootstrap_output/native-bootstrap-preparation.json" >/dev/null
++
++      - name: Preserve TEST ONLY native bootstrap preparation evidence
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: native-bootstrap-preparation-test-only
++          path: ${{ runner.temp }}/bootstrap-preparation-native/native-bootstrap-preparation.json
++          if-no-files-found: warn
++          retention-days: 30
++
+       - name: Set up fixed GoReleaser toolchain
+         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+         with:
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index dad6d23..6f6a67d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,11 @@
+ 
+ ## Unreleased
+ 
++- Prepare separate, unsigned stable repository bootstrap packages from reviewed
++  public controls, with independent package/file ownership and native TEST ONLY
++  coinstallation checks. Stable publication and the existing preview installer
++  remain unchanged.
++
+ - Register the independent stable APT/RPM public certificates and reviewed
+   signing roles, while retaining the disabled stable channel and preview
+   publication inputs.
+diff --git a/README.md b/README.md
+index 663411f..c10261a 100644
+--- a/README.md
++++ b/README.md
+@@ -143,3 +143,24 @@ The [offline transport planner](docs/object-storage-planning.md) inventories
+ existing preview audit snapshots and explicitly retained dependency generations
+ without credentials or network access. Its output is a plan only; it does not
+ sign, upload, activate CDN routing or enable the stable channel.
++
++## Unpublished stable bootstrap preparation
++
++The offline builder can prepare separate stable APT/RPM repository-setup
++packages from the reviewed bootstrap version and stable public roles:
++
++```sh
++python3 scripts/build-repository-bootstrap-packages.py \
++  --channel stable --control-root . --output-dir /tmp/wukongim-stable-bootstrap-new \
++  > /tmp/wukongim-stable-bootstrap-preparation.json
++```
++
++The output directory must not exist. The command uses only public inputs and
++builds unsigned packages; it does not sign, upload, install, or enable the
++stable channel. The dedicated package names and owned files can coexist with
++preview. The stable RPM configuration uses the planned mirrorlist endpoint
++without a floating `baseurl` fallback. These are preparation artifacts, not
++publicly installable releases: current preview composition, audit and client
++validation reject their explicit unpublished preparation inventory, and `/repo`
++continues to select preview. See the [bootstrap contract](docs/release-contract.md#unpublished-stable-bootstrap-preparation)
++for the remaining signed-repository and public-client acceptance boundaries.
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index ceb015e..9509482 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -345,6 +345,61 @@ entrypoint twice on one pinned APT client and one pinned EL9 DNF client with a
+ network-disabled, exact-input curl shim. Both executions must be idempotent,
+ must install the bootstrap package, and must leave `wukongim` absent.
+ 
++### Unpublished stable bootstrap preparation
++
++`build-repository-bootstrap-packages.py` defaults to preview. Its original
++manifest/certificate flags, package identities, data bytes and canonical
++`wukongim.native_package_bootstrap_inventory/v1` output remain unchanged.
++Stable preparation instead requires `--channel stable --control-root <checkout>`
++and derives all inputs from that reviewed root: the existing
++`bootstrap-packages.json` version, `stable-public-keys.json` roles, and fixed
++`keys/apt-stable.asc` / `keys/rpm-stable.asc` files. It rejects explicit
++manifest/certificate overrides, missing or partial registration, enabled stable
++control, certificate substitution, and certificate changes during validation.
++The existing public validator enforces topology, lifetime and full/16/8-hex
++identifier uniqueness across the four APT/RPM channel certificates. Executable
++validation code comes from the builder checkout, never the input control root.
++
++The stable packages are `wukongim-archive-keyring-stable` (`all`) and
++`wukongim-release-stable` (`noarch`). They retain the data-only/no-script
++contract and own separate files:
++
++- `/usr/share/keyrings/wukongim-archive-keyring-stable.pgp` and
++  `/etc/apt/sources.list.d/wukongim-stable.sources`, using APT suite `stable`
++  and the dedicated `Signed-By` keyring;
++- `/etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable` and
++  `/etc/yum.repos.d/wukongim-stable.repo`, using only
++  `https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist`, with no
++  floating `baseurl` fallback and all signature/TLS checks enabled.
++
++Their normal source configuration is enabled inside the generated packages;
++this does not activate a server-side channel. Preparation must never be
++advertised as an install command for the public service. Both packages remain
++unsigned build outputs, and the inventory schema is
++`wukongim.stable_bootstrap_preparation/v1` with `channel: stable` and
++`published: false`. Existing preview composer, snapshot/audit validators and
++client gates reject it; the current `/repo` installer is unchanged. The generic
++family signer can operate on explicit repository trees but does not consume
++this preparation inventory or authorize stable publication.
++
++The native TEST ONLY drill builds both channels twice in the existing pinned
++Linux toolchain, compares default/explicit preview and repeated stable bytes,
++then uses real `dpkg` and `rpm` scratch databases to install both orders and
++reinstall each package. It checks retained file bytes/ownership, exact package
++identities, no product installation, and preserves a six-case public JSON result.
++For native `--root` installation only, the network-disabled, read-only container
++runs as root with only `SYS_CHROOT`; production signing remains non-root. No
++package is installed on the host and no signature, dependency, or file-conflict
++check is disabled. Only the JSON receipt leaves temporary scratch.
++
++This proves package construction/coinstallation when the native drill passes.
++It does not prove RPM package signatures, live APT/DNF repository behavior,
++mirrorlist correctness, CDN A/B/cache transitions, or authenticated public
++installation. Those require subsequent complete stable composition, signing,
++immutable audit and public-client work. The separate existing local-signing drill
++provides TEST ONLY signature coverage, not signatures on these preparation bytes.
++The stable channel remains disabled throughout this slice.
++
+ Preview primary-key generation currently uses an explicitly accepted
+ single-operator online-workstation custody model. The named operator is
+ `tangtaoit`. The operator retains one encrypted full-secret backup and its
+diff --git a/scripts/build-repository-bootstrap-packages.py b/scripts/build-repository-bootstrap-packages.py
+index 33198dc..9a8d422 100755
+--- a/scripts/build-repository-bootstrap-packages.py
++++ b/scripts/build-repository-bootstrap-packages.py
+@@ -11,6 +11,7 @@ import errno
+ import gzip
+ import hashlib
+ import io
++import importlib.util
+ import json
+ import os
+ import re
+@@ -21,7 +22,7 @@ import sys
+ import tarfile
+ import tempfile
+ from pathlib import Path
+-from typing import Any
++from typing import Any, NamedTuple
+ 
+ 
+ MANIFEST_SCHEMA = "wukongim.native_package_bootstrap/v1"
+@@ -100,6 +101,43 @@ touch -h -d "@${SOURCE_DATE_EPOCH}" \
+ """
+ 
+ 
++class BootstrapLayout(NamedTuple):
++    """Closed package identities and owned paths for one repository channel."""
++    channel: str
++    apt_name: str
++    rpm_name: str
++    apt_keyring_path: str
++    apt_source_path: str
++    rpm_key_path: str
++    rpm_repo_path: str
++    apt_source: bytes
++    rpm_repository: bytes
++    rpm_spec: str
++
++
++PREVIEW_LAYOUT = BootstrapLayout(
++    "preview", APT_NAME, RPM_NAME, APT_KEYRING_PATH, APT_SOURCE_PATH,
++    RPM_KEY_PATH, RPM_REPO_PATH, APT_SOURCE, RPM_REPOSITORY, RPM_SPEC_TEMPLATE,
++)
++STABLE_LAYOUT = BootstrapLayout(
++    "stable", "wukongim-archive-keyring-stable", "wukongim-release-stable",
++    "usr/share/keyrings/wukongim-archive-keyring-stable.pgp",
++    "etc/apt/sources.list.d/wukongim-stable.sources",
++    "etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable",
++    "etc/yum.repos.d/wukongim-stable.repo",
++    APT_SOURCE.replace(b"preview", b"stable").replace(
++        b"wukongim-archive-keyring.pgp", b"wukongim-archive-keyring-stable.pgp"),
++    RPM_REPOSITORY.replace(b"preview", b"stable").replace(
++        b"baseurl=https://packages.githubim.com/rpm/stable/el/9/x86_64",
++        b"mirrorlist=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist",
++    ).replace(b"includepkgs=wukongim,wukongim-release\n",
++              b"includepkgs=wukongim,wukongim-release-stable\n"),
++    RPM_SPEC_TEMPLATE.replace("preview", "stable").replace(
++        "wukongim-release", "wukongim-release-stable"),
++)
++STABLE_PREPARATION_SCHEMA = "wukongim.stable_bootstrap_preparation/v1"
++
++
+ class BootstrapBuildError(RuntimeError):
+     """A bootstrap build input, tool, or package violated the contract."""
+ 
+@@ -261,9 +299,9 @@ def _ar_member(name: str, data: bytes) -> bytes:
+     return header + data + (b"\n" if len(data) % 2 else b"")
+ 
+ 
+-def _deb_control(version: str, installed_size: int) -> bytes:
++def _deb_control(version: str, installed_size: int, layout: BootstrapLayout = PREVIEW_LAYOUT) -> bytes:
+     return (
+-        "Package: wukongim-archive-keyring\n"
++        f"Package: {layout.apt_name}\n"
+         f"Version: {version}\n"
+         "Section: misc\n"
+         "Priority: optional\n"
+@@ -271,25 +309,25 @@ def _deb_control(version: str, installed_size: int) -> bytes:
+         "Maintainer: WuKongIM Team <support@wukongim.com>\n"
+         f"Installed-Size: {installed_size}\n"
+         "Homepage: https://github.com/WuKongIM/WuKongIM\n"
+-        "Description: WuKongIM preview repository signing keyring\n"
++        f"Description: WuKongIM {layout.channel} repository signing keyring\n"
+         " Installs the dedicated OpenPGP keyring used to authenticate the\n"
+-        " WuKongIM preview APT repository.\n"
++        f" WuKongIM {layout.channel} APT repository.\n"
+     ).encode("utf-8")
+ 
+ 
+-def _deb_installed_size(keyring: bytes) -> int:
++def _deb_installed_size(keyring: bytes, layout: BootstrapLayout = PREVIEW_LAYOUT) -> int:
+     keyring_size = max(1, (len(keyring) + 1023) // 1024)
+-    source_size = max(1, (len(APT_SOURCE) + 1023) // 1024)
++    source_size = max(1, (len(layout.apt_source) + 1023) // 1024)
+     return keyring_size + source_size
+ 
+ 
+-def build_deb(path: Path, version: str, keyring: bytes) -> None:
+-    installed_size = _deb_installed_size(keyring)
+-    control = _deb_control(version, installed_size)
+-    conffiles = f"/{APT_SOURCE_PATH}\n".encode("utf-8")
++def build_deb(path: Path, version: str, keyring: bytes, layout: BootstrapLayout = PREVIEW_LAYOUT) -> None:
++    installed_size = _deb_installed_size(keyring, layout)
++    control = _deb_control(version, installed_size, layout)
++    conffiles = f"/{layout.apt_source_path}\n".encode("utf-8")
+     control_tar = _tar_gzip([("./control", control), ("./conffiles", conffiles)], [])
+     data_tar = _tar_gzip(
+-        [(f"./{APT_SOURCE_PATH}", APT_SOURCE), (f"./{APT_KEYRING_PATH}", keyring)],
++        [(f"./{layout.apt_source_path}", layout.apt_source), (f"./{layout.apt_keyring_path}", keyring)],
+         [
+             "./etc",
+             "./etc/apt",
+@@ -359,7 +397,7 @@ def _inspect_tar_gzip(data: bytes, label: str) -> dict[str, tuple[tarfile.TarInf
+     return result
+ 
+ 
+-def inspect_deb(path: Path, version: str, keyring: bytes) -> None:
++def inspect_deb(path: Path, version: str, keyring: bytes, layout: BootstrapLayout = PREVIEW_LAYOUT) -> None:
+     members = _parse_ar(checked_regular_file(path, "built DEB"))
+     require(list(members) == ["debian-binary", "control.tar.gz", "data.tar.gz"],
+             "DEB member inventory is invalid")
+@@ -367,10 +405,10 @@ def inspect_deb(path: Path, version: str, keyring: bytes) -> None:
+     control_members = _inspect_tar_gzip(members["control.tar.gz"], "DEB control archive")
+     require(set(control_members) == {"./control", "./conffiles"},
+             "DEB control archive contains scripts or unexpected files")
+-    installed_size = _deb_installed_size(keyring)
+-    require(control_members["./control"][1] == _deb_control(version, installed_size),
++    installed_size = _deb_installed_size(keyring, layout)
++    require(control_members["./control"][1] == _deb_control(version, installed_size, layout),
+             "DEB control metadata is invalid")
+-    require(control_members["./conffiles"][1] == f"/{APT_SOURCE_PATH}\n".encode("utf-8"),
++    require(control_members["./conffiles"][1] == f"/{layout.apt_source_path}\n".encode("utf-8"),
+             "DEB conffile inventory is invalid")
+     data_members = _inspect_tar_gzip(members["data.tar.gz"], "DEB data archive")
+     expected = {
+@@ -380,13 +418,13 @@ def inspect_deb(path: Path, version: str, keyring: bytes) -> None:
+         "./etc",
+         "./etc/apt",
+         "./etc/apt/sources.list.d",
+-        f"./{APT_SOURCE_PATH}",
+-        f"./{APT_KEYRING_PATH}",
++        f"./{layout.apt_source_path}",
++        f"./{layout.apt_keyring_path}",
+     }
+     require(set(data_members) == expected, "DEB payload inventory is invalid")
+-    require(data_members[f"./{APT_KEYRING_PATH}"][1] == keyring,
++    require(data_members[f"./{layout.apt_keyring_path}"][1] == keyring,
+             "DEB keyring payload differs from the reviewed certificate")
+-    require(data_members[f"./{APT_SOURCE_PATH}"][1] == APT_SOURCE,
++    require(data_members[f"./{layout.apt_source_path}"][1] == layout.apt_source,
+             "DEB source configuration payload is invalid")
+ 
+ 
+@@ -428,16 +466,17 @@ def _write_build_source(path: Path, data: bytes) -> None:
+     os.utime(path, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
+ 
+ 
+-def build_rpm(path: Path, version: str, certificate: bytes, build_root: Path) -> tuple[str, dict[str, str]]:
++def build_rpm(path: Path, version: str, certificate: bytes, build_root: Path,
++              layout: BootstrapLayout = PREVIEW_LAYOUT) -> tuple[str, dict[str, str]]:
+     top = build_root / "rpm"
+     for directory in (
+         "BUILD", "BUILDROOT", "HOME", "RPMDB", "RPMS", "SOURCES", "SPECS", "SRPMS", "TMP"
+     ):
+         (top / directory).mkdir(parents=True, exist_ok=False)
+-    _write_build_source(top / "SOURCES/RPM-GPG-KEY-wukongim-preview", certificate)
+-    _write_build_source(top / "SOURCES/wukongim-preview.repo", RPM_REPOSITORY)
+-    spec_path = top / "SPECS/wukongim-release.spec"
+-    _write_build_source(spec_path, RPM_SPEC_TEMPLATE.replace("@VERSION@", version).encode("utf-8"))
++    _write_build_source(top / "SOURCES" / Path(layout.rpm_key_path).name, certificate)
++    _write_build_source(top / "SOURCES" / Path(layout.rpm_repo_path).name, layout.rpm_repository)
++    spec_path = top / "SPECS" / f"{layout.rpm_name}.spec"
++    _write_build_source(spec_path, layout.rpm_spec.replace("@VERSION@", version).encode("utf-8"))
+ 
+     rpmbuild = _tool("rpmbuild")
+     rpm = _tool("rpm")
+@@ -470,8 +509,8 @@ def build_rpm(path: Path, version: str, certificate: bytes, build_root: Path) ->
+     path.chmod(0o644)
+     os.utime(path, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
+     expected_digests = {
+-        f"/{RPM_KEY_PATH}": hashlib.sha256(certificate).hexdigest(),
+-        f"/{RPM_REPO_PATH}": hashlib.sha256(RPM_REPOSITORY).hexdigest(),
++        f"/{layout.rpm_key_path}": hashlib.sha256(certificate).hexdigest(),
++        f"/{layout.rpm_repo_path}": hashlib.sha256(layout.rpm_repository).hexdigest(),
+     }
+     return rpm, expected_digests
+ 
+@@ -482,6 +521,7 @@ def inspect_rpm(
+     rpm: str,
+     expected_digests: dict[str, str],
+     state_root: Path,
++    layout: BootstrapLayout = PREVIEW_LAYOUT,
+ ) -> None:
+     environment = _rpm_environment(state_root)
+     rpm_command = [rpm, "--dbpath", str(state_root / "RPMDB")]
+@@ -499,7 +539,7 @@ def inspect_rpm(
+         ).stdout.decode("utf-8", "strict")
+     except UnicodeDecodeError as error:
+         raise BootstrapBuildError("RPM identity is not UTF-8") from error
+-    require(identity == f"{RPM_NAME}\t0\t{version}\t1\tnoarch\n", "RPM identity is invalid")
++    require(identity == f"{layout.rpm_name}\t0\t{version}\t1\tnoarch\n", "RPM identity is invalid")
+     files = _run(
+         [*rpm_command, "-qpl", str(path)],
+         "RPM file-list query",
+@@ -544,7 +584,7 @@ def inspect_rpm(
+     for filename, expected_digest in expected_digests.items():
+         require(filename in parsed, "RPM file metadata omits an expected payload")
+         digest, flags, mode = parsed[filename]
+-        expected_flags = "17" if filename == f"/{RPM_REPO_PATH}" else "0"
++        expected_flags = "17" if filename == f"/{layout.rpm_repo_path}" else "0"
+         require(digest == expected_digest and flags == expected_flags and mode == "-rw-r--r--",
+                 f"RPM file metadata is invalid for {filename}")
+     _run(
+@@ -613,9 +653,50 @@ def rename_directory_exclusive(source: Path, destination: Path) -> None:
+ 
+ 
+ def build(args: argparse.Namespace) -> dict[str, object]:
+-    manifest = load_manifest(args.manifest)
+-    apt_certificate = checked_regular_file(args.apt_public_cert, "APT public certificate")
+-    rpm_certificate = checked_regular_file(args.rpm_public_cert, "RPM public certificate")
++    channel = getattr(args, "channel", "preview")
++    require(channel in {"preview", "stable"}, "unsupported bootstrap channel")
++    if channel == "stable":
++        require(args.manifest is None and args.apt_public_cert is None
++                and args.rpm_public_cert is None,
++                "stable derives manifest and certificates from --control-root")
++        require(args.control_root is not None, "stable preparation requires --control-root")
++        root = args.control_root
++        manifest = load_manifest(root / "manifests/bootstrap-packages.json")
++        # Executable validation always comes from this builder's trusted checkout;
++        # control-root supplies data only, never Python code or private keys.
++        spec = importlib.util.spec_from_file_location(
++            "bootstrap_control_validator", Path(__file__).with_name("validate-control.py"))
++        assert spec is not None and spec.loader is not None
++        control = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(control)
++        try:
++            certificates = control.load_stable_public_certificates(root)
++            require(len(certificates) == 2, "stable preparation requires complete public roles")
++            certificate_paths = {family: path for family, path, _, _ in certificates}
++            reviewed_certificates = {
++                family: checked_regular_file(path, f"stable {family} public certificate")
++                for family, path in certificate_paths.items()
++            }
++            control.validate_channels(root, manifest["enabled"])
++            control.validate_signing(root)
++        except (control.ContractError, OSError) as error:
++            raise BootstrapBuildError(f"stable public control is invalid: {error}") from error
++        apt_path, rpm_path = certificate_paths["apt"], certificate_paths["rpm"]
++        layout = STABLE_LAYOUT
++    else:
++        require(getattr(args, "control_root", None) is None,
++                "preview uses explicit manifest and certificate paths, not --control-root")
++        require(args.manifest is not None and args.apt_public_cert is not None
++                and args.rpm_public_cert is not None,
++                "preview requires --manifest, --apt-public-cert and --rpm-public-cert")
++        manifest = load_manifest(args.manifest)
++        apt_path, rpm_path = args.apt_public_cert, args.rpm_public_cert
++        layout = PREVIEW_LAYOUT
++    apt_certificate = checked_regular_file(apt_path, "APT public certificate")
++    rpm_certificate = checked_regular_file(rpm_path, "RPM public certificate")
++    if channel == "stable":
++        require({"apt": apt_certificate, "rpm": rpm_certificate} == reviewed_certificates,
++                "stable certificate changed during public validation")
+     apt_keyring = dearmor_public_certificate(apt_certificate, "APT public certificate")
+     rpm_keyring = dearmor_public_certificate(rpm_certificate, "RPM public certificate")
+     require(apt_keyring != rpm_keyring,
+@@ -631,18 +712,18 @@ def build(args: argparse.Namespace) -> dict[str, object]:
+     require(stat.S_ISDIR(parent_metadata.st_mode), "output parent must be a real directory")
+ 
+     version = manifest["version"]
+-    apt_filename = f"{APT_NAME}_{version}_all.deb"
+-    rpm_filename = f"{RPM_NAME}-{version}-1.noarch.rpm"
++    apt_filename = f"{layout.apt_name}_{version}_all.deb"
++    rpm_filename = f"{layout.rpm_name}-{version}-1.noarch.rpm"
+     stage = Path(tempfile.mkdtemp(prefix=f".{output.name}.build-", dir=parent))
+     rpm_build_root: Path | None = None
+     try:
+         apt_path = stage / apt_filename
+         rpm_path = stage / rpm_filename
+-        build_deb(apt_path, version, apt_keyring)
+-        inspect_deb(apt_path, version, apt_keyring)
++        build_deb(apt_path, version, apt_keyring, layout)
++        inspect_deb(apt_path, version, apt_keyring, layout)
+         rpm_build_root = Path(tempfile.mkdtemp(prefix=f".{output.name}.rpm-", dir=parent))
+         rpm_tool, expected_rpm_digests = build_rpm(
+-            rpm_path, version, rpm_certificate, rpm_build_root
++            rpm_path, version, rpm_certificate, rpm_build_root, layout
+         )
+         inspect_rpm(
+             rpm_path,
+@@ -650,6 +731,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
+             rpm_tool,
+             expected_rpm_digests,
+             rpm_build_root / "rpm",
++            layout,
+         )
+         shutil.rmtree(rpm_build_root)
+         rpm_build_root = None
+@@ -662,7 +744,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
+             "version": version,
+             "packages": {
+                 "apt": _inventory_entry(
+-                    name=APT_NAME,
++                    name=layout.apt_name,
+                     version=version,
+                     architecture="all",
+                     filename=apt_filename,
+@@ -671,16 +753,18 @@ def build(args: argparse.Namespace) -> dict[str, object]:
+                     size=apt_size,
+                 ),
+                 "rpm": _inventory_entry(
+-                    name=RPM_NAME,
++                    name=layout.rpm_name,
+                     version=version,
+                     architecture="noarch",
+                     filename=rpm_filename,
+-                    repository_path=f"rpm/preview/el/9/x86_64/Packages/{rpm_filename}",
++                    repository_path=f"rpm/{layout.channel}/el/9/x86_64/Packages/{rpm_filename}",
+                     digest=rpm_digest,
+                     size=rpm_size,
+                 ),
+             },
+         }
++        if channel == "stable":
++            inventory.update(schema=STABLE_PREPARATION_SCHEMA, channel="stable", published=False)
+         rename_directory_exclusive(stage, output)
+         return inventory
+     except BaseException:
+@@ -693,9 +777,12 @@ def build(args: argparse.Namespace) -> dict[str, object]:
+ 
+ def build_parser() -> argparse.ArgumentParser:
+     parser = argparse.ArgumentParser(description=__doc__)
+-    parser.add_argument("--manifest", required=True, type=Path)
+-    parser.add_argument("--apt-public-cert", required=True, type=Path)
+-    parser.add_argument("--rpm-public-cert", required=True, type=Path)
++    parser.add_argument("--channel", choices=("preview", "stable"), default="preview")
++    parser.add_argument("--control-root", type=Path,
++                        help="reviewed public control checkout; required only for stable preparation")
++    parser.add_argument("--manifest", type=Path)
++    parser.add_argument("--apt-public-cert", type=Path)
++    parser.add_argument("--rpm-public-cert", type=Path)
+     parser.add_argument("--output-dir", required=True, type=Path)
+     return parser
+ 
+diff --git a/tests/test_source_preflight_workflow.py b/tests/test_source_preflight_workflow.py
+index 52b35e7..875c033 100644
+--- a/tests/test_source_preflight_workflow.py
++++ b/tests/test_source_preflight_workflow.py
+@@ -58,5 +58,25 @@ class SourcePreflightWorkflowTest(unittest.TestCase):
+         self.assertIn("path: ${{ runner.temp }}/local-signing-native/native-local-signing.json", upload)
+ 
+ 
++    def test_bootstrap_preparation_drill_uses_only_isolated_native_package_databases(self) -> None:
++        workflow = (ROOT / ".github/workflows/native-package-repository-drill.yml").read_text()
++        step = next((s for s in workflow.split("      - name:")
++                     if "tests/native_bootstrap_preparation_drill.py" in s), "")
++        self.assertTrue(step, "missing real bootstrap preparation drill")
++        for argument in ("manifests/signing-toolchain.json", "--network none", "--read-only",
++                         "--cap-drop ALL", "--cap-add SYS_CHROOT", "--security-opt no-new-privileges",
++                         "--user 0:0", "--cpus 1", "--memory 512m", "--pids-limit 128",
++                         ":/control:ro", "--output-dir /evidence", "--kill-after=10s 5m",
++                         'docker rm --force "$container"', "trap 'exit 130' INT",
++                         "trap 'exit 143' TERM"):
++            self.assertIn(argument, step)
++        self.assertNotRegex(step, r"secrets\.|GH_TOKEN|GITHUB_TOKEN|environment:|--privileged|--cap-add (?!SYS_CHROOT)")
++        self.assertIn("(.cases | length) == 6", step)
++        upload = next((s for s in workflow.split("      - name:")
++                       if "name: native-bootstrap-preparation-test-only" in s), "")
++        self.assertIn("if: always()", upload)
++        self.assertIn("path: ${{ runner.temp }}/bootstrap-preparation-native/native-bootstrap-preparation.json", upload)
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/native_bootstrap_preparation_drill.py b/tests/native_bootstrap_preparation_drill.py
+new file mode 100644
+index 0000000..f9d4908
+--- /dev/null
++++ b/tests/native_bootstrap_preparation_drill.py
+@@ -0,0 +1,214 @@
++#!/usr/bin/env python3
++"""TEST ONLY native bootstrap preparation and scratch package-database installs.
++
++Run inside the existing pinned, network-disabled toolchain. Only public inputs
++and data-only packages are used. This does not sign packages, validate the live
++mirrorlist, publish a channel or install a product executable.
++"""
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import stat
++import subprocess
++import sys
++import tempfile
++import time
++
++ROOT = Path(__file__).resolve().parents[1]
++BUILDER = ROOT / 'scripts/build-repository-bootstrap-packages.py'
++
++
++def facts(path: Path) -> dict:
++    return {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'size': path.stat().st_size}
++
++
++def run(command: list[str], evidence: dict, environment: dict) -> bytes:
++    result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
++                            env=environment, timeout=90)
++    item = {'command': command, 'exit_code': result.returncode,
++            'stdout_tail': result.stdout[-2048:].decode('utf-8', 'replace'),
++            'stderr_tail': result.stderr[-2048:].decode('utf-8', 'replace')}
++    evidence['commands'].append(item)
++    if len(result.stdout) > 1024 * 1024 or len(result.stderr) > 1024 * 1024:
++        raise RuntimeError(f'native command exceeded output bound: {command[0]}')
++    if result.returncode:
++        raise RuntimeError(f'native command failed: {command[0]}: {item["stderr_tail"]}')
++    return result.stdout
++
++
++def check(condition: bool, message: str) -> None:
++    if not condition:
++        raise RuntimeError(message)
++
++
++def prepare(scratch: Path, evidence: dict, environment: dict) -> dict:
++    """Build both channels twice with actual native tools and compare exact bytes."""
++    builds = {}
++    for channel in ('preview', 'stable'):
++        item = {'case': f'{channel}-reproducible-build', 'passed': False}
++        evidence['cases'].append(item)
++        previous = None
++        for index in (1, 2):
++            output = scratch / f'{channel}-{index}'
++            command = [sys.executable, '-B', str(BUILDER), '--output-dir', str(output)]
++            if channel == 'stable':
++                command += ['--channel', 'stable', '--control-root', str(ROOT)]
++            else:
++                # Default and explicit preview must produce the exact same bytes.
++                if index == 2:
++                    command += ['--channel', 'preview']
++                command += ['--manifest', str(ROOT / 'manifests/bootstrap-packages.json'),
++                            '--apt-public-cert', str(ROOT / 'keys/apt-preview.asc'),
++                            '--rpm-public-cert', str(ROOT / 'keys/rpm-preview.asc')]
++            inventory = json.loads(run(command, evidence, environment))
++            if channel == 'stable':
++                check(inventory['schema'] == 'wukongim.stable_bootstrap_preparation/v1'
++                      and inventory['channel'] == 'stable' and inventory['published'] is False,
++                      'stable output is not an unpublished preparation')
++            else:
++                check(inventory['schema'] == 'wukongim.native_package_bootstrap_inventory/v1'
++                      and set(inventory) == {'schema', 'version', 'packages'},
++                      'preview inventory changed schema')
++            for family in ('apt', 'rpm'):
++                package = inventory['packages'][family]
++                check(facts(output / package['filename']) ==
++                      {'sha256': package['source_sha256'], 'size': package['source_size']},
++                      'native package bytes do not match inventory')
++            if previous is not None:
++                check(inventory == previous, f'{channel} native build is not byte reproducible')
++            previous = inventory
++            builds[channel] = (output, inventory)
++        item.update(passed=True, inventory=previous)
++    return builds
++
++
++def installed_files(root: Path, channel: str, family: str, apt_keyrings: dict) -> dict:
++    suffix = '-stable' if channel == 'stable' else ''
++    if family == 'apt':
++        paths = (f'etc/apt/sources.list.d/wukongim-{channel}.sources',
++                 f'usr/share/keyrings/wukongim-archive-keyring{suffix}.pgp')
++    else:
++        paths = (f'etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-{channel}',
++                 f'etc/yum.repos.d/wukongim-{channel}.repo')
++    result = {}
++    for relative in paths:
++        path = root / relative
++        info = path.lstat()
++        check(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o644,
++              f'installed file type or permissions differ: {relative}')
++        check(info.st_uid == 0 and info.st_gid == 0, f'installed ownership differs: {relative}')
++        result[relative] = facts(path)
++    if family == 'rpm':
++        check((root / paths[0]).read_bytes() == (ROOT / f'keys/rpm-{channel}.asc').read_bytes(),
++              'installed RPM certificate differs from reviewed public bytes')
++        config = (root / paths[1]).read_text()
++        for line in ('enabled=1', 'gpgcheck=1', 'repo_gpgcheck=1', 'sslverify=1', 'skip_if_unavailable=0'):
++            check(line in config.splitlines(), f'RPM policy missing {line}')
++        if channel == 'stable':
++            check('mirrorlist=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist'
++                  in config.splitlines() and 'baseurl=' not in config, 'stable RPM transport changed')
++    else:
++        check((root / paths[1]).read_bytes() == apt_keyrings[channel],
++              'installed APT keyring differs from independently dearmored certificate')
++        config = (root / paths[0]).read_text()
++        check(f'Suites: {channel}' in config.splitlines() and 'Enabled: yes' in config.splitlines(),
++              'installed APT source selects the wrong channel')
++    return result
++
++
++def install_cases(scratch: Path, builds: dict, evidence: dict, environment: dict) -> None:
++    """Use unmodified package metadata in real dpkg/rpm databases, in both orders."""
++    apt_keyrings = {channel: run(['gpg', '--batch', '--no-options', '--no-auto-key-retrieve',
++                                 '--output', '-', '--dearmor', str(ROOT / f'keys/apt-{channel}.asc')],
++                                evidence, environment) for channel in ('preview', 'stable')}
++    for family in ('apt', 'rpm'):
++        for order in (('preview', 'stable'), ('stable', 'preview')):
++            case = f'{family}-{"-then-".join(order)}-and-reinstall'
++            item = {'case': case, 'passed': False}
++            evidence['cases'].append(item)
++            install_root = scratch / case
++            install_root.mkdir()
++            if family == 'rpm':
++                base = ['rpm', '--root', str(install_root), '--dbpath', '/var/lib/rpm']
++                run([*base, '--initdb'], evidence, environment)
++            retained = {}
++            # Reinstall each package after both channels coexist.
++            for index, channel in enumerate((*order, *order)):
++                directory, inventory = builds[channel]
++                package = inventory['packages'][family]
++                filename = directory / package['filename']
++                if family == 'apt':
++                    command = ['dpkg', '--root', str(install_root), '--install', str(filename)]
++                else:
++                    command = [*base, '--reinstall' if index >= 2 else '--install', str(filename)]
++                run(command, evidence, environment)
++                retained.setdefault(channel, installed_files(install_root, channel, family, apt_keyrings))
++                for known, expected in retained.items():
++                    check(installed_files(install_root, known, family, apt_keyrings) == expected,
++                          f'{case} overwrote another channel or changed package data')
++            if family == 'apt':
++                result = run(['dpkg-query', '--admindir', str(install_root / 'var/lib/dpkg'),
++                              '--show', '--showformat=${Package}\t${Version}\t${Status}\n'], evidence, environment)
++                expected = {f'{builds[c][1]["packages"][family]["name"]}\t{builds[c][1]["version"]}\tinstall ok installed'
++                            for c in order}
++                check(set(result.decode().splitlines()) == expected, 'unexpected package or install status in DEB database')
++            else:
++                result = run([*base, '--query', '--all', '--queryformat', '%{NAME}\t%{VERSION}\t%{RELEASE}\n'], evidence, environment)
++                expected = {f'{builds[c][1]["packages"][family]["name"]}\t{builds[c][1]["version"]}\t1' for c in order}
++                check(set(result.decode().splitlines()) == expected, 'unexpected package in RPM database')
++                run([*base, '--verify', '--all'], evidence, environment)
++            check(not (install_root / 'usr/bin/wukongim').exists(), 'bootstrap installed a product executable')
++            item.update(passed=True, installed_files=retained, package_database=result.decode().splitlines())
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output-dir', required=True, type=Path)
++    parser.add_argument('--source-sha', required=True)
++    args = parser.parse_args(argv)
++    if not re.fullmatch('[0-9a-f]{40}', args.source_sha):
++        parser.error('--source-sha must be a full lowercase Git commit')
++    output = args.output_dir / 'native-bootstrap-preparation.json'
++    # Reserve the evidence file before doing work; never replace a first result.
++    with output.open('x') as stream:
++        evidence = {'schema': 'wukongim.native_bootstrap_preparation_drill/v1',
++                    'test_only': True, 'source_sha': args.source_sha,
++                    'passed': False, 'scratch_removed': False, 'cases': [], 'commands': [],
++                    'failure': None, 'started_at_unix': int(time.time())}
++        scratch = None
++        try:
++            with tempfile.TemporaryDirectory(prefix='wukongim-bootstrap-TEST-ONLY-') as tmp:
++                scratch = Path(tmp)
++                check(sys.platform.startswith('linux') and os.geteuid() == 0,
++                      'native scratch installs require the isolated Linux test container')
++                for tool in ('gpg', 'rpmbuild', 'rpm', 'dpkg', 'dpkg-query'):
++                    check(shutil.which(tool) is not None, f'required native tool unavailable: {tool}')
++                home = scratch / 'home'; home.mkdir()
++                environment = {'PATH': os.environ['PATH'], 'HOME': str(home), 'LANG': 'C.UTF-8',
++                               'LC_ALL': 'C.UTF-8', 'TZ': 'UTC'}
++                builds = prepare(scratch, evidence, environment)
++                install_cases(scratch, builds, evidence, environment)
++                check(len(evidence['cases']) == 6 and all(c['passed'] for c in evidence['cases']),
++                      'native case inventory is incomplete')
++                evidence['passed'] = True
++        except Exception as error:
++            evidence['failure'] = str(error)[:4096]
++        finally:
++            evidence['scratch_removed'] = scratch is not None and not scratch.exists()
++            evidence['finished_at_unix'] = int(time.time())
++            evidence['passed'] = evidence['passed'] and evidence['scratch_removed']
++            json.dump(evidence, stream, sort_keys=True, indent=2)
++            stream.write('\n')
++        print(json.dumps({'passed': evidence['passed'], 'cases': len(evidence['cases']),
++                          'failure': evidence['failure'], 'scratch_removed': evidence['scratch_removed']}))
++        return 0 if evidence['passed'] else 1
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+diff --git a/tests/test_native_bootstrap_preparation_drill.py b/tests/test_native_bootstrap_preparation_drill.py
+new file mode 100644
+index 0000000..81c92be
+--- /dev/null
++++ b/tests/test_native_bootstrap_preparation_drill.py
+@@ -0,0 +1,56 @@
++from __future__ import annotations
++
++import importlib.util
++import json
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[1]
++SCRIPT = ROOT / 'tests/native_bootstrap_preparation_drill.py'
++
++
++class NativeBootstrapDrillTests(unittest.TestCase):
++    def load(self):
++        self.assertTrue(SCRIPT.is_file(), 'missing native bootstrap preparation drill')
++        spec = importlib.util.spec_from_file_location('bootstrap_drill_test', SCRIPT)
++        module = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(module)
++        return module
++
++    def test_help_never_runs_build_or_install(self):
++        self.load()
++        result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--help'], capture_output=True, timeout=5)
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        self.assertIn(b'--source-sha', result.stdout)
++        self.assertIn(b'TEST ONLY', result.stdout)
++
++    def test_missing_native_tool_retains_failure_and_cleanup_receipt(self):
++        drill = self.load()
++        with tempfile.TemporaryDirectory() as tmp:
++            output = Path(tmp)
++            with mock.patch.object(drill.shutil, 'which', return_value=None), \
++                 mock.patch.object(drill.os, 'geteuid', return_value=0), \
++                 mock.patch.object(drill.sys, 'platform', 'linux'):
++                code = drill.main(['--output-dir', tmp, '--source-sha', 'a' * 40])
++            self.assertEqual(code, 1)
++            receipt = json.loads((output / 'native-bootstrap-preparation.json').read_bytes())
++            self.assertIs(receipt['test_only'], True)
++            self.assertIs(receipt['passed'], False)
++            self.assertIs(receipt['scratch_removed'], True)
++            self.assertEqual(receipt['source_sha'], 'a' * 40)
++            self.assertEqual(receipt['cases'], [])
++            self.assertIn('required native tool unavailable', receipt['failure'])
++            self.assertEqual(list(output.iterdir()), [output / 'native-bootstrap-preparation.json'])
++
++    def test_existing_receipt_is_not_overwritten(self):
++        drill = self.load()
++        with tempfile.TemporaryDirectory() as tmp:
++            path = Path(tmp) / 'native-bootstrap-preparation.json'
++            path.write_text('first failure preserved\n')
++            with self.assertRaises(FileExistsError):
++                drill.main(['--output-dir', tmp, '--source-sha', 'a' * 40])
++            self.assertEqual(path.read_text(), 'first failure preserved\n')
+diff --git a/tests/test_stable_bootstrap_preparation.py b/tests/test_stable_bootstrap_preparation.py
+new file mode 100644
+index 0000000..d1835ec
+--- /dev/null
++++ b/tests/test_stable_bootstrap_preparation.py
+@@ -0,0 +1,199 @@
++"""CLI contracts for unpublished stable bootstrap preparation, with fake RPM I/O.
++
++Actual native build and package-database installation is a separate TEST ONLY
++CI drill; these tests do not claim native RPM acceptance.
++"""
++from __future__ import annotations
++
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++import unittest
++
++import test_build_repository_bootstrap_packages as preview_tests
++MODULE = preview_tests.MODULE
++
++ROOT = Path(__file__).resolve().parents[1]
++BUILDER = ROOT / 'scripts/build-repository-bootstrap-packages.py'
++
++
++class StableBootstrapPreparationTests(unittest.TestCase):
++    def setUp(self):
++        self.temporary = tempfile.TemporaryDirectory(prefix='stable-bootstrap-TEST-ONLY-')
++        self.addCleanup(self.temporary.cleanup)
++        self.root = Path(self.temporary.name)
++        self.control = self.root / 'control'
++        shutil.copytree(ROOT / 'keys', self.control / 'keys')
++        (self.control / 'manifests').mkdir()
++        for name in ('channels.json', 'bootstrap-packages.json', 'preview-signing.json', 'stable-public-keys.json'):
++            shutil.copyfile(ROOT / 'manifests' / name, self.control / 'manifests' / name)
++
++    def toolchain(self, channel):
++        fixture = preview_tests.BootstrapPackageBuilderTests()
++        fixture.root = self.root
++        fixture.rpm_certificate = self.control / f'keys/rpm-{channel}.asc'
++        binary = fixture.fake_toolchain()
++        if channel == 'stable':
++            # Independent fake native output; actual installation is covered by CI.
++            old_repo_sha = hashlib.sha256(MODULE.RPM_REPOSITORY).hexdigest()
++            stable_repo = (
++                '[wukongim-stable]\nname=WuKongIM stable\n'
++                'mirrorlist=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist\n'
++                'enabled=1\nincludepkgs=wukongim,wukongim-release-stable\n'
++                'gpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable\n'
++                'sslverify=1\nmetadata_expire=0\nskip_if_unavailable=0\n'
++            )
++            for tool in binary.iterdir():
++                text = tool.read_text().replace('wukongim-release', 'wukongim-release-stable').replace('preview', 'stable')
++                text = text.replace('baseurl=https://packages.githubim.com/rpm/stable/el/9/x86_64',
++                                    'mirrorlist=https://packages.githubim.com/rpm/stable/el/9/x86_64/mirrorlist')
++                text = text.replace("('baseurl=',", "('mirrorlist=',")
++                text = text.replace(old_repo_sha, hashlib.sha256(stable_repo.encode()).hexdigest())
++                tool.write_text(text)
++        return binary
++
++    def invoke(self, *, channel='stable', extra=(), tools=False, output='output'):
++        command = [sys.executable, '-B', str(BUILDER), '--output-dir', str(self.root / output)]
++        if channel == 'stable':
++            command += ['--channel', channel, '--control-root', str(self.control)]
++        else:
++            if channel is not None:
++                command += ['--channel', channel]
++            command += ['--manifest', str(self.control / 'manifests/bootstrap-packages.json'),
++                        '--apt-public-cert', str(self.control / 'keys/apt-preview.asc'),
++                        '--rpm-public-cert', str(self.control / 'keys/rpm-preview.asc')]
++        environment = dict(os.environ)
++        if tools:
++            environment['PATH'] = str(self.toolchain(channel or 'preview')) + os.pathsep + environment['PATH']
++        return subprocess.run(command + list(extra), capture_output=True, env=environment, timeout=30)
++
++    def test_stable_build_has_distinct_data_only_packages_and_preparation_inventory(self):
++        result = self.invoke(tools=True)
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        inventory = json.loads(result.stdout)
++        self.assertEqual(inventory['schema'], 'wukongim.stable_bootstrap_preparation/v1')
++        self.assertEqual(inventory['channel'], 'stable')
++        self.assertIs(inventory['published'], False)
++        self.assertEqual(inventory['version'], '1.1.0')
++        apt, rpm = inventory['packages']['apt'], inventory['packages']['rpm']
++        self.assertEqual(apt['name'], 'wukongim-archive-keyring-stable')
++        self.assertEqual(rpm['name'], 'wukongim-release-stable')
++        self.assertEqual(rpm['repository_path'], 'rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.0-1.noarch.rpm')
++        package = self.root / 'output' / apt['filename']
++        members = MODULE._parse_ar(package.read_bytes())
++        control = MODULE._inspect_tar_gzip(members['control.tar.gz'], 'control')
++        self.assertEqual(set(control), {'./control', './conffiles'})
++        self.assertIn(b'Package: wukongim-archive-keyring-stable\n', control['./control'][1])
++        data = MODULE._inspect_tar_gzip(members['data.tar.gz'], 'data')
++        files = {name: content for name, (item, content) in data.items() if item.isfile()}
++        self.assertEqual(set(files), {'./etc/apt/sources.list.d/wukongim-stable.sources',
++                                     './usr/share/keyrings/wukongim-archive-keyring-stable.pgp'})
++        self.assertEqual(files['./etc/apt/sources.list.d/wukongim-stable.sources'],
++                         b'Types: deb\nURIs: https://packages.githubim.com/apt\nSuites: stable\nComponents: main\nArchitectures: amd64\nSigned-By: /usr/share/keyrings/wukongim-archive-keyring-stable.pgp\nEnabled: yes\n')
++        self.assertEqual(files['./usr/share/keyrings/wukongim-archive-keyring-stable.pgp'],
++                         MODULE.dearmor_public_certificate((self.control / 'keys/apt-stable.asc').read_bytes(), 'stable'))
++        composer_spec = importlib.util.spec_from_file_location('stable_test_composer', ROOT / 'scripts/compose-package-site.py')
++        composer = importlib.util.module_from_spec(composer_spec)
++        composer_spec.loader.exec_module(composer)
++        with self.assertRaises(composer.CompositionError):
++            composer.validate_bootstrap_inventory(inventory, prepared=True)
++
++    def test_explicit_preview_remains_byte_identical_to_default_and_frozen_deb(self):
++        first = self.invoke(channel=None, tools=True, output='default')
++        # Reuse the exact fake toolchain for the explicit call.
++        env = dict(os.environ, PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'])
++        command = [sys.executable, '-B', str(BUILDER), '--channel', 'preview', '--manifest', str(self.control / 'manifests/bootstrap-packages.json'),
++                   '--apt-public-cert', str(self.control / 'keys/apt-preview.asc'), '--rpm-public-cert', str(self.control / 'keys/rpm-preview.asc'),
++                   '--output-dir', str(self.root / 'explicit')]
++        second = subprocess.run(command, capture_output=True, env=env, timeout=30)
++        self.assertEqual(first.returncode, 0, first.stderr.decode())
++        self.assertEqual(second.returncode, 0, second.stderr.decode())
++        self.assertEqual(first.stdout, second.stdout)
++        inventory = json.loads(first.stdout)
++        self.assertEqual(inventory['schema'], 'wukongim.native_package_bootstrap_inventory/v1')
++        self.assertEqual(set(inventory), {'schema', 'version', 'packages'})
++        apt = inventory['packages']['apt']['filename']
++        self.assertEqual(hashlib.sha256((self.root / 'default' / apt).read_bytes()).hexdigest(),
++                         '159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622')
++        self.assertEqual(hashlib.sha256(MODULE.RPM_SPEC_TEMPLATE.replace('@VERSION@', '1.1.0').encode()).hexdigest(),
++                         'cb383ce6ba7c3526c61f4f5ed80c1dbd41609de5e286eaa30e8d7b29490456d4')
++        for filename in (inventory['packages'][family]['filename'] for family in ('apt', 'rpm')):
++            self.assertEqual((self.root / 'default' / filename).read_bytes(), (self.root / 'explicit' / filename).read_bytes())
++
++    def test_stable_forbids_unreviewed_manifest_and_certificate_overrides(self):
++        for flag, value in (('--manifest', self.control / 'manifests/bootstrap-packages.json'),
++                            ('--apt-public-cert', self.control / 'keys/apt-stable.asc'),
++                            ('--rpm-public-cert', self.control / 'keys/rpm-stable.asc')):
++            with self.subTest(flag=flag):
++                result = self.invoke(extra=(flag, str(value)))
++                self.assertNotEqual(result.returncode, 0)
++                self.assertIn(b'stable derives manifest and certificates from --control-root', result.stderr)
++                self.assertFalse((self.root / 'output').exists())
++
++    def test_stable_requires_complete_matching_public_roles_and_disabled_channel(self):
++        role_path = self.control / 'manifests/stable-public-keys.json'
++        original = role_path.read_bytes()
++        roles = json.loads(original)
++        scenarios = ['missing', 'partial', 'wrong_fingerprint', 'swapped', 'enabled']
++        for scenario in scenarios:
++            with self.subTest(scenario=scenario):
++                role_path.write_bytes(original)
++                shutil.copyfile(ROOT / 'keys/apt-stable.asc', self.control / 'keys/apt-stable.asc')
++                channels_path = self.control / 'manifests/channels.json'
++                shutil.copyfile(ROOT / 'manifests/channels.json', channels_path)
++                if scenario == 'missing':
++                    role_path.unlink()
++                elif scenario == 'partial':
++                    role_path.write_text(json.dumps({'schema': roles['schema'], 'apt': roles['apt']}))
++                elif scenario == 'wrong_fingerprint':
++                    changed = json.loads(original); changed['apt']['primary_fingerprint'] = 'A' * 40
++                    role_path.write_text(json.dumps(changed))
++                elif scenario == 'swapped':
++                    shutil.copyfile(ROOT / 'keys/rpm-stable.asc', self.control / 'keys/apt-stable.asc')
++                else:
++                    changed = json.loads(channels_path.read_bytes()); changed['channels']['stable']['enabled'] = True
++                    channels_path.write_text(json.dumps(changed))
++                result = self.invoke()
++                self.assertNotEqual(result.returncode, 0)
++                self.assertNotIn(b'unrecognized arguments', result.stderr)
++                self.assertFalse((self.root / 'output').exists())
++
++    def test_stable_rejects_certificate_changed_after_native_public_validation(self):
++        binary = self.toolchain('stable')
++        real_gpg = shutil.which('gpg')
++        self.assertIsNotNone(real_gpg)
++        shim = binary / 'gpg'
++        shim.write_text(f"""#!{sys.executable}
++import pathlib, shutil, subprocess, sys
++result = subprocess.run([{real_gpg!r}, *sys.argv[1:]], capture_output=True)
++if sys.argv[-1] == {str(self.control / 'keys/apt-stable.asc')!r}:
++    shutil.copyfile({str(self.control / 'keys/apt-preview.asc')!r}, sys.argv[-1])
++sys.stdout.buffer.write(result.stdout)
++sys.stderr.buffer.write(result.stderr)
++raise SystemExit(result.returncode)
++""")
++        shim.chmod(0o755)
++        command = [sys.executable, '-B', str(BUILDER), '--channel', 'stable',
++                   '--control-root', str(self.control), '--output-dir', str(self.root / 'output')]
++        result = subprocess.run(command, capture_output=True, timeout=30,
++                                env=dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH']))
++        self.assertNotEqual(result.returncode, 0, 'changed certificate must never become a bootstrap payload')
++        self.assertIn(b'certificate changed during public validation', result.stderr)
++        self.assertFalse((self.root / 'output').exists())
++
++    def test_stable_build_failure_rolls_back_and_existing_output_is_preserved(self):
++        result = self.invoke(extra=('--control-root', str(self.root / 'absent')))
++        self.assertNotEqual(result.returncode, 0)
++        self.assertNotIn(b'unrecognized arguments', result.stderr)
++        output = self.root / 'output'; output.mkdir(); (output / 'sentinel').write_text('keep')
++        result = self.invoke()
++        self.assertNotEqual(result.returncode, 0)
++        self.assertIn(b'output directory must not already exist', result.stderr)
++        self.assertEqual((output / 'sentinel').read_text(), 'keep')
++        self.assertFalse(any(p.name.startswith('.output.') for p in self.root.iterdir()))

@@ -1,0 +1,36 @@
+801: set_signal_handler (sig, handler)
+802:      int sig;
+803:      SigHandler *handler;
+804: {
+805:   struct sigaction act, oact;
+806: 
+807:   act.sa_handler = handler;
+808:   act.sa_flags = 0;
+809: 
+810:   /* XXX - bash-4.2 */
+811:   /* We don't want a child death to interrupt interruptible system calls, even
+812:      if we take the time to reap children */
+813: #if defined (SIGCHLD)
+814:   if (sig == SIGCHLD)
+815:     act.sa_flags |= SA_RESTART;		/* XXX */
+816: #endif
+817:   /* Let's see if we can keep SIGWINCH from interrupting interruptible system
+818:      calls, like open(2)/read(2)/write(2) */
+819: #if defined (SIGWINCH)
+820:   if (sig == SIGWINCH)
+821:     act.sa_flags |= SA_RESTART;		/* XXX */
+822: #endif
+823:   /* If we're installing a SIGTERM handler for interactive shells, we want
+824:      it to be as close to SIG_IGN as possible. */
+825:   if (sig == SIGTERM && handler == sigterm_sighandler)
+826:     act.sa_flags |= SA_RESTART;		/* XXX */
+827: 
+828:   sigemptyset (&act.sa_mask);
+829:   sigemptyset (&oact.sa_mask);
+830:   if (sigaction (sig, &act, &oact) == 0)
+831:     return (oact.sa_handler);
+832:   else
+833:     return (SIG_DFL);
+834: }
+835: #endif /* HAVE_POSIX_SIGNALS */
+

@@ -1,0 +1,160 @@
+{
+  "head": "d7affe274935e78a644f901400db15ff1353a2c9",
+  "tested_source": "61cab03b700ff07439733171cbdcbd9072bfebc5",
+  "tested_tree_equals_head": true,
+  "overall_candidate": "failure (only scripts named check)",
+  "all_four_workflows_terminal": true,
+  "scripts_original_failure_retained_in": "../generation-1",
+  "e2e_declared_binary_sha256": "1301106799f8361f016160c9415a6b11fe55f61f7c8176447a8aa45ae5761c88",
+  "e2e_receipts_verified": [
+    {
+      "scenario": "build",
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2302,
+        "output_bytes": 5051,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2302,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 78.841
+      },
+      "case_verdicts": []
+    },
+    {
+      "scenario": "ordinary_history",
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 7849,
+        "output_bytes": 27560,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 7849,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 100.335
+      },
+      "case_verdicts": [
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology",
+          "verdict": "pass"
+        }
+      ]
+    },
+    {
+      "scenario": "cross_node_delivery",
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 13745,
+        "output_bytes": 8448,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 13745,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 53.686
+      },
+      "case_verdicts": [
+        {
+          "test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "verdict": "skip"
+        }
+      ]
+    },
+    {
+      "scenario": "self_chat",
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 14060,
+        "output_bytes": 3700,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 14060,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 41.83
+      },
+      "case_verdicts": [
+        {
+          "test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+          "verdict": "pass"
+        },
+        {
+          "test": "TestSelfChatPersistsAcrossClusterRestart",
+          "verdict": "pass"
+        }
+      ]
+    }
+  ],
+  "binary_not_in_artifact": "No executable included; byte digest from workflow receipt is corroborated by self-chat report, not independently recomputed here.",
+  "api_vs_deep_validation": "All four workflow/job conclusions retained; default/scripts/E2E artifacts deep-verified. Other workflow artifacts not independently downloaded in this slice."
+}

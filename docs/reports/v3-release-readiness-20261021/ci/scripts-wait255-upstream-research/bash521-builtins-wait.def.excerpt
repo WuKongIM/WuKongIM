@@ -1,0 +1,85 @@
+170:   /* POSIX.2 says:  When the shell is waiting (by means of the wait utility)
+171:      for asynchronous commands to complete, the reception of a signal for
+172:      which a trap has been set shall cause the wait utility to return
+173:      immediately with an exit status greater than 128, after which the trap
+174:      associated with the signal shall be taken.
+175: 
+176:      We handle SIGINT here; it's the only one that needs to be treated
+177:      specially (I think), since it's handled specially in {no,}jobs.c. */
+178:   wait_intr_flag = 1;
+179:   code = setjmp_sigs (wait_intr_buf);
+180: 
+181:   if (code)
+182:     {
+183:       last_command_exit_signal = wait_signal_received;
+184:       status = 128 + wait_signal_received;
+185:       wait_sigint_cleanup ();
+186: #if defined (JOB_CONTROL)
+187:       if (wflags & JWAIT_WAITING)
+188: 	unset_waitlist ();
+189: #endif
+190:       WAIT_RETURN (status);
+191:     }
+192: 
+193:   opt = first_pending_trap ();
+194: #if defined (SIGCHLD)
+195:   /* We special case SIGCHLD when not in posix mode because we don't break
+196:      out of the wait even when the signal is trapped; we run the trap after
+197:      the wait completes. See how it's handled in jobs.c:waitchld(). */
+198:   if (opt == SIGCHLD && posixly_correct == 0)
+199:     opt = next_pending_trap (opt+1);
+200: #endif
+201:   if (opt != -1)
+202:     {
+203:       last_command_exit_signal = wait_signal_received = opt;
+204:       status = opt + 128;
+205:       WAIT_RETURN (status);
+206:     }
+
+246:     }
+247: 
+248:   status = EXECUTION_SUCCESS;
+249:   while (list)
+250:     {
+251:       pid_t pid;
+252:       char *w;
+253:       intmax_t pid_value;
+254: 
+255:       w = list->word->word;
+256:       if (DIGIT (*w))
+257: 	{
+258: 	  if (legal_number (w, &pid_value) && pid_value == (pid_t)pid_value)
+259: 	    {
+260: 	      pid = (pid_t)pid_value;
+261: 	      status = wait_for_single_pid (pid, wflags|JWAIT_PERROR);
+262: 	      /* status > 256 means pid error */
+263: 	      pstat.pid = (status > 256) ? NO_PID : pid;
+264: 	      pstat.status = (status > 256) ? 127 : status;
+265: 	      if (status > 256)
+266: 		status = 127;
+267: 	    }
+268: 	  else
+269: 	    {
+270: 	      sh_badpid (w);
+
+308: 	  status = EXECUTION_FAILURE;
+309: 	}
+310: 
+311:       /* Don't waste time with a longjmp. */
+312:       if (wait_signal_received)
+313: 	{
+314: 	  last_command_exit_signal = wait_signal_received;
+315: 	  status = 128 + wait_signal_received;
+316: 	  wait_sigint_cleanup ();
+317: 	  WAIT_RETURN (status);
+318: 	}
+319: 
+320:       list = list->next;
+321:     }
+322: 
+323:   if (vname && pstat.pid != NO_PID)
+324:     builtin_bind_var_to_int (vname, pstat.pid, bindflags);
+325: 
+326:   WAIT_RETURN (status);
+327: }
+

@@ -1,0 +1,57 @@
+{
+  "observed_at": "2026-10-21T08:52:43.807640+00:00",
+  "product_head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "product_files": {
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "cf811ce7ee8409351959a88a8afc89c5deddbf527c0d353f9c27de592669740b",
+    "scripts/wukongim_single_node_terminal_cut_integration_test.go": "b7c70257b4a6de60b5e8a4786ce13bbd2763587616e65808b8536c2690366178",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+    "scripts/bench-wukongim-single-node-1000ch.sh": "2660f796d3441fe221d12b7bd570259e406595208f77f4cb99527afb845fbae5"
+  },
+  "upstream_tarball_original_receipt": {
+    "url": "https://ftp.gnu.org/gnu/bash/bash-5.2.21.tar.gz",
+    "sha256": "c8e31bdc59b69aaffc5b36509905ba3e5cbb12747091d27b4b977f078560d5b8",
+    "bytes": 10952391,
+    "source_version": "5.2.21",
+    "job_image": "ubuntu-24.04 20261018.339.1",
+    "image_readme": "https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md",
+    "image_declared_bash": "5.2.21(1)-release",
+    "actual_job_bash_version_command_not_recorded": true,
+    "platform": "Darwin arm64; not Linux kernel/distribution reproduction",
+    "started_at": "2026-10-21T08:17:44.757405+00:00",
+    "commands": [
+      {
+        "command": [
+          "/bin/bash",
+          "configure",
+          "--prefix=/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-prefix",
+          "--without-bash-malloc",
+          "--disable-nls"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "make",
+          "-j2"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+    "binary_sha256": "f12fc5f1a3c9a0d1869154024b24a54f9f8297d64724df07a8d410683e0fd821",
+    "finished_at": "2026-10-21T08:18:47.401820+00:00"
+  },
+  "upstream_source_sha256": {
+    "jobs.c": "f54927d7b33520b2ba35d53db9eb6f077b2b4d6210c6995d112a5cfdff989b86",
+    "builtins/wait.def": "0c310ebc604773c0a21a0fa4795c985f78a53aa3b00fe06883dceb9b86d45fd1",
+    "trap.c": "24b032c05e41fbab15217cb29c89edb4f9c002e7599727948823e687c230421a",
+    "sig.c": "c58891b261feb17e0fc8a63a6f3ddcbc4e18f3edb757774decfe89f5d95d0cd1",
+    "shell.c": "69a6622c9460b228632cf4deb57233e59159f2bac8a600baa3c1f72635fbeff0"
+  },
+  "applicable_rules": {
+    "root_AGENTS_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "scripts_subtree_FLOW": "none applicable (only scripts/cloud-deployment/FLOW.md discovered, outside these files)"
+  },
+  "shipping_modified": false,
+  "tests_or_compile_executed": false
+}

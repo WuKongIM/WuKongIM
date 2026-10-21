@@ -1,0 +1,45 @@
+=== RUN   TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03
+    wukongim_three_node_chat_lifecycle_script_integration_test.go:501: signal-safe join failed: exit status 255/<nil>
+        
+        fixture trace:
+        fixture_shell=5.2.21(1)-release parent_pid=99187
+        + fixture pid=99187 line=45: PPROF_PID=99188
+        + fixture pid=99187 line=46: joined_pid=99188
+        + fixture pid=99188 line=44: sleep 0.4
+        + fixture pid=99189 line=47: sleep 0.05
+        + fixture pid=99187 line=48: signaler=99189
+        + fixture pid=99187 line=49: printf 'fixture_children target=%s signaler=%s\n' 99188 99189
+        fixture_children target=99188 signaler=99189
+        + fixture pid=99187 line=50: fixture_phase=join
+        + fixture pid=99187 line=51: join_threshold_pprof_capture
+        + fixture pid=99187 line=21: [[ -n '' ]]
+        + fixture pid=99187 line=26: [[ -n '' ]]
+        + fixture pid=99187 line=29: [[ -n 99188 ]]
+        + fixture pid=99187 line=30: wait_child_uninterrupted 99188
+        + fixture pid=99187 line=9: local pid=99188 status
+        + fixture pid=99187 line=10: WAIT_CHILD_STATUS=0
+        + fixture pid=99187 line=11: true
+        + fixture pid=99187 line=12: status=0
+        + fixture pid=99187 line=13: wait 99188
+        + fixture pid=99189 line=47: kill -TERM 99187
+        ++ fixture pid=99187 line=1: signal_seen=1
+        + fixture pid=99187 line=13: status=143
+        + fixture pid=99187 line=14: kill -0 99188
+        + fixture pid=99187 line=11: true
+        + fixture pid=99187 line=12: status=0
+        + fixture pid=99187 line=13: wait 99188
+        + fixture pid=99187 line=14: kill -0 99188
+        + fixture pid=99187 line=15: WAIT_CHILD_STATUS=0
+        + fixture pid=99187 line=16: return 0
+        + fixture pid=99187 line=31: PPROF_EXIT_STATUS=0
+        + fixture pid=99187 line=32: PPROF_PID=
+        + fixture pid=99187 line=52: join_status=0
+        + fixture pid=99187 line=53: printf 'fixture_join status=%s child_status=%s\n' 0 0
+        fixture_join status=0 child_status=0
+        + fixture pid=99187 line=54: fixture_phase=signaler_wait
+        + fixture pid=99187 line=55: wait 99189
+        + fixture pid=99187 line=1: fixture_status=-1
+        + fixture pid=99187 line=1: printf 'fixture_exit phase=%s status=%s\n' signaler_wait -1
+        fixture_exit phase=signaler_wait status=-1
+        + fixture pid=99187 line=1: exit -1
+--- FAIL: TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03 (0.41s)

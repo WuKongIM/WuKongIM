@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-21T08:53:22.212766+00:00",
+  "status": "unconfirmed_upstream_candidate",
+  "confirmed_this_incident": false,
+  "product_head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "highest_value_next_evidence": "FD3 failure phase and PID: production join versus subsequent bare wait signaler",
+  "upstream_known_symptom_source": "https://lists.gnu.org/archive/html/bug-bash/2025-04/msg00023.html",
+  "upstream_fix_exact_diff_retrieved": false,
+  "ubuntu_package_patchset_verified": false,
+  "ranked_hypotheses": [
+    "ECHILD/internal child status propagated from subsequent specific-PID wait",
+    "genuine child exit255 or another fixture command propagating status",
+    "distribution/configuration/scheduling changes reproduction rate"
+  ],
+  "modifications_or_test_execution": false,
+  "private_material_accessed": false
+}

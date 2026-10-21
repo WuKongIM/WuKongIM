@@ -1,0 +1,15 @@
+{
+  "artifact_id": 12332018311,
+  "name": "native-bootstrap-preparation-test-only",
+  "api_digest": "sha256:37c3f2b6e3aa813f327e08f84f8eecc7067d3939803caad91ee4fcc961d6ee11",
+  "computed_zip_digest": "sha256:37c3f2b6e3aa813f327e08f84f8eecc7067d3939803caad91ee4fcc961d6ee11",
+  "zip_digest_matches": true,
+  "members": [
+    {
+      "name": "native-bootstrap-preparation.json",
+      "size": 44122,
+      "crc32": "4d29440b",
+      "sha256": "b8d75a00db157350706edf4fe8e760c689c5d16231c83016ec4fe66b16265359"
+    }
+  ]
+}

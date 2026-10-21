@@ -1,0 +1,16 @@
+{
+  "checked_at": "2026-10-21T09:03:27.820668+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation",
+  "branch": "codex/stable-bootstrap-preparation",
+  "branch_tip": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "target_ref": "origin/main",
+  "target_tip": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "clean": true,
+  "status_porcelain": "",
+  "ancestor_exit_code": 1,
+  "target_contains_original_tip": false,
+  "same_tree": true,
+  "tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+  "cleanup_performed": false,
+  "decision": "retain clean worktree and original local branch: rebase merge is content-equivalent but original tip is not an ancestor; do not force-delete"
+}

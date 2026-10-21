@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 08:40Z（北京时间16:40）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 09:06Z（北京时间17:06）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016、packages #67/#68/#69/#70 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 经批准已合并，合并后精确源码的400+3项检查通过，未触发部署。完整 Linux scripts 门禁、既定云 RC 计划和 stable 公网签名包交付仍未完成，没有创建正式 tag、采购云资源或启动正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016、packages #67/#68/#69/#70/#71 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 和 stable 安装引导准备 #71 经批准已合并；#71 合并后精确源码的410+4项检查通过，未触发部署。Linux scripts 的唯一255已定位到测试辅助进程wait，最窄修复正在实施，尚未取得修复后的完整门禁。既定云 RC 计划和 stable 公网签名包交付仍未完成，没有创建正式 tag、采购云资源或启动正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -10,7 +10,7 @@
 
 | 身份 / 证据 | 结论 |
 | --- | --- |
-| 当前公开版本 `v3.0.0-beta.24` → `4d44b39dda6fdaa7dafb637ca6cfb718e9530f77` | 截至本次审计仍为最新公开版本 |
+| 当前公开版本 `v3.0.0-beta.24` → `4d44b39dda6fdaa7dafb637ca6cfb718e9530f77` | 09:04Z重新读取公开Release列表仍为最新v3预发布版本；GitHub latest端点排除预发布版，不能据此误报v2 |
 | 初次审计 main `b469c6e5e2b4ff65611a8fe3389fb5034de3f152` | 该历史快照尚不含迁移恢复修复 |
 | 合并后 main `ed705c0fbffdea485bbb65608d6e340bb049d97e` | 包含已验收 head `7e9da7df1`；完整树相同，含迁移、MQTT 及回归修复 |
 | 产品修复 `98c25091bb9587a303af982bb14bf4cedd9aa110` | 已完成修复及相关回归，见下方修复报告 |
@@ -31,8 +31,8 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 原100 SEND/s预检提前失败并保留；500 SEND/s修复后的单次本地helper已完成operator-stop和清理，实际测量1,753.104秒且保留日志警告。新Linux scripts完整门禁已结束但仍有1项信号join失败、继续取证，云阶段未执行，采购前仍需精确候选和累计预算授权。不能将该RC计划描述成RELEASING对所有发行的通用机械门禁 |
-| stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。OSS/CDN发布、引导、审计与精确版本四客户端公网验收未完成 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 原100 SEND/s预检提前失败并保留；500 SEND/s修复后的单次本地helper已完成operator-stop和清理，实际测量1,753.104秒且保留日志警告。新Linux scripts完整门禁已结束但仍有1项255；新增trace确认发生在测试辅助signaler的wait，生产join已成功。测试夹具修复及新完整门禁尚未完成，云阶段未执行，采购前仍需精确候选和累计预算授权。不能将该RC计划描述成RELEASING对所有发行的通用机械门禁 |
+| stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。安装引导准备#71也已合并，通过真实preview/stable共存及重复安装；仍是未签发准备包。完整stable组装/审计、OSS/CDN发布与精确版本四客户端公网验收未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
 初次审计 main 的三节点 nightly 已连续五次首次通过，最近为 [39475335838](https://github.com/WuKongIM/WuKongIM/actions/runs/39475335838)。[SDK 39367425765](https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765) 已于 10 月 20 日验证 Android 1.0.5、iOS 1.1.1、Flutter 1.1.0。它们绑定旧 main，不能直接认证包含恢复修复的候选。本轮新增 CI 已独立核验实际 head/tree 和执行步骤。
@@ -94,7 +94,11 @@ packages PR #67 按线性历史要求正常 rebase 合并为 `782c14602a6b243d89
 
 产品[PR #1017](https://github.com/WuKongIM/WuKongIM/pull/1017)新增JSON观测的[Linux运行39565861218](https://github.com/WuKongIM/WuKongIM/actions/runs/39565861218)绑定head `eda77697db42ba14f14bfad58cdd3557342b9989`，实际checkout `abd628769baf7552a8cf8abb29a7ba63e52c3326`。仍在原600秒超时，日志未截断，已结束的根测试489通过、6跳过、10失败，另15未完成。scripts启动前约120.49秒混合了下载/构建等成本；顶层串行阶段216.34秒，占已观察包时长45.1%，其中真实90秒负载用例总耗时123.64秒。另一VCS夹具的空GOCACHE构建耗时113.94秒。不能只归因cold build，更不能把未完成用例计为通过。
 
-JSON日志另揭示实际Bash5清理缺陷：成功分支的裸return在失败trap中继承状态，跳过Analysis关闭/本地清理，或提前终止子进程join。5处显式return0的窄修已通过Bash5先红后绿、Bash3兼容及9项现有聚焦回归；原退出17/143和关闭失败警告保留。测试夹具两处纯字面断言已由rg改为grep -Fq，消除runner缺少rg的依赖；定向进程测试通过。VCS夹具显式使用 `go version -json=false -m`，避免新增外层-json污染其文本读取，继承编译缓存并校验唯一链接build ID；Mac定向真实构建18.22秒通过，不能作为跨平台提速比例。原Linux observer exit255仍未定位，本地Bash5重复通过不算修复。以上变更均未放宽既有门禁，这些修复已整合推送为 `d7affe274935e78a644f901400db15ff1353a2c9`；新[候选CI 39569706125](https://github.com/WuKongIM/WuKongIM/actions/runs/39569706125)为attempt1，实际测试checkout为 `61cab03b700ff07439733171cbdcbd9072bfebc5`。08:39:12Z脚本门禁完成但失败：命令533.570秒，未触600秒外层超时；顶层600通过、6跳过、1失败、无未完成用例，进程清理完整。唯一失败为 `TestChatLifecycleShakeoutJoinSurvivesFirstSignal`（0.41秒，exit255），正在继续窄范围取证；旧observer用例本轮0.40秒通过，不证明原间歇255已经根治。既有Bash清理/rg/VCS修复对应用例均通过，VCS夹具39.38秒。默认完整go-unit 408.937秒通过，chat及三端SDK已通过；migration E2E与原生包四发行版验收仍在运行，完整Linux门禁仍不通过。
+JSON日志另揭示实际Bash5清理缺陷：成功分支的裸return在失败trap中继承状态，跳过Analysis关闭/本地清理，或提前终止子进程join。5处显式return0的窄修已通过Bash5先红后绿、Bash3兼容及9项现有聚焦回归；原退出17/143和关闭失败警告保留。测试夹具两处纯字面断言已由rg改为grep -Fq，消除runner缺少rg的依赖；定向进程测试通过。VCS夹具显式使用 `go version -json=false -m`，避免新增外层-json污染其文本读取，继承编译缓存并校验唯一链接build ID；Mac定向真实构建18.22秒通过，不能作为跨平台提速比例。原Linux observer exit255仍未定位，本地Bash5重复通过不算修复。以上变更均未放宽既有门禁，这些修复已整合推送为 `d7affe274935e78a644f901400db15ff1353a2c9`；新[候选CI 39569706125](https://github.com/WuKongIM/WuKongIM/actions/runs/39569706125)为attempt1，实际测试checkout为 `61cab03b700ff07439733171cbdcbd9072bfebc5`。08:39:12Z脚本门禁完成但失败：命令533.570秒，未触600秒外层超时；顶层600通过、6跳过、1失败、无未完成用例，进程清理完整。唯一失败为 `TestChatLifecycleShakeoutJoinSurvivesFirstSignal`（0.41秒，exit255），正在继续窄范围取证；旧observer用例本轮0.40秒通过，不证明原间歇255已经根治。既有Bash清理/rg/VCS修复对应用例均通过，VCS夹具39.38秒。默认完整go-unit 408.937秒通过，chat及三端SDK已通过；随后migration E2E与原生包四发行版均成功，见[终态补充](v3-release-readiness-20261021/ci/scripts-combined-d7affe-final/README.md)。这些通过不能替代失败的scripts门禁。
+
+随后仅为两个失败夹具加入有界诊断的head `76a3ba23303e288345dbd37bc354b41d81b6f070`，在[首次Linux运行39572139549](https://github.com/WuKongIM/WuKongIM/actions/runs/39572139549)捕获决定性轨迹。实际checkout `974545635cc9be14a6b5f00413eb4bdb56ae0b7b` 与head完整tree相同；scripts命令545.255秒正常结束，600根测试通过、6跳过、1失败、无未完成项，输出未截断且所属进程清理完整。shakeout第3次重复失败：生产wait先被TERM打断为143，确认目标child仍活后再次wait成功，join返回0、PPROF_EXIT_STATUS=0并清空PID；随后测试自己的 `wait signaler` 得到Bash内部-1，退出为255。见[原始失败与轨迹](v3-release-readiness-20261021/ci/scripts-wait255-observed-failure/README.md)。
+
+这直接支持本次失败在测试辅助进程等待阶段，不支持修改生产join或忽略255。修复方向为Go测试进程在ready握手后向精确shell发TERM，移除额外Bash signaler作业，并保留信号到达、当时child存活、最终回收及原退出状态断言；截至本报告仍在实施。旧observer255没有独立捕获，不能因本轮20次通过就声称同一根因。GNU Bash关于specific-PID wait255的[上游研究](v3-release-readiness-20261021/ci/scripts-wait255-upstream-research/research.md)只是相符线索，不证明实际Ubuntu包对应某个已确认上游缺陷。
 
 凭证无关的[离线部署包准备](v3-release-readiness-20261021/cloud/bundle-ed705/README.md)已首次通过 [39555917411](https://github.com/WuKongIM/WuKongIM/actions/runs/39555917411)，source/control 均为 ed705。完整 ZIP/tar、110 个文件、manifest、9 个 ELF 与完整 DefaultIntent 已核验；bundle digest 为 `sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a`。此项仅完成离线 payload 准备，不替代本地/云验收；artifact 有限期保留，未宣称人工构建可直接接入顶层付费编排。
 
@@ -113,6 +117,10 @@ preview 的 beta.21–24 四个 active 版本已达数量上限 4；若先发 RC
 Mac生产密钥于08:09:17Z完成：APT主钥 `F68735072235EDC3BEBA83A55F19C486C2108B64`，RPM主钥 `4C76B7B37EBDAF05EB44976F96EC1B2D5976F45D`，两家族独立RSA3072 primary/current/next，有效期365/90/180天。加密完整备份恢复后，current/next各验证错误口令拒绝和正确签名的独立公钥验签，primary在恢复scratch完成认证证明，保留证书未改写；current-only validator通过。两项Mac Keychain口令记录已创建并核对。只归档公钥和公开收据，未访问或复制到NAS、未托管CI私钥、未签发正式版本包；见[生产准备收据](v3-release-readiness-20261021/packages/mac-key-preparation/README.md)和[密钥准备单](2026-10-21-v3-stable-key-preparation.md)。
 
 public-only登记[PR #70](https://github.com/WuKongIM/packages/pull/70)的head `0c26496b624058db813aa1206a7910f0abae6b13` 在08:28Z仍为draft，[08:32:32Z复核](v3-release-readiness-20261021/packages/pr70-review-state.json)为ready待批准；这些是保留的历史状态。用户随后批准，08:34:33Z观察到合并成功，merge为 `51bfedbe88c78758fa05bfb87b13541b4bca4796`。精确Git对象证明其完整tree与评审head相同（`2c4f7d3a9b24a6f67c18b114b8a5c5f1f5f6fa5e`）。[合并后检查39570313491](https://github.com/WuKongIM/packages/actions/runs/39570313491)于08:36:26Z首次成功，400项Python测试102.131秒及3项workflow检查通过，Pages配置、上传、部署均跳过。rebase后的merge不包含原branch tip的祖先关系，因此保留原干净worktree/branch，未强删。其[400+3检查](https://github.com/WuKongIM/packages/actions/runs/39568724449)及[真实原生演练](https://github.com/WuKongIM/packages/actions/runs/39568724312)均attempt1成功，metadata7/7、本地签名10/10及完整TEST ONLY仓库签验安装通过；验证前删除测试秘密后独立验签，生产私钥没有进入CI。它登记公开身份并校验跨家族/preview的完整、16位和8位指纹唯一性，不开启stable、不改变preview控制或发布生产包。stable公网交付仍未就绪。
+
+stable安装引导准备[PR #71](https://github.com/WuKongIM/packages/pull/71)经用户批准，于09:02:19Z正常rebase合并为 `0cd625cbee214927a81b0a1015d825a6f53fbf28`；与已验收head `fb62e03bb8ceaf300610becdc1f23ff41558c675` 的完整tree `8bffb645f4db3a313c2049b022bed90376df4db8` 相同。[PR验收](v3-release-readiness-20261021/packages/pr71-ci-fb62e03/README.md)包含410项测试、4项合同检查、6项真实Linux准备包可复现/双向共存/重复安装用例，以及既有metadata7项、本地签名10项与完整TEST ONLY签名仓库演练。新准备包自身尚未签发，这些证据不等于stable公网安装验收。
+
+[合并后39573852736](https://github.com/WuKongIM/packages/actions/runs/39573852736)在精确 `0cd625c` 上首次通过410项测试（106.521秒、零跳过）和4项合同检查，09:04:19Z完成；Pages配置、上传和部署均跳过。原任务分支在rebase后非main祖先，保留干净worktree/branch、不强删，见[合并交付](v3-release-readiness-20261021/packages/pr71-merge/README.md)。stable仍disabled/object_storage_required；独立包名和配置路径已准备，但完整离线stable组装/审计及OSS/CDN切换、公网客户端仍需完成。
 
 [渠道实施计划](2026-10-20-v3-stable-channel-plan.md)保留 preview 兼容及独立签名边界；PR #67（head `0ce7184bbf69472f607159f74a096e9160852843`）的两个新版 PR CI 均首次通过，且现已合并，见[证据](v3-release-readiness-20261021/packages/preflight-ci/README.md)；Pages配置、上传和部署均skipped。七个真实原生元数据场景及既有完整TEST ONLY演练不代表stable生产签名或公网发布。
 

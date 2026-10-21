@@ -1,0 +1,98 @@
+[
+  {
+    "path": "manifests/channels.json",
+    "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "base_sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "unchanged": true
+  },
+  {
+    "path": "manifests/preview-signing.json",
+    "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+    "base_sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+    "unchanged": true
+  },
+  {
+    "path": "manifests/bootstrap-packages.json",
+    "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+    "base_sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+    "unchanged": true
+  },
+  {
+    "path": "manifests/stable-public-keys.json",
+    "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+    "base_sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+    "unchanged": true
+  },
+  {
+    "path": "manifests/signing-toolchain.json",
+    "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+    "base_sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+    "unchanged": true
+  },
+  {
+    "path": "manifests/trusted-toolchain.json",
+    "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+    "base_sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/compose-package-site.py",
+    "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+    "base_sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/verify-production-package-site.py",
+    "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+    "base_sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/plan-package-publication.py",
+    "sha256": "9fb416a831c24ad0d67bb3807b7c32c38c41135b306661fc528e42e5f2575245",
+    "base_sha256": "9fb416a831c24ad0d67bb3807b7c32c38c41135b306661fc528e42e5f2575245",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/validate-production-package-clients.py",
+    "sha256": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a",
+    "base_sha256": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/sign-package-family.py",
+    "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+    "base_sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/validate-signing-material.py",
+    "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+    "base_sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/package-audit-receipt.py",
+    "sha256": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+    "base_sha256": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+    "unchanged": true
+  },
+  {
+    "path": "scripts/archive-package-snapshot.py",
+    "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+    "base_sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+    "unchanged": true
+  },
+  {
+    "path": ".github/workflows/native-package-publish.yml",
+    "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+    "base_sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+    "unchanged": true
+  },
+  {
+    "path": ".github/workflows/pages.yml",
+    "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+    "base_sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+    "unchanged": true
+  }
+]

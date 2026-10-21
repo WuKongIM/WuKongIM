@@ -1,0 +1,17 @@
+1040: /* A wrapper for exit that (optionally) can do other things, like malloc
+1041:    statistics tracing. */
+1042: void
+1043: sh_exit (s)
+1044:      int s;
+1045: {
+1046: #if defined (MALLOC_DEBUG) && defined (USING_BASH_MALLOC)
+1047:   if (malloc_trace_at_exit && (subshell_environment & (SUBSHELL_COMSUB|SUBSHELL_PROCSUB)) == 0)
+1048:     trace_malloc_stats (get_name_for_error (), (char *)NULL);
+1049:   /* mlocation_write_table (); */
+1050: #endif
+1051: 
+1052:   exit (s);
+1053: }
+1054: 
+1055: /* Exit a subshell, which includes calling the exit trap.  We don't want to
+

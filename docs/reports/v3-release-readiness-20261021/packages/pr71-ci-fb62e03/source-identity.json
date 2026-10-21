@@ -1,0 +1,18 @@
+{
+  "head": {
+    "sha": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+    "tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+    "parents": [
+      "51bfedbe88c78758fa05bfb87b13541b4bca4796"
+    ]
+  },
+  "checkout": {
+    "sha": "915097dc67fffda99da2fac55f7def27e08e8c29",
+    "tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+    "parents": [
+      "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+      "fb62e03bb8ceaf300610becdc1f23ff41558c675"
+    ]
+  },
+  "trees_equal": true
+}

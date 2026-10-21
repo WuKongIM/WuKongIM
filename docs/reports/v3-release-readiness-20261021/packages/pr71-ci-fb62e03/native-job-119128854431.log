@@ -1,0 +1,2020 @@
+﻿2026-10-21T08:49:33.8233801Z Current runner version: '2.338.0'
+2026-10-21T08:49:33.8250868Z ##[group]Runner Image Provisioner
+2026-10-21T08:49:33.8251395Z Hosted Compute Agent
+2026-10-21T08:49:33.8251883Z Version: 20261012.601
+2026-10-21T08:49:33.8252247Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-21T08:49:33.8252690Z Build Date: 2026-10-12T17:48:21Z
+2026-10-21T08:49:33.8253089Z Worker ID: {a9353322-31da-4ab1-9bf5-250114f45ecd}
+2026-10-21T08:49:33.8253485Z Region: centralus
+2026-10-21T08:49:33.8253873Z Cloud: Azure
+2026-10-21T08:49:33.8254188Z ##[endgroup]
+2026-10-21T08:49:33.8255143Z ##[group]Operating System
+2026-10-21T08:49:33.8255548Z Ubuntu
+2026-10-21T08:49:33.8255856Z 24.04.5
+2026-10-21T08:49:33.8256247Z LTS
+2026-10-21T08:49:33.8256545Z ##[endgroup]
+2026-10-21T08:49:33.8256851Z ##[group]Runner Image
+2026-10-21T08:49:33.8257247Z Image: ubuntu-24.04
+2026-10-21T08:49:33.8257576Z Version: 20261012.334.1
+2026-10-21T08:49:33.8258365Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T08:49:33.8259657Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-21T08:49:33.8260242Z ##[endgroup]
+2026-10-21T08:49:33.8260920Z ##[group]GITHUB_TOKEN Permissions
+2026-10-21T08:49:33.8262144Z Contents: read
+2026-10-21T08:49:33.8262474Z Metadata: read
+2026-10-21T08:49:33.8262834Z ##[endgroup]
+2026-10-21T08:49:33.8264095Z Secret source: Actions
+2026-10-21T08:49:33.8264699Z Cache mode: write
+2026-10-21T08:49:33.8265106Z Prepare workflow directory
+2026-10-21T08:49:33.8538272Z Prepare all required actions
+2026-10-21T08:49:33.8568195Z Getting action download info
+2026-10-21T08:49:34.0697115Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-21T08:49:34.3715372Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-10-21T08:49:34.8022768Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-21T08:49:35.5236649Z Complete job name: TEST ONLY signed APT/RPM repository
+2026-10-21T08:49:35.5757108Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-21T08:49:35.5757477Z with:
+2026-10-21T08:49:35.5757629Z   persist-credentials: false
+2026-10-21T08:49:35.5757816Z   repository: WuKongIM/packages
+2026-10-21T08:49:35.5759397Z   token: ***
+2026-10-21T08:49:35.5759810Z   ssh-strict: true
+2026-10-21T08:49:35.5759952Z   ssh-user: git
+2026-10-21T08:49:35.5760094Z   clean: true
+2026-10-21T08:49:35.5760250Z   sparse-checkout-cone-mode: true
+2026-10-21T08:49:35.5760423Z   fetch-depth: 1
+2026-10-21T08:49:35.5760561Z   fetch-tags: false
+2026-10-21T08:49:35.5760705Z   show-progress: true
+2026-10-21T08:49:35.5760859Z   lfs: false
+2026-10-21T08:49:35.5761005Z   submodules: false
+2026-10-21T08:49:35.5761152Z   set-safe-directory: true
+2026-10-21T08:49:35.5761332Z   allow-unsafe-pr-checkout: false
+2026-10-21T08:49:35.5761597Z ##[endgroup]
+2026-10-21T08:49:35.6408058Z Syncing repository: WuKongIM/packages
+2026-10-21T08:49:35.6409270Z ##[group]Getting Git version info
+2026-10-21T08:49:35.6409900Z Working directory is '/home/runner/work/packages/packages'
+2026-10-21T08:49:35.6410543Z [command]/usr/bin/git version
+2026-10-21T08:49:35.6465456Z git version 2.55.0
+2026-10-21T08:49:35.6500475Z ##[endgroup]
+2026-10-21T08:49:35.6507496Z Temporarily overriding HOME='/home/runner/work/_temp/257c5e54-54ce-4706-a2c8-9f7ce7bdeef6' before making global git config changes
+2026-10-21T08:49:35.6511760Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T08:49:35.6512317Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-21T08:49:35.6534268Z Deleting the contents of '/home/runner/work/packages/packages'
+2026-10-21T08:49:35.6536471Z ##[group]Determining repository object format
+2026-10-21T08:49:35.6537645Z ##[endgroup]
+2026-10-21T08:49:35.6538043Z ##[group]Initializing the repository
+2026-10-21T08:49:35.6540665Z [command]/usr/bin/git init /home/runner/work/packages/packages
+2026-10-21T08:49:35.6659030Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T08:49:35.6659810Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T08:49:35.6660913Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T08:49:35.6661286Z hint: call:
+2026-10-21T08:49:35.6661557Z hint:
+2026-10-21T08:49:35.6661937Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T08:49:35.6662332Z hint:
+2026-10-21T08:49:35.6662808Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T08:49:35.6663425Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T08:49:35.6663961Z hint:
+2026-10-21T08:49:35.6664332Z hint: 	git branch -m <name>
+2026-10-21T08:49:35.6664747Z hint:
+2026-10-21T08:49:35.6665231Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T08:49:35.6666072Z Initialized empty Git repository in /home/runner/work/packages/packages/.git/
+2026-10-21T08:49:35.6671737Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/packages
+2026-10-21T08:49:35.6717581Z ##[endgroup]
+2026-10-21T08:49:35.6718024Z ##[group]Disabling automatic garbage collection
+2026-10-21T08:49:35.6720807Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T08:49:35.6754564Z ##[endgroup]
+2026-10-21T08:49:35.6754848Z ##[group]Setting up auth
+2026-10-21T08:49:35.6755054Z Removing SSH command configuration
+2026-10-21T08:49:35.6770207Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T08:49:35.6791497Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T08:49:35.7078291Z Removing HTTP extra header
+2026-10-21T08:49:35.7082786Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T08:49:35.7112924Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T08:49:35.7279191Z Removing includeIf entries pointing to credentials config files
+2026-10-21T08:49:35.7283245Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T08:49:35.7310397Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T08:49:35.7482294Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T08:49:35.7514091Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git.path /home/runner/work/_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:35.7542705Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:35.7573588Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:35.7601559Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:35.7629349Z ##[endgroup]
+2026-10-21T08:49:35.7629809Z ##[group]Fetching the repository
+2026-10-21T08:49:35.7634044Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +915097dc67fffda99da2fac55f7def27e08e8c29:refs/remotes/pull/71/merge
+2026-10-21T08:49:36.2634376Z From https://github.com/WuKongIM/packages
+2026-10-21T08:49:36.2634887Z  * [new ref]         915097dc67fffda99da2fac55f7def27e08e8c29 -> pull/71/merge
+2026-10-21T08:49:36.2638585Z ##[endgroup]
+2026-10-21T08:49:36.2638866Z ##[group]Determining the checkout info
+2026-10-21T08:49:36.2639875Z ##[endgroup]
+2026-10-21T08:49:36.2643807Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T08:49:36.2689830Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T08:49:36.2717267Z ##[group]Checking out the ref
+2026-10-21T08:49:36.2720202Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/71/merge
+2026-10-21T08:49:36.2830314Z Note: switching to 'refs/remotes/pull/71/merge'.
+2026-10-21T08:49:36.2830503Z 
+2026-10-21T08:49:36.2830640Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T08:49:36.2830942Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T08:49:36.2831341Z state without impacting any branches by switching back to a branch.
+2026-10-21T08:49:36.2831506Z 
+2026-10-21T08:49:36.2831637Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T08:49:36.2831914Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T08:49:36.2832071Z 
+2026-10-21T08:49:36.2832151Z   git switch -c <new-branch-name>
+2026-10-21T08:49:36.2832266Z 
+2026-10-21T08:49:36.2832340Z Or undo this operation with:
+2026-10-21T08:49:36.2832447Z 
+2026-10-21T08:49:36.2832511Z   git switch -
+2026-10-21T08:49:36.2832612Z 
+2026-10-21T08:49:36.2832747Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T08:49:36.2832929Z 
+2026-10-21T08:49:36.2833160Z HEAD is now at 915097d Merge fb62e03bb8ceaf300610becdc1f23ff41558c675 into 51bfedbe88c78758fa05bfb87b13541b4bca4796
+2026-10-21T08:49:36.2838919Z ##[endgroup]
+2026-10-21T08:49:36.2877570Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T08:49:36.2901379Z 915097dc67fffda99da2fac55f7def27e08e8c29
+2026-10-21T08:49:36.2908329Z ##[group]Removing auth
+2026-10-21T08:49:36.2909069Z Removing SSH command configuration
+2026-10-21T08:49:36.2911211Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T08:49:36.2939059Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T08:49:36.3114770Z Removing HTTP extra header
+2026-10-21T08:49:36.3118217Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T08:49:36.3146610Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T08:49:36.3321333Z Removing includeIf entries pointing to credentials config files
+2026-10-21T08:49:36.3323304Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T08:49:36.3350512Z includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-21T08:49:36.3351074Z includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-21T08:49:36.3351502Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T08:49:36.3351873Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T08:49:36.3360266Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-21T08:49:36.3380470Z /home/runner/work/_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:36.3388954Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-faff3491\-7bf0\-4352\-ac58\-64d07828462d\.config
+2026-10-21T08:49:36.3422118Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-21T08:49:36.3472349Z /home/runner/work/_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:36.3477371Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-faff3491\-7bf0\-4352\-ac58\-64d07828462d\.config
+2026-10-21T08:49:36.3508132Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T08:49:36.3529689Z /github/runner_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:36.3535332Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-faff3491\-7bf0\-4352\-ac58\-64d07828462d\.config
+2026-10-21T08:49:36.3567634Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T08:49:36.3590159Z /github/runner_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config
+2026-10-21T08:49:36.3595376Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-faff3491\-7bf0\-4352\-ac58\-64d07828462d\.config
+2026-10-21T08:49:36.3626469Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T08:49:36.3802941Z Removing credentials config '/home/runner/work/_temp/git-credentials-faff3491-7bf0-4352-ac58-64d07828462d.config'
+2026-10-21T08:49:36.3812406Z ##[endgroup]
+2026-10-21T08:49:36.3965341Z ##[group]Run set -euo pipefail
+2026-10-21T08:49:36.3965626Z [36;1mset -euo pipefail[0m
+2026-10-21T08:49:36.3965802Z [36;1m./tests/contract.sh[0m
+2026-10-21T08:49:36.3966035Z [36;1mcommit="$(jq -r '.commit' manifests/trusted-toolchain.json)"[0m
+2026-10-21T08:49:36.3966294Z [36;1m[[ "$commit" =~ ^[0-9a-f]{40}$ ]][0m
+2026-10-21T08:49:36.3966496Z [36;1mecho "commit=$commit" >> "$GITHUB_OUTPUT"[0m
+2026-10-21T08:49:36.4180773Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:49:36.4181023Z ##[endgroup]
+2026-10-21T08:49:36.5625735Z publication control validation passed
+2026-10-21T08:49:36.6787432Z ....
+2026-10-21T08:49:36.6787825Z ----------------------------------------------------------------------
+2026-10-21T08:49:36.6788225Z Ran 4 tests in 0.001s
+2026-10-21T08:49:37.0748444Z 
+2026-10-21T08:49:37.0748906Z OK
+2026-10-21T08:49:37.0749144Z package repository contracts passed
+2026-10-21T08:49:37.0865841Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-21T08:49:37.0866074Z with:
+2026-10-21T08:49:37.0866198Z   repository: WuKongIM/WuKongIM
+2026-10-21T08:49:37.0866360Z   ref: ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T08:49:37.0866530Z   path: .trusted/wukongim
+2026-10-21T08:49:37.0866671Z   persist-credentials: false
+2026-10-21T08:49:37.0868162Z   token: ***
+2026-10-21T08:49:37.0868276Z   ssh-strict: true
+2026-10-21T08:49:37.0868393Z   ssh-user: git
+2026-10-21T08:49:37.0868512Z   clean: true
+2026-10-21T08:49:37.0868637Z   sparse-checkout-cone-mode: true
+2026-10-21T08:49:37.0868797Z   fetch-depth: 1
+2026-10-21T08:49:37.0868936Z   fetch-tags: false
+2026-10-21T08:49:37.0869054Z   show-progress: true
+2026-10-21T08:49:37.0869172Z   lfs: false
+2026-10-21T08:49:37.0869279Z   submodules: false
+2026-10-21T08:49:37.0869512Z   set-safe-directory: true
+2026-10-21T08:49:37.0869656Z   allow-unsafe-pr-checkout: false
+2026-10-21T08:49:37.0869831Z ##[endgroup]
+2026-10-21T08:49:37.1428059Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T08:49:37.1444024Z ##[group]Getting Git version info
+2026-10-21T08:49:37.1444496Z Working directory is '/home/runner/work/packages/packages/.trusted/wukongim'
+2026-10-21T08:49:37.1463903Z [command]/usr/bin/git version
+2026-10-21T08:49:37.1496861Z git version 2.55.0
+2026-10-21T08:49:37.1509786Z ##[endgroup]
+2026-10-21T08:49:37.1517732Z Temporarily overriding HOME='/home/runner/work/_temp/f6ce7f1d-2769-4906-8231-58934be1414e' before making global git config changes
+2026-10-21T08:49:37.1518593Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T08:49:37.1521813Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-21T08:49:37.1553198Z ##[group]Determining repository object format
+2026-10-21T08:49:37.1554852Z ##[endgroup]
+2026-10-21T08:49:37.1555187Z ##[group]Initializing the repository
+2026-10-21T08:49:37.1558500Z [command]/usr/bin/git init /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-21T08:49:37.1597171Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T08:49:37.1597845Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T08:49:37.1598575Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T08:49:37.1599139Z hint: call:
+2026-10-21T08:49:37.1599586Z hint:
+2026-10-21T08:49:37.1599978Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T08:49:37.1600403Z hint:
+2026-10-21T08:49:37.1600820Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T08:49:37.1601428Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T08:49:37.1601935Z hint:
+2026-10-21T08:49:37.1602262Z hint: 	git branch -m <name>
+2026-10-21T08:49:37.1602614Z hint:
+2026-10-21T08:49:37.1603071Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T08:49:37.1603796Z Initialized empty Git repository in /home/runner/work/packages/packages/.trusted/wukongim/.git/
+2026-10-21T08:49:37.1605830Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T08:49:37.1635918Z ##[endgroup]
+2026-10-21T08:49:37.1636282Z ##[group]Disabling automatic garbage collection
+2026-10-21T08:49:37.1638526Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T08:49:37.1664443Z ##[endgroup]
+2026-10-21T08:49:37.1664768Z ##[group]Setting up auth
+2026-10-21T08:49:37.1665005Z Removing SSH command configuration
+2026-10-21T08:49:37.1670185Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T08:49:37.1700603Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T08:49:37.1899568Z Removing HTTP extra header
+2026-10-21T08:49:37.1905518Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T08:49:37.1936634Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T08:49:37.2128679Z Removing includeIf entries pointing to credentials config files
+2026-10-21T08:49:37.2134852Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T08:49:37.2168210Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T08:49:37.2348659Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T08:49:37.2383800Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path /home/runner/work/_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:37.2413317Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:37.2442879Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git.path /github/runner_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:37.2471016Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path /github/runner_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:37.2497294Z ##[endgroup]
+2026-10-21T08:49:37.2497635Z ##[group]Fetching the repository
+2026-10-21T08:49:37.2503631Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T08:49:39.8029332Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T08:49:39.8029923Z  * branch            ed7e67d8f781b4f92872e42116c11b304fe03b5c -> FETCH_HEAD
+2026-10-21T08:49:39.8037412Z [command]/usr/bin/git rev-parse --verify --quiet ed7e67d8f781b4f92872e42116c11b304fe03b5c^{object}
+2026-10-21T08:49:39.8065971Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T08:49:39.8068343Z ##[endgroup]
+2026-10-21T08:49:39.8068615Z ##[group]Determining the checkout info
+2026-10-21T08:49:39.8069351Z ##[endgroup]
+2026-10-21T08:49:39.8072596Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T08:49:39.8271034Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T08:49:39.8299626Z ##[group]Checking out the ref
+2026-10-21T08:49:39.8302766Z [command]/usr/bin/git checkout --progress --force ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T08:49:40.2337884Z Note: switching to 'ed7e67d8f781b4f92872e42116c11b304fe03b5c'.
+2026-10-21T08:49:40.2338219Z 
+2026-10-21T08:49:40.2338398Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T08:49:40.2338801Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T08:49:40.2339202Z state without impacting any branches by switching back to a branch.
+2026-10-21T08:49:40.2339612Z 
+2026-10-21T08:49:40.2339788Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T08:49:40.2340157Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T08:49:40.2340374Z 
+2026-10-21T08:49:40.2340465Z   git switch -c <new-branch-name>
+2026-10-21T08:49:40.2340616Z 
+2026-10-21T08:49:40.2340701Z Or undo this operation with:
+2026-10-21T08:49:40.2340887Z 
+2026-10-21T08:49:40.2340963Z   git switch -
+2026-10-21T08:49:40.2341063Z 
+2026-10-21T08:49:40.2341245Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T08:49:40.2341500Z 
+2026-10-21T08:49:40.2341997Z HEAD is now at ed7e67d Merge pull request #861 from WuKongIM/codex/native-package-release-assets
+2026-10-21T08:49:40.2354567Z ##[endgroup]
+2026-10-21T08:49:40.2394784Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T08:49:40.2420940Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T08:49:40.2427837Z ##[group]Removing auth
+2026-10-21T08:49:40.2428056Z Removing SSH command configuration
+2026-10-21T08:49:40.2430173Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T08:49:40.2459292Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T08:49:40.2637480Z Removing HTTP extra header
+2026-10-21T08:49:40.2639693Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T08:49:40.2667215Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T08:49:40.2843866Z Removing includeIf entries pointing to credentials config files
+2026-10-21T08:49:40.2846693Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T08:49:40.2871092Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-21T08:49:40.2871959Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T08:49:40.2872256Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-21T08:49:40.2872503Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T08:49:40.2878429Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-21T08:49:40.2903063Z /home/runner/work/_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:40.2910207Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-579cabdf\-fd6b\-4684\-a4b0\-11c45d7c6584\.config
+2026-10-21T08:49:40.2942818Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T08:49:40.2966100Z /home/runner/work/_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:40.2973488Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-579cabdf\-fd6b\-4684\-a4b0\-11c45d7c6584\.config
+2026-10-21T08:49:40.3003252Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-21T08:49:40.3026460Z /github/runner_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:40.3031252Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path \/github\/runner_temp\/git\-credentials\-579cabdf\-fd6b\-4684\-a4b0\-11c45d7c6584\.config
+2026-10-21T08:49:40.3093940Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T08:49:40.3116082Z /github/runner_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config
+2026-10-21T08:49:40.3122037Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-579cabdf\-fd6b\-4684\-a4b0\-11c45d7c6584\.config
+2026-10-21T08:49:40.3152185Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T08:49:40.3330819Z Removing credentials config '/home/runner/work/_temp/git-credentials-579cabdf-fd6b-4684-a4b0-11c45d7c6584.config'
+2026-10-21T08:49:40.3339878Z ##[endgroup]
+2026-10-21T08:49:40.3455796Z ##[group]Run set -euo pipefail
+2026-10-21T08:49:40.3455985Z [36;1mset -euo pipefail[0m
+2026-10-21T08:49:40.3456245Z [36;1mtest "$(git -C .trusted/wukongim rev-parse HEAD)" = "ed7e67d8f781b4f92872e42116c11b304fe03b5c"[0m
+2026-10-21T08:49:40.3456493Z [36;1mjq -r \[0m
+2026-10-21T08:49:40.3456676Z [36;1m  '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \[0m
+2026-10-21T08:49:40.3456936Z [36;1m  manifests/trusted-toolchain.json | sha256sum --check --strict[0m
+2026-10-21T08:49:40.3510080Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:49:40.3510269Z ##[endgroup]
+2026-10-21T08:49:40.3611729Z .trusted/wukongim/scripts/build-native-package-repositories.sh: OK
+2026-10-21T08:49:40.3612182Z .trusted/wukongim/scripts/generate-native-package-test-keyring.sh: OK
+2026-10-21T08:49:40.3612597Z .trusted/wukongim/scripts/sign-native-package-repositories.sh: OK
+2026-10-21T08:49:40.3613102Z .trusted/wukongim/scripts/validate-native-package-repositories-container.sh: OK
+2026-10-21T08:49:40.3613552Z .trusted/wukongim/scripts/verify-native-package-metadata.py: OK
+2026-10-21T08:49:40.3613944Z .trusted/wukongim/scripts/verify-native-package-repositories.sh: OK
+2026-10-21T08:49:40.3655861Z ##[group]Run set -euo pipefail
+2026-10-21T08:49:40.3656059Z [36;1mset -euo pipefail[0m
+2026-10-21T08:49:40.3656397Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-21T08:49:40.3656679Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-21T08:49:40.3656894Z [36;1mdocker pull "$image"[0m
+2026-10-21T08:49:40.3657072Z [36;1mmetadata_output="$RUNNER_TEMP/source-metadata-native"[0m
+2026-10-21T08:49:40.3657267Z [36;1mmkdir "$metadata_output"[0m
+2026-10-21T08:49:40.3657415Z [36;1mchmod 0777 "$metadata_output"[0m
+2026-10-21T08:49:40.3657630Z [36;1mcontainer="wk-source-metadata-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-21T08:49:40.3657898Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-21T08:49:40.3658100Z [36;1mtrap 'exit 130' INT[0m
+2026-10-21T08:49:40.3658231Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-21T08:49:40.3658473Z [36;1mtimeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \[0m
+2026-10-21T08:49:40.3658777Z [36;1m  --network none --read-only --cap-drop ALL --security-opt no-new-privileges \[0m
+2026-10-21T08:49:40.3659049Z [36;1m  --user 65532:65532 --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-21T08:49:40.3659267Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-21T08:49:40.3659662Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-21T08:49:40.3659939Z [36;1m  --volume "$metadata_output:/evidence" \[0m
+2026-10-21T08:49:40.3660106Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-21T08:49:40.3660338Z [36;1m  python3 -B /control/tests/native_source_metadata_drill.py --output-dir /evidence[0m
+2026-10-21T08:49:40.3660685Z [36;1mjq -e '.test_only == true and .passed == true and (.cases | length) == 7 and all(.cases[]; .passed == true)' \[0m
+2026-10-21T08:49:40.3660994Z [36;1m  "$metadata_output/native-source-metadata.json" >/dev/null[0m
+2026-10-21T08:49:40.3711689Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:49:40.3711872Z ##[endgroup]
+2026-10-21T08:49:40.8724596Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922: Pulling from wukongim/native-package-signing-toolchain
+2026-10-21T08:49:40.8727128Z 0926a8eb0e60: Pulling fs layer
+2026-10-21T08:49:40.8727594Z fdddbe2d915d: Pulling fs layer
+2026-10-21T08:49:40.8727815Z 0e4446c3a96e: Pulling fs layer
+2026-10-21T08:49:41.1104640Z 0e4446c3a96e: Verifying Checksum
+2026-10-21T08:49:41.1104960Z 0e4446c3a96e: Download complete
+2026-10-21T08:49:41.2861546Z 0926a8eb0e60: Verifying Checksum
+2026-10-21T08:49:41.2862108Z 0926a8eb0e60: Download complete
+2026-10-21T08:49:41.9331581Z 0926a8eb0e60: Pull complete
+2026-10-21T08:49:42.1678993Z fdddbe2d915d: Verifying Checksum
+2026-10-21T08:49:42.1679645Z fdddbe2d915d: Download complete
+2026-10-21T08:49:51.5781946Z fdddbe2d915d: Pull complete
+2026-10-21T08:49:51.5854507Z 0e4446c3a96e: Pull complete
+2026-10-21T08:49:51.5880600Z Digest: sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-21T08:49:51.5892652Z Status: Downloaded newer image for ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-21T08:49:51.5899116Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-21T08:49:53.1547709Z {"cases": [{"case": "stable", "exit_code": 0, "expected_error": null, "metadata": {"assets_revalidated_after_metadata": true, "channel": "stable", "deb": {"architecture": "amd64", "asset": {"id": 4, "name": "wukongim_3.1.0_linux_amd64.deb", "sha256": "2b2b55de591e9633ae08e3cfedafd5e52592028bd16e5bd6c3b3632e4bc41bb8", "size": 592}, "version": "3.1.0"}, "package": "wukongim", "rpm": {"architecture": "x86_64", "asset": {"id": 5, "name": "wukongim_3.1.0_linux_amd64.rpm", "sha256": "0c845864935534dc731b527f9c5278f458728ac9c3224240082c2918580e59a2", "size": 6211}, "epoch": "0", "release": "1", "signed": false, "version": "3.1.0"}, "schema": "wukongim/source-package-metadata/v2", "source": {"release_id": 4242, "repository": "WuKongIM/WuKongIM", "source_sha": "1111111111111111111111111111111111111111", "tag": "v3.1.0"}, "version": "3.1.0"}, "passed": true, "stderr": ""}, {"case": "wrong-channel", "exit_code": 1, "expected_error": "preview source tag", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: preview source tag must be strict pre-release SemVer\n"}, {"case": "wrong-deb-version", "exit_code": 1, "expected_error": "DEB Version mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: DEB Version mismatch: expected '3.1.1', got '3.1.0'\n"}, {"case": "preview", "exit_code": 0, "expected_error": null, "metadata": {"assets_revalidated_after_metadata": true, "channel": "preview", "deb": {"architecture": "amd64", "asset": {"id": 4, "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.deb", "sha256": "83896fc1afe4daeaea65f84ea1b82bcbd66845e459460a301aa3f867a1469e2e", "size": 598}, "version": "3.1.0~rc.1-hotfix"}, "package": "wukongim", "rpm": {"architecture": "x86_64", "asset": {"id": 5, "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.rpm", "sha256": "1fcd84945a5b8ee5b69de1608c71d9a211931a839b223c2ac0028e52d69cf9db", "size": 6298}, "epoch": "0", "release": "1", "signed": false, "version": "3.1.0~rc.1_hotfix"}, "schema": "wukongim/source-package-metadata/v2", "source": {"release_id": 4242, "repository": "WuKongIM/WuKongIM", "source_sha": "1111111111111111111111111111111111111111", "tag": "v3.1.0-rc.1-hotfix"}, "version": "3.1.0-rc.1-hotfix"}, "passed": true, "stderr": ""}, {"case": "wrong-rpm-version", "exit_code": 1, "expected_error": "RPM VERSION mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM VERSION mismatch: expected '3.1.0', got '3.1.0~rc.1_hotfix'\n"}, {"case": "wrong-rpm-epoch", "exit_code": 1, "expected_error": "RPM EPOCHNUM mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM EPOCHNUM mismatch: expected '0', got '9'\n"}, {"case": "signed-rpm", "exit_code": 1, "expected_error": "mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM RSAHEADER:pgpsig mismatch: expected '(none)', got 'RSA/SHA256, Wed Oct 21 08:49:53 2026, Key ID a551040249ca4f71'\n"}], "native_signature_tags": ["RSAHEADER"], "passed": true, "payloads_executed": false, "schema": "wukongim/test-only-native-source-metadata/v1", "synthetic_source_provenance": true, "test_only": true, "tool_versions": {"dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).", "gpg": "gpg (GnuPG) 2.4.4", "rpm": "RPM version 4.18.2"}}
+2026-10-21T08:49:53.2276067Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-21T08:49:53.2276298Z with:
+2026-10-21T08:49:53.2276426Z   name: native-source-metadata-test-only
+2026-10-21T08:49:53.2276611Z   path: /home/runner/work/_temp/source-metadata-native/
+2026-10-21T08:49:53.2276792Z   if-no-files-found: warn
+2026-10-21T08:49:53.2276932Z   retention-days: 30
+2026-10-21T08:49:53.2277055Z   compression-level: 6
+2026-10-21T08:49:53.2277171Z   overwrite: false
+2026-10-21T08:49:53.2277291Z   include-hidden-files: false
+2026-10-21T08:49:53.2277421Z   archive: true
+2026-10-21T08:49:53.2277531Z ##[endgroup]
+2026-10-21T08:49:53.3227354Z With the provided path, there will be 1 file uploaded
+2026-10-21T08:49:53.3227995Z Artifact name is valid!
+2026-10-21T08:49:53.3228350Z Root directory input is valid!
+2026-10-21T08:49:53.5667374Z Uploading artifact: native-source-metadata-test-only.zip
+2026-10-21T08:49:53.5693253Z Beginning upload of artifact content to blob storage
+2026-10-21T08:49:53.7393614Z Uploaded bytes 1270
+2026-10-21T08:49:53.7738688Z Finished uploading artifact content to blob storage!
+2026-10-21T08:49:53.7739210Z SHA256 digest of uploaded artifact is 7911053229eb84ae4754f8adb723c29786d5ba5585e20f5a8253c147043364b7
+2026-10-21T08:49:53.7739765Z Finalizing artifact upload
+2026-10-21T08:49:54.0507496Z Artifact native-source-metadata-test-only successfully finalized. Artifact ID 12331548527
+2026-10-21T08:49:54.0508372Z Artifact native-source-metadata-test-only has been successfully uploaded! Final size is 1270 bytes. Artifact ID is 12331548527
+2026-10-21T08:49:54.0510801Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39572188094/artifacts/12331548527
+2026-10-21T08:49:54.0613369Z ##[group]Run set -euo pipefail
+2026-10-21T08:49:54.0613566Z [36;1mset -euo pipefail[0m
+2026-10-21T08:49:54.0613772Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-21T08:49:54.0614048Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-21T08:49:54.0614295Z [36;1msigning_output="$RUNNER_TEMP/local-signing-native"[0m
+2026-10-21T08:49:54.0614484Z [36;1mmkdir "$signing_output"[0m
+2026-10-21T08:49:54.0614637Z [36;1mchmod 0777 "$signing_output"[0m
+2026-10-21T08:49:54.0614852Z [36;1mcontainer="wk-local-signing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-21T08:49:54.0615128Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-21T08:49:54.0615328Z [36;1mtrap 'exit 130' INT[0m
+2026-10-21T08:49:54.0615464Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-21T08:49:54.0615683Z [36;1mtimeout --signal=TERM --kill-after=10s 8m docker run --rm --name "$container" \[0m
+2026-10-21T08:49:54.0616000Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-21T08:49:54.0616248Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-21T08:49:54.0616456Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-21T08:49:54.0616651Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-21T08:49:54.0616847Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-21T08:49:54.0617030Z [36;1m  --volume "$signing_output:/evidence" \[0m
+2026-10-21T08:49:54.0617200Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-21T08:49:54.0617432Z [36;1m  python3 -B /control/tests/native_local_signing_drill.py --output-dir /evidence[0m
+2026-10-21T08:49:54.0617872Z [36;1mjq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and (.cases | length) == 10 and all(.cases[]; .passed == true)' \[0m
+2026-10-21T08:49:54.0618286Z [36;1m  "$signing_output/native-local-signing.json" >/dev/null[0m
+2026-10-21T08:49:54.0671116Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:49:54.0671303Z ##[endgroup]
+2026-10-21T08:50:14.4291905Z {"cases": [{"case": "wrong-passphrase", "passed": true}, {"case": "full-primary-secret", "passed": true}, {"case": "apt-files", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "F84CB1649B7B39D5D13A8D70C7F8140356207138", "primary_fingerprint": "3C62A982B52E3F6A9D0DFBE7DF9763A3CBC493A7", "public_certificate_sha256": "4197c89cd17fb8a59f182b618f3e385df7e2944d0d2b6d859d2b6a6175736d37", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-21T08:49:55Z", "signing_subkey_expires": "2026-12-20T08:49:55Z", "signing_subkey_fingerprint": "4E515773B4104845BE288859E2A238B5B15D9AFF", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "74e8c56f236129970ac40946e6041cd5b4213b2665daccd4e762eea06e80a6ad", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "1dbbac8e81ebb8d3ee84cd15fdee0c93e1004c81b268cd0abfd9a2586aaad124", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "26ea36a3d9bfcebc1babc308aab61d584a75dc2f6af73bbd6d00e4cc81b1f968", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-env", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "F84CB1649B7B39D5D13A8D70C7F8140356207138", "primary_fingerprint": "3C62A982B52E3F6A9D0DFBE7DF9763A3CBC493A7", "public_certificate_sha256": "4197c89cd17fb8a59f182b618f3e385df7e2944d0d2b6d859d2b6a6175736d37", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-21T08:49:55Z", "signing_subkey_expires": "2026-12-20T08:49:55Z", "signing_subkey_fingerprint": "4E515773B4104845BE288859E2A238B5B15D9AFF", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "654266ae62143c613fa717ca83abef433b193c159daf3312a35ab73f6ba277d5", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "1dbbac8e81ebb8d3ee84cd15fdee0c93e1004c81b268cd0abfd9a2586aaad124", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "9bf23bb9ada0a113de2661ed33761200233225a222b7f7f0c5b5ef83aa950bab", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-stdin", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "F84CB1649B7B39D5D13A8D70C7F8140356207138", "primary_fingerprint": "3C62A982B52E3F6A9D0DFBE7DF9763A3CBC493A7", "public_certificate_sha256": "4197c89cd17fb8a59f182b618f3e385df7e2944d0d2b6d859d2b6a6175736d37", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-21T08:49:55Z", "signing_subkey_expires": "2026-12-20T08:49:55Z", "signing_subkey_fingerprint": "4E515773B4104845BE288859E2A238B5B15D9AFF", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "db0626c52532bc9f6947939bc85b5bdac98a069ef934e7684f9ccedab1541afc", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "1dbbac8e81ebb8d3ee84cd15fdee0c93e1004c81b268cd0abfd9a2586aaad124", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "82bd5031fa2effb7809b955be41b7964b7fd6e012291eaa94425f12a3d659ed7", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-tampered-release", "passed": true}, {"case": "rpm-files", "independent_public_verification": true, "passed": true, "receipt": {"family": "rpm", "key": {"family": "rpm", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "99D8630DA3B2BC9037810A8AABF777E62630FCD0", "primary_fingerprint": "E2EB81A5EA02408A72E78E155D4B79B52AF76253", "public_certificate_sha256": "fb067e11ec1ec0e811902ee1a5b990ac3ecc28b068b8b73a0f24dac796852db0", "public_certificate_size": 4808, "signing_subkey_created": "2026-10-21T08:50:06Z", "signing_subkey_expires": "2026-12-20T08:50:06Z", "signing_subkey_fingerprint": "1B55D0D0CCEDEE0B51926C0371DE6F6D5300CD93", "validated": true}, "result": {"active": [{"path": "Packages/wukongim.rpm", "sha256": "2d96898c17233e1b22266452a47d99a6650d06545b62eaa970ba59f30fadca8b", "size": 6211}], "new_unsigned_inputs": [{"path": "Packages/wukongim.rpm", "sha256": "4224765bfbab48e71ff0b36c9c8feca6cfd5e959a1635241ff7015cde757fb4f", "size": 6211}], "newly_signed": [{"path": "Packages/wukongim.rpm", "sha256": "2d96898c17233e1b22266452a47d99a6650d06545b62eaa970ba59f30fadca8b", "size": 6211}], "preserved_signed": [], "repodata": [{"path": "repodata/filelists.xml.gz", "sha256": "061859de96b0fd0caad508d74f305f4ccb63fd2338bbb82beccb1017f9d3cc81", "size": 266}, {"path": "repodata/other.xml.gz", "sha256": "41c1b19fe41fdf71da4dd1a3ebbb6edce9d4de05f94038cd5c9c03904d2bd2f1", "size": 231}, {"path": "repodata/primary.xml.gz", "sha256": "ba4b812675c199c2a9a41b31dadbf60514844b05a2d25cbb8d3e3af2734d1e1c", "size": 607}, {"path": "repodata/repomd.xml", "sha256": "3c684bd2a9689f4e1d9af171e56cf0c9329ef0bdaf58bb588c5c82fe2159b665", "size": 1351}, {"path": "repodata/repomd.xml.asc", "sha256": "5db2fb4d41d3c67f09433f93b0efcd42eddeedfc48d6ff6ee7da8b3859d0cb37", "size": 659}], "repository": "stable/el/9/x86_64", "retired": []}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "rpm-env", "independent_public_verification": true, "passed": true, "receipt": {"family": "rpm", "key": {"family": "rpm", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "99D8630DA3B2BC9037810A8AABF777E62630FCD0", "primary_fingerprint": "E2EB81A5EA02408A72E78E155D4B79B52AF76253", "public_certificate_sha256": "fb067e11ec1ec0e811902ee1a5b990ac3ecc28b068b8b73a0f24dac796852db0", "public_certificate_size": 4808, "signing_subkey_created": "2026-10-21T08:50:06Z", "signing_subkey_expires": "2026-12-20T08:50:06Z", "signing_subkey_fingerprint": "1B55D0D0CCEDEE0B51926C0371DE6F6D5300CD93", "validated": true}, "result": {"active": [{"path": "Packages/wukongim.rpm", "sha256": "5e91a06763b7ecea0ed87c9c227e3d18a188791b4da5eecdf5be5332143303be", "size": 6211}], "new_unsigned_inputs": [{"path": "Packages/wukongim.rpm", "sha256": "4224765bfbab48e71ff0b36c9c8feca6cfd5e959a1635241ff7015cde757fb4f", "size": 6211}], "newly_signed": [{"path": "Packages/wukongim.rpm", "sha256": "5e91a06763b7ecea0ed87c9c227e3d18a188791b4da5eecdf5be5332143303be", "size": 6211}], "preserved_signed": [], "repodata": [{"path": "repodata/filelists.xml.gz", "sha256": "786aae792e93ff42365077fb0ff11413403aa11fd1fc60df906b92bf20f844ef", "size": 264}, {"path": "repodata/other.xml.gz", "sha256": "b0ecba5ccee23648a763153144d4c3700effe58d1e5b148c0256fcc382b650fa", "size": 230}, {"path": "repodata/primary.xml.gz", "sha256": "3644ca708585a97353c23560945d0943dca4ccf45b6ef786dbb80559d3580ec2", "size": 605}, {"path": "repodata/repomd.xml", "sha256": "d98ff96bc7b2b01a534524b513c78d161642cf09a280137e99fe03a1e149bf49", "size": 1351}, {"path": "repodata/repomd.xml.asc", "sha256": "8a2f5bcfe7a5c8244a43522c4361d58d1204894694a7828aef71830e1ea96819", "size": 659}], "repository": "stable/el/9/x86_64", "retired": []}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "rpm-tampered-payload", "passed": true}, {"case": "rpm-tampered-repomd", "passed": true}], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1", "size": 9821}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "keys": {"apt": {"current": "4E515773B4104845BE288859E2A238B5B15D9AFF", "next": "F84CB1649B7B39D5D13A8D70C7F8140356207138", "primary": "3C62A982B52E3F6A9D0DFBE7DF9763A3CBC493A7", "public_certificate": {"sha256": "4197c89cd17fb8a59f182b618f3e385df7e2944d0d2b6d859d2b6a6175736d37", "size": 1237}}, "rpm": {"current": "1B55D0D0CCEDEE0B51926C0371DE6F6D5300CD93", "next": "99D8630DA3B2BC9037810A8AABF777E62630FCD0", "primary": "E2EB81A5EA02408A72E78E155D4B79B52AF76253", "public_certificate": {"sha256": "fb067e11ec1ec0e811902ee1a5b990ac3ecc28b068b8b73a0f24dac796852db0", "size": 4808}}}, "passed": true, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "secret_tree_removed_before_verification": true, "source_inputs_unchanged": true, "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "Version: 0.17.3 (Features: DeltaRPM LegacyWeakdeps )", "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).", "gpg": "gpg (GnuPG) 2.4.4", "rpm": "RPM version 4.18.2"}}
+2026-10-21T08:50:14.4963477Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-21T08:50:14.4963936Z with:
+2026-10-21T08:50:14.4964067Z   name: native-local-signing-test-only
+2026-10-21T08:50:14.4964292Z   path: /home/runner/work/_temp/local-signing-native/native-local-signing.json
+2026-10-21T08:50:14.4964514Z   if-no-files-found: warn
+2026-10-21T08:50:14.4964651Z   retention-days: 30
+2026-10-21T08:50:14.4964775Z   compression-level: 6
+2026-10-21T08:50:14.4964896Z   overwrite: false
+2026-10-21T08:50:14.4965018Z   include-hidden-files: false
+2026-10-21T08:50:14.4965154Z   archive: true
+2026-10-21T08:50:14.4965267Z ##[endgroup]
+2026-10-21T08:50:14.5910115Z With the provided path, there will be 1 file uploaded
+2026-10-21T08:50:14.5920491Z Artifact name is valid!
+2026-10-21T08:50:14.5920814Z Root directory input is valid!
+2026-10-21T08:50:14.8918605Z Uploading artifact: native-local-signing-test-only.zip
+2026-10-21T08:50:14.8943177Z Beginning upload of artifact content to blob storage
+2026-10-21T08:50:15.0619745Z Uploaded bytes 2809
+2026-10-21T08:50:15.0976500Z Finished uploading artifact content to blob storage!
+2026-10-21T08:50:15.0976957Z SHA256 digest of uploaded artifact is e4bf07e2ff21a063b0329ded9c128f732f2fb705d65fd69dbc11967a7946f487
+2026-10-21T08:50:15.0977304Z Finalizing artifact upload
+2026-10-21T08:50:15.4374457Z Artifact native-local-signing-test-only successfully finalized. Artifact ID 12331628927
+2026-10-21T08:50:15.4375159Z Artifact native-local-signing-test-only has been successfully uploaded! Final size is 2809 bytes. Artifact ID is 12331628927
+2026-10-21T08:50:15.4378021Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39572188094/artifacts/12331628927
+2026-10-21T08:50:15.4479887Z ##[group]Run set -euo pipefail
+2026-10-21T08:50:15.4480096Z [36;1mset -euo pipefail[0m
+2026-10-21T08:50:15.4480305Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-21T08:50:15.4480588Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-21T08:50:15.4480879Z [36;1mbootstrap_output="$RUNNER_TEMP/bootstrap-preparation-native"[0m
+2026-10-21T08:50:15.4481093Z [36;1mmkdir "$bootstrap_output"[0m
+2026-10-21T08:50:15.4481251Z [36;1mchmod 0777 "$bootstrap_output"[0m
+2026-10-21T08:50:15.4481490Z [36;1mcontainer="wk-bootstrap-preparation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-21T08:50:15.4481785Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-21T08:50:15.4481995Z [36;1mtrap 'exit 130' INT[0m
+2026-10-21T08:50:15.4482138Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-21T08:50:15.4482381Z [36;1m# Root and SYS_CHROOT are limited to scratch native package databases.[0m
+2026-10-21T08:50:15.4482655Z [36;1m# This data-only installation drill has no signing input or network.[0m
+2026-10-21T08:50:15.4482955Z [36;1mtimeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \[0m
+2026-10-21T08:50:15.4483255Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-21T08:50:15.4483538Z [36;1m  --cap-add SYS_CHROOT --security-opt no-new-privileges --user 0:0 \[0m
+2026-10-21T08:50:15.4483773Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-21T08:50:15.4483971Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-21T08:50:15.4484176Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-21T08:50:15.4484369Z [36;1m  --volume "$bootstrap_output:/evidence" \[0m
+2026-10-21T08:50:15.4484545Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-21T08:50:15.4484757Z [36;1m  python3 -B /control/tests/native_bootstrap_preparation_drill.py \[0m
+2026-10-21T08:50:15.4485005Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA"[0m
+2026-10-21T08:50:15.4485357Z [36;1mjq -e '.test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 6 and all(.cases[]; .passed == true)' \[0m
+2026-10-21T08:50:15.4485737Z [36;1m  "$bootstrap_output/native-bootstrap-preparation.json" >/dev/null[0m
+2026-10-21T08:50:15.4538469Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:50:15.4538663Z ##[endgroup]
+2026-10-21T08:50:16.6475165Z {"passed": true, "cases": 6, "failure": null, "scratch_removed": true}
+2026-10-21T08:50:16.6988337Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-21T08:50:16.6988730Z with:
+2026-10-21T08:50:16.6988968Z   name: native-bootstrap-preparation-test-only
+2026-10-21T08:50:16.6989602Z   path: /home/runner/work/_temp/bootstrap-preparation-native/native-bootstrap-preparation.json
+2026-10-21T08:50:16.6990054Z   if-no-files-found: warn
+2026-10-21T08:50:16.6990281Z   retention-days: 30
+2026-10-21T08:50:16.6990489Z   compression-level: 6
+2026-10-21T08:50:16.6990707Z   overwrite: false
+2026-10-21T08:50:16.6990917Z   include-hidden-files: false
+2026-10-21T08:50:16.6991155Z   archive: true
+2026-10-21T08:50:16.6991351Z ##[endgroup]
+2026-10-21T08:50:16.7947638Z With the provided path, there will be 1 file uploaded
+2026-10-21T08:50:16.7966661Z Artifact name is valid!
+2026-10-21T08:50:16.7968022Z Root directory input is valid!
+2026-10-21T08:50:17.0540489Z Uploading artifact: native-bootstrap-preparation-test-only.zip
+2026-10-21T08:50:17.0565204Z Beginning upload of artifact content to blob storage
+2026-10-21T08:50:17.2171359Z Uploaded bytes 7151
+2026-10-21T08:50:17.2567252Z Finished uploading artifact content to blob storage!
+2026-10-21T08:50:17.2567812Z SHA256 digest of uploaded artifact is 37c3f2b6e3aa813f327e08f84f8eecc7067d3939803caad91ee4fcc961d6ee11
+2026-10-21T08:50:17.2568361Z Finalizing artifact upload
+2026-10-21T08:50:17.5583420Z Artifact native-bootstrap-preparation-test-only successfully finalized. Artifact ID 12332018311
+2026-10-21T08:50:17.5584004Z Artifact native-bootstrap-preparation-test-only has been successfully uploaded! Final size is 7151 bytes. Artifact ID is 12332018311
+2026-10-21T08:50:17.5586450Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39572188094/artifacts/12332018311
+2026-10-21T08:50:17.5833774Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-21T08:50:17.5834019Z with:
+2026-10-21T08:50:17.5834142Z   go-version: 1.27.0
+2026-10-21T08:50:17.5834301Z   cache-dependency-path: .trusted/wukongim/go.sum
+2026-10-21T08:50:17.5834480Z   cache: true
+2026-10-21T08:50:17.5834604Z   check-latest: false
+2026-10-21T08:50:17.5836031Z   token: ***
+2026-10-21T08:50:17.5836155Z ##[endgroup]
+2026-10-21T08:50:17.6839100Z Setup go version spec 1.27.0
+2026-10-21T08:50:17.6850896Z Attempting to download 1.27.0...
+2026-10-21T08:50:18.4834880Z matching 1.27.0...
+2026-10-21T08:50:18.4857813Z Acquiring 1.27.0 from https://github.com/actions/go-versions/releases/download/1.27.0-32325163857/go-1.27.0-linux-x64.tar.gz
+2026-10-21T08:50:19.0774460Z Extracting Go...
+2026-10-21T08:50:19.0854002Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/6a9c9064-d463-4d61-a955-a1585aeff33a -f /home/runner/work/_temp/d1dc5833-23bf-4ad8-9fa4-a4e34b925d85
+2026-10-21T08:50:20.3662752Z Successfully extracted go to /home/runner/work/_temp/6a9c9064-d463-4d61-a955-a1585aeff33a
+2026-10-21T08:50:20.3663055Z Adding to the cache ...
+2026-10-21T08:50:24.1338410Z Successfully cached go to /opt/hostedtoolcache/go/1.27.0/x64
+2026-10-21T08:50:24.1339920Z Added go to the path
+2026-10-21T08:50:24.1341968Z Successfully set up Go version 1.27.0
+2026-10-21T08:50:24.1493966Z [command]/opt/hostedtoolcache/go/1.27.0/x64/bin/go env GOMODCACHE
+2026-10-21T08:50:24.1523171Z [command]/opt/hostedtoolcache/go/1.27.0/x64/bin/go env GOCACHE
+2026-10-21T08:50:24.1552757Z /home/runner/go/pkg/mod
+2026-10-21T08:50:24.1564628Z /home/runner/.cache/go-build
+2026-10-21T08:50:24.3098065Z Cache is not found
+2026-10-21T08:50:24.3119844Z go version go1.27.0 linux/amd64
+2026-10-21T08:50:24.3119985Z 
+2026-10-21T08:50:24.3120186Z ##[group]go env
+2026-10-21T08:50:24.4216713Z AR='ar'
+2026-10-21T08:50:24.4216975Z CC='gcc'
+2026-10-21T08:50:24.4217158Z CGO_CFLAGS='-O2 -g'
+2026-10-21T08:50:24.4217425Z CGO_CPPFLAGS=''
+2026-10-21T08:50:24.4217899Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T08:50:24.4218109Z CGO_ENABLED='1'
+2026-10-21T08:50:24.4218291Z CGO_FFLAGS='-O2 -g'
+2026-10-21T08:50:24.4218485Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T08:50:24.4218669Z CXX='g++'
+2026-10-21T08:50:24.4218837Z GCCGO='gccgo'
+2026-10-21T08:50:24.4219013Z GO111MODULE=''
+2026-10-21T08:50:24.4219187Z GOAMD64='v1'
+2026-10-21T08:50:24.4219355Z GOARCH='amd64'
+2026-10-21T08:50:24.4219853Z GOAUTH='netrc'
+2026-10-21T08:50:24.4220045Z GOBIN='/home/runner/go/bin'
+2026-10-21T08:50:24.4220295Z GOCACHE='/home/runner/.cache/go-build'
+2026-10-21T08:50:24.4220533Z GOCACHEPROG=''
+2026-10-21T08:50:24.4220712Z GODEBUG=''
+2026-10-21T08:50:24.4220898Z GOENV='/home/runner/.config/go/env'
+2026-10-21T08:50:24.4221124Z GOEXE=''
+2026-10-21T08:50:24.4221291Z GOEXPERIMENT=''
+2026-10-21T08:50:24.4221473Z GOFIPS140='off'
+2026-10-21T08:50:24.4221641Z GOFLAGS=''
+2026-10-21T08:50:24.4222215Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build2862085805=/tmp/go-build -gno-record-gcc-switches'
+2026-10-21T08:50:24.4222807Z GOHOSTARCH='amd64'
+2026-10-21T08:50:24.4223002Z GOHOSTOS='linux'
+2026-10-21T08:50:24.4223182Z GOINSECURE=''
+2026-10-21T08:50:24.4223355Z GOMOD='/dev/null'
+2026-10-21T08:50:24.4223561Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-10-21T08:50:24.4223794Z GONOPROXY=''
+2026-10-21T08:50:24.4223969Z GONOSUMDB=''
+2026-10-21T08:50:24.4224141Z GOOS='linux'
+2026-10-21T08:50:24.4224320Z GOPACKAGESDRIVER=''
+2026-10-21T08:50:24.4224523Z GOPATH='/home/runner/go'
+2026-10-21T08:50:24.4224722Z GOPRIVATE=''
+2026-10-21T08:50:24.4224957Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T08:50:24.4225234Z GOROOT='/opt/hostedtoolcache/go/1.27.0/x64'
+2026-10-21T08:50:24.4225494Z GOSUMDB='sum.golang.org'
+2026-10-21T08:50:24.4225704Z GOTELEMETRY='local'
+2026-10-21T08:50:24.4225943Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-10-21T08:50:24.4226213Z GOTMPDIR=''
+2026-10-21T08:50:24.4226429Z GOTOOLCHAIN='local'
+2026-10-21T08:50:24.4226981Z GOTOOLDIR='/opt/hostedtoolcache/go/1.27.0/x64/pkg/tool/linux_amd64'
+2026-10-21T08:50:24.4227300Z GOVCS=''
+2026-10-21T08:50:24.4227504Z GOVERSION='go1.27.0'
+2026-10-21T08:50:24.4227694Z GOWORK=''
+2026-10-21T08:50:24.4227881Z PKG_CONFIG='pkg-config'
+2026-10-21T08:50:24.4228006Z 
+2026-10-21T08:50:24.4228355Z ##[endgroup]
+2026-10-21T08:50:24.4388172Z ##[group]Run set -euo pipefail
+2026-10-21T08:50:24.4388377Z [36;1mset -euo pipefail[0m
+2026-10-21T08:50:24.4388552Z [36;1minstall_dir="$RUNNER_TEMP/goreleaser-bin"[0m
+2026-10-21T08:50:24.4388738Z [36;1mmkdir -p "$install_dir"[0m
+2026-10-21T08:50:24.4388967Z [36;1mGOBIN="$install_dir" go install github.com/goreleaser/goreleaser/v2@v2.18.0[0m
+2026-10-21T08:50:24.4389228Z [36;1mecho "install_dir=$install_dir" >> "$GITHUB_ENV"[0m
+2026-10-21T08:50:24.4444061Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:50:24.4444275Z env:
+2026-10-21T08:50:24.4444399Z   GOTOOLCHAIN: local
+2026-10-21T08:50:24.4444535Z ##[endgroup]
+2026-10-21T08:50:24.5319138Z go: downloading github.com/goreleaser/goreleaser/v2 v2.18.0
+2026-10-21T08:50:29.2217151Z go: downloading github.com/caarlos0/go-version v0.2.2
+2026-10-21T08:50:29.2217576Z go: downloading charm.land/lipgloss/v2 v2.0.6
+2026-10-21T08:50:29.2258768Z go: downloading github.com/caarlos0/log v0.6.2
+2026-10-21T08:50:29.2265878Z go: downloading github.com/charmbracelet/fang v1.0.0
+2026-10-21T08:50:29.3291121Z go: downloading github.com/invopop/jsonschema v0.14.0
+2026-10-21T08:50:29.3340065Z go: downloading github.com/muesli/mango-cobra v1.3.0
+2026-10-21T08:50:29.3391737Z go: downloading github.com/muesli/roff v0.1.0
+2026-10-21T08:50:29.3824366Z go: downloading github.com/spf13/cobra v1.10.2
+2026-10-21T08:50:29.4687221Z go: downloading golang.org/x/crypto v0.55.0
+2026-10-21T08:50:29.4728298Z go: downloading lukechampine.com/blake3 v1.4.1
+2026-10-21T08:50:29.5387317Z go: downloading github.com/hashicorp/go-multierror v1.1.1
+2026-10-21T08:50:29.6438787Z go: downloading github.com/BurntSushi/toml v1.6.0
+2026-10-21T08:50:29.6668729Z go: downloading github.com/goreleaser/nfpm/v2 v2.47.0
+2026-10-21T08:50:29.7206669Z go: downloading github.com/charmbracelet/colorprofile v0.4.3
+2026-10-21T08:50:29.7931037Z go: downloading github.com/charmbracelet/x/ansi v0.11.8
+2026-10-21T08:50:29.7931455Z go: downloading github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444
+2026-10-21T08:50:29.8233773Z go: downloading github.com/charmbracelet/x/term v0.2.2
+2026-10-21T08:50:29.8288076Z go: downloading github.com/spf13/pflag v1.0.10
+2026-10-21T08:50:29.8447790Z go: downloading golang.org/x/text v0.41.0
+2026-10-21T08:50:29.9369964Z go: downloading github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
+2026-10-21T08:50:29.9498562Z go: downloading github.com/clipperhouse/displaywidth v0.11.0
+2026-10-21T08:50:30.0474119Z go: downloading github.com/lucasb-eyer/go-colorful v1.4.1
+2026-10-21T08:50:30.0508671Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-10-21T08:50:30.2072618Z go: downloading github.com/muesli/mango v0.2.0
+2026-10-21T08:50:30.2138979Z go: downloading github.com/muesli/mango-pflag v0.1.0
+2026-10-21T08:50:30.2676423Z go: downloading github.com/pb33f/ordered-map/v2 v2.3.1
+2026-10-21T08:50:30.2779380Z go: downloading code.gitea.io/sdk/gitea v0.25.1
+2026-10-21T08:50:30.3076521Z go: downloading github.com/Masterminds/semver/v3 v3.5.0
+2026-10-21T08:50:30.3110725Z go: downloading github.com/google/go-github/v89 v89.0.0
+2026-10-21T08:50:30.3896586Z go: downloading gitlab.com/gitlab-org/api/client-go v1.46.0
+2026-10-21T08:50:30.3946545Z go: downloading golang.org/x/oauth2 v0.36.0
+2026-10-21T08:50:30.4433947Z go: downloading github.com/goreleaser/go-shellwords v1.0.13
+2026-10-21T08:50:30.5121893Z go: downloading github.com/gobwas/glob v0.2.3
+2026-10-21T08:50:30.5164056Z go: downloading github.com/agnivade/levenshtein v1.2.1
+2026-10-21T08:50:30.5563378Z go: downloading github.com/mitchellh/go-homedir v1.1.0
+2026-10-21T08:50:30.5728804Z go: downloading github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0
+2026-10-21T08:50:30.6160669Z go: downloading github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589
+2026-10-21T08:50:30.6169133Z go: downloading github.com/google/go-containerregistry v0.21.9
+2026-10-21T08:50:30.7901933Z go: downloading github.com/google/ko v0.19.1
+2026-10-21T08:50:30.7902663Z go: downloading golang.org/x/tools v0.49.0
+2026-10-21T08:50:30.9259242Z go: downloading dario.cat/mergo v1.0.2
+2026-10-21T08:50:30.9263454Z go: downloading github.com/goreleaser/quill v0.0.0-20260630015114-8310f3e9a321
+2026-10-21T08:50:31.0686565Z go: downloading github.com/docker/go-units v0.5.0
+2026-10-21T08:50:31.0689197Z go: downloading github.com/hashicorp/errwrap v1.1.0
+2026-10-21T08:50:31.0689920Z go: downloading go.yaml.in/yaml/v3 v3.0.5
+2026-10-21T08:50:31.1678614Z go: downloading golang.org/x/sys v0.47.0
+2026-10-21T08:50:31.2154713Z go: downloading github.com/AlekSi/pointer v1.2.0
+2026-10-21T08:50:31.2326149Z go: downloading github.com/goreleaser/chglog v0.7.4
+2026-10-21T08:50:31.2397204Z go: downloading github.com/clipperhouse/uax29/v2 v2.7.0
+2026-10-21T08:50:31.3131759Z go: downloading github.com/mattn/go-runewidth v0.0.24
+2026-10-21T08:50:31.3581586Z go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+2026-10-21T08:50:31.3990183Z go: downloading github.com/charmbracelet/x/termios v0.1.1
+2026-10-21T08:50:31.3990701Z go: downloading github.com/charmbracelet/x/windows v0.2.2
+2026-10-21T08:50:31.4433398Z go: downloading github.com/muesli/cancelreader v0.2.2
+2026-10-21T08:50:31.4938120Z go: downloading golang.org/x/sync v0.22.0
+2026-10-21T08:50:31.5015597Z go: downloading github.com/klauspost/cpuid/v2 v2.3.0
+2026-10-21T08:50:31.5311136Z go: downloading github.com/42wim/httpsig v1.2.4
+2026-10-21T08:50:31.5459143Z go: downloading github.com/go-fed/httpsig v1.1.0
+2026-10-21T08:50:31.5906209Z go: downloading github.com/hashicorp/go-version v1.9.0
+2026-10-21T08:50:31.6287042Z go: downloading github.com/avast/retry-go/v4 v4.7.0
+2026-10-21T08:50:31.6309298Z go: downloading github.com/bahlo/generic-list-go v0.2.0
+2026-10-21T08:50:31.6447242Z go: downloading github.com/buger/jsonparser v1.1.2
+2026-10-21T08:50:31.6910589Z go: downloading go.yaml.in/yaml/v4 v4.0.0-rc.6
+2026-10-21T08:50:31.7307188Z go: downloading github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.3.14
+2026-10-21T08:50:31.7436709Z go: downloading gocloud.dev v0.46.0
+2026-10-21T08:50:31.8265938Z go: downloading github.com/aws/aws-sdk-go-v2 v1.43.6
+2026-10-21T08:50:31.9947984Z go: downloading github.com/bluesky-social/indigo v0.0.0-20240813042137-4006c0eca043
+2026-10-21T08:50:32.1638706Z go: downloading github.com/caarlos0/env/v11 v11.4.1
+2026-10-21T08:50:32.1640431Z go: downloading github.com/mattn/go-mastodon v0.0.13
+2026-10-21T08:50:32.1640748Z go: downloading github.com/modelcontextprotocol/registry v1.8.1
+2026-10-21T08:50:32.9177327Z go: downloading github.com/caarlos0/go-reddit/v3 v3.0.1
+2026-10-21T08:50:32.9177870Z go: downloading github.com/slack-go/slack v0.29.0
+2026-10-21T08:50:32.9178082Z go: downloading gopkg.in/mail.v2 v2.3.1
+2026-10-21T08:50:32.9178379Z go: downloading github.com/atc0005/go-teams-notify/v2 v2.14.0
+2026-10-21T08:50:33.0286672Z go: downloading github.com/dghubble/go-twitter v0.0.0-20211115160449-93a8679adecb
+2026-10-21T08:50:33.0287051Z go: downloading github.com/dghubble/oauth1 v0.7.3
+2026-10-21T08:50:33.0405912Z go: downloading github.com/goreleaser/fileglob v1.4.0
+2026-10-21T08:50:33.0618890Z go: downloading github.com/google/go-querystring v1.2.0
+2026-10-21T08:50:33.1317397Z go: downloading github.com/hashicorp/go-cleanhttp v0.5.2
+2026-10-21T08:50:33.1318292Z go: downloading github.com/hashicorp/go-retryablehttp v0.7.8
+2026-10-21T08:50:33.1378367Z go: downloading golang.org/x/time v0.15.0
+2026-10-21T08:50:33.1619762Z go: downloading github.com/docker/docker-credential-helpers v0.9.5
+2026-10-21T08:50:33.2298176Z go: downloading github.com/sirupsen/logrus v1.9.4
+2026-10-21T08:50:33.2334291Z go: downloading github.com/Azure/go-autorest/autorest/azure/auth v0.5.13
+2026-10-21T08:50:33.2350324Z go: downloading github.com/docker/cli v29.6.2+incompatible
+2026-10-21T08:50:33.3106964Z go: downloading github.com/Azure/go-autorest/autorest v0.11.30
+2026-10-21T08:50:33.3925775Z go: downloading github.com/Azure/go-autorest v14.2.0+incompatible
+2026-10-21T08:50:33.4694460Z go: downloading github.com/moby/docker-image-spec v1.3.1
+2026-10-21T08:50:33.4694990Z go: downloading github.com/moby/moby/api v1.55.0
+2026-10-21T08:50:33.4698021Z go: downloading github.com/moby/moby/client v0.5.1
+2026-10-21T08:50:33.4928462Z go: downloading github.com/opencontainers/go-digest v1.0.0
+2026-10-21T08:50:33.5674756Z go: downloading github.com/opencontainers/image-spec v1.1.1
+2026-10-21T08:50:33.5957509Z go: downloading github.com/sigstore/cosign/v3 v3.1.1
+2026-10-21T08:50:33.7803468Z go: downloading github.com/go-viper/mapstructure/v2 v2.5.0
+2026-10-21T08:50:33.7803831Z go: downloading github.com/spf13/viper v1.21.0
+2026-10-21T08:50:33.7818429Z go: downloading github.com/klauspost/pgzip v1.2.6
+2026-10-21T08:50:33.7821743Z go: downloading github.com/klauspost/compress v1.19.2
+2026-10-21T08:50:33.8834286Z go: downloading github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb
+2026-10-21T08:50:33.8887303Z go: downloading github.com/ulikunitz/xz v0.5.16
+2026-10-21T08:50:33.9107762Z go: downloading go.digitalxero.dev/go-msix v0.3.1
+2026-10-21T08:50:33.9796734Z go: downloading github.com/google/rpmpack v0.7.1
+2026-10-21T08:50:34.0112647Z go: downloading github.com/anchore/go-macholibre v0.0.0-20250826193721-3cd206ca93aa
+2026-10-21T08:50:34.0794585Z go: downloading github.com/blacktop/go-macho v1.1.263
+2026-10-21T08:50:34.1297184Z go: downloading github.com/aws/aws-sdk-go-v2/config v1.32.37
+2026-10-21T08:50:34.1452273Z go: downloading github.com/aws/aws-sdk-go-v2/credentials v1.19.36
+2026-10-21T08:50:34.2068101Z go: downloading github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.21.1
+2026-10-21T08:50:34.2399967Z go: downloading github.com/aws/aws-sdk-go-v2/service/s3 v1.107.2
+2026-10-21T08:50:34.2549835Z go: downloading github.com/gabriel-vasile/mimetype v1.4.13
+2026-10-21T08:50:34.3387196Z go: downloading github.com/golang-jwt/jwt/v4 v4.5.2
+2026-10-21T08:50:34.3427332Z go: downloading github.com/wagoodman/go-progress v0.0.0-20230925121702-07e42b3cdba0
+2026-10-21T08:50:34.3663177Z go: downloading software.sslmate.com/src/go-pkcs12 v0.7.3
+2026-10-21T08:50:34.3849065Z go: downloading github.com/Masterminds/sprig/v3 v3.3.0
+2026-10-21T08:50:34.4501913Z go: downloading github.com/go-git/go-git/v5 v5.19.2
+2026-10-21T08:50:34.5144098Z go: downloading gitlab.com/digitalxero/go-conventional-commit v1.0.7
+2026-10-21T08:50:34.6122622Z go: downloading github.com/aws/smithy-go v1.27.8
+2026-10-21T08:50:34.7660785Z go: downloading go.opentelemetry.io/otel/metric v1.44.0
+2026-10-21T08:50:34.7661115Z go: downloading github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
+2026-10-21T08:50:34.7661404Z go: downloading github.com/google/wire v0.7.0
+2026-10-21T08:50:34.8727954Z go: downloading go.opentelemetry.io/otel v1.44.0
+2026-10-21T08:50:34.8869108Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
+2026-10-21T08:50:34.9434386Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
+2026-10-21T08:50:34.9905526Z go: downloading github.com/Azure/azure-sdk-for-go v68.0.0+incompatible
+2026-10-21T08:50:35.1736911Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.5.0
+2026-10-21T08:50:39.3485346Z go: downloading cloud.google.com/go/kms v1.33.0
+2026-10-21T08:50:39.3489055Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
+2026-10-21T08:50:39.3491799Z go: downloading google.golang.org/api v0.287.1
+2026-10-21T08:50:39.5557780Z go: downloading cloud.google.com/go v0.123.0
+2026-10-21T08:50:39.5642994Z go: downloading google.golang.org/grpc v1.82.1
+2026-10-21T08:50:39.7298780Z go: downloading cloud.google.com/go/compute/metadata v0.9.0
+2026-10-21T08:50:39.7306065Z go: downloading cloud.google.com/go/iam v1.11.0
+2026-10-21T08:50:39.8881549Z go: downloading cloud.google.com/go/storage v1.62.2
+2026-10-21T08:50:39.8972615Z go: downloading github.com/googleapis/gax-go/v2 v2.23.0
+2026-10-21T08:50:40.0386506Z go: downloading github.com/ipfs/go-cid v0.4.1
+2026-10-21T08:50:40.1610798Z go: downloading github.com/whyrusleeping/cbor-gen v0.1.3-0.20240731173018-74d74643234c
+2026-10-21T08:50:40.2683116Z go: downloading golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
+2026-10-21T08:50:40.3829759Z go: downloading github.com/carlmjohnson/versioninfo v0.22.5
+2026-10-21T08:50:40.4801705Z go: downloading github.com/ipfs/go-block-format v0.2.0
+2026-10-21T08:50:40.5827118Z go: downloading github.com/ipfs/go-ipfs-blockstore v1.3.1
+2026-10-21T08:50:40.6826874Z go: downloading github.com/ipfs/go-ipld-cbor v0.1.0
+2026-10-21T08:50:41.0786538Z go: downloading github.com/ipfs/go-ipld-format v0.6.0
+2026-10-21T08:50:41.2891349Z go: downloading github.com/multiformats/go-multihash v0.2.3
+2026-10-21T08:50:41.5831600Z go: downloading go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
+2026-10-21T08:50:41.7008373Z go: downloading github.com/gorilla/websocket v1.5.3
+2026-10-21T08:50:41.7397397Z go: downloading github.com/tomnomnom/linkheader v0.0.0-20250811210735-e5fe3b51442e
+2026-10-21T08:50:41.7398029Z go: downloading golang.org/x/net v0.58.0
+2026-10-21T08:50:41.7411213Z go: downloading github.com/cenkalti/backoff/v4 v4.3.0
+2026-10-21T08:50:41.8094925Z go: downloading github.com/dghubble/sling v1.4.0
+2026-10-21T08:50:41.9307047Z go: downloading github.com/aws/aws-sdk-go-v2/service/ecr v1.56.0
+2026-10-21T08:50:41.9316274Z go: downloading github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.11
+2026-10-21T08:50:42.0201563Z go: downloading github.com/Azure/go-autorest/autorest/adal v0.9.24
+2026-10-21T08:50:42.0696630Z go: downloading github.com/Azure/go-autorest/autorest/azure/cli v0.4.7
+2026-10-21T08:50:42.0800042Z go: downloading github.com/Azure/go-autorest/logger v0.2.2
+2026-10-21T08:50:42.0896127Z go: downloading github.com/dimchansky/utfbom v1.1.1
+2026-10-21T08:50:42.0912912Z go: downloading github.com/containerd/errdefs v1.0.0
+2026-10-21T08:50:42.1410185Z go: downloading github.com/containerd/errdefs/pkg v0.3.0
+2026-10-21T08:50:42.1497305Z go: downloading github.com/distribution/reference v0.6.0
+2026-10-21T08:50:42.1905120Z go: downloading github.com/docker/go-connections v0.7.0
+2026-10-21T08:50:42.2515881Z go: downloading go.opentelemetry.io/otel/trace v1.44.0
+2026-10-21T08:50:42.3017796Z go: downloading github.com/sigstore/sigstore v1.10.8
+2026-10-21T08:50:42.3040297Z go: downloading github.com/ProtonMail/go-crypto v1.4.1
+2026-10-21T08:50:42.4304147Z go: downloading github.com/sagikazarmark/locafero v0.12.0
+2026-10-21T08:50:42.4306280Z go: downloading github.com/spf13/afero v1.15.0
+2026-10-21T08:50:42.4306601Z go: downloading github.com/spf13/cast v1.10.0
+2026-10-21T08:50:42.4306890Z go: downloading github.com/fsnotify/fsnotify v1.10.1
+2026-10-21T08:50:42.5321435Z go: downloading sigs.k8s.io/kind v0.32.0
+2026-10-21T08:50:42.5902867Z go: downloading github.com/sigstore/sigstore-go v1.2.1
+2026-10-21T08:50:42.5903427Z go: downloading go.mozilla.org/pkcs7 v0.9.0
+2026-10-21T08:50:42.7230829Z go: downloading github.com/cavaliergopher/cpio v1.0.1
+2026-10-21T08:50:42.7302881Z go: downloading github.com/go-restruct/restruct v1.2.0-alpha
+2026-10-21T08:50:42.7506923Z go: downloading github.com/github/smimesign v0.2.0
+2026-10-21T08:50:42.7507484Z go: downloading github.com/blacktop/go-dwarf v1.0.14
+2026-10-21T08:50:42.8309737Z go: downloading github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.37
+2026-10-21T08:50:42.8608165Z go: downloading github.com/aws/aws-sdk-go-v2/service/signin v1.5.6
+2026-10-21T08:50:42.9192294Z go: downloading github.com/aws/aws-sdk-go-v2/service/sso v1.33.6
+2026-10-21T08:50:42.9193088Z go: downloading github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.6
+2026-10-21T08:50:42.9311336Z go: downloading github.com/aws/aws-sdk-go-v2/service/sts v1.45.6
+2026-10-21T08:50:43.0615152Z go: downloading github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.18
+2026-10-21T08:50:43.0704523Z go: downloading github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.37
+2026-10-21T08:50:43.0705364Z go: downloading github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.38
+2026-10-21T08:50:43.1503643Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.17
+2026-10-21T08:50:43.1507029Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.30
+2026-10-21T08:50:43.1507443Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.37
+2026-10-21T08:50:43.1604502Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.38
+2026-10-21T08:50:43.2252471Z go: downloading golang.org/x/mod v0.39.0
+2026-10-21T08:50:43.3320277Z go: downloading github.com/Masterminds/goutils v1.1.1
+2026-10-21T08:50:43.3320679Z go: downloading github.com/huandu/xstrings v1.5.0
+2026-10-21T08:50:43.3320888Z go: downloading github.com/google/uuid v1.6.0
+2026-10-21T08:50:43.5317389Z go: downloading github.com/shopspring/decimal v1.4.0
+2026-10-21T08:50:43.5318213Z go: downloading github.com/go-git/go-billy/v5 v5.9.0
+2026-10-21T08:50:43.5318885Z go: downloading github.com/mitchellh/copystructure v1.2.0
+2026-10-21T08:50:43.6655920Z go: downloading github.com/sergi/go-diff v1.4.0
+2026-10-21T08:50:43.6693689Z go: downloading github.com/emirpasic/gods v1.18.1
+2026-10-21T08:50:43.6910662Z go: downloading go.opentelemetry.io/otel/sdk/metric v1.44.0
+2026-10-21T08:50:43.6911172Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0
+2026-10-21T08:50:43.7514898Z go: downloading go.opentelemetry.io/otel/sdk v1.44.0
+2026-10-21T08:50:43.7974595Z go: downloading github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2
+2026-10-21T08:50:43.9252581Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0
+2026-10-21T08:50:43.9253446Z go: downloading cloud.google.com/go/longrunning v1.2.0
+2026-10-21T08:50:44.0245781Z go: downloading google.golang.org/genproto v0.0.0-20260406210006-6f92a3bedf2d
+2026-10-21T08:50:44.0290791Z go: downloading google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+2026-10-21T08:50:44.2570996Z go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7
+2026-10-21T08:50:44.2571451Z go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7
+2026-10-21T08:50:44.2571750Z go: downloading cloud.google.com/go/auth v0.20.0
+2026-10-21T08:50:44.3967595Z go: downloading github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0
+2026-10-21T08:50:44.4840839Z go: downloading go.opentelemetry.io/contrib/detectors/gcp v1.43.0
+2026-10-21T08:50:44.4847927Z go: downloading github.com/multiformats/go-multibase v0.2.0
+2026-10-21T08:50:44.4933574Z go: downloading github.com/multiformats/go-varint v0.0.7
+2026-10-21T08:50:44.5051152Z go: downloading github.com/ipfs/go-ipfs-util v0.0.3
+2026-10-21T08:50:44.5734122Z go: downloading github.com/hashicorp/golang-lru v1.0.2
+2026-10-21T08:50:44.5804710Z go: downloading github.com/ipfs/bbloom v0.0.4
+2026-10-21T08:50:44.5857442Z go: downloading github.com/ipfs/go-datastore v0.6.0
+2026-10-21T08:50:44.6768694Z go: downloading github.com/ipfs/go-ipfs-ds-help v1.1.1
+2026-10-21T08:50:44.6875805Z go: downloading github.com/ipfs/go-log v1.0.5
+2026-10-21T08:50:44.6876310Z go: downloading github.com/ipfs/go-metrics-interface v0.0.1
+2026-10-21T08:50:44.6879887Z go: downloading go.uber.org/atomic v1.11.0
+2026-10-21T08:50:44.7446910Z go: downloading github.com/polydawn/refmt v0.89.1-0.20221221234430-40501e09de1f
+2026-10-21T08:50:44.8537316Z go: downloading github.com/mr-tron/base58 v1.2.0
+2026-10-21T08:50:44.8540056Z go: downloading github.com/felixge/httpsnoop v1.0.4
+2026-10-21T08:50:44.8540460Z go: downloading github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+2026-10-21T08:50:44.8545883Z go: downloading github.com/Azure/go-autorest/autorest/date v0.3.1
+2026-10-21T08:50:44.9237395Z go: downloading github.com/Azure/go-autorest/tracing v0.6.1
+2026-10-21T08:50:44.9543455Z go: downloading github.com/secure-systems-lab/go-securesystemslib v0.11.0
+2026-10-21T08:50:44.9551198Z go: downloading github.com/sigstore/protobuf-specs v0.5.1
+2026-10-21T08:50:45.0711629Z go: downloading github.com/sigstore/rekor v1.5.2
+2026-10-21T08:50:45.0716371Z go: downloading github.com/dustin/go-humanize v1.0.1
+2026-10-21T08:50:45.0716892Z go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+2026-10-21T08:50:45.1699947Z go: downloading golang.org/x/term v0.45.0
+2026-10-21T08:50:45.1727883Z go: downloading github.com/subosito/gotenv v1.6.0
+2026-10-21T08:50:45.2343226Z go: downloading github.com/pelletier/go-toml/v2 v2.2.4
+2026-10-21T08:50:45.2353706Z go: downloading github.com/in-toto/attestation v1.2.0
+2026-10-21T08:50:45.2704684Z go: downloading github.com/scylladb/go-set v1.0.3-0.20200225121959-cc7b2070d91e
+2026-10-21T08:50:45.2930660Z go: downloading github.com/pkg/errors v0.9.1
+2026-10-21T08:50:45.3537237Z go: downloading github.com/pelletier/go-toml v1.9.5
+2026-10-21T08:50:45.3660535Z go: downloading github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.37
+2026-10-21T08:50:45.3746727Z go: downloading github.com/pjbgf/sha1cd v0.6.0
+2026-10-21T08:50:45.3898633Z go: downloading github.com/mitchellh/reflectwalk v1.0.2
+2026-10-21T08:50:45.4376153Z go: downloading github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376
+2026-10-21T08:50:45.4578868Z go: downloading github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
+2026-10-21T08:50:45.4858809Z go: downloading github.com/cyphar/filepath-securejoin v0.6.1
+2026-10-21T08:50:45.5365920Z go: downloading github.com/go-logr/logr v1.4.3
+2026-10-21T08:50:45.5522584Z go: downloading github.com/kylelemons/godebug v1.1.0
+2026-10-21T08:50:45.5528387Z go: downloading github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
+2026-10-21T08:50:45.5934687Z go: downloading cloud.google.com/go/auth/oauth2adapt v0.2.8
+2026-10-21T08:50:45.6391439Z go: downloading go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
+2026-10-21T08:50:45.6507018Z go: downloading cloud.google.com/go/monitoring v1.25.0
+2026-10-21T08:50:45.6951216Z go: downloading github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0
+2026-10-21T08:50:45.7165255Z go: downloading github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0
+2026-10-21T08:50:45.7628978Z go: downloading github.com/multiformats/go-base32 v0.1.0
+2026-10-21T08:50:45.7660603Z go: downloading github.com/multiformats/go-base36 v0.2.0
+2026-10-21T08:50:45.7660985Z go: downloading github.com/jbenet/goprocess v0.1.4
+2026-10-21T08:50:45.8123125Z go: downloading github.com/ipfs/go-log/v2 v2.5.1
+2026-10-21T08:50:45.8663105Z go: downloading github.com/opentracing/opentracing-go v1.2.0
+2026-10-21T08:50:45.8681059Z go: downloading go.uber.org/zap v1.28.0
+2026-10-21T08:50:45.9111777Z go: downloading github.com/google/s2a-go v0.1.9
+2026-10-21T08:50:45.9807771Z go: downloading github.com/moby/term v0.5.2
+2026-10-21T08:50:45.9939326Z go: downloading github.com/sigstore/timestamp-authority/v2 v2.1.2
+2026-10-21T08:50:45.9939999Z go: downloading github.com/digitorus/timestamp v0.0.0-20250524132541-c45532741eea
+2026-10-21T08:50:46.0466707Z go: downloading github.com/sigstore/rekor-tiles/v2 v2.2.2-0.20260601073857-5d098a2b6443
+2026-10-21T08:50:46.1069990Z go: downloading github.com/cloudflare/circl v1.6.3
+2026-10-21T08:50:47.1667992Z go: downloading github.com/go-openapi/errors v0.22.8
+2026-10-21T08:50:47.1668410Z go: downloading github.com/go-openapi/runtime v0.32.3
+2026-10-21T08:50:47.1668745Z go: downloading github.com/go-openapi/strfmt v0.27.0
+2026-10-21T08:50:47.1669068Z go: downloading github.com/go-openapi/swag v0.26.0
+2026-10-21T08:50:47.2763854Z go: downloading github.com/go-openapi/validate v0.26.1
+2026-10-21T08:50:47.2765008Z go: downloading github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467
+2026-10-21T08:50:47.2956565Z go: downloading github.com/go-openapi/swag/conv v0.27.3
+2026-10-21T08:50:47.3460286Z go: downloading github.com/google/certificate-transparency-go v1.3.3
+2026-10-21T08:50:47.5269764Z go: downloading al.essio.dev/pkg/shellescape v1.6.0
+2026-10-21T08:50:47.5270107Z go: downloading github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
+2026-10-21T08:50:47.5270590Z go: downloading github.com/kevinburke/ssh_config v1.2.0
+2026-10-21T08:50:47.5460972Z go: downloading github.com/skeema/knownhosts v1.3.1
+2026-10-21T08:50:47.6361366Z go: downloading github.com/xanzy/ssh-agent v0.3.3
+2026-10-21T08:50:47.6462023Z go: downloading gopkg.in/warnings.v0 v0.1.2
+2026-10-21T08:50:47.6662218Z go: downloading github.com/go-logr/stdr v1.2.2
+2026-10-21T08:50:47.7070383Z go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+2026-10-21T08:50:47.7273141Z go: downloading github.com/cespare/xxhash/v2 v2.3.0
+2026-10-21T08:50:47.7363274Z go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+2026-10-21T08:50:47.7671768Z go: downloading github.com/googleapis/enterprise-certificate-proxy v0.3.17
+2026-10-21T08:50:47.8258550Z go: downloading github.com/envoyproxy/go-control-plane/envoy v1.37.0
+2026-10-21T08:50:47.8365216Z go: downloading github.com/gogo/protobuf v1.3.2
+2026-10-21T08:50:47.8871221Z go: downloading github.com/mattn/go-isatty v0.0.20
+2026-10-21T08:50:48.0061188Z go: downloading go.uber.org/multierr v1.11.0
+2026-10-21T08:50:48.1090590Z go: downloading github.com/spaolacci/murmur3 v1.1.0
+2026-10-21T08:50:48.1277975Z go: downloading github.com/theupdateframework/go-tuf/v2 v2.4.2
+2026-10-21T08:50:48.2316925Z go: downloading github.com/theupdateframework/go-tuf v0.7.0
+2026-10-21T08:50:48.3780613Z go: downloading github.com/digitorus/pkcs7 v0.0.0-20250730155240-ffadbf3f398c
+2026-10-21T08:50:48.4676439Z go: downloading github.com/blang/semver v3.5.1+incompatible
+2026-10-21T08:50:48.4676753Z go: downloading github.com/in-toto/in-toto-golang v0.11.0
+2026-10-21T08:50:48.4676990Z go: downloading github.com/coreos/go-oidc/v3 v3.20.0
+2026-10-21T08:50:48.4971045Z go: downloading github.com/go-jose/go-jose/v4 v4.1.4
+2026-10-21T08:50:48.5463725Z go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
+2026-10-21T08:50:48.6272345Z go: downloading github.com/oklog/ulid/v2 v2.1.1
+2026-10-21T08:50:48.7575739Z go: downloading github.com/go-openapi/swag/fileutils v0.27.3
+2026-10-21T08:50:48.7576234Z go: downloading github.com/go-openapi/swag/jsonutils v0.27.3
+2026-10-21T08:50:48.7667693Z go: downloading github.com/go-openapi/swag/cmdutils v0.26.0
+2026-10-21T08:50:48.7668104Z go: downloading github.com/go-openapi/swag/stringutils v0.27.3
+2026-10-21T08:50:48.8388022Z go: downloading github.com/go-openapi/swag/loading v0.27.3
+2026-10-21T08:50:48.8389321Z go: downloading github.com/go-openapi/swag/jsonname v0.26.0
+2026-10-21T08:50:48.8469005Z go: downloading github.com/go-openapi/swag/mangling v0.27.3
+2026-10-21T08:50:48.8679907Z go: downloading github.com/go-openapi/swag/netutils v0.26.0
+2026-10-21T08:50:48.9170796Z go: downloading github.com/go-openapi/swag/typeutils v0.27.3
+2026-10-21T08:50:48.9271510Z go: downloading github.com/go-openapi/swag/yamlutils v0.27.3
+2026-10-21T08:50:48.9383743Z go: downloading github.com/transparency-dev/formats v0.1.1
+2026-10-21T08:50:48.9384480Z go: downloading github.com/transparency-dev/merkle v0.0.2
+2026-10-21T08:50:48.9992890Z go: downloading github.com/go-openapi/analysis v0.25.5
+2026-10-21T08:50:49.0496103Z go: downloading github.com/go-openapi/jsonpointer v1.0.0
+2026-10-21T08:50:49.0496443Z go: downloading github.com/go-openapi/spec v0.22.9
+2026-10-21T08:50:49.0496662Z go: downloading github.com/go-openapi/loads v0.25.0
+2026-10-21T08:50:49.0997059Z go: downloading sigs.k8s.io/yaml v1.6.0
+2026-10-21T08:50:49.1606475Z go: downloading github.com/spiffe/go-spiffe/v2 v2.7.0
+2026-10-21T08:50:49.2394968Z go: downloading github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2
+2026-10-21T08:50:49.3501235Z go: downloading github.com/envoyproxy/protoc-gen-validate v1.3.3
+2026-10-21T08:50:49.3501923Z go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+2026-10-21T08:50:49.3510496Z go: downloading github.com/go-openapi/runtime/server-middleware v0.30.0
+2026-10-21T08:50:49.3510978Z go: downloading github.com/jedisct1/go-minisign v0.0.0-20241212093149-d2f9f49435c7
+2026-10-21T08:50:49.4693228Z go: downloading github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
+2026-10-21T08:50:49.4694045Z go: downloading github.com/sassoftware/relic v7.2.1+incompatible
+2026-10-21T08:50:49.4969987Z go: downloading github.com/shibumi/go-pathspec v1.3.0
+2026-10-21T08:50:49.4970280Z go: downloading k8s.io/klog/v2 v2.140.0
+2026-10-21T08:50:49.5997974Z go: downloading github.com/evanphx/json-patch/v5 v5.9.11
+2026-10-21T08:50:49.6202947Z go: downloading github.com/go-openapi/jsonreference v1.0.0
+2026-10-21T08:50:49.6203664Z go: downloading go.yaml.in/yaml/v2 v2.4.4
+2026-10-21T08:50:49.6210282Z go: downloading cel.dev/expr v0.25.1
+2026-10-21T08:50:49.7080753Z go: downloading github.com/go-openapi/swag/pools v0.27.3
+2026-10-21T08:51:56.2485093Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-21T08:51:56.2485324Z with:
+2026-10-21T08:51:56.2485480Z   go-version-file: .trusted/wukongim/go.mod
+2026-10-21T08:51:56.2485676Z   cache-dependency-path: .trusted/wukongim/go.sum
+2026-10-21T08:51:56.2485848Z   cache: true
+2026-10-21T08:51:56.2485972Z   check-latest: false
+2026-10-21T08:51:56.2487387Z   token: ***
+2026-10-21T08:51:56.2487502Z env:
+2026-10-21T08:51:56.2487621Z   GOTOOLCHAIN: local
+2026-10-21T08:51:56.2487780Z   install_dir: /home/runner/work/_temp/goreleaser-bin
+2026-10-21T08:51:56.2487963Z ##[endgroup]
+2026-10-21T08:51:56.3300005Z Setup go version spec 1.25.0
+2026-10-21T08:51:56.3307071Z Attempting to download 1.25.0...
+2026-10-21T08:51:57.0975546Z matching 1.25.0...
+2026-10-21T08:51:57.1006769Z Acquiring 1.25.0 from https://github.com/actions/go-versions/releases/download/1.25.0-16925932082/go-1.25.0-linux-x64.tar.gz
+2026-10-21T08:51:57.6234632Z Extracting Go...
+2026-10-21T08:51:57.6314346Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/37de0fdc-cc00-4f98-8b93-c8c6be0038b0 -f /home/runner/work/_temp/610b2c6a-4065-4be8-a64b-3330e4b19e16
+2026-10-21T08:51:58.7518412Z Successfully extracted go to /home/runner/work/_temp/37de0fdc-cc00-4f98-8b93-c8c6be0038b0
+2026-10-21T08:51:58.7518710Z Adding to the cache ...
+2026-10-21T08:52:01.9914149Z Successfully cached go to /opt/hostedtoolcache/go/1.25.0/x64
+2026-10-21T08:52:01.9914996Z Added go to the path
+2026-10-21T08:52:01.9917474Z Successfully set up Go version 1.25.0
+2026-10-21T08:52:02.0052087Z [command]/opt/hostedtoolcache/go/1.25.0/x64/bin/go env GOMODCACHE
+2026-10-21T08:52:02.0079224Z [command]/opt/hostedtoolcache/go/1.25.0/x64/bin/go env GOCACHE
+2026-10-21T08:52:02.0108277Z /home/runner/go/pkg/mod
+2026-10-21T08:52:02.0119263Z /home/runner/.cache/go-build
+2026-10-21T08:52:02.1264174Z Cache is not found
+2026-10-21T08:52:02.1273023Z go version go1.25.0 linux/amd64
+2026-10-21T08:52:02.1273211Z 
+2026-10-21T08:52:02.1273511Z ##[group]go env
+2026-10-21T08:52:02.1836800Z AR='ar'
+2026-10-21T08:52:02.1837033Z CC='gcc'
+2026-10-21T08:52:02.1837197Z CGO_CFLAGS='-O2 -g'
+2026-10-21T08:52:02.1837386Z CGO_CPPFLAGS=''
+2026-10-21T08:52:02.1837521Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T08:52:02.1837655Z CGO_ENABLED='1'
+2026-10-21T08:52:02.1837775Z CGO_FFLAGS='-O2 -g'
+2026-10-21T08:52:02.1837920Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T08:52:02.1838045Z CXX='g++'
+2026-10-21T08:52:02.1838165Z GCCGO='gccgo'
+2026-10-21T08:52:02.1838284Z GO111MODULE=''
+2026-10-21T08:52:02.1838402Z GOAMD64='v1'
+2026-10-21T08:52:02.1838516Z GOARCH='amd64'
+2026-10-21T08:52:02.1838631Z GOAUTH='netrc'
+2026-10-21T08:52:02.1838745Z GOBIN=''
+2026-10-21T08:52:02.1838877Z GOCACHE='/home/runner/.cache/go-build'
+2026-10-21T08:52:02.1839044Z GOCACHEPROG=''
+2026-10-21T08:52:02.1839163Z GODEBUG=''
+2026-10-21T08:52:02.1839290Z GOENV='/home/runner/.config/go/env'
+2026-10-21T08:52:02.1839584Z GOEXE=''
+2026-10-21T08:52:02.1839696Z GOEXPERIMENT=''
+2026-10-21T08:52:02.1839830Z GOFIPS140='off'
+2026-10-21T08:52:02.1839944Z GOFLAGS=''
+2026-10-21T08:52:02.1840313Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build2640823737=/tmp/go-build -gno-record-gcc-switches'
+2026-10-21T08:52:02.1840685Z GOHOSTARCH='amd64'
+2026-10-21T08:52:02.1840813Z GOHOSTOS='linux'
+2026-10-21T08:52:02.1840931Z GOINSECURE=''
+2026-10-21T08:52:02.1841050Z GOMOD='/dev/null'
+2026-10-21T08:52:02.1841188Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-10-21T08:52:02.1841347Z GONOPROXY=''
+2026-10-21T08:52:02.1841460Z GONOSUMDB=''
+2026-10-21T08:52:02.1841574Z GOOS='linux'
+2026-10-21T08:52:02.1841694Z GOPATH='/home/runner/go'
+2026-10-21T08:52:02.1841829Z GOPRIVATE=''
+2026-10-21T08:52:02.1841987Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T08:52:02.1842179Z GOROOT='/opt/hostedtoolcache/go/1.25.0/x64'
+2026-10-21T08:52:02.1842353Z GOSUMDB='sum.golang.org'
+2026-10-21T08:52:02.1842490Z GOTELEMETRY='local'
+2026-10-21T08:52:02.1842875Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-10-21T08:52:02.1843053Z GOTMPDIR=''
+2026-10-21T08:52:02.1843173Z GOTOOLCHAIN='local'
+2026-10-21T08:52:02.1843364Z GOTOOLDIR='/opt/hostedtoolcache/go/1.25.0/x64/pkg/tool/linux_amd64'
+2026-10-21T08:52:02.1843570Z GOVCS=''
+2026-10-21T08:52:02.1843686Z GOVERSION='go1.25.0'
+2026-10-21T08:52:02.1843814Z GOWORK=''
+2026-10-21T08:52:02.1843934Z PKG_CONFIG='pkg-config'
+2026-10-21T08:52:02.1844022Z 
+2026-10-21T08:52:02.1844364Z ##[endgroup]
+2026-10-21T08:52:02.2001217Z ##[group]Run set -euo pipefail
+2026-10-21T08:52:02.2001606Z [36;1mset -euo pipefail[0m
+2026-10-21T08:52:02.2001868Z [36;1mcd .trusted/wukongim[0m
+2026-10-21T08:52:02.2002279Z [36;1m"$install_dir/goreleaser" release --snapshot --clean --config .goreleaser.packages.yaml[0m
+2026-10-21T08:52:02.2065400Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:52:02.2065605Z env:
+2026-10-21T08:52:02.2065725Z   GOTOOLCHAIN: local
+2026-10-21T08:52:02.2065888Z   install_dir: /home/runner/work/_temp/goreleaser-bin
+2026-10-21T08:52:02.2066074Z ##[endgroup]
+2026-10-21T08:52:02.2276481Z [1;94m  •[m [1mstarting release[m
+2026-10-21T08:52:02.2279367Z [1;93m  •[m [1;93mskipping announce, publish, and validate...[m
+2026-10-21T08:52:02.2280244Z [1;94m  •[m [1mcleaning distribution directory[m
+2026-10-21T08:52:02.2280584Z [1;94m  •[m [1mloading environment variables[m
+2026-10-21T08:52:02.2280931Z [1;94m  •[m [1mgetting and validating git state[m
+2026-10-21T08:52:02.3756789Z [1;93m    •[m ignoring errors because this is a snapshot     [1;93merror[m=git doesn't contain any tags - either add a tag or use --snapshot
+2026-10-21T08:52:02.3757626Z [1;94m    •[m using tags                                     [1;94mprevious[m=<unknown> [1;94mcurrent[m=v0.0.0
+2026-10-21T08:52:02.3758071Z [1;93m    •[m pipe skipped or partially skipped              [1;93mreason[m=disabled during snapshot mode
+2026-10-21T08:52:02.3758359Z [1;94m  •[m [1mparsing tag[m
+2026-10-21T08:52:02.3758647Z [1;94m  •[m [1msetting defaults[m
+2026-10-21T08:52:02.3758987Z [1;93m    •[m pipe skipped or partially skipped              [1;93mreason[m=release is disabled
+2026-10-21T08:52:02.3767871Z [1;94m  •[m [1msnapshotting[m
+2026-10-21T08:52:02.3768348Z [1;94m    •[m building snapshot...                           [1;94mversion[m=0.0.0-SNAPSHOT-ed7e67d
+2026-10-21T08:52:02.3768795Z [1;94m  •[m [1mensuring distribution directory[m
+2026-10-21T08:52:02.3769396Z [1;94m  •[m [1msetting up metadata[m
+2026-10-21T08:52:02.3769852Z [1;94m  •[m [1mwriting release metadata[m
+2026-10-21T08:52:02.3770711Z [1;94m  •[m [1mloading go mod information[m
+2026-10-21T08:52:02.3800005Z [1;94m  •[m [1mbuild prerequisites[m
+2026-10-21T08:52:02.3805705Z [1;94m  •[m [1mbuilding binaries[m
+2026-10-21T08:52:02.3837317Z [1;94m    •[m building                                       [1;94mpaths[m=cmd/wukongim [1;94mbinaries[m=wukongim [1;94mtarget[m=linux_amd64_v1
+2026-10-21T08:52:47.2266811Z [1;94m    •[m go build -trimpath -ldflags=-s -w -buildid= -X main.buildVersion=0.0.0-SNAPSHOT-ed7e67d -X main.buildCommit=ed7e67d8f781b4f92872e42116c11b304fe03b5c -X main.buildSource=release -o /home/runner/work/packages/packages/.trusted/wukongim/dist/wukongim-linux-amd64_linux_amd64_v1/wukongim ./cmd/wukongim
+2026-10-21T08:52:47.2267908Z       [1;94moutput[m=
+2026-10-21T08:52:47.2268376Z     [1;94m  │ [mgo: downloading github.com/pelletier/go-toml/v2 v2.3.1
+2026-10-21T08:52:47.2268817Z     [1;94m  │ [mgo: downloading golang.org/x/sys v0.44.0
+2026-10-21T08:52:47.2269263Z     [1;94m  │ [mgo: downloading github.com/bwmarrin/snowflake v0.3.0
+2026-10-21T08:52:47.2270235Z     [1;94m  │ [mgo: downloading github.com/prometheus/client_golang v1.16.0
+2026-10-21T08:52:47.2270739Z     [1;94m  │ [mgo: downloading github.com/shirou/gopsutil/v4 v4.26.5
+2026-10-21T08:52:47.2271214Z     [1;94m  │ [mgo: downloading gopkg.in/yaml.v3 v3.0.1
+2026-10-21T08:52:47.2271662Z     [1;94m  │ [mgo: downloading google.golang.org/protobuf v1.36.10
+2026-10-21T08:52:47.2272093Z     [1;94m  │ [mgo: downloading go.etcd.io/raft/v3 v3.6.0
+2026-10-21T08:52:47.2272590Z     [1;94m  │ [mgo: downloading github.com/modelcontextprotocol/go-sdk v1.6.1
+2026-10-21T08:52:47.2273079Z     [1;94m  │ [mgo: downloading github.com/gin-gonic/gin v1.12.0
+2026-10-21T08:52:47.2273622Z     [1;94m  │ [mgo: downloading github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
+2026-10-21T08:52:47.2274528Z     [1;94m  │ [mgo: downloading github.com/google/jsonschema-go v0.4.3
+2026-10-21T08:52:47.2275119Z     [1;94m  │ [mgo: downloading github.com/google/pprof v0.0.0-20260709232956-b9395ee17fa0
+2026-10-21T08:52:47.2275543Z     [1;94m  │ [mgo: downloading github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.5.1
+2026-10-21T08:52:47.2275981Z     [1;94m  │ [mgo: downloading github.com/minio/minio-go/v7 v7.2.1
+2026-10-21T08:52:47.2276318Z     [1;94m  │ [mgo: downloading golang.org/x/crypto v0.51.0
+2026-10-21T08:52:47.2276587Z     [1;94m  │ [mgo: downloading golang.org/x/time v0.4.0
+2026-10-21T08:52:47.2276926Z     [1;94m  │ [mgo: downloading go.uber.org/zap v1.27.0
+2026-10-21T08:52:47.2277210Z     [1;94m  │ [mgo: downloading gopkg.in/natefinch/lumberjack.v2 v2.2.1
+2026-10-21T08:52:47.2277740Z     [1;94m  │ [mgo: downloading github.com/panjf2000/ants/v2 v2.11.3
+2026-10-21T08:52:47.2278044Z     [1;94m  │ [mgo: downloading github.com/robfig/cron/v3 v3.0.1
+2026-10-21T08:52:47.2278444Z     [1;94m  │ [mgo: downloading github.com/klauspost/compress v1.18.6
+2026-10-21T08:52:47.2278873Z     [1;94m  │ [mgo: downloading github.com/golang/protobuf v1.5.4
+2026-10-21T08:52:47.2279366Z     [1;94m  │ [mgo: downloading github.com/prometheus/client_model v0.3.0
+2026-10-21T08:52:47.2280062Z     [1;94m  │ [mgo: downloading github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05
+2026-10-21T08:52:47.2280619Z     [1;94m  │ [mgo: downloading github.com/fsnotify/fsnotify v1.9.0
+2026-10-21T08:52:47.2281100Z     [1;94m  │ [mgo: downloading github.com/panjf2000/gnet/v2 v2.9.7
+2026-10-21T08:52:47.2281567Z     [1;94m  │ [mgo: downloading github.com/beorn7/perks v1.0.1
+2026-10-21T08:52:47.2282046Z     [1;94m  │ [mgo: downloading github.com/prometheus/common v0.42.0
+2026-10-21T08:52:47.2282581Z     [1;94m  │ [mgo: downloading github.com/prometheus/procfs v0.10.1
+2026-10-21T08:52:47.2283139Z     [1;94m  │ [mgo: downloading github.com/valyala/bytebufferpool v1.0.0
+2026-10-21T08:52:47.2283688Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/pebble/v2 v2.1.4
+2026-10-21T08:52:47.2284195Z     [1;94m  │ [mgo: downloading github.com/tklauser/go-sysconf v0.3.16
+2026-10-21T08:52:47.2284681Z     [1;94m  │ [mgo: downloading golang.org/x/oauth2 v0.35.0
+2026-10-21T08:52:47.2285183Z     [1;94m  │ [mgo: downloading github.com/yosida95/uritemplate/v3 v3.0.2
+2026-10-21T08:52:47.2285697Z     [1;94m  │ [mgo: downloading github.com/gin-contrib/sse v1.1.0
+2026-10-21T08:52:47.2286175Z     [1;94m  │ [mgo: downloading github.com/quic-go/quic-go v0.59.0
+2026-10-21T08:52:47.2286621Z     [1;94m  │ [mgo: downloading golang.org/x/net v0.53.0
+2026-10-21T08:52:47.2287233Z     [1;94m  │ [mgo: downloading github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
+2026-10-21T08:52:47.2287804Z     [1;94m  │ [mgo: downloading github.com/lni/goutils v1.4.0
+2026-10-21T08:52:47.2288264Z     [1;94m  │ [mgo: downloading go.etcd.io/etcd/pkg/v3 v3.5.17
+2026-10-21T08:52:47.2288749Z     [1;94m  │ [mgo: downloading github.com/klauspost/crc32 v1.3.0
+2026-10-21T08:52:47.2289231Z     [1;94m  │ [mgo: downloading github.com/minio/crc64nvme v1.1.1
+2026-10-21T08:52:47.2289813Z     [1;94m  │ [mgo: downloading github.com/minio/md5-simd v1.1.2
+2026-10-21T08:52:47.2290273Z     [1;94m  │ [mgo: downloading github.com/zeebo/xxh3 v1.1.0
+2026-10-21T08:52:47.2290706Z     [1;94m  │ [mgo: downloading go.yaml.in/yaml/v3 v3.0.4
+2026-10-21T08:52:47.2291131Z     [1;94m  │ [mgo: downloading gopkg.in/ini.v1 v1.67.2
+2026-10-21T08:52:47.2291579Z     [1;94m  │ [mgo: downloading github.com/yuin/goldmark v1.8.2
+2026-10-21T08:52:47.2292021Z     [1;94m  │ [mgo: downloading golang.org/x/sync v0.20.0
+2026-10-21T08:52:47.2292577Z     [1;94m  │ [mgo: downloading github.com/matttproud/golang_protobuf_extensions v1.0.4
+2026-10-21T08:52:47.2293149Z     [1;94m  │ [mgo: downloading github.com/tklauser/numcpus v0.11.0
+2026-10-21T08:52:47.2293649Z     [1;94m  │ [mgo: downloading github.com/segmentio/encoding v0.5.4
+2026-10-21T08:52:47.2294390Z     [1;94m  │ [mgo: downloading github.com/go-playground/validator/v10 v10.30.1
+2026-10-21T08:52:47.2294839Z     [1;94m  │ [mgo: downloading github.com/goccy/go-yaml v1.19.2
+2026-10-21T08:52:47.2295124Z     [1;94m  │ [mgo: downloading github.com/ugorji/go/codec v1.3.1
+2026-10-21T08:52:47.2295525Z     [1;94m  │ [mgo: downloading go.mongodb.org/mongo-driver/v2 v2.5.0
+2026-10-21T08:52:47.2295976Z     [1;94m  │ [mgo: downloading github.com/quic-go/qpack v0.6.0
+2026-10-21T08:52:47.2296607Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/crlib v0.0.0-20241112164430-1264a2edc35b
+2026-10-21T08:52:47.2297208Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/errors v1.11.3
+2026-10-21T08:52:47.2297729Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/redact v1.1.5
+2026-10-21T08:52:47.2298559Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06
+2026-10-21T08:52:47.2299111Z     [1;94m  │ [mgo: downloading github.com/rs/xid v1.6.0
+2026-10-21T08:52:47.2302999Z     [1;94m  │ [mgo: downloading github.com/tinylib/msgp v1.6.1
+2026-10-21T08:52:47.2303522Z     [1;94m  │ [mgo: downloading github.com/gabriel-vasile/mimetype v1.4.12
+2026-10-21T08:52:47.2304151Z     [1;94m  │ [mgo: downloading github.com/go-playground/universal-translator v0.18.1
+2026-10-21T08:52:47.2304692Z     [1;94m  │ [mgo: downloading github.com/leodido/go-urn v1.4.0
+2026-10-21T08:52:47.2305148Z     [1;94m  │ [mgo: downloading golang.org/x/text v0.37.0
+2026-10-21T08:52:47.2305597Z     [1;94m  │ [mgo: downloading github.com/segmentio/asm v1.1.3
+2026-10-21T08:52:47.2306205Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/swiss v0.0.0-20251224182025-b0f6560f979b
+2026-10-21T08:52:47.2306794Z     [1;94m  │ [mgo: downloading github.com/RaduBerinde/axisds v0.1.0
+2026-10-21T08:52:47.2307357Z     [1;94m  │ [mgo: downloading golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
+2026-10-21T08:52:47.2308027Z     [1;94m  │ [mgo: downloading github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b
+2026-10-21T08:52:47.2308621Z     [1;94m  │ [mgo: downloading github.com/getsentry/sentry-go v0.27.0
+2026-10-21T08:52:47.2309111Z     [1;94m  │ [mgo: downloading github.com/philhofer/fwd v1.2.0
+2026-10-21T08:52:47.2309735Z     [1;94m  │ [mgo: downloading github.com/go-playground/locales v0.14.1
+2026-10-21T08:52:47.2310367Z     [1;94m  │ [mgo: downloading github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54
+2026-10-21T08:52:47.2311055Z     [1;94m  │ [mgo: downloading github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e
+2026-10-21T08:52:47.2311715Z     [1;94m  │ [mgo: downloading github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882
+2026-10-21T08:52:47.2312342Z     [1;94m  │ [mgo: downloading github.com/kr/pretty v0.3.1
+2026-10-21T08:52:47.2312832Z     [1;94m  │ [mgo: downloading github.com/rogpeppe/go-internal v1.14.1
+2026-10-21T08:52:47.2313296Z     [1;94m  │ [mgo: downloading github.com/kr/text v0.2.0
+2026-10-21T08:52:47.2313690Z [1;94m      •[m [3;2mtook: 45s[m
+2026-10-21T08:52:47.2313971Z [1;94m  •[m [1marchives[m
+2026-10-21T08:52:47.2314543Z [1;94m    •[m archiving                                      [1;94mbinary[m=wukongim [1;94mname[m=wukongim_0.0.0-SNAPSHOT-ed7e67d_linux_amd64
+2026-10-21T08:52:47.2315053Z [1;94m  •[m [1mlinux packages[m
+2026-10-21T08:52:47.2315815Z [1;94m    •[m creating                                       [1;94mpackage[m=wukongim [1;94mformat[m=rpm [1;94march[m=amd64v1 [1;94mfile[m=dist/wukongim_0.0.0-SNAPSHOT-ed7e67d_linux_amd64.rpm
+2026-10-21T08:52:47.2316914Z [1;94m    •[m creating                                       [1;94mpackage[m=wukongim [1;94mformat[m=deb [1;94march[m=amd64v1 [1;94mfile[m=dist/wukongim_0.0.0-SNAPSHOT-ed7e67d_linux_amd64.deb
+2026-10-21T08:52:52.3558670Z [1;94m  •[m [1mcalculating checksums[m
+2026-10-21T08:52:52.3698177Z [1;94m  •[m [1mwriting artifacts metadata[m
+2026-10-21T08:52:52.3700150Z [1;94m  •[m [1mrelease succeeded after 50s[m
+2026-10-21T08:52:52.3700751Z [1;94m  •[m thanks for using GoReleaser!
+2026-10-21T08:52:52.3754506Z ##[group]Run .trusted/wukongim/scripts/validate-native-package-repositories-container.sh
+2026-10-21T08:52:52.3754894Z [36;1m.trusted/wukongim/scripts/validate-native-package-repositories-container.sh[0m
+2026-10-21T08:52:52.3807862Z shell: /usr/bin/bash -e {0}
+2026-10-21T08:52:52.3808004Z env:
+2026-10-21T08:52:52.3808113Z   GOTOOLCHAIN: local
+2026-10-21T08:52:52.3808270Z   install_dir: /home/runner/work/_temp/goreleaser-bin
+2026-10-21T08:52:52.3808527Z   WK_NATIVE_PACKAGE_DIST_DIR: /home/runner/work/packages/packages/.trusted/wukongim/dist
+2026-10-21T08:52:52.3808756Z ##[endgroup]
+2026-10-21T08:52:52.4015614Z Unable to find image 'ubuntu:24.04' locally
+2026-10-21T08:52:52.9407528Z 24.04: Pulling from library/ubuntu
+2026-10-21T08:52:53.1176799Z f2b4ef06ff01: Pulling fs layer
+2026-10-21T08:52:53.4268760Z f2b4ef06ff01: Verifying Checksum
+2026-10-21T08:52:53.4269101Z f2b4ef06ff01: Download complete
+2026-10-21T08:52:54.0393565Z f2b4ef06ff01: Pull complete
+2026-10-21T08:52:54.0422793Z Digest: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+2026-10-21T08:52:54.0434006Z Status: Downloaded newer image for ubuntu:24.04
+2026-10-21T08:52:57.4308968Z Get:1 http://archive.ubuntu.com/ubuntu noble InRelease [256 kB]
+2026-10-21T08:52:57.4369132Z Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+2026-10-21T08:52:58.1409928Z Get:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+2026-10-21T08:52:58.2242898Z Get:4 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1549 kB]
+2026-10-21T08:52:58.3154916Z Get:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+2026-10-21T08:52:58.4907468Z Get:6 http://archive.ubuntu.com/ubuntu noble/restricted amd64 Packages [117 kB]
+2026-10-21T08:52:58.5421366Z Get:7 http://archive.ubuntu.com/ubuntu noble/multiverse amd64 Packages [331 kB]
+2026-10-21T08:52:58.6925806Z Get:8 http://archive.ubuntu.com/ubuntu noble/main amd64 Packages [1808 kB]
+2026-10-21T08:52:59.0600965Z Get:9 http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages [19.3 MB]
+2026-10-21T08:52:59.2666465Z Get:10 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [2122 kB]
+2026-10-21T08:52:59.5903382Z Get:11 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [1410 kB]
+2026-10-21T08:52:59.7404209Z Get:12 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [55.6 kB]
+2026-10-21T08:52:59.8154439Z Get:13 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Packages [61.7 kB]
+2026-10-21T08:52:59.8157973Z Get:14 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1732 kB]
+2026-10-21T08:52:59.8323324Z Get:15 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [2231 kB]
+2026-10-21T08:52:59.8954291Z Get:16 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [2170 kB]
+2026-10-21T08:52:59.9177593Z Get:17 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 Packages [49.0 kB]
+2026-10-21T08:52:59.9183960Z Get:18 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 Packages [669 B]
+2026-10-21T08:52:59.9184536Z Get:19 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [36.0 kB]
+2026-10-21T08:53:00.3954356Z Fetched 33.6 MB in 3s (10.5 MB/s)
+2026-10-21T08:53:00.8398017Z Reading package lists...
+2026-10-21T08:53:01.3349058Z Reading package lists...
+2026-10-21T08:53:01.4523470Z Building dependency tree...
+2026-10-21T08:53:01.4523792Z Reading state information...
+2026-10-21T08:53:01.5679699Z The following additional packages will be installed:
+2026-10-21T08:53:01.5680420Z   adduser binutils binutils-common binutils-x86-64-linux-gnu bzip2 debugedit
+2026-10-21T08:53:01.5680892Z   dirmngr gnupg-utils gpg gpg-agent gpgconf gpgsm keyboxd libarchive13t64
+2026-10-21T08:53:01.5681398Z   libbinutils libbrotli1 libcreaterepo-c0 libctf-nobfd0 libctf0 libcurl4t64
+2026-10-21T08:53:01.5682123Z   libdbus-1-3 libdpkg-perl libdrpm0 libdw1t64 libelf1t64 libexpat1
+2026-10-21T08:53:01.5683061Z   libfsverity0 libgdbm-compat4t64 libgdbm6t64 libglib2.0-0t64 libgomp1
+2026-10-21T08:53:01.5683503Z   libgprofng0 libgssapi-krb5-2 libicu74 libjansson4 libk5crypto3 libkeyutils1
+2026-10-21T08:53:01.5683842Z   libkrb5-3 libkrb5support0 libksba8 libldap2 liblua5.3-0 liblzma5
+2026-10-21T08:53:01.5684137Z   libmagic-mgc libmagic1t64 libmodulemd2 libnghttp2-14 libperl5.38t64 libpopt0
+2026-10-21T08:53:01.5684545Z   libpsl5t64 libpython3-stdlib libpython3.12-minimal libpython3.12-stdlib
+2026-10-21T08:53:01.5684855Z   libreadline8t64 librpm9t64 librpmbuild9t64 librpmio9t64 librpmsign9t64
+2026-10-21T08:53:01.5685245Z   librtmp1 libsasl2-2 libsasl2-modules-db libsframe1 libsqlite3-0 libssh-4
+2026-10-21T08:53:01.5685672Z   libxml2 libyaml-0-2 libzck1 lto-disabled-list make media-types netbase patch
+2026-10-21T08:53:01.5686063Z   perl perl-modules-5.38 pinentry-curses python3-minimal python3.12
+2026-10-21T08:53:01.5686337Z   python3.12-minimal readline-common rpm-common rpm2cpio tzdata
+2026-10-21T08:53:01.5687977Z Suggested packages:
+2026-10-21T08:53:01.5688558Z   liblocale-gettext-perl cron quota ecryptfs-utils binutils-doc gprofng-gui
+2026-10-21T08:53:01.5689049Z   bzip2-doc dbus-user-session libpam-systemd pinentry-gnome3 tor
+2026-10-21T08:53:01.5689648Z   debian-keyring parcimonie xloadimage gpg-wks-server scdaemon lrzip gcc
+2026-10-21T08:53:01.5690113Z   | c-compiler git bzr gdbm-l10n low-memory-monitor krb5-doc krb5-user file
+2026-10-21T08:53:01.5690543Z   make-doc ed diffutils-doc perl-doc libterm-readline-gnu-perl
+2026-10-21T08:53:01.5690973Z   | libterm-readline-perl-perl libtap-harness-archive-perl pinentry-doc
+2026-10-21T08:53:01.5691272Z   python3-doc python3-tk python3-venv python3.12-venv python3.12-doc
+2026-10-21T08:53:01.5691557Z   binfmt-support readline-doc alien elfutils rpmlint rpm-i18n
+2026-10-21T08:53:01.5691757Z Recommended packages:
+2026-10-21T08:53:01.5691994Z   build-essential gcc | c-compiler fakeroot libalgorithm-merge-perl gnupg-l10n
+2026-10-21T08:53:01.5692283Z   gpg-wks-client ca-certificates dbus libfile-fcntllock-perl
+2026-10-21T08:53:01.5692562Z   liblocale-gettext-perl libglib2.0-data shared-mime-info xdg-user-dirs
+2026-10-21T08:53:01.5692915Z   krb5-locales libldap-common publicsuffix libsasl2-modules
+2026-10-21T08:53:01.7165481Z The following NEW packages will be installed:
+2026-10-21T08:53:01.7166091Z   adduser apt-utils binutils binutils-common binutils-x86-64-linux-gnu bzip2
+2026-10-21T08:53:01.7166741Z   createrepo-c debugedit dirmngr dpkg-dev gnupg gnupg-utils gpg gpg-agent
+2026-10-21T08:53:01.7181052Z   gpgconf gpgsm keyboxd libarchive13t64 libbinutils libbrotli1
+2026-10-21T08:53:01.7181716Z   libcreaterepo-c0 libctf-nobfd0 libctf0 libcurl4t64 libdbus-1-3 libdpkg-perl
+2026-10-21T08:53:01.7182335Z   libdrpm0 libdw1t64 libelf1t64 libexpat1 libfsverity0 libgdbm-compat4t64
+2026-10-21T08:53:01.7182913Z   libgdbm6t64 libglib2.0-0t64 libgomp1 libgprofng0 libgssapi-krb5-2 libicu74
+2026-10-21T08:53:01.7183545Z   libjansson4 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libksba8
+2026-10-21T08:53:01.7184024Z   libldap2 liblua5.3-0 libmagic-mgc libmagic1t64 libmodulemd2 libnghttp2-14
+2026-10-21T08:53:01.7184387Z   libperl5.38t64 libpopt0 libpsl5t64 libpython3-stdlib libpython3.12-minimal
+2026-10-21T08:53:01.7184710Z   libpython3.12-stdlib libreadline8t64 librpm9t64 librpmbuild9t64 librpmio9t64
+2026-10-21T08:53:01.7185010Z   librpmsign9t64 librtmp1 libsasl2-2 libsasl2-modules-db libsframe1
+2026-10-21T08:53:01.7185295Z   libsqlite3-0 libssh-4 libxml2 libyaml-0-2 libzck1 lto-disabled-list make
+2026-10-21T08:53:01.7185594Z   media-types netbase patch perl perl-modules-5.38 pinentry-curses python3
+2026-10-21T08:53:01.7185999Z   python3-minimal python3.12 python3.12-minimal readline-common rpm rpm-common
+2026-10-21T08:53:01.7186250Z   rpm2cpio tzdata xz-utils zstd
+2026-10-21T08:53:01.7186418Z The following packages will be upgraded:
+2026-10-21T08:53:01.7187333Z   liblzma5
+2026-10-21T08:53:01.9496652Z 1 upgraded, 89 newly installed, 0 to remove and 2 not upgraded.
+2026-10-21T08:53:01.9497150Z Need to get 43.0 MB of archives.
+2026-10-21T08:53:01.9497363Z After this operation, 176 MB of additional disk space will be used.
+2026-10-21T08:53:01.9497750Z Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-minimal amd64 3.12.3-1ubuntu0.17 [839 kB]
+2026-10-21T08:53:02.8323762Z Get:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libexpat1 amd64 2.6.1-2ubuntu0.6 [98.9 kB]
+2026-10-21T08:53:02.8440298Z Get:3 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12-minimal amd64 3.12.3-1ubuntu0.17 [2335 kB]
+2026-10-21T08:53:03.1983790Z Get:4 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3-minimal amd64 3.12.3-0ubuntu2.1 [27.4 kB]
+2026-10-21T08:53:03.1988970Z Get:5 http://archive.ubuntu.com/ubuntu noble/main amd64 media-types all 10.1.0 [27.5 kB]
+2026-10-21T08:53:03.2014183Z Get:6 http://archive.ubuntu.com/ubuntu noble/main amd64 netbase all 6.4 [13.1 kB]
+2026-10-21T08:53:03.2033804Z Get:7 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 tzdata all 2026e-0ubuntu0.24.04.1 [282 kB]
+2026-10-21T08:53:03.2527313Z Get:8 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 liblzma5 amd64 5.6.1+really5.4.5-1ubuntu0.4 [128 kB]
+2026-10-21T08:53:03.2580442Z Get:9 http://archive.ubuntu.com/ubuntu noble/main amd64 readline-common all 8.2-4build1 [56.5 kB]
+2026-10-21T08:53:03.2603769Z Get:10 http://archive.ubuntu.com/ubuntu noble/main amd64 libreadline8t64 amd64 8.2-4build1 [153 kB]
+2026-10-21T08:53:03.2657468Z Get:11 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libsqlite3-0 amd64 3.45.1-1ubuntu2.8 [702 kB]
+2026-10-21T08:53:03.2949307Z Get:12 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-stdlib amd64 3.12.3-1ubuntu0.17 [2071 kB]
+2026-10-21T08:53:03.4112993Z Get:13 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12 amd64 3.12.3-1ubuntu0.17 [651 kB]
+2026-10-21T08:53:03.4634001Z Get:14 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3-stdlib amd64 3.12.3-0ubuntu2.1 [10.1 kB]
+2026-10-21T08:53:03.4636914Z Get:15 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3 amd64 3.12.3-0ubuntu2.1 [23.0 kB]
+2026-10-21T08:53:03.4642787Z Get:16 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 perl-modules-5.38 all 5.38.2-3.2ubuntu0.6 [3110 kB]
+2026-10-21T08:53:03.5274465Z Get:17 http://archive.ubuntu.com/ubuntu noble/main amd64 libgdbm6t64 amd64 1.23-5.1build1 [34.4 kB]
+2026-10-21T08:53:03.5277084Z Get:18 http://archive.ubuntu.com/ubuntu noble/main amd64 libgdbm-compat4t64 amd64 1.23-5.1build1 [6710 B]
+2026-10-21T08:53:03.5280123Z Get:19 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libperl5.38t64 amd64 5.38.2-3.2ubuntu0.6 [4864 kB]
+2026-10-21T08:53:03.6789628Z Get:20 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 perl amd64 5.38.2-3.2ubuntu0.6 [231 kB]
+2026-10-21T08:53:03.6803882Z Get:21 http://archive.ubuntu.com/ubuntu noble/main amd64 adduser all 3.137ubuntu1 [101 kB]
+2026-10-21T08:53:03.6811619Z Get:22 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 apt-utils amd64 2.8.3 [216 kB]
+2026-10-21T08:53:03.6839169Z Get:23 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libdbus-1-3 amd64 1.14.10-4ubuntu4.1 [210 kB]
+2026-10-21T08:53:03.6857600Z Get:24 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libelf1t64 amd64 0.190-1.1ubuntu0.1 [57.8 kB]
+2026-10-21T08:53:03.6863104Z Get:25 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libglib2.0-0t64 amd64 2.80.0-6ubuntu3.10 [1548 kB]
+2026-10-21T08:53:03.7270326Z Get:26 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libkrb5support0 amd64 1.20.1-6ubuntu2.10 [34.9 kB]
+2026-10-21T08:53:03.7273232Z Get:27 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libk5crypto3 amd64 1.20.1-6ubuntu2.10 [81.9 kB]
+2026-10-21T08:53:03.7280078Z Get:28 http://archive.ubuntu.com/ubuntu noble/main amd64 libkeyutils1 amd64 1.6.3-3build1 [9490 B]
+2026-10-21T08:53:03.8315249Z Get:29 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libkrb5-3 amd64 1.20.1-6ubuntu2.10 [348 kB]
+2026-10-21T08:53:03.8337674Z Get:30 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libgssapi-krb5-2 amd64 1.20.1-6ubuntu2.10 [143 kB]
+2026-10-21T08:53:03.8345967Z Get:31 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libicu74 amd64 74.2-1ubuntu3.1 [10.9 MB]
+2026-10-21T08:53:03.9662234Z Get:32 http://archive.ubuntu.com/ubuntu noble/main amd64 libpopt0 amd64 1.19+dfsg-1build1 [28.6 kB]
+2026-10-21T08:53:03.9665036Z Get:33 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libxml2 amd64 2.9.14+dfsg-1.3ubuntu3.10 [764 kB]
+2026-10-21T08:53:03.9696637Z Get:34 http://archive.ubuntu.com/ubuntu noble/main amd64 libyaml-0-2 amd64 0.2.5-1build1 [51.5 kB]
+2026-10-21T08:53:03.9699919Z Get:35 http://archive.ubuntu.com/ubuntu noble/main amd64 libjansson4 amd64 2.14-2build2 [32.8 kB]
+2026-10-21T08:53:03.9703957Z Get:36 http://archive.ubuntu.com/ubuntu noble/main amd64 libmagic-mgc amd64 1:5.45-3build1 [307 kB]
+2026-10-21T08:53:03.9723589Z Get:37 http://archive.ubuntu.com/ubuntu noble/main amd64 libmagic1t64 amd64 1:5.45-3build1 [87.2 kB]
+2026-10-21T08:53:03.9729583Z Get:38 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libnghttp2-14 amd64 1.59.0-1ubuntu0.4 [74.6 kB]
+2026-10-21T08:53:04.0402510Z Get:39 http://archive.ubuntu.com/ubuntu noble/main amd64 libpsl5t64 amd64 0.21.2-1.1build1 [57.1 kB]
+2026-10-21T08:53:04.0407878Z Get:40 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 xz-utils amd64 5.6.1+really5.4.5-1ubuntu0.4 [267 kB]
+2026-10-21T08:53:04.1454944Z Get:41 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 binutils-common amd64 2.42-4ubuntu2.10 [240 kB]
+2026-10-21T08:53:04.1467159Z Get:42 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libsframe1 amd64 2.42-4ubuntu2.10 [15.7 kB]
+2026-10-21T08:53:04.1469265Z Get:43 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libbinutils amd64 2.42-4ubuntu2.10 [577 kB]
+2026-10-21T08:53:04.1497032Z Get:44 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libctf-nobfd0 amd64 2.42-4ubuntu2.10 [98.0 kB]
+2026-10-21T08:53:04.1503668Z Get:45 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libctf0 amd64 2.42-4ubuntu2.10 [94.5 kB]
+2026-10-21T08:53:04.1509642Z Get:46 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libgprofng0 amd64 2.42-4ubuntu2.10 [849 kB]
+2026-10-21T08:53:04.1548634Z Get:47 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 binutils-x86-64-linux-gnu amd64 2.42-4ubuntu2.10 [2463 kB]
+2026-10-21T08:53:04.1677924Z Get:48 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 binutils amd64 2.42-4ubuntu2.10 [18.2 kB]
+2026-10-21T08:53:04.2496166Z Get:49 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 bzip2 amd64 1.0.8-5.1ubuntu0.1 [34.6 kB]
+2026-10-21T08:53:04.2500089Z Get:50 http://archive.ubuntu.com/ubuntu noble/main amd64 libbrotli1 amd64 1.1.0-2build2 [331 kB]
+2026-10-21T08:53:04.3537396Z Get:51 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg1-5ubuntu3.1 [20.4 kB]
+2026-10-21T08:53:04.3541460Z Get:52 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libsasl2-2 amd64 2.1.28+dfsg1-5ubuntu3.1 [53.2 kB]
+2026-10-21T08:53:04.3545319Z Get:53 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libldap2 amd64 2.6.10+dfsg-0ubuntu0.24.04.1 [198 kB]
+2026-10-21T08:53:04.3555838Z Get:54 http://archive.ubuntu.com/ubuntu noble/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2build7 [56.3 kB]
+2026-10-21T08:53:04.3560824Z Get:55 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libssh-4 amd64 0.10.6-2ubuntu0.5 [191 kB]
+2026-10-21T08:53:04.3571219Z Get:56 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.16 [344 kB]
+2026-10-21T08:53:04.3587040Z Get:57 http://archive.ubuntu.com/ubuntu noble/universe amd64 liblua5.3-0 amd64 5.3.6-2build2 [143 kB]
+2026-10-21T08:53:04.3594495Z Get:58 http://archive.ubuntu.com/ubuntu noble/universe amd64 librpmio9t64 amd64 4.18.2+dfsg-2.1build2 [95.2 kB]
+2026-10-21T08:53:04.4581595Z Get:59 http://archive.ubuntu.com/ubuntu noble/universe amd64 librpm9t64 amd64 4.18.2+dfsg-2.1build2 [217 kB]
+2026-10-21T08:53:04.4594765Z Get:60 http://archive.ubuntu.com/ubuntu noble/universe amd64 libdrpm0 amd64 0.5.1-1.1build1 [47.6 kB]
+2026-10-21T08:53:04.5625295Z Get:61 http://archive.ubuntu.com/ubuntu noble/universe amd64 libmodulemd2 amd64 2.14.0-3build2 [144 kB]
+2026-10-21T08:53:04.5632383Z Get:62 http://archive.ubuntu.com/ubuntu noble/universe amd64 libzck1 amd64 1.3.2+ds1-1build2 [50.2 kB]
+2026-10-21T08:53:04.5636427Z Get:63 http://archive.ubuntu.com/ubuntu noble/universe amd64 libcreaterepo-c0 amd64 0.17.3-2ubuntu3 [93.5 kB]
+2026-10-21T08:53:04.5642210Z Get:64 http://archive.ubuntu.com/ubuntu noble/universe amd64 createrepo-c amd64 0.17.3-2ubuntu3 [52.6 kB]
+2026-10-21T08:53:04.5646259Z Get:65 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libdw1t64 amd64 0.190-1.1ubuntu0.1 [261 kB]
+2026-10-21T08:53:04.5659731Z Get:66 http://archive.ubuntu.com/ubuntu noble/main amd64 debugedit amd64 1:5.0-5build2 [46.1 kB]
+2026-10-21T08:53:04.5673708Z Get:67 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 gpgconf amd64 2.4.4-2ubuntu17.6 [104 kB]
+2026-10-21T08:53:04.5674860Z Get:68 http://archive.ubuntu.com/ubuntu noble/main amd64 libksba8 amd64 1.6.6-1build1 [122 kB]
+2026-10-21T08:53:04.6668203Z Get:69 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 dirmngr amd64 2.4.4-2ubuntu17.6 [323 kB]
+2026-10-21T08:53:04.6684228Z Get:70 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libdpkg-perl all 1.22.6ubuntu6.6 [268 kB]
+2026-10-21T08:53:04.7707592Z Get:71 http://archive.ubuntu.com/ubuntu noble/main amd64 patch amd64 2.7.6-7build3 [104 kB]
+2026-10-21T08:53:04.7715102Z Get:72 http://archive.ubuntu.com/ubuntu noble/main amd64 make amd64 4.3-4.1build2 [180 kB]
+2026-10-21T08:53:04.7724106Z Get:73 http://archive.ubuntu.com/ubuntu noble/main amd64 lto-disabled-list all 47 [12.4 kB]
+2026-10-21T08:53:04.7727329Z Get:74 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 dpkg-dev all 1.22.6ubuntu6.6 [1074 kB]
+2026-10-21T08:53:04.7776595Z Get:75 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 gnupg-utils amd64 2.4.4-2ubuntu17.6 [109 kB]
+2026-10-21T08:53:04.7783905Z Get:76 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 gpg amd64 2.4.4-2ubuntu17.6 [565 kB]
+2026-10-21T08:53:04.7810550Z Get:77 http://archive.ubuntu.com/ubuntu noble/main amd64 pinentry-curses amd64 1.2.1-3ubuntu5 [35.2 kB]
+2026-10-21T08:53:04.7814192Z Get:78 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 gpg-agent amd64 2.4.4-2ubuntu17.6 [227 kB]
+2026-10-21T08:53:04.8750228Z Get:79 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 gpgsm amd64 2.4.4-2ubuntu17.6 [232 kB]
+2026-10-21T08:53:04.8761917Z Get:80 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 keyboxd amd64 2.4.4-2ubuntu17.6 [78.3 kB]
+2026-10-21T08:53:04.9795783Z Get:81 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 gnupg all 2.4.4-2ubuntu17.6 [359 kB]
+2026-10-21T08:53:04.9816719Z Get:82 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libarchive13t64 amd64 3.7.2-2ubuntu0.9 [383 kB]
+2026-10-21T08:53:04.9833208Z Get:83 http://archive.ubuntu.com/ubuntu noble/universe amd64 libfsverity0 amd64 1.5-1.1build3 [11.3 kB]
+2026-10-21T08:53:04.9834857Z Get:84 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libgomp1 amd64 14.2.0-4ubuntu2~24.04.1 [148 kB]
+2026-10-21T08:53:04.9842656Z Get:85 http://archive.ubuntu.com/ubuntu noble/universe amd64 librpmbuild9t64 amd64 4.18.2+dfsg-2.1build2 [80.1 kB]
+2026-10-21T08:53:04.9847810Z Get:86 http://archive.ubuntu.com/ubuntu noble/universe amd64 librpmsign9t64 amd64 4.18.2+dfsg-2.1build2 [12.0 kB]
+2026-10-21T08:53:04.9849571Z Get:87 http://archive.ubuntu.com/ubuntu noble/universe amd64 rpm-common amd64 4.18.2+dfsg-2.1build2 [34.0 kB]
+2026-10-21T08:53:04.9851889Z Get:88 http://archive.ubuntu.com/ubuntu noble/universe amd64 rpm2cpio amd64 4.18.2+dfsg-2.1build2 [10.3 kB]
+2026-10-21T08:53:05.0860687Z Get:89 http://archive.ubuntu.com/ubuntu noble/universe amd64 rpm amd64 4.18.2+dfsg-2.1build2 [161 kB]
+2026-10-21T08:53:05.0869240Z Get:90 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 zstd amd64 1.5.5+dfsg2-2build1.1 [644 kB]
+2026-10-21T08:53:05.1615851Z debconf: delaying package configuration, since apt-utils is not installed
+2026-10-21T08:53:05.1818736Z Fetched 43.0 MB in 3s (12.8 MB/s)
+2026-10-21T08:53:05.1913248Z Selecting previously unselected package libpython3.12-minimal:amd64.
+2026-10-21T08:53:05.1922568Z (Reading database ... 
+2026-10-21T08:53:05.1923181Z (Reading database ... 5%
+2026-10-21T08:53:05.1923435Z (Reading database ... 10%
+2026-10-21T08:53:05.1923663Z (Reading database ... 15%
+2026-10-21T08:53:05.1923878Z (Reading database ... 20%
+2026-10-21T08:53:05.1924362Z (Reading database ... 25%
+2026-10-21T08:53:05.1924573Z (Reading database ... 30%
+2026-10-21T08:53:05.1924790Z (Reading database ... 35%
+2026-10-21T08:53:05.1925003Z (Reading database ... 40%
+2026-10-21T08:53:05.1925219Z (Reading database ... 45%
+2026-10-21T08:53:05.1925436Z (Reading database ... 50%
+2026-10-21T08:53:05.1925660Z (Reading database ... 55%
+2026-10-21T08:53:05.1925872Z (Reading database ... 60%
+2026-10-21T08:53:05.1929668Z (Reading database ... 65%
+2026-10-21T08:53:05.1933122Z (Reading database ... 70%
+2026-10-21T08:53:05.1935897Z (Reading database ... 75%
+2026-10-21T08:53:05.1937584Z (Reading database ... 80%
+2026-10-21T08:53:05.1939530Z (Reading database ... 85%
+2026-10-21T08:53:05.1941623Z (Reading database ... 90%
+2026-10-21T08:53:05.1945883Z (Reading database ... 95%
+2026-10-21T08:53:05.1946113Z (Reading database ... 100%
+2026-10-21T08:53:05.1946428Z (Reading database ... 4381 files and directories currently installed.)
+2026-10-21T08:53:05.1948647Z Preparing to unpack .../libpython3.12-minimal_3.12.3-1ubuntu0.17_amd64.deb ...
+2026-10-21T08:53:05.1954589Z Unpacking libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:05.2444437Z Selecting previously unselected package libexpat1:amd64.
+2026-10-21T08:53:05.2450244Z Preparing to unpack .../libexpat1_2.6.1-2ubuntu0.6_amd64.deb ...
+2026-10-21T08:53:05.2460234Z Unpacking libexpat1:amd64 (2.6.1-2ubuntu0.6) ...
+2026-10-21T08:53:05.2565571Z Selecting previously unselected package python3.12-minimal.
+2026-10-21T08:53:05.2571059Z Preparing to unpack .../python3.12-minimal_3.12.3-1ubuntu0.17_amd64.deb ...
+2026-10-21T08:53:05.2595076Z Unpacking python3.12-minimal (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:05.2974296Z Setting up libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:05.3002464Z Setting up libexpat1:amd64 (2.6.1-2ubuntu0.6) ...
+2026-10-21T08:53:05.3017313Z Setting up python3.12-minimal (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:05.7329392Z Selecting previously unselected package python3-minimal.
+2026-10-21T08:53:05.7335519Z (Reading database ... 
+2026-10-21T08:53:05.7335887Z (Reading database ... 5%
+2026-10-21T08:53:05.7336117Z (Reading database ... 10%
+2026-10-21T08:53:05.7336333Z (Reading database ... 15%
+2026-10-21T08:53:05.7336542Z (Reading database ... 20%
+2026-10-21T08:53:05.7336722Z (Reading database ... 25%
+2026-10-21T08:53:05.7336865Z (Reading database ... 30%
+2026-10-21T08:53:05.7337001Z (Reading database ... 35%
+2026-10-21T08:53:05.7337131Z (Reading database ... 40%
+2026-10-21T08:53:05.7337264Z (Reading database ... 45%
+2026-10-21T08:53:05.7337395Z (Reading database ... 50%
+2026-10-21T08:53:05.7337527Z (Reading database ... 55%
+2026-10-21T08:53:05.7337657Z (Reading database ... 60%
+2026-10-21T08:53:05.7342307Z (Reading database ... 65%
+2026-10-21T08:53:05.7345617Z (Reading database ... 70%
+2026-10-21T08:53:05.7347940Z (Reading database ... 75%
+2026-10-21T08:53:05.7349983Z (Reading database ... 80%
+2026-10-21T08:53:05.7351941Z (Reading database ... 85%
+2026-10-21T08:53:05.7355579Z (Reading database ... 90%
+2026-10-21T08:53:05.7358373Z (Reading database ... 95%
+2026-10-21T08:53:05.7358600Z (Reading database ... 100%
+2026-10-21T08:53:05.7358912Z (Reading database ... 4700 files and directories currently installed.)
+2026-10-21T08:53:05.7361287Z Preparing to unpack .../python3-minimal_3.12.3-0ubuntu2.1_amd64.deb ...
+2026-10-21T08:53:05.7367444Z Unpacking python3-minimal (3.12.3-0ubuntu2.1) ...
+2026-10-21T08:53:05.7464357Z Selecting previously unselected package media-types.
+2026-10-21T08:53:05.7468080Z Preparing to unpack .../media-types_10.1.0_all.deb ...
+2026-10-21T08:53:05.7473496Z Unpacking media-types (10.1.0) ...
+2026-10-21T08:53:05.7566623Z Selecting previously unselected package netbase.
+2026-10-21T08:53:05.7570285Z Preparing to unpack .../archives/netbase_6.4_all.deb ...
+2026-10-21T08:53:05.7576016Z Unpacking netbase (6.4) ...
+2026-10-21T08:53:05.7678044Z Selecting previously unselected package tzdata.
+2026-10-21T08:53:05.7678418Z Preparing to unpack .../tzdata_2026e-0ubuntu0.24.04.1_all.deb ...
+2026-10-21T08:53:05.7683485Z Unpacking tzdata (2026e-0ubuntu0.24.04.1) ...
+2026-10-21T08:53:05.8312048Z Preparing to unpack .../liblzma5_5.6.1+really5.4.5-1ubuntu0.4_amd64.deb ...
+2026-10-21T08:53:05.8326735Z Unpacking liblzma5:amd64 (5.6.1+really5.4.5-1ubuntu0.4) over (5.6.1+really5.4.5-1ubuntu0.3) ...
+2026-10-21T08:53:05.8476221Z Setting up liblzma5:amd64 (5.6.1+really5.4.5-1ubuntu0.4) ...
+2026-10-21T08:53:05.8576943Z Selecting previously unselected package readline-common.
+2026-10-21T08:53:05.8584485Z (Reading database ... 
+2026-10-21T08:53:05.8584711Z (Reading database ... 5%
+2026-10-21T08:53:05.8585100Z (Reading database ... 10%
+2026-10-21T08:53:05.8585241Z (Reading database ... 15%
+2026-10-21T08:53:05.8585380Z (Reading database ... 20%
+2026-10-21T08:53:05.8585515Z (Reading database ... 25%
+2026-10-21T08:53:05.8585652Z (Reading database ... 30%
+2026-10-21T08:53:05.8585784Z (Reading database ... 35%
+2026-10-21T08:53:05.8585919Z (Reading database ... 40%
+2026-10-21T08:53:05.8586051Z (Reading database ... 45%
+2026-10-21T08:53:05.8586197Z (Reading database ... 50%
+2026-10-21T08:53:05.8586329Z (Reading database ... 55%
+2026-10-21T08:53:05.8586557Z (Reading database ... 60%
+2026-10-21T08:53:05.8587272Z (Reading database ... 65%
+2026-10-21T08:53:05.8589640Z (Reading database ... 70%
+2026-10-21T08:53:05.8591681Z (Reading database ... 75%
+2026-10-21T08:53:05.8593565Z (Reading database ... 80%
+2026-10-21T08:53:05.8595266Z (Reading database ... 85%
+2026-10-21T08:53:05.8598961Z (Reading database ... 90%
+2026-10-21T08:53:05.8602695Z (Reading database ... 95%
+2026-10-21T08:53:05.8602998Z (Reading database ... 100%
+2026-10-21T08:53:05.8603239Z (Reading database ... 5263 files and directories currently installed.)
+2026-10-21T08:53:05.8605477Z Preparing to unpack .../0-readline-common_8.2-4build1_all.deb ...
+2026-10-21T08:53:05.8611050Z Unpacking readline-common (8.2-4build1) ...
+2026-10-21T08:53:05.8715170Z Selecting previously unselected package libreadline8t64:amd64.
+2026-10-21T08:53:05.8718795Z Preparing to unpack .../1-libreadline8t64_8.2-4build1_amd64.deb ...
+2026-10-21T08:53:05.8743261Z Adding 'diversion of /lib/x86_64-linux-gnu/libhistory.so.8 to /lib/x86_64-linux-gnu/libhistory.so.8.usr-is-merged by libreadline8t64'
+2026-10-21T08:53:05.8766954Z Adding 'diversion of /lib/x86_64-linux-gnu/libhistory.so.8.2 to /lib/x86_64-linux-gnu/libhistory.so.8.2.usr-is-merged by libreadline8t64'
+2026-10-21T08:53:05.8787062Z Adding 'diversion of /lib/x86_64-linux-gnu/libreadline.so.8 to /lib/x86_64-linux-gnu/libreadline.so.8.usr-is-merged by libreadline8t64'
+2026-10-21T08:53:05.8806326Z Adding 'diversion of /lib/x86_64-linux-gnu/libreadline.so.8.2 to /lib/x86_64-linux-gnu/libreadline.so.8.2.usr-is-merged by libreadline8t64'
+2026-10-21T08:53:05.8819781Z Unpacking libreadline8t64:amd64 (8.2-4build1) ...
+2026-10-21T08:53:05.8923568Z Selecting previously unselected package libsqlite3-0:amd64.
+2026-10-21T08:53:05.8927221Z Preparing to unpack .../2-libsqlite3-0_3.45.1-1ubuntu2.8_amd64.deb ...
+2026-10-21T08:53:05.8933247Z Unpacking libsqlite3-0:amd64 (3.45.1-1ubuntu2.8) ...
+2026-10-21T08:53:05.9058235Z Selecting previously unselected package libpython3.12-stdlib:amd64.
+2026-10-21T08:53:05.9062278Z Preparing to unpack .../3-libpython3.12-stdlib_3.12.3-1ubuntu0.17_amd64.deb ...
+2026-10-21T08:53:05.9067966Z Unpacking libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:05.9701172Z Selecting previously unselected package python3.12.
+2026-10-21T08:53:05.9707435Z Preparing to unpack .../4-python3.12_3.12.3-1ubuntu0.17_amd64.deb ...
+2026-10-21T08:53:05.9713209Z Unpacking python3.12 (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:05.9829738Z Selecting previously unselected package libpython3-stdlib:amd64.
+2026-10-21T08:53:05.9831117Z Preparing to unpack .../5-libpython3-stdlib_3.12.3-0ubuntu2.1_amd64.deb ...
+2026-10-21T08:53:05.9832846Z Unpacking libpython3-stdlib:amd64 (3.12.3-0ubuntu2.1) ...
+2026-10-21T08:53:05.9952439Z Setting up python3-minimal (3.12.3-0ubuntu2.1) ...
+2026-10-21T08:53:06.0789856Z Selecting previously unselected package python3.
+2026-10-21T08:53:06.0797321Z (Reading database ... 
+2026-10-21T08:53:06.0797590Z (Reading database ... 5%
+2026-10-21T08:53:06.0797815Z (Reading database ... 10%
+2026-10-21T08:53:06.0798039Z (Reading database ... 15%
+2026-10-21T08:53:06.0798266Z (Reading database ... 20%
+2026-10-21T08:53:06.0798483Z (Reading database ... 25%
+2026-10-21T08:53:06.0798667Z (Reading database ... 30%
+2026-10-21T08:53:06.0798811Z (Reading database ... 35%
+2026-10-21T08:53:06.0798949Z (Reading database ... 40%
+2026-10-21T08:53:06.0799087Z (Reading database ... 45%
+2026-10-21T08:53:06.0799223Z (Reading database ... 50%
+2026-10-21T08:53:06.0799361Z (Reading database ... 55%
+2026-10-21T08:53:06.0799639Z (Reading database ... 60%
+2026-10-21T08:53:06.0804130Z (Reading database ... 65%
+2026-10-21T08:53:06.0807528Z (Reading database ... 70%
+2026-10-21T08:53:06.0810216Z (Reading database ... 75%
+2026-10-21T08:53:06.0812505Z (Reading database ... 80%
+2026-10-21T08:53:06.0814329Z (Reading database ... 85%
+2026-10-21T08:53:06.0818608Z (Reading database ... 90%
+2026-10-21T08:53:06.0822774Z (Reading database ... 95%
+2026-10-21T08:53:06.0822996Z (Reading database ... 100%
+2026-10-21T08:53:06.0823320Z (Reading database ... 5706 files and directories currently installed.)
+2026-10-21T08:53:06.0825370Z Preparing to unpack .../0-python3_3.12.3-0ubuntu2.1_amd64.deb ...
+2026-10-21T08:53:06.0848839Z Unpacking python3 (3.12.3-0ubuntu2.1) ...
+2026-10-21T08:53:06.0951559Z Selecting previously unselected package perl-modules-5.38.
+2026-10-21T08:53:06.0955789Z Preparing to unpack .../1-perl-modules-5.38_5.38.2-3.2ubuntu0.6_all.deb ...
+2026-10-21T08:53:06.0961759Z Unpacking perl-modules-5.38 (5.38.2-3.2ubuntu0.6) ...
+2026-10-21T08:53:06.2856094Z Selecting previously unselected package libgdbm6t64:amd64.
+2026-10-21T08:53:06.2865721Z Preparing to unpack .../2-libgdbm6t64_1.23-5.1build1_amd64.deb ...
+2026-10-21T08:53:06.2872048Z Unpacking libgdbm6t64:amd64 (1.23-5.1build1) ...
+2026-10-21T08:53:06.2970568Z Selecting previously unselected package libgdbm-compat4t64:amd64.
+2026-10-21T08:53:06.2978033Z Preparing to unpack .../3-libgdbm-compat4t64_1.23-5.1build1_amd64.deb ...
+2026-10-21T08:53:06.2983666Z Unpacking libgdbm-compat4t64:amd64 (1.23-5.1build1) ...
+2026-10-21T08:53:06.3079042Z Selecting previously unselected package libperl5.38t64:amd64.
+2026-10-21T08:53:06.3086248Z Preparing to unpack .../4-libperl5.38t64_5.38.2-3.2ubuntu0.6_amd64.deb ...
+2026-10-21T08:53:06.3093128Z Unpacking libperl5.38t64:amd64 (5.38.2-3.2ubuntu0.6) ...
+2026-10-21T08:53:06.4363165Z Selecting previously unselected package perl.
+2026-10-21T08:53:06.4372338Z Preparing to unpack .../5-perl_5.38.2-3.2ubuntu0.6_amd64.deb ...
+2026-10-21T08:53:06.4407853Z Unpacking perl (5.38.2-3.2ubuntu0.6) ...
+2026-10-21T08:53:06.4563496Z Selecting previously unselected package adduser.
+2026-10-21T08:53:06.4572484Z Preparing to unpack .../6-adduser_3.137ubuntu1_all.deb ...
+2026-10-21T08:53:06.4586425Z Unpacking adduser (3.137ubuntu1) ...
+2026-10-21T08:53:06.4756113Z Setting up adduser (3.137ubuntu1) ...
+2026-10-21T08:53:06.4900796Z Selecting previously unselected package apt-utils.
+2026-10-21T08:53:06.4909852Z (Reading database ... 
+2026-10-21T08:53:06.4910139Z (Reading database ... 5%
+2026-10-21T08:53:06.4910403Z (Reading database ... 10%
+2026-10-21T08:53:06.4910665Z (Reading database ... 15%
+2026-10-21T08:53:06.4911056Z (Reading database ... 20%
+2026-10-21T08:53:06.4911500Z (Reading database ... 25%
+2026-10-21T08:53:06.4911776Z (Reading database ... 30%
+2026-10-21T08:53:06.4912392Z (Reading database ... 35%
+2026-10-21T08:53:06.4912654Z (Reading database ... 40%
+2026-10-21T08:53:06.4912989Z (Reading database ... 45%
+2026-10-21T08:53:06.4913244Z (Reading database ... 50%
+2026-10-21T08:53:06.4913493Z (Reading database ... 55%
+2026-10-21T08:53:06.4913748Z (Reading database ... 60%
+2026-10-21T08:53:06.4913996Z (Reading database ... 65%
+2026-10-21T08:53:06.4923473Z (Reading database ... 70%
+2026-10-21T08:53:06.4927848Z (Reading database ... 75%
+2026-10-21T08:53:06.4932821Z (Reading database ... 80%
+2026-10-21T08:53:06.4935213Z (Reading database ... 85%
+2026-10-21T08:53:06.4939814Z (Reading database ... 90%
+2026-10-21T08:53:06.4944729Z (Reading database ... 95%
+2026-10-21T08:53:06.4945083Z (Reading database ... 100%
+2026-10-21T08:53:06.4945422Z (Reading database ... 7787 files and directories currently installed.)
+2026-10-21T08:53:06.4947983Z Preparing to unpack .../00-apt-utils_2.8.3_amd64.deb ...
+2026-10-21T08:53:06.4954618Z Unpacking apt-utils (2.8.3) ...
+2026-10-21T08:53:06.5085668Z Selecting previously unselected package libdbus-1-3:amd64.
+2026-10-21T08:53:06.5090399Z Preparing to unpack .../01-libdbus-1-3_1.14.10-4ubuntu4.1_amd64.deb ...
+2026-10-21T08:53:06.5095911Z Unpacking libdbus-1-3:amd64 (1.14.10-4ubuntu4.1) ...
+2026-10-21T08:53:06.5198544Z Selecting previously unselected package libelf1t64:amd64.
+2026-10-21T08:53:06.5203150Z Preparing to unpack .../02-libelf1t64_0.190-1.1ubuntu0.1_amd64.deb ...
+2026-10-21T08:53:06.5210160Z Unpacking libelf1t64:amd64 (0.190-1.1ubuntu0.1) ...
+2026-10-21T08:53:06.5314814Z Selecting previously unselected package libglib2.0-0t64:amd64.
+2026-10-21T08:53:06.5319375Z Preparing to unpack .../03-libglib2.0-0t64_2.80.0-6ubuntu3.10_amd64.deb ...
+2026-10-21T08:53:06.5369689Z Unpacking libglib2.0-0t64:amd64 (2.80.0-6ubuntu3.10) ...
+2026-10-21T08:53:06.5577843Z Selecting previously unselected package libkrb5support0:amd64.
+2026-10-21T08:53:06.5584017Z Preparing to unpack .../04-libkrb5support0_1.20.1-6ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.5590294Z Unpacking libkrb5support0:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:06.5685858Z Selecting previously unselected package libk5crypto3:amd64.
+2026-10-21T08:53:06.5691517Z Preparing to unpack .../05-libk5crypto3_1.20.1-6ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.5697248Z Unpacking libk5crypto3:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:06.5796226Z Selecting previously unselected package libkeyutils1:amd64.
+2026-10-21T08:53:06.5801635Z Preparing to unpack .../06-libkeyutils1_1.6.3-3build1_amd64.deb ...
+2026-10-21T08:53:06.5807840Z Unpacking libkeyutils1:amd64 (1.6.3-3build1) ...
+2026-10-21T08:53:06.5897751Z Selecting previously unselected package libkrb5-3:amd64.
+2026-10-21T08:53:06.5903132Z Preparing to unpack .../07-libkrb5-3_1.20.1-6ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.5908601Z Unpacking libkrb5-3:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:06.6034855Z Selecting previously unselected package libgssapi-krb5-2:amd64.
+2026-10-21T08:53:06.6039839Z Preparing to unpack .../08-libgssapi-krb5-2_1.20.1-6ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.6045424Z Unpacking libgssapi-krb5-2:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:06.6151850Z Selecting previously unselected package libicu74:amd64.
+2026-10-21T08:53:06.6156739Z Preparing to unpack .../09-libicu74_74.2-1ubuntu3.1_amd64.deb ...
+2026-10-21T08:53:06.6162815Z Unpacking libicu74:amd64 (74.2-1ubuntu3.1) ...
+2026-10-21T08:53:06.7067336Z Selecting previously unselected package libpopt0:amd64.
+2026-10-21T08:53:06.7075972Z Preparing to unpack .../10-libpopt0_1.19+dfsg-1build1_amd64.deb ...
+2026-10-21T08:53:06.7082028Z Unpacking libpopt0:amd64 (1.19+dfsg-1build1) ...
+2026-10-21T08:53:06.7177043Z Selecting previously unselected package libxml2:amd64.
+2026-10-21T08:53:06.7185739Z Preparing to unpack .../11-libxml2_2.9.14+dfsg-1.3ubuntu3.10_amd64.deb ...
+2026-10-21T08:53:06.7191616Z Unpacking libxml2:amd64 (2.9.14+dfsg-1.3ubuntu3.10) ...
+2026-10-21T08:53:06.7339399Z Selecting previously unselected package libyaml-0-2:amd64.
+2026-10-21T08:53:06.7347747Z Preparing to unpack .../12-libyaml-0-2_0.2.5-1build1_amd64.deb ...
+2026-10-21T08:53:06.7353481Z Unpacking libyaml-0-2:amd64 (0.2.5-1build1) ...
+2026-10-21T08:53:06.7449505Z Selecting previously unselected package libjansson4:amd64.
+2026-10-21T08:53:06.7455696Z Preparing to unpack .../13-libjansson4_2.14-2build2_amd64.deb ...
+2026-10-21T08:53:06.7461896Z Unpacking libjansson4:amd64 (2.14-2build2) ...
+2026-10-21T08:53:06.7545451Z Selecting previously unselected package libmagic-mgc.
+2026-10-21T08:53:06.7550951Z Preparing to unpack .../14-libmagic-mgc_1%3a5.45-3build1_amd64.deb ...
+2026-10-21T08:53:06.7556483Z Unpacking libmagic-mgc (1:5.45-3build1) ...
+2026-10-21T08:53:06.7834367Z Selecting previously unselected package libmagic1t64:amd64.
+2026-10-21T08:53:06.7842657Z Preparing to unpack .../15-libmagic1t64_1%3a5.45-3build1_amd64.deb ...
+2026-10-21T08:53:06.7848820Z Unpacking libmagic1t64:amd64 (1:5.45-3build1) ...
+2026-10-21T08:53:06.7961983Z Selecting previously unselected package libnghttp2-14:amd64.
+2026-10-21T08:53:06.7970098Z Preparing to unpack .../16-libnghttp2-14_1.59.0-1ubuntu0.4_amd64.deb ...
+2026-10-21T08:53:06.7976056Z Unpacking libnghttp2-14:amd64 (1.59.0-1ubuntu0.4) ...
+2026-10-21T08:53:06.8080062Z Selecting previously unselected package libpsl5t64:amd64.
+2026-10-21T08:53:06.8087730Z Preparing to unpack .../17-libpsl5t64_0.21.2-1.1build1_amd64.deb ...
+2026-10-21T08:53:06.8093770Z Unpacking libpsl5t64:amd64 (0.21.2-1.1build1) ...
+2026-10-21T08:53:06.8190040Z Selecting previously unselected package xz-utils.
+2026-10-21T08:53:06.8197527Z Preparing to unpack .../18-xz-utils_5.6.1+really5.4.5-1ubuntu0.4_amd64.deb ...
+2026-10-21T08:53:06.8203598Z Unpacking xz-utils (5.6.1+really5.4.5-1ubuntu0.4) ...
+2026-10-21T08:53:06.8355320Z Selecting previously unselected package binutils-common:amd64.
+2026-10-21T08:53:06.8362514Z Preparing to unpack .../19-binutils-common_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.8368202Z Unpacking binutils-common:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.8479981Z Selecting previously unselected package libsframe1:amd64.
+2026-10-21T08:53:06.8485460Z Preparing to unpack .../20-libsframe1_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.8491453Z Unpacking libsframe1:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.8581221Z Selecting previously unselected package libbinutils:amd64.
+2026-10-21T08:53:06.8585925Z Preparing to unpack .../21-libbinutils_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.8591689Z Unpacking libbinutils:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.8736924Z Selecting previously unselected package libctf-nobfd0:amd64.
+2026-10-21T08:53:06.8741924Z Preparing to unpack .../22-libctf-nobfd0_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.8747500Z Unpacking libctf-nobfd0:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.8847638Z Selecting previously unselected package libctf0:amd64.
+2026-10-21T08:53:06.8852480Z Preparing to unpack .../23-libctf0_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.8858716Z Unpacking libctf0:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.9144490Z Selecting previously unselected package libgprofng0:amd64.
+2026-10-21T08:53:06.9149882Z Preparing to unpack .../24-libgprofng0_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.9156103Z Unpacking libgprofng0:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.9324195Z Selecting previously unselected package binutils-x86-64-linux-gnu.
+2026-10-21T08:53:06.9331203Z Preparing to unpack .../25-binutils-x86-64-linux-gnu_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.9336953Z Unpacking binutils-x86-64-linux-gnu (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.9817367Z Selecting previously unselected package binutils.
+2026-10-21T08:53:06.9826159Z Preparing to unpack .../26-binutils_2.42-4ubuntu2.10_amd64.deb ...
+2026-10-21T08:53:06.9832367Z Unpacking binutils (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:06.9950271Z Selecting previously unselected package bzip2.
+2026-10-21T08:53:06.9959391Z Preparing to unpack .../27-bzip2_1.0.8-5.1ubuntu0.1_amd64.deb ...
+2026-10-21T08:53:06.9965065Z Unpacking bzip2 (1.0.8-5.1ubuntu0.1) ...
+2026-10-21T08:53:07.0071596Z Selecting previously unselected package libbrotli1:amd64.
+2026-10-21T08:53:07.0079305Z Preparing to unpack .../28-libbrotli1_1.1.0-2build2_amd64.deb ...
+2026-10-21T08:53:07.0085012Z Unpacking libbrotli1:amd64 (1.1.0-2build2) ...
+2026-10-21T08:53:07.0195835Z Selecting previously unselected package libsasl2-modules-db:amd64.
+2026-10-21T08:53:07.0203649Z Preparing to unpack .../29-libsasl2-modules-db_2.1.28+dfsg1-5ubuntu3.1_amd64.deb ...
+2026-10-21T08:53:07.0209120Z Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg1-5ubuntu3.1) ...
+2026-10-21T08:53:07.0303370Z Selecting previously unselected package libsasl2-2:amd64.
+2026-10-21T08:53:07.0311141Z Preparing to unpack .../30-libsasl2-2_2.1.28+dfsg1-5ubuntu3.1_amd64.deb ...
+2026-10-21T08:53:07.0317641Z Unpacking libsasl2-2:amd64 (2.1.28+dfsg1-5ubuntu3.1) ...
+2026-10-21T08:53:07.0419818Z Selecting previously unselected package libldap2:amd64.
+2026-10-21T08:53:07.0427442Z Preparing to unpack .../31-libldap2_2.6.10+dfsg-0ubuntu0.24.04.1_amd64.deb ...
+2026-10-21T08:53:07.0433253Z Unpacking libldap2:amd64 (2.6.10+dfsg-0ubuntu0.24.04.1) ...
+2026-10-21T08:53:07.0544989Z Selecting previously unselected package librtmp1:amd64.
+2026-10-21T08:53:07.0552776Z Preparing to unpack .../32-librtmp1_2.4+20151223.gitfa8646d.1-2build7_amd64.deb ...
+2026-10-21T08:53:07.0558784Z Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2build7) ...
+2026-10-21T08:53:07.0655598Z Selecting previously unselected package libssh-4:amd64.
+2026-10-21T08:53:07.0663276Z Preparing to unpack .../33-libssh-4_0.10.6-2ubuntu0.5_amd64.deb ...
+2026-10-21T08:53:07.0670121Z Unpacking libssh-4:amd64 (0.10.6-2ubuntu0.5) ...
+2026-10-21T08:53:07.0776265Z Selecting previously unselected package libcurl4t64:amd64.
+2026-10-21T08:53:07.0784089Z Preparing to unpack .../34-libcurl4t64_8.5.0-2ubuntu10.16_amd64.deb ...
+2026-10-21T08:53:07.0790515Z Unpacking libcurl4t64:amd64 (8.5.0-2ubuntu10.16) ...
+2026-10-21T08:53:07.0907186Z Selecting previously unselected package liblua5.3-0:amd64.
+2026-10-21T08:53:07.0915146Z Preparing to unpack .../35-liblua5.3-0_5.3.6-2build2_amd64.deb ...
+2026-10-21T08:53:07.0920909Z Unpacking liblua5.3-0:amd64 (5.3.6-2build2) ...
+2026-10-21T08:53:07.1030242Z Selecting previously unselected package librpmio9t64.
+2026-10-21T08:53:07.1038048Z Preparing to unpack .../36-librpmio9t64_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.1043711Z Unpacking librpmio9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.1147810Z Selecting previously unselected package librpm9t64.
+2026-10-21T08:53:07.1155697Z Preparing to unpack .../37-librpm9t64_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.1161551Z Unpacking librpm9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.1271060Z Selecting previously unselected package libdrpm0:amd64.
+2026-10-21T08:53:07.1278486Z Preparing to unpack .../38-libdrpm0_0.5.1-1.1build1_amd64.deb ...
+2026-10-21T08:53:07.1284422Z Unpacking libdrpm0:amd64 (0.5.1-1.1build1) ...
+2026-10-21T08:53:07.1381734Z Selecting previously unselected package libmodulemd2:amd64.
+2026-10-21T08:53:07.1388884Z Preparing to unpack .../39-libmodulemd2_2.14.0-3build2_amd64.deb ...
+2026-10-21T08:53:07.1394739Z Unpacking libmodulemd2:amd64 (2.14.0-3build2) ...
+2026-10-21T08:53:07.1497423Z Selecting previously unselected package libzck1:amd64.
+2026-10-21T08:53:07.1504360Z Preparing to unpack .../40-libzck1_1.3.2+ds1-1build2_amd64.deb ...
+2026-10-21T08:53:07.1510213Z Unpacking libzck1:amd64 (1.3.2+ds1-1build2) ...
+2026-10-21T08:53:07.1605958Z Selecting previously unselected package libcreaterepo-c0:amd64.
+2026-10-21T08:53:07.1612558Z Preparing to unpack .../41-libcreaterepo-c0_0.17.3-2ubuntu3_amd64.deb ...
+2026-10-21T08:53:07.1618487Z Unpacking libcreaterepo-c0:amd64 (0.17.3-2ubuntu3) ...
+2026-10-21T08:53:07.1711936Z Selecting previously unselected package createrepo-c.
+2026-10-21T08:53:07.1718479Z Preparing to unpack .../42-createrepo-c_0.17.3-2ubuntu3_amd64.deb ...
+2026-10-21T08:53:07.1725089Z Unpacking createrepo-c (0.17.3-2ubuntu3) ...
+2026-10-21T08:53:07.1838180Z Selecting previously unselected package libdw1t64:amd64.
+2026-10-21T08:53:07.1844869Z Preparing to unpack .../43-libdw1t64_0.190-1.1ubuntu0.1_amd64.deb ...
+2026-10-21T08:53:07.1851505Z Unpacking libdw1t64:amd64 (0.190-1.1ubuntu0.1) ...
+2026-10-21T08:53:07.1959917Z Selecting previously unselected package debugedit.
+2026-10-21T08:53:07.1966375Z Preparing to unpack .../44-debugedit_1%3a5.0-5build2_amd64.deb ...
+2026-10-21T08:53:07.1972757Z Unpacking debugedit (1:5.0-5build2) ...
+2026-10-21T08:53:07.2095333Z Selecting previously unselected package gpgconf.
+2026-10-21T08:53:07.2102247Z Preparing to unpack .../45-gpgconf_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.2108121Z Unpacking gpgconf (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.2213771Z Selecting previously unselected package libksba8:amd64.
+2026-10-21T08:53:07.2220681Z Preparing to unpack .../46-libksba8_1.6.6-1build1_amd64.deb ...
+2026-10-21T08:53:07.2226969Z Unpacking libksba8:amd64 (1.6.6-1build1) ...
+2026-10-21T08:53:07.2334824Z Selecting previously unselected package dirmngr.
+2026-10-21T08:53:07.2342027Z Preparing to unpack .../47-dirmngr_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.2417955Z Unpacking dirmngr (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.2536197Z Selecting previously unselected package libdpkg-perl.
+2026-10-21T08:53:07.2542959Z Preparing to unpack .../48-libdpkg-perl_1.22.6ubuntu6.6_all.deb ...
+2026-10-21T08:53:07.2548494Z Unpacking libdpkg-perl (1.22.6ubuntu6.6) ...
+2026-10-21T08:53:07.2783050Z Selecting previously unselected package patch.
+2026-10-21T08:53:07.2790410Z Preparing to unpack .../49-patch_2.7.6-7build3_amd64.deb ...
+2026-10-21T08:53:07.2796734Z Unpacking patch (2.7.6-7build3) ...
+2026-10-21T08:53:07.2889922Z Selecting previously unselected package make.
+2026-10-21T08:53:07.2896896Z Preparing to unpack .../50-make_4.3-4.1build2_amd64.deb ...
+2026-10-21T08:53:07.2903074Z Unpacking make (4.3-4.1build2) ...
+2026-10-21T08:53:07.3008945Z Selecting previously unselected package lto-disabled-list.
+2026-10-21T08:53:07.3015778Z Preparing to unpack .../51-lto-disabled-list_47_all.deb ...
+2026-10-21T08:53:07.3022033Z Unpacking lto-disabled-list (47) ...
+2026-10-21T08:53:07.3110702Z Selecting previously unselected package dpkg-dev.
+2026-10-21T08:53:07.3117600Z Preparing to unpack .../52-dpkg-dev_1.22.6ubuntu6.6_all.deb ...
+2026-10-21T08:53:07.3123589Z Unpacking dpkg-dev (1.22.6ubuntu6.6) ...
+2026-10-21T08:53:07.3376499Z Selecting previously unselected package gnupg-utils.
+2026-10-21T08:53:07.3384176Z Preparing to unpack .../53-gnupg-utils_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.3389764Z Unpacking gnupg-utils (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.3499220Z Selecting previously unselected package gpg.
+2026-10-21T08:53:07.3505217Z Preparing to unpack .../54-gpg_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.3511481Z Unpacking gpg (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.3643569Z Selecting previously unselected package pinentry-curses.
+2026-10-21T08:53:07.3649053Z Preparing to unpack .../55-pinentry-curses_1.2.1-3ubuntu5_amd64.deb ...
+2026-10-21T08:53:07.3656803Z Unpacking pinentry-curses (1.2.1-3ubuntu5) ...
+2026-10-21T08:53:07.3953295Z Selecting previously unselected package gpg-agent.
+2026-10-21T08:53:07.3958914Z Preparing to unpack .../56-gpg-agent_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.3964963Z Unpacking gpg-agent (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.4092448Z Selecting previously unselected package gpgsm.
+2026-10-21T08:53:07.4097531Z Preparing to unpack .../57-gpgsm_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.4105837Z Unpacking gpgsm (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.4216102Z Selecting previously unselected package keyboxd.
+2026-10-21T08:53:07.4221304Z Preparing to unpack .../58-keyboxd_2.4.4-2ubuntu17.6_amd64.deb ...
+2026-10-21T08:53:07.4229355Z Unpacking keyboxd (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.4325261Z Selecting previously unselected package gnupg.
+2026-10-21T08:53:07.4330445Z Preparing to unpack .../59-gnupg_2.4.4-2ubuntu17.6_all.deb ...
+2026-10-21T08:53:07.4335977Z Unpacking gnupg (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.4454313Z Selecting previously unselected package libarchive13t64:amd64.
+2026-10-21T08:53:07.4459671Z Preparing to unpack .../60-libarchive13t64_3.7.2-2ubuntu0.9_amd64.deb ...
+2026-10-21T08:53:07.4465648Z Unpacking libarchive13t64:amd64 (3.7.2-2ubuntu0.9) ...
+2026-10-21T08:53:07.4594410Z Selecting previously unselected package libfsverity0:amd64.
+2026-10-21T08:53:07.4599836Z Preparing to unpack .../61-libfsverity0_1.5-1.1build3_amd64.deb ...
+2026-10-21T08:53:07.4606452Z Unpacking libfsverity0:amd64 (1.5-1.1build3) ...
+2026-10-21T08:53:07.4710970Z Selecting previously unselected package libgomp1:amd64.
+2026-10-21T08:53:07.4715845Z Preparing to unpack .../62-libgomp1_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+2026-10-21T08:53:07.4722461Z Unpacking libgomp1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+2026-10-21T08:53:07.4831560Z Selecting previously unselected package librpmbuild9t64.
+2026-10-21T08:53:07.4836483Z Preparing to unpack .../63-librpmbuild9t64_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.4843281Z Unpacking librpmbuild9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.4948773Z Selecting previously unselected package librpmsign9t64.
+2026-10-21T08:53:07.4954095Z Preparing to unpack .../64-librpmsign9t64_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.4960869Z Unpacking librpmsign9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.5053192Z Selecting previously unselected package rpm-common.
+2026-10-21T08:53:07.5058559Z Preparing to unpack .../65-rpm-common_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.5070089Z Unpacking rpm-common (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.5298807Z Selecting previously unselected package rpm2cpio.
+2026-10-21T08:53:07.5304201Z Preparing to unpack .../66-rpm2cpio_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.5312015Z Unpacking rpm2cpio (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.5401533Z Selecting previously unselected package rpm.
+2026-10-21T08:53:07.5406492Z Preparing to unpack .../67-rpm_4.18.2+dfsg-2.1build2_amd64.deb ...
+2026-10-21T08:53:07.5412891Z Unpacking rpm (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.5585875Z Selecting previously unselected package zstd.
+2026-10-21T08:53:07.5591150Z Preparing to unpack .../68-zstd_1.5.5+dfsg2-2build1.1_amd64.deb ...
+2026-10-21T08:53:07.5597229Z Unpacking zstd (1.5.5+dfsg2-2build1.1) ...
+2026-10-21T08:53:07.6030014Z Setting up libksba8:amd64 (1.6.6-1build1) ...
+2026-10-21T08:53:07.6047304Z Setting up pinentry-curses (1.2.1-3ubuntu5) ...
+2026-10-21T08:53:07.6089243Z Setting up media-types (10.1.0) ...
+2026-10-21T08:53:07.6112209Z Setting up libkeyutils1:amd64 (1.6.3-3build1) ...
+2026-10-21T08:53:07.6131552Z Setting up lto-disabled-list (47) ...
+2026-10-21T08:53:07.6147045Z Setting up apt-utils (2.8.3) ...
+2026-10-21T08:53:07.6162494Z Setting up libgdbm6t64:amd64 (1.23-5.1build1) ...
+2026-10-21T08:53:07.6177814Z Setting up libgdbm-compat4t64:amd64 (1.23-5.1build1) ...
+2026-10-21T08:53:07.6192299Z Setting up libmagic-mgc (1:5.45-3build1) ...
+2026-10-21T08:53:07.6208875Z Setting up libyaml-0-2:amd64 (0.2.5-1build1) ...
+2026-10-21T08:53:07.6223368Z Setting up libbrotli1:amd64 (1.1.0-2build2) ...
+2026-10-21T08:53:07.6238001Z Setting up libsqlite3-0:amd64 (3.45.1-1ubuntu2.8) ...
+2026-10-21T08:53:07.6252707Z Setting up libmagic1t64:amd64 (1:5.45-3build1) ...
+2026-10-21T08:53:07.6281348Z Setting up binutils-common:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.6302661Z Setting up libpsl5t64:amd64 (0.21.2-1.1build1) ...
+2026-10-21T08:53:07.6317606Z Setting up libnghttp2-14:amd64 (1.59.0-1ubuntu0.4) ...
+2026-10-21T08:53:07.6332797Z Setting up libctf-nobfd0:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.6351329Z Setting up libzck1:amd64 (1.3.2+ds1-1build2) ...
+2026-10-21T08:53:07.6366042Z Setting up libgomp1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+2026-10-21T08:53:07.6382205Z Setting up bzip2 (1.0.8-5.1ubuntu0.1) ...
+2026-10-21T08:53:07.6398911Z Setting up libsframe1:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.6415866Z Setting up libelf1t64:amd64 (0.190-1.1ubuntu0.1) ...
+2026-10-21T08:53:07.6430979Z Setting up libjansson4:amd64 (2.14-2build2) ...
+2026-10-21T08:53:07.6448885Z Setting up libfsverity0:amd64 (1.5-1.1build3) ...
+2026-10-21T08:53:07.6464803Z Setting up libkrb5support0:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:07.6481303Z Setting up libdw1t64:amd64 (0.190-1.1ubuntu0.1) ...
+2026-10-21T08:53:07.6500181Z Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg1-5ubuntu3.1) ...
+2026-10-21T08:53:07.6515253Z Setting up tzdata (2026e-0ubuntu0.24.04.1) ...
+2026-10-21T08:53:07.6926852Z 
+2026-10-21T08:53:07.6927087Z Current default time zone: 'Etc/UTC'
+2026-10-21T08:53:07.6941901Z Local time is now:      Wed Oct 21 08:53:07 UTC 2026.
+2026-10-21T08:53:07.6942135Z Universal Time is now:  Wed Oct 21 08:53:07 UTC 2026.
+2026-10-21T08:53:07.6942351Z Run 'dpkg-reconfigure tzdata' if you wish to change it.
+2026-10-21T08:53:07.6942496Z 
+2026-10-21T08:53:07.6991540Z Setting up libglib2.0-0t64:amd64 (2.80.0-6ubuntu3.10) ...
+2026-10-21T08:53:07.7022458Z No schema files found: doing nothing.
+2026-10-21T08:53:07.7043468Z Setting up make (4.3-4.1build2) ...
+2026-10-21T08:53:07.7060799Z Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2build7) ...
+2026-10-21T08:53:07.7075550Z Setting up libdbus-1-3:amd64 (1.14.10-4ubuntu4.1) ...
+2026-10-21T08:53:07.7097197Z Setting up xz-utils (5.6.1+really5.4.5-1ubuntu0.4) ...
+2026-10-21T08:53:07.7119656Z update-alternatives: using /usr/bin/xz to provide /usr/bin/lzma (lzma) in auto mode
+2026-10-21T08:53:07.7120743Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzma.1.gz because associated file /usr/share/man/man1/xz.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7121735Z update-alternatives: warning: skip creation of /usr/share/man/man1/unlzma.1.gz because associated file /usr/share/man/man1/unxz.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7122803Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzcat.1.gz because associated file /usr/share/man/man1/xzcat.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7123651Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzmore.1.gz because associated file /usr/share/man/man1/xzmore.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7125274Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzless.1.gz because associated file /usr/share/man/man1/xzless.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7127356Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzdiff.1.gz because associated file /usr/share/man/man1/xzdiff.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7128554Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzcmp.1.gz because associated file /usr/share/man/man1/xzcmp.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7129788Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzgrep.1.gz because associated file /usr/share/man/man1/xzgrep.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7130752Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzegrep.1.gz because associated file /usr/share/man/man1/xzegrep.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7132103Z update-alternatives: warning: skip creation of /usr/share/man/man1/lzfgrep.1.gz because associated file /usr/share/man/man1/xzfgrep.1.gz (of link group lzma) doesn't exist
+2026-10-21T08:53:07.7149239Z Setting up perl-modules-5.38 (5.38.2-3.2ubuntu0.6) ...
+2026-10-21T08:53:07.7163543Z Setting up patch (2.7.6-7build3) ...
+2026-10-21T08:53:07.7177687Z Setting up libk5crypto3:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:07.7192996Z Setting up libsasl2-2:amd64 (2.1.28+dfsg1-5ubuntu3.1) ...
+2026-10-21T08:53:07.7208288Z Setting up libicu74:amd64 (74.2-1ubuntu3.1) ...
+2026-10-21T08:53:07.7224536Z Setting up liblua5.3-0:amd64 (5.3.6-2build2) ...
+2026-10-21T08:53:07.7244759Z Setting up debugedit (1:5.0-5build2) ...
+2026-10-21T08:53:07.7262047Z Setting up netbase (6.4) ...
+2026-10-21T08:53:07.7307349Z Setting up libkrb5-3:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:07.7322645Z Setting up libperl5.38t64:amd64 (5.38.2-3.2ubuntu0.6) ...
+2026-10-21T08:53:07.7345078Z Setting up libbinutils:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.7361309Z Setting up readline-common (8.2-4build1) ...
+2026-10-21T08:53:07.7391447Z Setting up libxml2:amd64 (2.9.14+dfsg-1.3ubuntu3.10) ...
+2026-10-21T08:53:07.7407245Z Setting up zstd (1.5.5+dfsg2-2build1.1) ...
+2026-10-21T08:53:07.7423350Z Setting up libldap2:amd64 (2.6.10+dfsg-0ubuntu0.24.04.1) ...
+2026-10-21T08:53:07.7440921Z Setting up libpopt0:amd64 (1.19+dfsg-1build1) ...
+2026-10-21T08:53:07.7458745Z Setting up gnupg-utils (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.7478344Z Setting up libctf0:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.7494230Z Setting up perl (5.38.2-3.2ubuntu0.6) ...
+2026-10-21T08:53:07.7552007Z Setting up libgprofng0:amd64 (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.7571001Z Setting up libgssapi-krb5-2:amd64 (1.20.1-6ubuntu2.10) ...
+2026-10-21T08:53:07.7593600Z Setting up libdpkg-perl (1.22.6ubuntu6.6) ...
+2026-10-21T08:53:07.7611068Z Setting up libssh-4:amd64 (0.10.6-2ubuntu0.5) ...
+2026-10-21T08:53:07.7626514Z Setting up librpmio9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:07.7642191Z Setting up libreadline8t64:amd64 (8.2-4build1) ...
+2026-10-21T08:53:07.7657992Z Setting up gpgconf (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.7672022Z Setting up libarchive13t64:amd64 (3.7.2-2ubuntu0.9) ...
+2026-10-21T08:53:07.7686498Z Setting up gpg (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:07.7703233Z Setting up binutils-x86-64-linux-gnu (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:07.7718727Z Setting up libmodulemd2:amd64 (2.14.0-3build2) ...
+2026-10-21T08:53:07.7737241Z Setting up gpg-agent (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:08.0120494Z Setting up libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:08.0135000Z Setting up libcurl4t64:amd64 (8.5.0-2ubuntu10.16) ...
+2026-10-21T08:53:08.0154272Z Setting up librpm9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:08.0171508Z Setting up librpmbuild9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:08.0186814Z Setting up python3.12 (3.12.3-1ubuntu0.17) ...
+2026-10-21T08:53:08.5024133Z Setting up gpgsm (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:08.5042528Z Setting up rpm-common (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:08.5061431Z Setting up binutils (2.42-4ubuntu2.10) ...
+2026-10-21T08:53:08.5078320Z Setting up dpkg-dev (1.22.6ubuntu6.6) ...
+2026-10-21T08:53:08.5105014Z Setting up dirmngr (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:08.5830741Z Setting up libdrpm0:amd64 (0.5.1-1.1build1) ...
+2026-10-21T08:53:08.5847306Z Setting up keyboxd (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:08.6514418Z Setting up librpmsign9t64 (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:08.6533279Z Setting up gnupg (2.4.4-2ubuntu17.6) ...
+2026-10-21T08:53:08.6550470Z Setting up libcreaterepo-c0:amd64 (0.17.3-2ubuntu3) ...
+2026-10-21T08:53:08.6569804Z Setting up libpython3-stdlib:amd64 (3.12.3-0ubuntu2.1) ...
+2026-10-21T08:53:08.6904825Z Setting up createrepo-c (0.17.3-2ubuntu3) ...
+2026-10-21T08:53:08.6918607Z Setting up rpm2cpio (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:08.6935361Z Setting up rpm (4.18.2+dfsg-2.1build2) ...
+2026-10-21T08:53:08.6949243Z Setting up python3 (3.12.3-0ubuntu2.1) ...
+2026-10-21T08:53:08.7519013Z Processing triggers for libc-bin (2.39-0ubuntu8.9) ...
+2026-10-21T08:53:08.9587459Z gpg: checking the trustdb
+2026-10-21T08:53:08.9589261Z gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+2026-10-21T08:53:08.9590083Z gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+2026-10-21T08:53:08.9590690Z gpg: next trustdb check due at 2026-10-22
+2026-10-21T08:53:09.2593796Z gpg: To migrate 'secring.gpg', with each smartcard, run: gpg --card-status
+2026-10-21T08:53:09.4786620Z gpg: checking the trustdb
+2026-10-21T08:53:09.4787227Z gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+2026-10-21T08:53:09.4787504Z gpg: depth: 0  valid:   2  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 2u
+2026-10-21T08:53:09.4788349Z gpg: next trustdb check due at 2026-10-22
+2026-10-21T08:53:10.1096492Z gpg: To migrate 'secring.gpg', with each smartcard, run: gpg --card-status
+2026-10-21T08:53:10.1252120Z TEST ONLY native-package keyring generated at /work/keyring
+2026-10-21T08:53:10.2707161Z dpkg-scanpackages: warning: Packages in archive but missing from override file:
+2026-10-21T08:53:10.2707613Z dpkg-scanpackages: warning:   wukongim
+2026-10-21T08:53:10.2707961Z dpkg-scanpackages: info: Wrote 1 entries to output Packages file.
+2026-10-21T08:53:10.3194381Z unsigned native-package repositories built at /work/unsigned
+2026-10-21T08:53:10.4432226Z warning: Could not set GPG_TTY to stdin: Inappropriate ioctl for device
+2026-10-21T08:53:10.4732842Z /work/.signed.tmp.lBBlhZ/rpm/preview/el/9/x86_64/Packages/wukongim_0.0.0-SNAPSHOT-ed7e67d_linux_amd64.rpm:
+2026-10-21T08:53:10.5764791Z signed native-package repositories created at /work/signed
+2026-10-21T08:53:10.6110431Z gpgv: Signature made Wed Oct 21 08:53:10 2026 UTC
+2026-10-21T08:53:10.6110781Z gpgv:                using RSA key D14D6BBF39211AB4F750367E211F37F8DC0E03FD
+2026-10-21T08:53:10.6112679Z gpgv: Good signature from "WuKongIM Native Package APT TEST ONLY <test-only@invalid>"
+2026-10-21T08:53:10.6147339Z gpgv: Signature made Wed Oct 21 08:53:10 2026 UTC
+2026-10-21T08:53:10.6147772Z gpgv:                using RSA key D14D6BBF39211AB4F750367E211F37F8DC0E03FD
+2026-10-21T08:53:10.6151345Z gpgv: Good signature from "WuKongIM Native Package APT TEST ONLY <test-only@invalid>"
+2026-10-21T08:53:10.6661490Z gpgv: Signature made Wed Oct 21 08:53:10 2026 UTC
+2026-10-21T08:53:10.6661940Z gpgv:                using RSA key 7819DB8B668656D2DAFF49C046E0ECD88E03ADDA
+2026-10-21T08:53:10.6663906Z gpgv: Good signature from "WuKongIM Native Package RPM TEST ONLY <test-only@invalid>"
+2026-10-21T08:53:10.7230780Z native-package metadata closure validated
+2026-10-21T08:53:10.7281920Z native-package repository signatures and metadata closure validated
+2026-10-21T08:53:11.6523358Z Get:1 file:/work/signed/apt preview InRelease [1809 B]
+2026-10-21T08:53:11.6562188Z Get:1 file:/work/signed/apt preview InRelease [1809 B]
+2026-10-21T08:53:11.6912659Z Get:2 file:/work/signed/apt preview/main amd64 Packages [419 B]
+2026-10-21T08:53:11.6913360Z Ign:2 file:/work/signed/apt preview/main amd64 Packages
+2026-10-21T08:53:11.6913978Z Get:2 file:/work/signed/apt preview/main amd64 Packages [419 B]
+2026-10-21T08:53:11.7008424Z Reading package lists...
+2026-10-21T08:53:11.7602934Z Get:1 file:/work/signed/apt preview/main amd64 wukongim amd64 0.0.0~SNAPSHOT-ed7e67d [21.7 MB]
+2026-10-21T08:53:11.7784319Z W: Download is performed unsandboxed as root as file '/tmp/apt-download/wukongim_0.0.0~SNAPSHOT-ed7e67d_amd64.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+2026-10-21T08:53:14.2605167Z Unable to find image 'rockylinux:9' locally
+2026-10-21T08:53:14.7833899Z 9: Pulling from library/rockylinux
+2026-10-21T08:53:14.9280328Z 446f83f14b23: Pulling fs layer
+2026-10-21T08:53:15.4047820Z 446f83f14b23: Verifying Checksum
+2026-10-21T08:53:15.4048090Z 446f83f14b23: Download complete
+2026-10-21T08:53:16.7884250Z 446f83f14b23: Pull complete
+2026-10-21T08:53:16.7911197Z Digest: sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
+2026-10-21T08:53:16.7921071Z Status: Downloaded newer image for rockylinux:9
+2026-10-21T08:53:19.1852469Z Rocky Linux 9 - BaseOS                           31 MB/s |  40 MB     00:01    
+2026-10-21T08:53:22.3680114Z Rocky Linux 9 - AppStream                        25 MB/s |  28 MB     00:01    
+2026-10-21T08:53:25.1495669Z WuKongIM preview integration test                19 kB/s | 659  B     00:00    
+2026-10-21T08:53:25.1499033Z WuKongIM preview integration test               2.9 MB/s | 3.0 kB     00:00    
+2026-10-21T08:53:25.1783609Z Importing GPG key 0x8E03ADDA:
+2026-10-21T08:53:25.1784193Z  Userid     : "WuKongIM Native Package RPM TEST ONLY <test-only@invalid>"
+2026-10-21T08:53:25.1784482Z  Fingerprint: 7819 DB8B 6686 56D2 DAFF 49C0 46E0 ECD8 8E03 ADDA
+2026-10-21T08:53:25.1784723Z  From       : /work/signed/keys/rpm-signing-key.asc
+2026-10-21T08:53:25.2082696Z WuKongIM preview integration test                82 kB/s | 1.0 kB     00:00    
+2026-10-21T08:53:25.8108353Z Dependencies resolved.
+2026-10-21T08:53:25.8117724Z ================================================================================
+2026-10-21T08:53:25.8118332Z  Package               Arch   Version                    Repository        Size
+2026-10-21T08:53:25.8118694Z ================================================================================
+2026-10-21T08:53:25.8119224Z Installing:
+2026-10-21T08:53:25.8119742Z  wukongim              x86_64 0.0.0~SNAPSHOT_ed7e67d-1   wukongim-preview  21 M
+2026-10-21T08:53:25.8120135Z Upgrading:
+2026-10-21T08:53:25.8120422Z  libacl                x86_64 2.4.0-1.el9_8              baseos            25 k
+2026-10-21T08:53:25.8120817Z  openssl               x86_64 1:3.5.8-2.el9_8            baseos           1.4 M
+2026-10-21T08:53:25.8121127Z  openssl-libs          x86_64 1:3.5.8-2.el9_8            baseos           2.3 M
+2026-10-21T08:53:25.8121398Z  systemd-libs          x86_64 252-67.el9_8.6.rocky.0.1   baseos           637 k
+2026-10-21T08:53:25.8121608Z Installing dependencies:
+2026-10-21T08:53:25.8121803Z  acl                   x86_64 2.4.0-1.el9_8              baseos            74 k
+2026-10-21T08:53:25.8122041Z  dbus                  x86_64 1:1.12.20-8.el9            baseos           6.8 k
+2026-10-21T08:53:25.8122295Z  dbus-broker           x86_64 28-9.el9_8                 baseos           169 k
+2026-10-21T08:53:25.8122562Z  dbus-common           noarch 1:1.12.20-8.el9            baseos            14 k
+2026-10-21T08:53:25.8122823Z  kmod-libs             x86_64 28-11.el9                  baseos            62 k
+2026-10-21T08:53:25.8123081Z  libseccomp            x86_64 2.5.2-2.el9                baseos            71 k
+2026-10-21T08:53:25.8123368Z  openssl-fips-provider x86_64 1:3.5.8-2.el9_8            baseos           813 k
+2026-10-21T08:53:25.8123641Z  systemd               x86_64 252-67.el9_8.6.rocky.0.1   baseos           4.0 M
+2026-10-21T08:53:25.8123905Z  systemd-pam           x86_64 252-67.el9_8.6.rocky.0.1   baseos           244 k
+2026-10-21T08:53:25.8124189Z  systemd-rpm-macros    noarch 252-67.el9_8.6.rocky.0.1   baseos            32 k
+2026-10-21T08:53:25.8124354Z 
+2026-10-21T08:53:25.8124412Z Transaction Summary
+2026-10-21T08:53:25.8124575Z ================================================================================
+2026-10-21T08:53:25.8124762Z Install  11 Packages
+2026-10-21T08:53:25.8124893Z Upgrade   4 Packages
+2026-10-21T08:53:25.8124972Z 
+2026-10-21T08:53:25.8294562Z Total size: 30 M
+2026-10-21T08:53:25.8294814Z Total download size: 9.8 M
+2026-10-21T08:53:25.8295951Z Downloading Packages:
+2026-10-21T08:53:51.4812269Z (1/14): dbus-1.12.20-8.el9.x86_64.rpm           277  B/s | 6.8 kB     00:25    
+2026-10-21T08:53:51.6333558Z (2/14): dbus-common-1.12.20-8.el9.noarch.rpm     89 kB/s |  14 kB     00:00    
+2026-10-21T08:53:51.9453090Z (3/14): acl-2.4.0-1.el9_8.x86_64.rpm            2.9 kB/s |  74 kB     00:25    
+2026-10-21T08:53:52.1516929Z (4/14): kmod-libs-28-11.el9.x86_64.rpm          120 kB/s |  62 kB     00:00    
+2026-10-21T08:53:52.5114957Z (5/14): libseccomp-2.5.2-2.el9.x86_64.rpm       125 kB/s |  71 kB     00:00    
+2026-10-21T08:53:53.4130849Z (6/14): dbus-broker-28-9.el9_8.x86_64.rpm       6.2 kB/s | 169 kB     00:27    
+2026-10-21T08:53:56.4720258Z (7/14): systemd-pam-252-67.el9_8.6.rocky.0.1.x8  80 kB/s | 244 kB     00:03    
+2026-10-21T08:53:56.7759981Z (8/14): systemd-rpm-macros-252-67.el9_8.6.rocky 105 kB/s |  32 kB     00:00    
+2026-10-21T08:53:57.0426007Z (9/14): libacl-2.4.0-1.el9_8.x86_64.rpm          92 kB/s |  25 kB     00:00    
+2026-10-21T08:53:58.2773614Z (10/14): openssl-fips-provider-3.5.8-2.el9_8.x8 133 kB/s | 813 kB     00:06    
+2026-10-21T08:54:09.0919849Z (11/14): openssl-3.5.8-2.el9_8.x86_64.rpm       120 kB/s | 1.4 MB     00:12    
+2026-10-21T08:54:13.8414360Z (12/14): systemd-libs-252-67.el9_8.6.rocky.0.1. 134 kB/s | 637 kB     00:04    
+2026-10-21T08:54:17.9329857Z (13/14): openssl-libs-3.5.8-2.el9_8.x86_64.rpm  120 kB/s | 2.3 MB     00:19    
+2026-10-21T08:54:27.5121487Z (14/14): systemd-252-67.el9_8.6.rocky.0.1.x86_6 117 kB/s | 4.0 MB     00:35    
+2026-10-21T08:54:27.5125469Z --------------------------------------------------------------------------------
+2026-10-21T08:54:27.5126661Z Total                                           163 kB/s | 9.8 MB     01:01     
+2026-10-21T08:54:27.5225424Z Rocky Linux 9 - BaseOS                          1.7 MB/s | 1.7 kB     00:00    
+2026-10-21T08:54:27.5532405Z Importing GPG key 0x350D275D:
+2026-10-21T08:54:27.5532885Z  Userid     : "Rocky Enterprise Software Foundation - Release key 2022 <releng@rockylinux.org>"
+2026-10-21T08:54:27.5533211Z  Fingerprint: 21CB 256A E16F C54C 6E65 2949 702D 426D 350D 275D
+2026-10-21T08:54:27.5533637Z  From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky-9
+2026-10-21T08:54:27.5861898Z Key imported successfully
+2026-10-21T08:54:27.6898996Z WuKongIM preview integration test               2.9 MB/s | 3.0 kB     00:00    
+2026-10-21T08:54:27.7203487Z Importing GPG key 0x8E03ADDA:
+2026-10-21T08:54:27.7203907Z  Userid     : "WuKongIM Native Package RPM TEST ONLY <test-only@invalid>"
+2026-10-21T08:54:27.7204339Z  Fingerprint: 7819 DB8B 6686 56D2 DAFF 49C0 46E0 ECD8 8E03 ADDA
+2026-10-21T08:54:27.7204732Z  From       : /work/signed/keys/rpm-signing-key.asc
+2026-10-21T08:54:27.7214735Z Key imported successfully
+2026-10-21T08:54:27.7822587Z Running transaction check
+2026-10-21T08:54:27.8005384Z Transaction check succeeded.
+2026-10-21T08:54:27.8011104Z Running transaction test
+2026-10-21T08:54:27.8621018Z Transaction test succeeded.
+2026-10-21T08:54:27.8626351Z Running transaction
+2026-10-21T08:54:27.9450193Z   Preparing        :                                                        1/1 
+2026-10-21T08:54:27.9498461Z   Upgrading        : libacl-2.4.0-1.el9_8.x86_64                           1/19 
+2026-10-21T08:54:27.9712077Z   Installing       : acl-2.4.0-1.el9_8.x86_64                              2/19 
+2026-10-21T08:54:27.9778540Z   Upgrading        : openssl-libs-1:3.5.8-2.el9_8.x86_64                   3/19 
+2026-10-21T08:54:27.9851829Z   Installing       : openssl-fips-provider-1:3.5.8-2.el9_8.x86_64          4/19 
+2026-10-21T08:54:27.9868795Z   Upgrading        : systemd-libs-252-67.el9_8.6.rocky.0.1.x86_64          5/19 
+2026-10-21T08:54:27.9993038Z   Running scriptlet: systemd-libs-252-67.el9_8.6.rocky.0.1.x86_64          5/19 
+2026-10-21T08:54:28.0020369Z   Installing       : kmod-libs-28-11.el9.x86_64                            6/19 
+2026-10-21T08:54:28.0046227Z   Installing       : systemd-rpm-macros-252-67.el9_8.6.rocky.0.1.noarch    7/19 
+2026-10-21T08:54:28.0058266Z   Installing       : libseccomp-2.5.2-2.el9.x86_64                         8/19 
+2026-10-21T08:54:28.0085065Z   Installing       : dbus-1:1.12.20-8.el9.x86_64                           9/19 
+2026-10-21T08:54:28.0108215Z   Installing       : systemd-pam-252-67.el9_8.6.rocky.0.1.x86_64          10/19 
+2026-10-21T08:54:28.1734197Z   Running scriptlet: systemd-252-67.el9_8.6.rocky.0.1.x86_64              11/19 
+2026-10-21T08:54:28.1783162Z   Installing       : systemd-252-67.el9_8.6.rocky.0.1.x86_64              11/19 
+2026-10-21T08:54:28.3188805Z   Running scriptlet: systemd-252-67.el9_8.6.rocky.0.1.x86_64              11/19 
+2026-10-21T08:54:28.3201504Z   Installing       : dbus-common-1:1.12.20-8.el9.noarch                   12/19 
+2026-10-21T08:54:28.3368599Z   Running scriptlet: dbus-common-1:1.12.20-8.el9.noarch                   12/19 
+2026-10-21T08:54:28.3369874Z Created symlink /etc/systemd/system/sockets.target.wants/dbus.socket → /usr/lib/systemd/system/dbus.socket.
+2026-10-21T08:54:28.3370933Z Created symlink /etc/systemd/user/sockets.target.wants/dbus.socket → /usr/lib/systemd/user/dbus.socket.
+2026-10-21T08:54:28.3371641Z 
+2026-10-21T08:54:28.3419575Z   Installing       : dbus-broker-28-9.el9_8.x86_64                        13/19 
+2026-10-21T08:54:28.3573534Z   Running scriptlet: dbus-broker-28-9.el9_8.x86_64                        13/19 
+2026-10-21T08:54:28.3574645Z Created symlink /etc/systemd/system/dbus.service → /usr/lib/systemd/system/dbus-broker.service.
+2026-10-21T08:54:28.3584177Z Created symlink /etc/systemd/user/dbus.service → /usr/lib/systemd/user/dbus-broker.service.
+2026-10-21T08:54:28.3585480Z 
+2026-10-21T08:54:28.6283616Z   Installing       : wukongim-0.0.0~SNAPSHOT_ed7e67d-1.x86_64             14/19 
+2026-10-21T08:54:28.6568414Z   Running scriptlet: wukongim-0.0.0~SNAPSHOT_ed7e67d-1.x86_64             14/19 
+2026-10-21T08:54:28.6569152Z Creating group 'wukongim' with GID 998.
+2026-10-21T08:54:28.6569710Z Creating user 'wukongim' (WuKongIM service user) with UID 998 and GID 998.
+2026-10-21T08:54:28.6569972Z 
+2026-10-21T08:54:28.6983542Z   Upgrading        : openssl-1:3.5.8-2.el9_8.x86_64                       15/19 
+2026-10-21T08:54:28.7022119Z   Cleanup          : openssl-1:3.0.7-24.el9.x86_64                        16/19 
+2026-10-21T08:54:28.7062285Z   Cleanup          : systemd-libs-252-18.el9.x86_64                       17/19 
+2026-10-21T08:54:28.7086628Z   Cleanup          : openssl-libs-1:3.0.7-24.el9.x86_64                   18/19 
+2026-10-21T08:54:28.7132216Z   Cleanup          : libacl-2.3.1-3.el9.x86_64                            19/19 
+2026-10-21T08:54:29.2009818Z   Running scriptlet: libacl-2.3.1-3.el9.x86_64                            19/19 
+2026-10-21T08:54:29.2010658Z   Verifying        : acl-2.4.0-1.el9_8.x86_64                              1/19 
+2026-10-21T08:54:29.2011430Z   Verifying        : dbus-1:1.12.20-8.el9.x86_64                           2/19 
+2026-10-21T08:54:29.2012148Z   Verifying        : dbus-broker-28-9.el9_8.x86_64                         3/19 
+2026-10-21T08:54:29.2012763Z   Verifying        : dbus-common-1:1.12.20-8.el9.noarch                    4/19 
+2026-10-21T08:54:29.2013353Z   Verifying        : kmod-libs-28-11.el9.x86_64                            5/19 
+2026-10-21T08:54:29.2013934Z   Verifying        : libseccomp-2.5.2-2.el9.x86_64                         6/19 
+2026-10-21T08:54:29.2014493Z   Verifying        : openssl-fips-provider-1:3.5.8-2.el9_8.x86_64          7/19 
+2026-10-21T08:54:29.2014918Z   Verifying        : systemd-252-67.el9_8.6.rocky.0.1.x86_64               8/19 
+2026-10-21T08:54:29.2015336Z   Verifying        : systemd-pam-252-67.el9_8.6.rocky.0.1.x86_64           9/19 
+2026-10-21T08:54:29.2015763Z   Verifying        : systemd-rpm-macros-252-67.el9_8.6.rocky.0.1.noarch   10/19 
+2026-10-21T08:54:29.2016194Z   Verifying        : wukongim-0.0.0~SNAPSHOT_ed7e67d-1.x86_64             11/19 
+2026-10-21T08:54:29.2016610Z   Verifying        : libacl-2.4.0-1.el9_8.x86_64                          12/19 
+2026-10-21T08:54:29.2017020Z   Verifying        : libacl-2.3.1-3.el9.x86_64                            13/19 
+2026-10-21T08:54:29.2017429Z   Verifying        : openssl-1:3.5.8-2.el9_8.x86_64                       14/19 
+2026-10-21T08:54:29.2017842Z   Verifying        : openssl-1:3.0.7-24.el9.x86_64                        15/19 
+2026-10-21T08:54:29.2018253Z   Verifying        : openssl-libs-1:3.5.8-2.el9_8.x86_64                  16/19 
+2026-10-21T08:54:29.2018680Z   Verifying        : openssl-libs-1:3.0.7-24.el9.x86_64                   17/19 
+2026-10-21T08:54:29.2019210Z   Verifying        : systemd-libs-252-67.el9_8.6.rocky.0.1.x86_64         18/19 
+2026-10-21T08:54:29.2189360Z   Verifying        : systemd-libs-252-18.el9.x86_64                       19/19 
+2026-10-21T08:54:29.2189818Z 
+2026-10-21T08:54:29.2189984Z Upgraded:
+2026-10-21T08:54:29.2190317Z   libacl-2.4.0-1.el9_8.x86_64                                                   
+2026-10-21T08:54:29.2190762Z   openssl-1:3.5.8-2.el9_8.x86_64                                                
+2026-10-21T08:54:29.2191209Z   openssl-libs-1:3.5.8-2.el9_8.x86_64                                           
+2026-10-21T08:54:29.2191904Z   systemd-libs-252-67.el9_8.6.rocky.0.1.x86_64                                  
+2026-10-21T08:54:29.2192248Z Installed:
+2026-10-21T08:54:29.2192548Z   acl-2.4.0-1.el9_8.x86_64                                                      
+2026-10-21T08:54:29.2192984Z   dbus-1:1.12.20-8.el9.x86_64                                                   
+2026-10-21T08:54:29.2193274Z   dbus-broker-28-9.el9_8.x86_64                                                 
+2026-10-21T08:54:29.2193561Z   dbus-common-1:1.12.20-8.el9.noarch                                            
+2026-10-21T08:54:29.2193858Z   kmod-libs-28-11.el9.x86_64                                                    
+2026-10-21T08:54:29.2194267Z   libseccomp-2.5.2-2.el9.x86_64                                                 
+2026-10-21T08:54:29.2194566Z   openssl-fips-provider-1:3.5.8-2.el9_8.x86_64                                  
+2026-10-21T08:54:29.2194875Z   systemd-252-67.el9_8.6.rocky.0.1.x86_64                                       
+2026-10-21T08:54:29.2195179Z   systemd-pam-252-67.el9_8.6.rocky.0.1.x86_64                                   
+2026-10-21T08:54:29.2195498Z   systemd-rpm-macros-252-67.el9_8.6.rocky.0.1.noarch                            
+2026-10-21T08:54:29.2195812Z   wukongim-0.0.0~SNAPSHOT_ed7e67d-1.x86_64                                      
+2026-10-21T08:54:29.2195980Z 
+2026-10-21T08:54:29.2196037Z Complete!
+2026-10-21T08:54:29.4774963Z native-package signed repository container validation passed
+2026-10-21T08:54:29.6151751Z ##[group]Run git diff --exit-code HEAD -- . ':!.trusted'
+2026-10-21T08:54:29.6152176Z [36;1mgit diff --exit-code HEAD -- . ':!.trusted'[0m
+2026-10-21T08:54:29.6221962Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T08:54:29.6222197Z env:
+2026-10-21T08:54:29.6222321Z   GOTOOLCHAIN: local
+2026-10-21T08:54:29.6222495Z   install_dir: /home/runner/work/_temp/goreleaser-bin
+2026-10-21T08:54:29.6222684Z ##[endgroup]
+2026-10-21T08:54:29.6397827Z Post job cleanup.
+2026-10-21T08:54:29.7190548Z [command]/opt/hostedtoolcache/go/1.25.0/x64/bin/go env GOCACHE
+2026-10-21T08:54:29.7212389Z [command]/opt/hostedtoolcache/go/1.25.0/x64/bin/go env GOMODCACHE
+2026-10-21T08:54:29.7241351Z /home/runner/.cache/go-build
+2026-10-21T08:54:29.7254207Z /home/runner/go/pkg/mod
+2026-10-21T08:54:29.7378112Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/packages/packages --files-from manifest.txt --use-compress-program zstdmt
+2026-10-21T08:54:36.4024527Z Sent 0 of 1143020960 (0.0%), 0.0 MBs/sec
+2026-10-21T08:54:37.4040659Z Sent 536870912 of 1143020960 (47.0%), 255.7 MBs/sec
+2026-10-21T08:54:38.4016345Z Sent 1075912096 of 1143020960 (94.1%), 341.8 MBs/sec
+2026-10-21T08:54:38.7132566Z Sent 1143020960 of 1143020960 (100.0%), 328.9 MBs/sec
+2026-10-21T08:54:38.9687892Z Cache saved with the key: setup-go-Linux-x64-ubuntu24-go-1.25.0-eb89ab13200c52e17cdaf81854e76c0822e776550740fd14ce4f9275f3d5a4bd
+2026-10-21T08:54:38.9805298Z Post job cleanup.
+2026-10-21T08:54:39.0558627Z [command]/opt/hostedtoolcache/go/1.25.0/x64/bin/go env GOMODCACHE
+2026-10-21T08:54:39.0591703Z [command]/opt/hostedtoolcache/go/1.25.0/x64/bin/go env GOCACHE
+2026-10-21T08:54:39.0612714Z /home/runner/go/pkg/mod
+2026-10-21T08:54:39.0626539Z /home/runner/.cache/go-build
+2026-10-21T08:54:39.0753085Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/packages/packages --files-from manifest.txt --use-compress-program zstdmt
+2026-10-21T08:54:45.6046203Z Sent 0 of 1142920706 (0.0%), 0.0 MBs/sec
+2026-10-21T08:54:46.6041109Z Sent 536870912 of 1142920706 (47.0%), 255.9 MBs/sec
+2026-10-21T08:54:47.6040538Z Sent 738197504 of 1142920706 (64.6%), 234.6 MBs/sec
+2026-10-21T08:54:48.5967310Z Sent 1142920706 of 1142920706 (100.0%), 272.8 MBs/sec
+2026-10-21T08:54:48.8318382Z Cache saved with the key: setup-go-Linux-x64-ubuntu24-go-1.27.0-eb89ab13200c52e17cdaf81854e76c0822e776550740fd14ce4f9275f3d5a4bd
+2026-10-21T08:54:48.8430983Z Post job cleanup.
+2026-10-21T08:54:48.9062529Z [command]/usr/bin/git version
+2026-10-21T08:54:48.9098765Z git version 2.55.0
+2026-10-21T08:54:48.9124506Z Temporarily overriding HOME='/home/runner/work/_temp/f82c9c7d-98ed-46d5-85a9-4cdc07df68a8' before making global git config changes
+2026-10-21T08:54:48.9125266Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T08:54:48.9128569Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-21T08:54:48.9164565Z Removing SSH command configuration
+2026-10-21T08:54:48.9170127Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T08:54:48.9201849Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T08:54:48.9415787Z Removing HTTP extra header
+2026-10-21T08:54:48.9416420Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T08:54:48.9449312Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T08:54:48.9653005Z Removing includeIf entries pointing to credentials config files
+2026-10-21T08:54:48.9659058Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T08:54:48.9691067Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T08:54:48.9991891Z Post job cleanup.
+2026-10-21T08:54:49.0564457Z [command]/usr/bin/git version
+2026-10-21T08:54:49.0599771Z git version 2.55.0
+2026-10-21T08:54:49.0620903Z Temporarily overriding HOME='/home/runner/work/_temp/e5f9448c-38c0-4cea-9a76-8acb0a003cd9' before making global git config changes
+2026-10-21T08:54:49.0621718Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T08:54:49.0625927Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-21T08:54:49.0652794Z Removing SSH command configuration
+2026-10-21T08:54:49.0656803Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T08:54:49.0684798Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T08:54:49.0877768Z Removing HTTP extra header
+2026-10-21T08:54:49.0883118Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T08:54:49.0925558Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T08:54:49.1128251Z Removing includeIf entries pointing to credentials config files
+2026-10-21T08:54:49.1136138Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T08:54:49.1166457Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T08:54:49.1494944Z Cleaning up orphan processes

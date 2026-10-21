@@ -1,0 +1,96 @@
+{
+  "observed_at": "2026-10-21T09:04:42.510588+00:00",
+  "releases": [
+    {
+      "id": 402354460,
+      "tag_name": "v3.0.0-beta.24",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-10-03T05:56:49Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.24"
+    },
+    {
+      "id": 402037076,
+      "tag_name": "v3.0.0-beta.23",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-10-02T17:54:58Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.23"
+    },
+    {
+      "id": 401699335,
+      "tag_name": "v3.0.0-beta.22",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-10-02T09:49:01Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.22"
+    },
+    {
+      "id": 392080063,
+      "tag_name": "v3.0.0-beta.21",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-19T13:21:08Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.21"
+    },
+    {
+      "id": 387801847,
+      "tag_name": "v3.0.0-beta.16",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-13T05:28:08Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.16"
+    },
+    {
+      "id": 387233064,
+      "tag_name": "v3.0.0-beta.14",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-11T17:52:15Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.14"
+    },
+    {
+      "id": 385651142,
+      "tag_name": "v3.0.0-beta.13",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-09T15:55:43Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.13"
+    },
+    {
+      "id": 385372142,
+      "tag_name": "v3.0.0-beta.12",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-09T09:15:34Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.12"
+    },
+    {
+      "id": 383828341,
+      "tag_name": "v3.0.0-beta.9",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-07T04:27:35Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.9"
+    },
+    {
+      "id": 382602571,
+      "tag_name": "v3.0.0-beta.8",
+      "target_commitish": "main",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-09-04T09:16:37Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.8"
+    }
+  ],
+  "note": "REST /releases/latest excludes prereleases; this list preserves release ordering and flags."
+}

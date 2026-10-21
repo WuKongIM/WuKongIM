@@ -1,0 +1,24 @@
+{
+  "base": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "merge": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "changed_files": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "CHANGELOG.md",
+    "README.md",
+    "docs/release-contract.md",
+    "scripts/build-repository-bootstrap-packages.py",
+    "tests/native_bootstrap_preparation_drill.py",
+    "tests/test_native_bootstrap_preparation_drill.py",
+    "tests/test_source_preflight_workflow.py",
+    "tests/test_stable_bootstrap_preparation.py"
+  ],
+  "stable_channel": {
+    "enabled": false,
+    "status": "object_storage_required",
+    "releases": []
+  },
+  "channels_manifest_unchanged": true,
+  "channels_manifest_sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+  "production_publication_workflow_changed": false,
+  "production_signing_workflow_changed": false
+}

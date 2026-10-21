@@ -1,0 +1,16 @@
+{
+  "policy_arguments": [
+    "review-agent-check",
+    "go-format"
+  ],
+  "command": [
+    "go",
+    "run",
+    "./cmd/wkreviewcheck",
+    "go-format"
+  ],
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "exit_code": 0,
+  "output_bytes": 0,
+  "output_limit": 1048576
+}

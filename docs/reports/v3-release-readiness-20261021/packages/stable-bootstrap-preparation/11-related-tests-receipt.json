@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "test_build_repository_bootstrap_packages",
+    "test_stable_bootstrap_preparation",
+    "test_native_bootstrap_preparation_drill",
+    "test_source_preflight_workflow",
+    "test_stable_public_keys",
+    "test_compose_package_site"
+  ],
+  "environment": {
+    "PYTHONPATH": "tests"
+  },
+  "started_unix": 1792572276.957411,
+  "ended_unix": 1792572283.2045,
+  "exit_code": 0
+}

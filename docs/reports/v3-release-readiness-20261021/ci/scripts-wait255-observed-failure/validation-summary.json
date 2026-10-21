@@ -1,0 +1,35 @@
+{
+  "counts": {
+    "bash3": {
+      "top_level_pass": 2,
+      "subcase_pass": 40,
+      "failed": 0,
+      "skipped": 0,
+      "success_output_contains_trace": false
+    },
+    "bash5": {
+      "top_level_pass": 2,
+      "subcase_pass": 40,
+      "failed": 0,
+      "skipped": 0,
+      "success_output_contains_trace": false
+    }
+  },
+  "applicable_rules": {
+    "AGENTS.md": {
+      "present": true,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "scripts/AGENTS.md": {
+      "present": false,
+      "sha256": null
+    },
+    "scripts/FLOW.md": {
+      "present": false,
+      "sha256": null
+    }
+  },
+  "source_head": "76a3ba23303e288345dbd37bc354b41d81b6f070",
+  "diagnostic_only": true,
+  "production_changed": false
+}

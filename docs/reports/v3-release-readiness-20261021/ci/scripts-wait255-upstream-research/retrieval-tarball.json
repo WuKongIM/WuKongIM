@@ -1,0 +1,6 @@
+{
+  "url": "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz",
+  "observed_at": "2026-10-21T08:51:25.996834+00:00",
+  "purpose": "read-only compare jobs.c/wait.def; never compile or execute",
+  "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)>"
+}

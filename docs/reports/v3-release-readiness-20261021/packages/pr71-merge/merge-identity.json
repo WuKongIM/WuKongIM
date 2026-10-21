@@ -1,0 +1,20 @@
+{
+  "merged": true,
+  "merged_at": "2026-10-21T09:02:19Z",
+  "merged_by": "tangtaoit",
+  "method": "normal rebase (exact sha guard, no admin/bypass)",
+  "approved_head": "fb62e03bb8ceaf300610becdc1f23ff41558c675",
+  "merge_commit": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "target_main": "0cd625cbee214927a81b0a1015d825a6f53fbf28",
+  "tree": "8bffb645f4db3a313c2049b022bed90376df4db8",
+  "tree_equals_approved_head": true,
+  "merge_parent": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "postmerge_runs": [
+    {
+      "id": 39573852736,
+      "name": "Safety Automation - Deploy Package Repository Bootstrap",
+      "status": "in_progress",
+      "conclusion": null
+    }
+  ]
+}

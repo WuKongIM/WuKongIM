@@ -1,0 +1,237 @@
+{
+  "result": {
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 2513,
+    "output_bytes": 1198363,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 2513,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 545.255
+  },
+  "identity": {
+    "source_sha": "974545635cc9be14a6b5f00413eb4bdb56ae0b7b",
+    "policy_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "event": "pull_request",
+    "run_id": "39572139549",
+    "run_attempt": "1"
+  },
+  "top_level_counts": {
+    "pass": 600,
+    "skip": 6,
+    "fail": 1
+  },
+  "failures": [
+    {
+      "Time": "2026-10-21T08:58:20.111830304Z",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03",
+      "Elapsed": 0.41
+    },
+    {
+      "Time": "2026-10-21T08:58:20.112033569Z",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal",
+      "Elapsed": 1.22
+    },
+    {
+      "Time": "2026-10-21T08:58:36.311467061Z",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Elapsed": 440.079
+    }
+  ],
+  "failure_outputs": {
+    "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03": "=== RUN   TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03\n    wukongim_three_node_chat_lifecycle_script_integration_test.go:501: signal-safe join failed: exit status 255/<nil>\n        \n        fixture trace:\n        fixture_shell=5.2.21(1)-release parent_pid=99187\n        + fixture pid=99187 line=45: PPROF_PID=99188\n        + fixture pid=99187 line=46: joined_pid=99188\n        + fixture pid=99188 line=44: sleep 0.4\n        + fixture pid=99189 line=47: sleep 0.05\n        + fixture pid=99187 line=48: signaler=99189\n        + fixture pid=99187 line=49: printf 'fixture_children target=%s signaler=%s\\n' 99188 99189\n        fixture_children target=99188 signaler=99189\n        + fixture pid=99187 line=50: fixture_phase=join\n        + fixture pid=99187 line=51: join_threshold_pprof_capture\n        + fixture pid=99187 line=21: [[ -n '' ]]\n        + fixture pid=99187 line=26: [[ -n '' ]]\n        + fixture pid=99187 line=29: [[ -n 99188 ]]\n        + fixture pid=99187 line=30: wait_child_uninterrupted 99188\n        + fixture pid=99187 line=9: local pid=99188 status\n        + fixture pid=99187 line=10: WAIT_CHILD_STATUS=0\n        + fixture pid=99187 line=11: true\n        + fixture pid=99187 line=12: status=0\n        + fixture pid=99187 line=13: wait 99188\n        + fixture pid=99189 line=47: kill -TERM 99187\n        ++ fixture pid=99187 line=1: signal_seen=1\n        + fixture pid=99187 line=13: status=143\n        + fixture pid=99187 line=14: kill -0 99188\n        + fixture pid=99187 line=11: true\n        + fixture pid=99187 line=12: status=0\n        + fixture pid=99187 line=13: wait 99188\n        + fixture pid=99187 line=14: kill -0 99188\n        + fixture pid=99187 line=15: WAIT_CHILD_STATUS=0\n        + fixture pid=99187 line=16: return 0\n        + fixture pid=99187 line=31: PPROF_EXIT_STATUS=0\n        + fixture pid=99187 line=32: PPROF_PID=\n        + fixture pid=99187 line=52: join_status=0\n        + fixture pid=99187 line=53: printf 'fixture_join status=%s child_status=%s\\n' 0 0\n        fixture_join status=0 child_status=0\n        + fixture pid=99187 line=54: fixture_phase=signaler_wait\n        + fixture pid=99187 line=55: wait 99189\n        + fixture pid=99187 line=1: fixture_status=-1\n        + fixture pid=99187 line=1: printf 'fixture_exit phase=%s status=%s\\n' signaler_wait -1\n        fixture_exit phase=signaler_wait status=-1\n        + fixture pid=99187 line=1: exit -1\n--- FAIL: TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03 (0.41s)\n",
+    "TestChatLifecycleShakeoutJoinSurvivesFirstSignal": "=== RUN   TestChatLifecycleShakeoutJoinSurvivesFirstSignal\n=== PAUSE TestChatLifecycleShakeoutJoinSurvivesFirstSignal\n=== CONT  TestChatLifecycleShakeoutJoinSurvivesFirstSignal\n--- FAIL: TestChatLifecycleShakeoutJoinSurvivesFirstSignal (1.22s)\n"
+  },
+  "signal_case_terminals": [
+    {
+      "Time": "2026-10-21T08:55:06.49977792Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_01",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:06.899054811Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_02",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:07.29894493Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_03",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:07.69890739Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_04",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:08.098785045Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_05",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:08.497684317Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_06",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:08.897142972Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_07",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:09.296160832Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_08",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:09.695965855Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_09",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:10.095852494Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_10",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:10.494905872Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_11",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:10.895261445Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_12",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:11.307086765Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_13",
+      "Elapsed": 0.41
+    },
+    {
+      "Time": "2026-10-21T08:55:11.706118304Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_14",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:12.105194304Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_15",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:12.503490391Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_16",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:12.902417662Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_17",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:13.301539734Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_18",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:13.700785634Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_19",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:14.099451038Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal/attempt_20",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:55:14.099470777Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestSingleNodeTerminalObserverJoinSurvivesParentSignal",
+      "Elapsed": 8
+    },
+    {
+      "Time": "2026-10-21T08:58:19.294939565Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_01",
+      "Elapsed": 0.4
+    },
+    {
+      "Time": "2026-10-21T08:58:19.70405115Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_02",
+      "Elapsed": 0.41
+    },
+    {
+      "Time": "2026-10-21T08:58:20.111830304Z",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal/attempt_03",
+      "Elapsed": 0.41
+    },
+    {
+      "Time": "2026-10-21T08:58:20.112033569Z",
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleShakeoutJoinSurvivesFirstSignal",
+      "Elapsed": 1.22
+    }
+  ],
+  "unfinished": []
+}

@@ -1,0 +1,257 @@
+{
+  "reviewed_at": "2026-10-21T08:47:37.212838+00:00",
+  "base": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "branch": "codex/stable-bootstrap-preparation",
+  "patch_sha256": "ff0e17a5bf5866ea4cc2d5d818f790838772c3a9f7771e359a22d10c47fad392",
+  "files": {
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "14c08d31c9d91d83bab4eb0a8001980da215dc4f63bfb4a6761e66b634af6970",
+      "size": 9115
+    },
+    "CHANGELOG.md": {
+      "sha256": "291981e995a56b39d8c91ee2a69994750cdcdb5adde6ac1ae5fab84e82847fc5",
+      "size": 1410
+    },
+    "README.md": {
+      "sha256": "ad341bb7e2134784433e42b344ebc799c4454703847b29e42293be1d439a106d",
+      "size": 8853
+    },
+    "docs/release-contract.md": {
+      "sha256": "0f36062f570600998b5b9d8853c7ea11ef3ff548d534140d8e046dbdcd9824b9",
+      "size": 36877
+    },
+    "scripts/build-repository-bootstrap-packages.py": {
+      "sha256": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c",
+      "size": 33191
+    },
+    "tests/native_bootstrap_preparation_drill.py": {
+      "sha256": "2531ca427208fff207f5b366e852a161e47214542efae3d5691f2900f77d0ae8",
+      "size": 11755
+    },
+    "tests/test_native_bootstrap_preparation_drill.py": {
+      "sha256": "3b309f37b45cf0cbd7b2a6705aa690eac29ab20437ed4b143a836810a34d8196",
+      "size": 2566
+    },
+    "tests/test_source_preflight_workflow.py": {
+      "sha256": "a7b84fce05a39b38c63beda3ddc4629b896fbfbc75922684610376dcb385fee0",
+      "size": 5728
+    },
+    "tests/test_stable_bootstrap_preparation.py": {
+      "sha256": "5d3f5a42404aefc11f2de5be5f861c7570223fb8d12f8488ca9ef25b6ed7ad48",
+      "size": 12461
+    }
+  },
+  "protected_files": [
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/prepare-package-site.py",
+      "sha256": "cd2be85e77cba38e6abece92d011aa2f21e5e4e000be379952d2599a243ae5ad",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/plan-package-publication.py",
+      "sha256": "9fb416a831c24ad0d67bb3807b7c32c38c41135b306661fc528e42e5f2575245",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "50f516dc6576f1bc3505ad2ad96099d631de5e4fbf96151b45e2007efca52bbe",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e6b8a7665da8ed2d83cb4ee6e7cfa0cba423ee69fb12baf0697fa2948ec8a00a",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "unchanged": true
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "unchanged": true
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "unchanged": true
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "unchanged": true
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "unchanged": true
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "unchanged": true
+    },
+    {
+      "path": "site/index.html",
+      "sha256": "2ba98f220e612423af3894d98b3d334a8c84cef162e760b39ea7c55e9d46d6d3",
+      "unchanged": true
+    },
+    {
+      "path": "site/status.json",
+      "sha256": "fd3d2dd70c1d02eb9e72417a5ce2e9be3fe6f04e8f5c9bd9a134f18940148086",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+      "unchanged": true
+    }
+  ],
+  "preview_constants_ast_identical": [
+    "MANIFEST_SCHEMA",
+    "INVENTORY_SCHEMA",
+    "MANIFEST_FIELDS",
+    "SOURCE_DATE_EPOCH",
+    "APT_NAME",
+    "RPM_NAME",
+    "APT_KEYRING_PATH",
+    "APT_SOURCE_PATH",
+    "RPM_KEY_PATH",
+    "RPM_REPO_PATH",
+    "APT_SOURCE",
+    "RPM_REPOSITORY",
+    "RPM_SPEC_TEMPLATE"
+  ],
+  "unchanged_helper_ast": [
+    "checked_regular_file",
+    "load_manifest",
+    "dearmor_public_certificate",
+    "_tar_info",
+    "_tar_gzip",
+    "_ar_member",
+    "_parse_ar",
+    "_inspect_tar_gzip",
+    "_tool",
+    "_run",
+    "_rpm_environment",
+    "_write_build_source",
+    "file_facts",
+    "_inventory_entry",
+    "rename_directory_exclusive"
+  ],
+  "methods": [
+    "read-only source/diff/contract review",
+    "independent SHA comparison",
+    "AST comparison; not runtime test"
+  ],
+  "native_drill_executed_by_reviewer": false,
+  "production_private_material_accessed": false,
+  "findings": [],
+  "native_acceptance_pending": true
+}

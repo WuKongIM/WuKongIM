@@ -1,0 +1,39 @@
+FFF
+======================================================================
+FAIL: test_existing_receipt_is_not_overwritten (test_native_bootstrap_preparation_drill.NativeBootstrapDrillTests.test_existing_receipt_is_not_overwritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_native_bootstrap_preparation_drill.py", line 50, in test_existing_receipt_is_not_overwritten
+    drill = self.load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_native_bootstrap_preparation_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native bootstrap preparation drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native bootstrap preparation drill
+
+======================================================================
+FAIL: test_help_never_runs_build_or_install (test_native_bootstrap_preparation_drill.NativeBootstrapDrillTests.test_help_never_runs_build_or_install)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_native_bootstrap_preparation_drill.py", line 25, in test_help_never_runs_build_or_install
+    self.load()
+    ~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_native_bootstrap_preparation_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native bootstrap preparation drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native bootstrap preparation drill
+
+======================================================================
+FAIL: test_missing_native_tool_retains_failure_and_cleanup_receipt (test_native_bootstrap_preparation_drill.NativeBootstrapDrillTests.test_missing_native_tool_retains_failure_and_cleanup_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_native_bootstrap_preparation_drill.py", line 32, in test_missing_native_tool_retains_failure_and_cleanup_receipt
+    drill = self.load()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation/tests/test_native_bootstrap_preparation_drill.py", line 18, in load
+    self.assertTrue(SCRIPT.is_file(), 'missing native bootstrap preparation drill')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : missing native bootstrap preparation drill
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=3)
