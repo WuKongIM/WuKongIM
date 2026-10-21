@@ -1,0 +1,417 @@
+{
+  "attempt": 1,
+  "baselines": {
+    "A": {
+      "clients": [
+        {
+          "distribution": "ubuntu-24.04",
+          "download": {
+            "filename": "wukongim_3.0.0_amd64.deb",
+            "sha256": "5b58f0fe67ba7410d20cca6a219bd68a0c1ad4ce9a520317b823242ac83811c2",
+            "size": 29932180,
+            "snapshot_versions": [
+              "3.0.0"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.0"
+            },
+            "verified": true
+          }
+        },
+        {
+          "distribution": "debian-13",
+          "download": {
+            "filename": "wukongim_3.0.0_amd64.deb",
+            "sha256": "5b58f0fe67ba7410d20cca6a219bd68a0c1ad4ce9a520317b823242ac83811c2",
+            "size": 29932180,
+            "snapshot_versions": [
+              "3.0.0"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.0"
+            },
+            "verified": true
+          }
+        },
+        {
+          "distribution": "rocky-linux-9",
+          "download": {
+            "filename": "wukongim_3.0.0_linux_amd64.rpm",
+            "sha256": "dedc60d01f30a81dca33ce2bd0dc5a9f975a6c84fa7e53f08240eaddb22d50b2",
+            "size": 38398461,
+            "snapshot_versions": [
+              "3.0.0"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.0"
+            },
+            "verified": true
+          }
+        },
+        {
+          "distribution": "alma-linux-9",
+          "download": {
+            "filename": "wukongim_3.0.0_linux_amd64.rpm",
+            "sha256": "dedc60d01f30a81dca33ce2bd0dc5a9f975a6c84fa7e53f08240eaddb22d50b2",
+            "size": 38398461,
+            "snapshot_versions": [
+              "3.0.0"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.0"
+            },
+            "verified": true
+          }
+        }
+      ],
+      "expected_version": "3.0.0",
+      "expected_version_verified": true,
+      "installed_cli_verified": true
+    },
+    "B": {
+      "clients": [
+        {
+          "distribution": "ubuntu-24.04",
+          "download": {
+            "filename": "wukongim_3.0.1_amd64.deb",
+            "sha256": "aa2e7ee0929a3ae64cd9fa76e192f122fd8fda87cfa5bb89ccb45d238c4ca6ba",
+            "size": 29932174,
+            "snapshot_versions": [
+              "3.0.1"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.1"
+            },
+            "verified": true
+          }
+        },
+        {
+          "distribution": "debian-13",
+          "download": {
+            "filename": "wukongim_3.0.1_amd64.deb",
+            "sha256": "aa2e7ee0929a3ae64cd9fa76e192f122fd8fda87cfa5bb89ccb45d238c4ca6ba",
+            "size": 29932174,
+            "snapshot_versions": [
+              "3.0.1"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.1"
+            },
+            "verified": true
+          }
+        },
+        {
+          "distribution": "rocky-linux-9",
+          "download": {
+            "filename": "wukongim_3.0.1_linux_amd64.rpm",
+            "sha256": "180c51c76462e5f36e8a72c25c6ec9a7b883ea8285415f0a9bd2f9480d50abe0",
+            "size": 38398464,
+            "snapshot_versions": [
+              "3.0.1"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.1"
+            },
+            "verified": true
+          }
+        },
+        {
+          "distribution": "alma-linux-9",
+          "download": {
+            "filename": "wukongim_3.0.1_linux_amd64.rpm",
+            "sha256": "180c51c76462e5f36e8a72c25c6ec9a7b883ea8285415f0a9bd2f9480d50abe0",
+            "size": 38398464,
+            "snapshot_versions": [
+              "3.0.1"
+            ]
+          },
+          "installed_cli": {
+            "checks": [
+              "version",
+              "help",
+              "bench_validate",
+              "db_query",
+              "migrate_diagnose",
+              "invalid_inputs",
+              "read_only_data"
+            ],
+            "identity": {
+              "build_source": "release",
+              "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+              "version": "3.0.1"
+            },
+            "verified": true
+          }
+        }
+      ],
+      "expected_version": "3.0.1",
+      "expected_version_verified": true,
+      "installed_cli_verified": true
+    }
+  },
+  "cases": [
+    {
+      "case": "baseline-A-four-download-and-installed-cli",
+      "expected_rejection": false,
+      "ordinal": 1,
+      "passed": true
+    },
+    {
+      "case": "baseline-B-four-download-and-installed-cli",
+      "expected_rejection": false,
+      "ordinal": 2,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-A-to-B-request-barrier",
+      "expected_rejection": false,
+      "ordinal": 3,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-cache-A-first",
+      "expected_rejection": false,
+      "ordinal": 4,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-cache-A-repeat",
+      "expected_rejection": false,
+      "ordinal": 5,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-cache-B-target",
+      "expected_rejection": false,
+      "ordinal": 6,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-reject-missing-byhash",
+      "expected_rejection": true,
+      "ordinal": 7,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-reject-corrupt-byhash",
+      "expected_rejection": true,
+      "ordinal": 8,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-reject-redirect",
+      "expected_rejection": true,
+      "ordinal": 9,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-reject-disconnect",
+      "expected_rejection": true,
+      "ordinal": 10,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-reject-untrusted-TLS",
+      "expected_rejection": true,
+      "ordinal": 11,
+      "passed": true
+    },
+    {
+      "case": "ubuntu-24.04-reject-wrong-SAN",
+      "expected_rejection": true,
+      "ordinal": 12,
+      "passed": true
+    },
+    {
+      "case": "debian-13-A-to-B-request-barrier",
+      "expected_rejection": false,
+      "ordinal": 13,
+      "passed": true
+    },
+    {
+      "case": "debian-13-cache-A-first",
+      "expected_rejection": false,
+      "ordinal": 14,
+      "passed": true
+    },
+    {
+      "case": "debian-13-cache-A-repeat",
+      "expected_rejection": false,
+      "ordinal": 15,
+      "passed": true
+    },
+    {
+      "case": "debian-13-cache-B-target",
+      "expected_rejection": false,
+      "ordinal": 16,
+      "passed": true
+    },
+    {
+      "case": "debian-13-reject-missing-byhash",
+      "expected_rejection": true,
+      "ordinal": 17,
+      "passed": true
+    },
+    {
+      "case": "debian-13-reject-corrupt-byhash",
+      "expected_rejection": true,
+      "ordinal": 18,
+      "passed": true
+    },
+    {
+      "case": "debian-13-reject-redirect",
+      "expected_rejection": true,
+      "ordinal": 19,
+      "passed": true
+    },
+    {
+      "case": "debian-13-reject-disconnect",
+      "expected_rejection": true,
+      "ordinal": 20,
+      "passed": true
+    },
+    {
+      "case": "debian-13-reject-untrusted-TLS",
+      "expected_rejection": true,
+      "ordinal": 21,
+      "passed": true
+    },
+    {
+      "case": "debian-13-reject-wrong-SAN",
+      "expected_rejection": true,
+      "ordinal": 22,
+      "passed": true
+    },
+    {
+      "case": "rocky-linux-9-A-to-B-request-barrier",
+      "expected_rejection": false,
+      "ordinal": 23,
+      "passed": false
+    }
+  ],
+  "ci_synthetic_checkout": {
+    "checkout_sha": "3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+    "tree": "11ead51354aecc30087202959eeb09028617387f"
+  },
+  "cleanup": {
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "command_index_zero_based": 161,
+  "failed_command": {
+    "command": [
+      "docker",
+      "start",
+      "--attach",
+      "6e3cb01c9d0765d5b2f35d8502c3cf7e6bfa9ccfe616981627d2da380f44b8e5"
+    ],
+    "elapsed_seconds": 1.161,
+    "exit_code": 1,
+    "output_limit": false,
+    "output_sha256": "45841fe44ecd2a7420c21ab7dd1c92d3e2e3fe12b6418dc73b11cc86d018b966",
+    "output_size": 906,
+    "output_tail": "warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY\nwarning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY\n/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: digests signatures OK\nImporting GPG key 0x74DE49AC:\n Userid     : \"WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>\"\n Fingerprint: 070E C631 B059 F751 A3A8 2698 14B3 79BE 74DE 49AC\n From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable\nError: Error downloading packages:\n  wukongim-3.0.0-1.x86_64: Cannot download, all mirrors were already tried without success\n\n",
+    "stage": "download-client",
+    "timed_out": false
+  },
+  "failure": "real download client failed",
+  "head": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "job": 119229193899,
+  "phase": "rocky-linux-9-A-to-B-request-barrier",
+  "run": 39602187505,
+  "tree": "11ead51354aecc30087202959eeb09028617387f"
+}

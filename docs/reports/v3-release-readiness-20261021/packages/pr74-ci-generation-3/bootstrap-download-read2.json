@@ -1,0 +1,16 @@
+{
+  "id": 12346865699,
+  "api_digest": "sha256:e075fffbdc0b90bd6a5f092782a34bc216b58cf050ce5ef7435f82c85d9820d9",
+  "exit_code": 0,
+  "at": "2026-10-21T12:49:59.285840+00:00",
+  "zip_sha256": "e075fffbdc0b90bd6a5f092782a34bc216b58cf050ce5ef7435f82c85d9820d9",
+  "zip_bytes": 7151,
+  "members": [
+    {
+      "name": "native-bootstrap-preparation.json",
+      "size": 44122,
+      "sha256": "8509deaa88c96bbd9bb6aebdd0e8ce667ae3ad6002b7e13b1a6bd015c88ab579",
+      "crc32": 3304018221
+    }
+  ]
+}

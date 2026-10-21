@@ -1,0 +1,50 @@
+[
+  {
+    "name": "stable-job-119229193899.log",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/jobs/119229193899/logs"
+    ],
+    "exit_code": 1,
+    "at": "2026-10-21T13:07:23.526693+00:00",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "native-artifacts-final.json",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/runs/39602187505/artifacts?per_page=100"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T13:07:18.546577+00:00",
+    "size": 3622,
+    "sha256": "351b0227482e0a2b4f1c040b50c0b96b501f617282bd14972e0319e2442af77f"
+  },
+  {
+    "name": "native-run-final.json",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/runs/39602187505"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T13:07:18.480554+00:00",
+    "size": 12474,
+    "sha256": "bf280870ef1a4b170319c8f6126986ab2921a867fb794f3003b623893dfbf6aa"
+  },
+  {
+    "name": "native-jobs-final.json",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/runs/39602187505/jobs?per_page=100"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T13:07:18.718220+00:00",
+    "size": 8910,
+    "sha256": "e9a73a06e7795673df911dfcfec651dd5367cc705b574da5cf1695505f81ab73"
+  }
+]

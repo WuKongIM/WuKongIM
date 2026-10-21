@@ -1,0 +1,47 @@
+{
+  "schema": "wukongim.evidence_archive_path_map/v1",
+  "status": "applied_byte_preserving_rename",
+  "root": "docs/reports/v3-release-readiness-20261021",
+  "purpose": "historical source bytes are archived data, not active FLOW navigation",
+  "entries": [
+    {
+      "original_evidence_path": "cloud/rc-next-execution-plan-post1020/source/internal/usecase/chatlifecyclerun/FLOW.md",
+      "archived_path": "cloud/rc-next-execution-plan-post1020/source/internal/usecase/chatlifecyclerun/FLOW.md.source",
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "bytes": 3510
+    },
+    {
+      "original_evidence_path": "cloud/released-continuation-go-review/files/internal/usecase/chatlifecyclerun/FLOW.md",
+      "archived_path": "cloud/released-continuation-go-review/files/internal/usecase/chatlifecyclerun/FLOW.md.source",
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba",
+      "bytes": 3510
+    },
+    {
+      "original_evidence_path": "cloud/source-b469/internal/infra/cloudlease/alibaba/FLOW.md",
+      "archived_path": "cloud/source-b469/internal/infra/cloudlease/alibaba/FLOW.md.source",
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28",
+      "bytes": 2508
+    },
+    {
+      "original_evidence_path": "cloud/source-b469/internal/usecase/chatlifecyclerun/FLOW.md",
+      "archived_path": "cloud/source-b469/internal/usecase/chatlifecyclerun/FLOW.md.source",
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f",
+      "bytes": 2691
+    },
+    {
+      "original_evidence_path": "cloud/source-b469/internal/usecase/cloudlease/FLOW.md",
+      "archived_path": "cloud/source-b469/internal/usecase/cloudlease/FLOW.md.source",
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "bytes": 2327
+    },
+    {
+      "original_evidence_path": "cloud/source-b469/scripts/cloud-deployment/FLOW.md",
+      "archived_path": "cloud/source-b469/scripts/cloud-deployment/FLOW.md.source",
+      "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80",
+      "bytes": 2788
+    }
+  ],
+  "applied_at": "2026-10-21T13:06:58.101180+00:00",
+  "historical_receipts_unchanged": true,
+  "restore_only_in_external_scratch": true
+}

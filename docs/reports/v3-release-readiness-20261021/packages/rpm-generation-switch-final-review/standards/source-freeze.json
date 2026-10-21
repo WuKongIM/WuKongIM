@@ -1,0 +1,45 @@
+{
+  "base": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "commits": [],
+  "untracked": [],
+  "captured_at": "2026-10-21T13:39:59.112609+00:00",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e",
+      "size": 2435,
+      "base_sha256": "e0bdc24287f11d41f216edf18b4366c6a2b18dfa4f0ba11b35681b4854db2943"
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2",
+      "size": 11837,
+      "base_sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "size": 38978,
+      "base_sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d",
+      "size": 66272,
+      "base_sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d"
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd",
+      "size": 30049,
+      "base_sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e",
+      "size": 53063,
+      "base_sha256": "064a58ffa57eb694c9802056a6d182e3577a7f6ef2ba0f764ac27a00ecb38ef7"
+    }
+  ],
+  "patch_sha256": "7ac48194efb860582ac9d0ee4df144cd82ec673f1d893d41ca487b786d650d03"
+}

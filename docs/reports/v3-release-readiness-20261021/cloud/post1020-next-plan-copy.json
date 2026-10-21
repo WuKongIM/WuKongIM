@@ -1,0 +1,196 @@
+{
+  "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-next-execution-plan-post1020",
+  "files": [
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/SHA256SUMS",
+      "bytes": 3815,
+      "sha256": "a1d055475994f4c486c4461ce2d25fe55eaf1b0db4887a0fcc7df4b27f11adbb"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/ARCHIVE_ALLOWLIST.json",
+      "bytes": 6395,
+      "sha256": "dbde4923ef2b9da13850e2d6061958400cdaa58cd4b4d1d276e13948d46a7d86"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/README.md",
+      "bytes": 5137,
+      "sha256": "0bf7ced8e4b380368a0623ac15075050a95a62867cfaf57f0f2d46ed1746e013"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/build-plan.py",
+      "bytes": 12330,
+      "sha256": "c8f9808bd875a37bde68d73fe780d5347ae4bfc7129800ad0ac707dd902529c1"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-observation-summary.json",
+      "bytes": 1408,
+      "sha256": "23db1aba12b73b92e0fe5c66aba85c9d666de5f520886caa10023df4d869f355"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/acquire-artifact.json",
+      "bytes": 793,
+      "sha256": "fb52d3daba6a1d4b0752bb181ecb6d5e1afa719a2966478d256502ff99b2d07c"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/acquire-run.json",
+      "bytes": 17653,
+      "sha256": "0167f03b47c0b0de1be4aede212ed7b9b1b5b7c15fd08b51bad66bb47bfc0747"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/latest-rehearsal-run.json",
+      "bytes": 18846,
+      "sha256": "9cb0b79fe6bc4be25eb6391e0742e6c5521d86099cfb7d80afb84d34ed3449c7"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/main.json",
+      "bytes": 371,
+      "sha256": "3030e6b2bc8baf9e6aef78f116a05754e471e67a2493efb5405d66e6a7f5d48d"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/predecessor-run.json",
+      "bytes": 17344,
+      "sha256": "655219d62679d45b728932c84a57852f34617926d7b7eedc9b918e478df90203"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/release-artifact.json",
+      "bytes": 790,
+      "sha256": "0086ba9ada43c58893516c12d18a743df7e0dc21dc81e159e1d44e88018a6e6d"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/release-jobs.json",
+      "bytes": 5626,
+      "sha256": "dd9c28159f6a3a79a5b6a1e640923cd3eb334157d10df2b0a38a957bc7385542"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/release-run.json",
+      "bytes": 17649,
+      "sha256": "9a17d516a83c5ab5ef656a610d2ac558e0991b0cab3448b83c05ebd0e0b00c90"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/source-ancestry.json",
+      "bytes": 346569,
+      "sha256": "bb3ea92e3e6ccc8a48c2a95c1d3a012d70294031c010adcb93ec6cc4e03e4b80"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/top-artifact.json",
+      "bytes": 805,
+      "sha256": "23e1a6feb9b9ce8ff5b2b59127e1fb232878105aba8b91d43505a3ace71892ce"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/tracking-issue.json",
+      "bytes": 6669,
+      "sha256": "46723a30fa64f7277b6b99e05709db78dacae7bc375bbb2f9aca74160fed5866"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/github-readonly/workflow.json",
+      "bytes": 622,
+      "sha256": "73b63f0eb7a1a0d95c18688f170733deda2523151188175ef78b01888a0e579b"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/independent-readonly-review.json",
+      "bytes": 478,
+      "sha256": "53fea65f02821dfcae3f678acc179d43558af91bdaa563df17e81e29c222ec7a"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/offline-public-documents-check.json",
+      "bytes": 3372,
+      "sha256": "28b6025558aca5225aad4beef15023cdb6be1bcf74489ce5e2db827b4bb2c190"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/offline-public-documents-check.py",
+      "bytes": 3298,
+      "sha256": "a3df5f4c2c4d9d8435ac1ab6ce697fa9f8d4805bf50aa7f25f658344484867f7"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/plan.json",
+      "bytes": 7063,
+      "sha256": "500f13dbcb6f9b220ffbe8acac977b00d4ba2430054fa191c07df0e87ae781dc"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/planned-dispatch.json",
+      "bytes": 374,
+      "sha256": "ada472b455e7b297d3082bb91bd7f087602ec6eccfb0421d9f05f60c2ad9bfd8"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/planned-workflow-inputs.json",
+      "bytes": 329,
+      "sha256": "1ab1cfa4afbbfc4883a90aaea55f1a594425bb439290c4f84e3ef0639d011c5d"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/read-observation.json",
+      "bytes": 334,
+      "sha256": "fd7c48998979bda91e93b516a93eb00fb0352973ca91f90c92e8e4d0d3596a2f"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/.github/workflows/README.md",
+      "bytes": 84251,
+      "sha256": "f574f92c00c9f87c1ef623183dcc6b8a927dc95bbe09f5da8acc5e608b26add5"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/.github/workflows/chat-lifecycle-formal-finalize.yml",
+      "bytes": 30143,
+      "sha256": "91fc7088f634e3ab521571e468fb0526922ec1631f8c20202935cdd0139b1a3a"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/.github/workflows/chat-lifecycle-formal.yml",
+      "bytes": 15796,
+      "sha256": "072b2a5827aaac1cc54f1bf2e63f2be428eb48edc83c3a22ec6204ede6aa1b5a"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "bytes": 33988,
+      "sha256": "c830cbb8387e3651b70fdb0e99af893d4dec0acecf268b131903ac18492d5587"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/.github/workflows/chat-lifecycle-rehearsal.yml",
+      "bytes": 10261,
+      "sha256": "ad9597a238b812711307b1d801736daa973b50df2ae336ff20b4b396aafa29da"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/configs/cloud/chat-lifecycle/formal-v1.json",
+      "bytes": 1021,
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "bytes": 1021,
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/internal/usecase/chatlifecyclerun/FLOW.md",
+      "bytes": 3510,
+      "sha256": "10b3a19411c8633716f2a074c39d16ee657bed1c3949852ebe631124b608b0ba"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "bytes": 41136,
+      "sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/scripts/chat-lifecycle/comment-request-issue.sh",
+      "bytes": 6706,
+      "sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "bytes": 3630,
+      "sha256": "c692318316837e07833ccc5dcb19de38af732f987069e71fd4f1d92c9758316e"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source/scripts/chat-lifecycle/stage-orchestrate.sh",
+      "bytes": 48186,
+      "sha256": "0d202be2d48e61dccfeccf795c57cb35be427753486657a1ac7b0211d2fa3625"
+    },
+    {
+      "path": "cloud/rc-next-execution-plan-post1020/source-and-rule-freeze.json",
+      "bytes": 3385,
+      "sha256": "496c8159910d1ec630163039928d70437cc4c4cc2bde840e04f5b68caddfc94b"
+    }
+  ],
+  "scope": "public-only prepared plan; no paid start"
+}

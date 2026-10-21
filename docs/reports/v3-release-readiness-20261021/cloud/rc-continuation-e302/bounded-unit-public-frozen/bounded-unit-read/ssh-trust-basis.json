@@ -1,0 +1,9 @@
+{
+  "source_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "source_path": "scripts/cloud-deployment/write-ssh-config.sh",
+  "source_sha256": "9ea97ca0be212c9fe16b35f861eb27f62cb1ad4dcf4a846ae7f417e54682dbc9",
+  "policy": "same BatchMode/IdentitiesOnly/accept-new/exact per-task known_hosts as existing contract",
+  "private_key_bytes_read_printed_or_copied": false,
+  "private_key_used_only_by_ssh": true,
+  "target_from_verified_deployment_receipt": "i-bp1a769211422qccf8aw"
+}

@@ -1,0 +1,10 @@
+{
+  "ref": "main",
+  "inputs": {
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "operator": "tangtaoit",
+    "codex_diagnostic_pubkey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAl6p9QSylCMANtdcaqeBm2QXWZzKI0DXj3XqxIivx9E chat-20261021T095421Z-cf11d65c",
+    "request_id": "chat-20261021T095421Z-cf11d65c",
+    "released_preclock_run_id": "39581355444"
+  }
+}

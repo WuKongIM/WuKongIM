@@ -1,0 +1,54 @@
+[
+  {
+    "path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+    "schema": "wukongim.native_bootstrap_preparation_drill/v1",
+    "passed": true,
+    "cases": 6,
+    "all_cases_passed": true,
+    "transport_cases": 0,
+    "all_transport_passed": true,
+    "source_sha": "3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+    "cleanup": {
+      "scratch_removed": true
+    }
+  },
+  {
+    "path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+    "schema": "wukongim/test-only-native-local-signing/v1",
+    "passed": true,
+    "cases": 10,
+    "all_cases_passed": true,
+    "transport_cases": 0,
+    "all_transport_passed": true,
+    "source_sha": null,
+    "cleanup": {
+      "secret_tree_removed_before_verification": true
+    }
+  },
+  {
+    "path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+    "schema": "wukongim/test-only-native-source-metadata/v1",
+    "passed": true,
+    "cases": 7,
+    "all_cases_passed": true,
+    "transport_cases": 0,
+    "all_transport_passed": true,
+    "source_sha": null,
+    "cleanup": {}
+  },
+  {
+    "path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+    "schema": "wukongim/test-only-native-stable-candidate/v1",
+    "passed": true,
+    "cases": 31,
+    "all_cases_passed": true,
+    "transport_cases": 8,
+    "all_transport_passed": true,
+    "source_sha": "3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+    "cleanup": {
+      "scratch_removed": true,
+      "secret_tree_removed_before_verification": true,
+      "checked_in_control_unchanged": true
+    }
+  }
+]

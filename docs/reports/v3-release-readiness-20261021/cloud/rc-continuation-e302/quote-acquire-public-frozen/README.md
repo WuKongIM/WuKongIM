@@ -1,0 +1,3 @@
+# Exact rehearsal-2 Quote and Acquire
+
+Quote39605843022 and Acquire39606834198 both completed success. Each retained artifact was checked against API digest/size plus ZIP CRC. Quote bytes are identical in both artifacts. Active Lease belongs to original request and rehearsal-2, fixed productfc182, new bundlee810a871. Budget stillCNY1500/1350 and committed old reserve74.4776. New12hQuote also74.4776; combined full old reserve and new full Quote148.9552 is a conservative admission bound, not billing. Lease creation13:18:59.628591196Z, expiry2026-10-22T01:11:38Z. Three service hosts, one load, eight disks, one EIP. No independent provider mutation/read was made by this local verifier. Deployment is still running; no workload start or qualification claimed.

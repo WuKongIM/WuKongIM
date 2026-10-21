@@ -1,0 +1,20 @@
+[
+  {
+    "workflow": "chat-lifecycle-rehearsal-finalize.yml",
+    "observed_at": "2026-10-21T13:21:40.562154+00:00",
+    "exit_code": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "id": 329938002,
+    "state": "active",
+    "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+  },
+  {
+    "workflow": "cloud-lease-release.yml",
+    "observed_at": "2026-10-21T13:21:40.671792+00:00",
+    "exit_code": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "id": 329938010,
+    "state": "active",
+    "path": ".github/workflows/cloud-lease-release.yml"
+  }
+]

@@ -1,0 +1,749 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d8a51e0..86b87fe 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,9 @@
+   and isolated TEST ONLY A/B repository switching; stable publication remains disabled.
+ - Retain stable SHA512 index aliases for native APT generation switching,
+   preserving existing signatures, archives and client hash preferences.
++- Retain verified stable RPM payloads across supplied snapshot base URLs so DNF
++  can finish a download when its mirrorlist changes between metadata and package
++  requests, with exact source/content checks and unchanged signed metadata.
+ 
+ - Add explicit stable audit sealing with fresh source/control verification and offline composite transport planning; keep stable disabled and production publication unconnected.
+ 
+diff --git a/docs/stable-audit-transport.md b/docs/stable-audit-transport.md
+index 8dcaa39..82a258e 100644
+--- a/docs/stable-audit-transport.md
++++ b/docs/stable-audit-transport.md
+@@ -78,6 +78,22 @@ their default hash preference across a generation switch. Each additional alias
+ copies the original authenticated archive member; signed metadata, archives and
+ the preview-only planner are unchanged.
+ 
++Stable RPM payloads are also retained under each supplied stable snapshot's RPM
++base URL. DNF's separate `makecache --refresh` and download invocations can select
++A's signed metadata, then reread the floating mirrorlist after it points to B.
++The composite plan therefore adds explicit missing `Packages/*.rpm` aliases
++under B's prefix for A's verified product and bootstrap bytes, and likewise for
++the other supplied stable snapshots. Each alias binds an original archive member,
++size and SHA-256; it does not create a new signed candidate or metadata file.
++Original snapshot objects remain unchanged. Both original objects and aliases
++participate in URI conflict checks: identical bytes can share a deterministic
++source, while conflicting bytes fail closed, including a same-version bootstrap
++that has been signed again. Reuse identical signed bytes or change its version.
++The existing limit of eight total snapshots, including current preview, permits
++at most seven stable snapshots; each verified stable candidate contains exactly
++the product and bootstrap RPM, so at most 84 missing cross-generation aliases
++are added. Only supplied stable generations participate; preview is unchanged.
++
+ The only derived object is a no-store stable RPM mirrorlist pointing to the
+ complete immutable snapshot RPM base URL. Its exact UTF-8 bytes, size and digest
+ are in `generated_objects`. No floating stable repomd/plain-metadata alias is
+@@ -129,7 +145,19 @@ keys are destroyed before public fixture export and host verification.
+ The four digest-pinned Ubuntu, Debian, Rocky Linux and AlmaLinux download
+ clients use an internal Docker network and an ephemeral CA for the exact
+ `packages.githubim.com` name. A deterministic server switches after serving A's
+-InRelease or mirrorlist; retained by-hash and immutable RPM objects remain A.
++InRelease or mirrorlist. APT retains A's authenticated by-hash indexes. DNF must
++read A's exact immutable metadata URLs and bytes, including `repomd.xml` and its
++detached signature during the switch. Its RPM URL may use another supplied
++stable prefix only when the plan explicitly resolves that path to the exact
++original member, size and SHA-256 selected from A. This replaces the earlier
++assumption that both DNF invocations would keep every request under A's prefix;
++native signature, exact downloaded package and installed version/source checks
++remain required. Unknown aliases, cross-family/architecture paths, mismatched
++source members or bytes, and incomplete response writes fail the proof.
++For cache cases, a metadata 304 must refer to the same immutable object, carry
++its expected ETag and match the request's conditional validator. `If-None-Match`
++takes precedence over the object's hash-derived `Last-Modified` value. Native
++signature verification and independent cache-read evidence remain required.
+ The HTTPS fixture completes bounded TLS shutdown, including `close_notify`;
+ intentional truncation still fails the declared HTTP response length. APT faults
+ cover both supported by-hash algorithms without forcing a client hash choice.
+diff --git a/scripts/plan-object-storage-publication.py b/scripts/plan-object-storage-publication.py
+index c6851b2..735d964 100755
+--- a/scripts/plan-object-storage-publication.py
++++ b/scripts/plan-object-storage-publication.py
+@@ -354,6 +354,13 @@ def _stable_snapshot(item: dict[str, Any], base: Path, test_only: bool) -> dict[
+             'stable bootstrap',canonical=True),prepared=False,channel='stable')
+         rpm_receipt=C.load_json(root/'audit/rpm-signing.json','stable RPM receipt',canonical=True)
+         repo='rpm/stable/el/9/x86_64/'
++        # The verified first-candidate contract has one product and one bootstrap
++        # RPM. Keep transport expansion bounded to those exact canonical members.
++        rpm_paths={C.expected_payload_path('rpm',candidate['version'],channel='stable'),
++                   bootstrap['packages']['rpm']['repository_path']}
++        require(len(rpm_paths)==2 and {name for name in files if name.startswith(repo+'Packages/')}==rpm_paths,
++                'stable RPM payload catalog must contain exactly the canonical product and bootstrap')
++        rpm_payloads={name:files[name] for name in sorted(rpm_paths)}
+         immutable={value['download_path'] for value in bootstrap['packages'].values()} | {
+             name for name in files if name.startswith('apt/pool/') or '/by-hash/SHA256/' in name
+             or name.startswith(repo+'Packages/')}
+@@ -388,7 +395,7 @@ def _stable_snapshot(item: dict[str, Any], base: Path, test_only: bool) -> dict[
+     return {'identity':{'channel':'stable','audit_release_id':item['audit_release_id'],
+         'seal_control_sha':item['seal_control_sha'],'candidate':candidate,
+         'resolution_sha256':item['resolution_sha256']},'prefix':prefix,'objects':objects,
+-        'files':files,'immutable':immutable,'derived_aliases':derived_aliases}
++        'files':files,'immutable':immutable,'derived_aliases':derived_aliases,'rpm_payloads':rpm_payloads}
+ 
+ 
+ def make_composite_plan(input_path: Path, test_only: bool, output_path: Path | None = None) -> dict[str, Any]:
+@@ -437,15 +444,44 @@ def make_composite_plan(input_path: Path, test_only: bool, output_path: Path | N
+             snapshot=_stable_snapshot(raw,input_path.parent,test_only)
+         snapshots.append(snapshot)
+     preview,stable=snapshots[:2]
++    # Public snapshot paths already address original archive members. A derived
++    # alias must never shadow a different member, even across output categories.
++    snapshot_routes={}
++    for snapshot in snapshots:
++        for value in snapshot['objects']:
++            uri='/'+value['object_key']
++            require(uri not in snapshot_routes or all(snapshot_routes[uri][key]==value[key]
++                    for key in ('sha256','size','cache_control')),'snapshot URI conflict: '+uri)
++            snapshot_routes[uri]=value
+     aliases={}
+     def add_alias(value: dict[str, Any]) -> None:
++        uri=value['public_uri']
++        if uri in snapshot_routes:
++            require(all(snapshot_routes[uri][key]==value[key] for key in ('sha256','size','cache_control')),
++                    'immutable alias conflicts with snapshot URI: '+uri)
++            return
+         path=value['public_uri'][1:]
+         if path in aliases:
+             require(all(aliases[path][key]==value[key] for key in ('object_key','sha256','size','cache_control')),
+                     'immutable URI conflict across snapshots: /'+path)
+         else: aliases[path]=value
+-    for snapshot in snapshots:
++    stable_snapshots=sorted((item for item in snapshots if item['identity']['channel']=='stable'),
++                            key=lambda item:item['identity']['audit_release_id'])
++    rpm_catalog={}
++    for snapshot in stable_snapshots:
++        for path,facts in snapshot['rpm_payloads'].items():
++            value={'public_uri':'/'+path,'object_key':'public/'+path,**facts,'cache_control':IMMUTABLE_CACHE,
++                'source':{'audit_release_id':snapshot['identity']['audit_release_id'],
++                          'channel':'stable','member':'site/'+path}}
++            if path in rpm_catalog:
++                require(all(rpm_catalog[path][key]==value[key] for key in ('sha256','size','cache_control')),
++                        'immutable URI conflict across snapshots: /'+path)
++            else: rpm_catalog[path]=value
++    # Current descriptors keep precedence for legacy aliases; retained identity
++    # order makes identical-byte source selection independent of input ordering.
++    for snapshot in [*snapshots[:2],*sorted(snapshots[2:],key=lambda item:item['identity']['audit_release_id'])]:
+         for path in sorted(snapshot['immutable']):
++            if snapshot['identity']['channel']=='stable' and path in rpm_catalog: continue
+             facts=snapshot['files'][path]
+             value={'public_uri':'/'+path,'object_key':'public/'+path,**facts,'cache_control':IMMUTABLE_CACHE,
+                 'source':{'audit_release_id':snapshot['identity']['audit_release_id'],
+@@ -453,6 +489,14 @@ def make_composite_plan(input_path: Path, test_only: bool, output_path: Path | N
+             add_alias(value)
+         for value in snapshot.get('derived_aliases',[]):
+             add_alias(value)
++    for path,value in sorted(rpm_catalog.items()):
++        add_alias(value)
++        for snapshot in stable_snapshots:
++            # A later DNF invocation may refresh mirrorlist while retaining old
++            # metadata. Serve the authenticated payload at each retained base;
++            # its source stays the real archive member, not the destination ID.
++            uri='/'+snapshot['prefix']+'/site/'+path
++            add_alias({**value,'public_uri':uri,'object_key':'public'+uri})
+     entrypoints=[]
+     for snapshot in (preview,stable):
+         for path,facts in sorted(snapshot['files'].items()):
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index 5fc99ec..f59b901 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -123,6 +123,84 @@ def verify_apt_by_hash_fault(mode, observed, diagnostic):
+     raise RuntimeError('native rejection lacks the actual by-hash fault response')
+ 
+ 
++def verify_rpm_requests(observed, plan, audit_release_id, *, switching):
++    """Bind DNF metadata to its selected snapshot and payloads to those exact bytes.
++
++    Separate DNF invocations may reread the floating mirrorlist. A retained RPM
++    can then use a different snapshot prefix, but only through an explicit plan
++    object whose original verified member matches the selected payload.
++    """
++    repo = 'site/rpm/stable/el/9/x86_64/'
++    prefixes = {item['audit_release_id']: '/snapshots/stable/r' + str(item['audit_release_id'])
++                + '-' + item['candidate']['snapshot_sha256'] + '/'
++                for item in plan['snapshots'] if item['channel'] == 'stable'}
++    require(audit_release_id in prefixes, 'selected RPM snapshot is absent from the verified plan')
++    prefix = prefixes[audit_release_id]
++    originals = {'/' + item['object_key']: item for item in plan['snapshot_objects']}
++    aliases = {item['public_uri']: item for item in plan['immutable_aliases']}
++    selected = {path[len(prefix):]: item for path, item in originals.items() if path.startswith(prefix + repo)}
++    fields = ('sha256', 'size')
++    def matches(left, right, keys=fields):
++        return all(left.get(key) == right.get(key) for key in keys)
++    mirrors = [item for item in observed if item['path'] == MIRROR]
++    entry = next(item for item in plan['entrypoints'] if item['public_uri'] == MIRROR)
++    require(mirrors and matches(mirrors[0], entry), 'DNF did not select the expected initial mirrorlist')
++    allowed_mirrors = [(ORIGIN + value + repo + '\n').encode() for value in prefixes.values()]
++    for item in mirrors:
++        require(item['status'] == 200 and item.get('response_write_completed') is True
++                and any(matches(item, {'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw)})
++                        for raw in allowed_mirrors), 'DNF mirrorlist response is not a supplied stable snapshot')
++    metadata = set()
++    payloads = []
++    for item in observed:
++        path = item['path']
++        if '/repodata/' in path:
++            expected = originals.get(path)
++            require(path.startswith(prefix + repo + 'repodata/') and expected is not None,
++                    'DNF metadata escaped its selected immutable snapshot')
++            require(item.get('response_write_completed') is True, 'DNF metadata response did not complete')
++            if item['status'] == 304:
++                etag = '"' + expected['sha256'] + '"'
++                modified = email.utils.formatdate(1700000000 + int(expected['sha256'][:6], 16), usegmt=True)
++                conditional = (item.get('if_none_match') == etag if item.get('if_none_match') is not None
++                               else item.get('if_modified_since') == modified)
++                require(item.get('etag') == etag and conditional and item['size'] == 0
++                        and item['sha256'] == hashlib.sha256(b'').hexdigest(),
++                        'DNF conditional metadata is not bound to the selected object')
++            else:
++                require(item['status'] == 200 and matches(item, expected), 'DNF metadata bytes differ from the selected object')
++            metadata.add(path)
++        elif '/Packages/' in path:
++            destination = next((value for value in prefixes.values() if path.startswith(value + repo + 'Packages/')), None)
++            require(destination is not None, 'DNF RPM path is outside supplied stable snapshots')
++            member = path[len(destination):]
++            expected = selected.get(member)
++            require(expected is not None and member.endswith('.rpm'), 'DNF RPM is absent from the selected snapshot')
++            alias = aliases.get(path)
++            planned = alias if alias is not None else originals.get(path)
++            require(planned is not None and matches(planned, expected, (*fields, 'cache_control')),
++                    'DNF RPM path lacks a plan object with the selected payload bytes')
++            if alias is not None:
++                require(alias['object_key'] == 'public' + path, 'DNF RPM alias object key differs from its public path')
++            source = planned['source']
++            source_prefix = prefixes.get(source['audit_release_id'])
++            require(source['channel'] == 'stable' and source['member'] == member and source_prefix is not None,
++                    'DNF RPM source is not a supplied canonical stable member')
++            original = originals.get(source_prefix + member)
++            require(original is not None and original['source'] == source
++                    and matches(original, expected, (*fields, 'cache_control')),
++                    'DNF RPM source does not bind the selected authenticated bytes')
++            require(item['status'] == 200 and item.get('response_write_completed') is True and matches(item, expected),
++                    'DNF RPM response differs from the selected authenticated bytes')
++            payloads.append({'path': path, 'source': source, 'sha256': expected['sha256'],
++                             'size': expected['size'], 'retained_alias': alias is not None})
++    require(metadata and payloads, 'DNF lacks selected metadata or RPM response evidence')
++    if switching:
++        require(all(prefix + repo + 'repodata/' + name in metadata for name in ('repomd.xml', 'repomd.xml.asc')),
++                'DNF switch lacks selected repomd and detached signature requests')
++    return {'metadata_paths': sorted(metadata), 'payloads': payloads}
++
++
+ class RouteTable:
+     """Serve only frozen planner objects; switch after the exact response barrier."""
+     def __init__(self, root, maps):
+@@ -168,8 +246,9 @@ class RouteTable:
+                 raw = (self.root / other['file']).read_bytes()
+             if self.mode == 'disconnect' and path in (INRELEASE, MIRROR):
+                 result['X-Test-Disconnect'] = 'true'
+-            if self.mode == 'normal' and (headers.get('If-None-Match') == result['ETag']
+-                    or headers.get('If-Modified-Since') == result['Last-Modified']):
++            conditional = (headers.get('If-None-Match') == result['ETag'] if headers.get('If-None-Match') is not None
++                           else headers.get('If-Modified-Since') == result['Last-Modified'])
++            if self.mode == 'normal' and conditional:
+                 return 304, b'', result
+             if ((self.mode in ('apt-switch', 'missing-byhash', 'corrupt-byhash') and path == INRELEASE)
+                     or (self.mode == 'rpm-switch' and path == MIRROR)) and not self.switched:
+@@ -771,14 +850,13 @@ def exercise(args, evidence, owned):
+                         require(len(hashes) == 1, 'candidate product package identity is ambiguous')
+                         value = validator._download_receipt(directory, family, {next(iter(hashes)): [entry['version']]})
+                         observed = requests(number)
++                        rpm_requests = None
+                         if family == 'apt':
+                             require(any(apt_by_hash_path(item['path']) and item['status'] == 200 for item in observed)
+                                     or persisted, 'native APT did not use authenticated by-hash')
+                         else:
+-                            prefix = '/snapshots/stable/r' + str(descriptors[generation]['audit_release_id']) + '-'
+-                            require(any(item['path'] == MIRROR for item in observed), 'native DNF did not request mirrorlist')
+-                            metadata = [item['path'] for item in observed if '/repodata/' in item['path'] or '/Packages/' in item['path']]
+-                            require(metadata and all(path.startswith(prefix) for path in metadata), 'DNF escaped its selected immutable snapshot')
++                            rpm_requests = verify_rpm_requests(observed, plans[generation],
++                                descriptors[generation]['audit_release_id'], switching=mode == 'rpm-switch')
+                         if mode.endswith('-switch'):
+                             expected_barrier = INRELEASE if family == 'apt' else MIRROR
+                             require(any(item['path'] == expected_barrier for item in observed), 'missing exact switch request barrier')
+@@ -787,7 +865,7 @@ def exercise(args, evidence, owned):
+                             cache_result = cache_evidence(cache_before, cache_tool(cache, 'inventory'),
+                                 require_reuse=previous_cache_generation == generation)
+                             previous_cache_generation = generation
+-                        return {'download': value, 'requests': observed, 'cache': cache_result}
++                        return {'download': value, 'requests': observed, 'rpm_requests': rpm_requests, 'cache': cache_result}
+                     record(distribution + '-A-to-B-request-barrier', lambda: download('A', family + '-switch'))
+                     record(distribution + '-cache-A-first', lambda: download('A', 'normal', persisted=True))
+                     record(distribution + '-cache-A-repeat', lambda: download('A', 'normal', persisted=True))
+diff --git a/tests/test_composite_storage_plan.py b/tests/test_composite_storage_plan.py
+index 582c699..39241ec 100644
+--- a/tests/test_composite_storage_plan.py
++++ b/tests/test_composite_storage_plan.py
+@@ -15,10 +15,25 @@ P=load('plan-object-storage-publication.py')
+ class StableTransportFixture:
+     """Real archive I/O for alias planning, with native verification isolated below."""
+ 
+-    def __init__(self, root, preview, audit_id):
++    def __init__(self, root, preview, audit_id, *, version='3.0.0', bootstrap_version=None):
+         from test_stable_audit_transport import StablePairFixture
+         root.mkdir()
+         self.pair = StablePairFixture(root)
++        self.root = root
++        self.audit_id = audit_id
++        self.version = version
++        # These remain structural fixtures: canonical input identities and real
++        # archive I/O are exercised, while native verification is isolated below.
++        plan = json.loads(self.pair.plan.read_bytes())
++        plan['target_version'] = plan['release']['version'] = version
++        plan['active_versions'] = plan['new_versions'] = [version]
++        self.pair.plan.write_bytes(canonical(plan))
++        for field in ('archive', 'receipt'):
++            old = getattr(self.pair, field)
++            new = old.with_name(old.name.replace('3.0.0-', version + '-', 1))
++            if new != old:
++                old.rename(new)
++                setattr(self.pair, field, new)
+         self.archive = self.pair.archive
+         self.tree = root / 'tree'
+         shutil.copytree(preview.f.output, self.tree)
+@@ -26,6 +41,8 @@ class StableTransportFixture:
+         manifest_path = self.tree / 'site/bootstrap/manifest.json'
+         manifest = json.loads(manifest_path.read_bytes())
+         manifest['schema'] = 'wukongim.native_package_bootstrap_inventory/v2'
++        if bootstrap_version is not None:
++            manifest['version'] = bootstrap_version
+         for family, item in manifest['packages'].items():
+             stable = P.C.expected_bootstrap_package(family, manifest['version'], channel='stable')
+             for field in ('download_path', 'repository_path'):
+@@ -33,23 +50,37 @@ class StableTransportFixture:
+                 target.parent.mkdir(parents=True, exist_ok=True)
+                 (self.tree / 'site' / item[field]).rename(target)
+             item.update(stable)
++            item['version'] = manifest['version']
+         manifest_path.write_bytes(canonical(manifest))
+         shutil.copytree(self.tree / 'site/rpm/preview', self.tree / 'site/rpm/stable',
+                         dirs_exist_ok=True)
+         shutil.rmtree(self.tree / 'site/rpm/preview')
++        for family in ('apt', 'rpm'):
++            original = P.C.expected_payload_path(family, preview.version, channel='stable')
++            target = P.C.expected_payload_path(family, version, channel='stable')
++            if original != target:
++                (self.tree / 'site' / original).rename(self.tree / 'site' / target)
++        self.refresh()
++
++    def refresh(self):
++        """Re-anchor the actual archive after an intentional input mutation."""
+         self.archive.unlink()
+         P.R.snapshot_archive.create_snapshot(source_dir=self.tree, archive_path=self.archive)
+         receipt = json.loads(self.pair.receipt.read_bytes())
+-        receipt['archive'].update(size=self.archive.stat().st_size,
++        receipt['archive'].update(name=self.archive.name, size=self.archive.stat().st_size,
+                                  sha256=hashlib.sha256(self.archive.read_bytes()).hexdigest())
++        receipt['verification']['target_version'] = self.version
++        receipt['inputs']['audit/plan.json'] = {
++            'size': self.pair.plan.stat().st_size,
++            'sha256': hashlib.sha256(self.pair.plan.read_bytes()).hexdigest()}
+         self.pair.receipt.write_bytes(canonical(receipt))
+         verifier = load('verify-stable-seal-inputs.py')
+         candidate = verifier.candidate_identity(self.pair.plan, self.pair.receipt, test_only=True)
+         resolution = {
+             'schema': 'wukongim/package-audit-release-resolution/v2',
+-            'repository': 'WuKongIM/packages', 'release_id': audit_id,
+-            'tag_name': f'native-package-stable-r{audit_id}',
+-            'name': f'WuKongIM stable package snapshot r{audit_id}',
++            'repository': 'WuKongIM/packages', 'release_id': self.audit_id,
++            'tag_name': f'native-package-stable-r{self.audit_id}',
++            'name': f'WuKongIM stable package snapshot r{self.audit_id}',
+             'prerelease': True, 'control_sha': 'a' * 40, 'tag_commit_verified': True,
+             'classification': 'immutable_complete', 'draft': False, 'immutable': True,
+             'published_at': 'TEST ONLY local observation', 'asset_count': 2,
+@@ -59,16 +90,16 @@ class StableTransportFixture:
+             'release_revalidated': True, 'id_bound_downloads': True, 'channel': 'stable',
+             'test_only': True, 'candidate': candidate,
+         }
+-        resolution_path = root / 'resolution.json'
++        resolution_path = self.root / 'resolution.json'
+         resolution_path.write_bytes(canonical(resolution))
+         self.descriptor = {
+-            'channel': 'stable', 'audit_release_id': audit_id, 'seal_control_sha': 'a' * 40,
++            'channel': 'stable', 'audit_release_id': self.audit_id, 'seal_control_sha': 'a' * 40,
+             'candidate': candidate, 'resolution': str(resolution_path),
+             'resolution_sha256': hashlib.sha256(resolution_path.read_bytes()).hexdigest(),
+             'archive': str(self.archive), 'receipt': str(self.pair.receipt),
+             'plan': str(self.pair.plan), 'control_dir': str(self.pair.fixture.control),
+             'source_dir': str(self.pair.fixture.source),
+-            'apt_receipt': str(root / 'apt.json'), 'rpm_receipt': str(root / 'rpm.json'),
++            'apt_receipt': str(self.root / 'apt.json'), 'rpm_receipt': str(self.root / 'rpm.json'),
+         }
+ 
+ 
+@@ -123,7 +154,7 @@ class StableByHashTransportTest(unittest.TestCase):
+         from test_plan_object_storage_publication import InputSnapshot
+         other = InputSnapshot(self.root / 'other-source', audit_id=11,
+                               version='3.1.0-rc.2', deb=b'different payload')
+-        retained = StableTransportFixture(self.root / 'retained', other, 4243)
++        retained = StableTransportFixture(self.root / 'retained', other, 4243, version='3.0.1')
+         self.inputs['retain'] = [retained.descriptor]
+         archives = {f.archive: f.archive.read_bytes() for f in (self.stable, retained, self.preview)}
+         with self.native_verification():
+@@ -194,6 +225,201 @@ class StableByHashTransportTest(unittest.TestCase):
+             with self.assertRaisesRegex(P.PlanningError, 'immutable URI conflict across snapshots'):
+                 self.plan()
+ 
++class StableRPMPayloadTransportTest(unittest.TestCase):
++    setUp = StableByHashTransportTest.setUp
++    native_verification = StableByHashTransportTest.native_verification
++    plan = StableByHashTransportTest.plan
++    REPO = 'rpm/stable/el/9/x86_64/Packages/'
++
++    def add_generation(self, audit_id=4243, version='3.0.1', bootstrap_version='1.1.2'):
++        fixture = StableTransportFixture(self.root / str(audit_id), self.preview, audit_id,
++                                         version=version, bootstrap_version=bootstrap_version)
++        self.inputs['retain'].append(fixture.descriptor)
++        return fixture
++
++    def prefix(self, fixture):
++        return '/snapshots/stable/r' + str(fixture.audit_id) + '-' + fixture.descriptor['candidate']['snapshot_sha256']
++
++    def payloads(self, fixture):
++        return {self.REPO + path.name: path.read_bytes()
++                for path in (fixture.tree / 'site' / self.REPO).iterdir()}
++
++    def cross_aliases(self, plan):
++        return {item['public_uri']: item for item in plan['immutable_aliases']
++                if item['public_uri'].startswith('/snapshots/')}
++
++    def test_two_generations_resolve_both_payloads_under_either_prefix_without_rewriting_archives(self):
++        other = self.add_generation()
++        archives = {f.archive: f.archive.read_bytes() for f in (self.preview, self.stable, other)}
++        with self.native_verification():
++            plan = self.plan()
++        aliases = self.cross_aliases(plan)
++        self.assertEqual(len(aliases), 4)
++        originals = {item['object_key']: item for item in plan['snapshot_objects']}
++        for source, target in ((self.stable, other), (other, self.stable)):
++            for path, raw in self.payloads(source).items():
++                uri = self.prefix(target) + '/site/' + path
++                self.assertEqual(aliases[uri], {
++                    'public_uri': uri, 'object_key': 'public' + uri,
++                    'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw),
++                    'cache_control': P.IMMUTABLE_CACHE,
++                    'source': {'channel': 'stable', 'audit_release_id': source.audit_id,
++                               'member': 'site/' + path}})
++                self.assertNotIn(uri[1:], originals)
++                self.assertIn(self.prefix(source)[1:] + '/site/' + path, originals)
++                # Resolve the reported source from the actual canonical archive,
++                # as the transport consumer does, not from the requested prefix.
++                extracted = self.root / ('extract-' + str(source.audit_id) + '-' + Path(path).name)
++                P.R.snapshot_archive.extract_snapshot(archive_path=source.archive,
++                    output_dir=extracted, max_members=100_000, max_total_size=800 * 1024 * 1024)
++                self.assertEqual((extracted / aliases[uri]['source']['member']).read_bytes(), raw)
++        for path, raw in archives.items():
++            self.assertEqual(path.read_bytes(), raw)
++
++    def test_own_objects_and_unretained_or_other_family_paths_are_not_aliases(self):
++        with self.native_verification():
++            single = self.plan()
++        self.assertEqual(self.cross_aliases(single), {})
++        other = self.add_generation()
++        with self.native_verification():
++            plan = self.plan()
++        original_uris = {'/' + item['object_key'] for item in plan['snapshot_objects']}
++        aliases = self.cross_aliases(plan)
++        self.assertEqual(len(aliases), 4)
++        self.assertTrue(original_uris.isdisjoint(aliases))
++        for uri, value in aliases.items():
++            self.assertTrue(uri.startswith((self.prefix(self.stable) + '/site/' + self.REPO,
++                                            self.prefix(other) + '/site/' + self.REPO)))
++            self.assertEqual(value['source']['channel'], 'stable')
++            self.assertIn(value['source']['audit_release_id'], (4242, 4243))
++            self.assertTrue(value['source']['member'].startswith('site/' + self.REPO))
++        self.assertEqual(plan['retention']['delete_objects'], [])
++
++    def test_same_basename_and_bytes_are_legal_with_deterministic_verified_source(self):
++        first = self.add_generation(4243)
++        second = self.add_generation(4241)
++        with self.native_verification():
++            forward = self.plan()
++            self.inputs['retain'].reverse()
++            reverse = self.plan()
++        self.assertEqual(canonical(forward), canonical(reverse))
++        aliases = self.cross_aliases(forward)
++        for path, raw in self.payloads(first).items():
++            uri = self.prefix(self.stable) + '/site/' + path
++            self.assertEqual(aliases[uri]['source'], {'channel': 'stable',
++                'audit_release_id': second.audit_id, 'member': 'site/' + path})
++            self.assertEqual(aliases[uri]['sha256'], hashlib.sha256(raw).hexdigest())
++            self.assertEqual(aliases[uri]['size'], len(raw))
++        self.assertEqual(self.payloads(first), self.payloads(second))
++
++    def test_same_product_or_bootstrap_basename_with_different_signed_bytes_is_rejected(self):
++        other = self.add_generation(version=self.stable.version, bootstrap_version=None)
++        for path, raw in self.payloads(other).items():
++            with self.subTest(path=path):
++                file = other.tree / 'site' / path
++                file.write_bytes(raw + b'changed-signature-only')
++                other.refresh(); self.inputs['retain'] = [other.descriptor]
++                with self.native_verification(), self.assertRaisesRegex(P.PlanningError, 'immutable URI conflict'):
++                    self.plan()
++                file.write_bytes(raw); other.refresh()
++
++    def test_original_snapshot_route_collision_cannot_be_hidden_by_a_derived_alias(self):
++        other = self.add_generation()
++        source_path = self.REPO + 'wukongim_3.0.0_linux_amd64.rpm'
++        raw = (self.stable.tree / 'site' / source_path).read_bytes()
++        original = P._stable_snapshot
++        # Fault injection at the already verified inventory boundary exercises
++        # the merge conflict guard; it is not a native-verification success claim.
++        for field, bad in [('sha256', '0' * 64), ('size', len(raw) + 1), ('cache_control', 'no-store')]:
++            def inject(*args, **kwargs):
++                value = original(*args, **kwargs)
++                if value['identity']['audit_release_id'] == other.audit_id:
++                    item = {'object_key': self.prefix(other)[1:] + '/site/' + source_path,
++                            'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw),
++                            'cache_control': P.IMMUTABLE_CACHE,
++                            'source': {'channel': 'stable', 'audit_release_id': other.audit_id,
++                                       'member': 'site/' + source_path}}
++                    item[field] = bad
++                    value['objects'].append(item)
++                return value
++            with self.subTest(field=field), self.native_verification():
++                with mock.patch.object(P, '_stable_snapshot', side_effect=inject):
++                    with self.assertRaisesRegex(P.PlanningError, 'snapshot.*conflict|conflict.*snapshot'):
++                        self.plan()
++
++    def test_only_the_exact_two_canonical_rpm_payloads_can_enter_the_catalog(self):
++        original_path = self.stable.tree / 'site' / self.REPO / 'wukongim_3.0.0_linux_amd64.rpm'
++        original = original_path.read_bytes()
++        cases = [('missing', None), ('extra', 'unreviewed.rpm'),
++                 ('architecture', 'wukongim_3.0.0_linux_arm64.rpm'),
++                 ('nested', 'nested/wukongim_3.0.0_linux_amd64.rpm')]
++        for kind, filename in cases:
++            with self.subTest(kind=kind):
++                if kind != 'extra': original_path.unlink()
++                extra = original_path.parent / filename if filename else None
++                if extra:
++                    extra.parent.mkdir(parents=True, exist_ok=True); extra.write_bytes(original)
++                self.stable.refresh(); self.inputs['current']['stable'] = self.stable.descriptor
++                try:
++                    with self.native_verification(), self.assertRaisesRegex(P.PlanningError, 'stable RPM.*payload|RPM.*catalog'):
++                        self.plan()
++                finally:
++                    if extra:
++                        extra.unlink()
++                        if extra.parent != original_path.parent: extra.parent.rmdir()
++                    original_path.write_bytes(original)
++                    self.stable.refresh(); self.inputs['current']['stable'] = self.stable.descriptor
++
++    def test_seven_stable_generations_are_bounded_and_existing_global_limits_remain(self):
++        for index in range(1, 7):
++            self.add_generation(4242 + index, '3.0.' + str(index), '1.1.' + str(index + 1))
++        with self.native_verification():
++            plan = self.plan()
++        self.assertEqual(len(self.cross_aliases(plan)), 84)
++        self.inputs['retain'].append(dict(self.inputs['retain'][-1], audit_release_id=9999))
++        with self.native_verification() as verify, self.assertRaisesRegex(P.PlanningError, 'at most 8'):
++            self.plan()
++        verify.assert_not_called()
++        self.inputs['retain'].pop()
++        for item in [self.inputs['current']['stable'], *self.inputs['retain']]:
++            item['candidate']['archive']['size'] = 400 * 1024 * 1024
++        with self.native_verification() as verify, self.assertRaisesRegex(P.PlanningError, '2 GiB'):
++            self.plan()
++        verify.assert_not_called()
++
++    def test_rpm_catalog_cannot_adopt_preview_or_wrong_bootstrap_architecture(self):
++        payloads = self.payloads(self.stable)
++        product = self.REPO + 'wukongim_3.0.0_linux_amd64.rpm'
++        bootstrap = next(path for path in payloads if path != product)
++        for path, changed in [(product, product.replace('/stable/', '/preview/')),
++                              (bootstrap, bootstrap.replace('.noarch.rpm', '.x86_64.rpm'))]:
++            with self.subTest(path=changed):
++                source = self.stable.tree / 'site' / path
++                destination = self.stable.tree / 'site' / changed
++                destination.parent.mkdir(parents=True, exist_ok=True)
++                source.rename(destination)
++                self.stable.refresh(); self.inputs['current']['stable'] = self.stable.descriptor
++                try:
++                    with self.native_verification(), self.assertRaisesRegex(P.PlanningError, 'stable RPM.*payload|RPM.*catalog'):
++                        self.plan()
++                finally:
++                    destination.rename(source)
++                    if destination.parent != source.parent:
++                        shutil.rmtree(self.stable.tree / 'site/rpm/preview')
++                    self.stable.refresh(); self.inputs['current']['stable'] = self.stable.descriptor
++
++    def test_archive_tamper_and_duplicate_audit_identity_are_rejected(self):
++        raw = self.stable.archive.read_bytes()
++        self.stable.archive.write_bytes(raw[:-1] + bytes([raw[-1] ^ 1]))
++        with self.native_verification(), self.assertRaisesRegex(P.PlanningError, 'archive.*anchor|archive.*differ'):
++            self.plan()
++        self.stable.archive.write_bytes(raw)
++        self.inputs['retain'] = [self.stable.descriptor]
++        with self.native_verification() as verify, self.assertRaisesRegex(P.PlanningError, 'duplicate audit identity'):
++            self.plan()
++        verify.assert_not_called()
++
++
+ class CompositePlannerModeTest(unittest.TestCase):
+     def test_v2_requires_explicit_composite_mode(self):
+         with tempfile.TemporaryDirectory() as temp:
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 845064d..9895198 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -1,5 +1,7 @@
+ """Lightweight boundaries for the opt-in native stable client laboratory."""
+ import importlib.util
++import copy
++import email.utils
+ import http.client
+ import hashlib
+ import json
+@@ -505,6 +507,145 @@ class NativeStableClientsTests(unittest.TestCase):
+                         with self.assertRaisesRegex(RuntimeError, 'by-hash fault response'):
+                             drill.verify_apt_by_hash_fault(mode, observed, 'Hash Sum mismatch')
+ 
++    def rpm_request_fixture(self):
++        drill = load()
++        repo = 'site/rpm/stable/el/9/x86_64/'
++        identities = [{'channel': 'stable', 'audit_release_id': number,
++                       'candidate': {'snapshot_sha256': marker * 64}} for number, marker in ((4242, 'a'), (4243, 'b'))]
++        prefixes = {item['audit_release_id']: f"snapshots/stable/r{item['audit_release_id']}-{item['candidate']['snapshot_sha256']}/" for item in identities}
++        plan = {'snapshots': identities, 'snapshot_objects': [], 'immutable_aliases': [], 'entrypoints': []}
++        def obj(number, member, raw, immutable=False):
++            value = {'object_key': prefixes[number] + member, 'sha256': hashlib.sha256(raw).hexdigest(),
++                     'size': len(raw), 'cache_control': 'public, max-age=31536000, immutable' if immutable else 'no-store',
++                     'source': {'channel': 'stable', 'audit_release_id': number, 'member': member}}
++            plan['snapshot_objects'].append(value)
++            return value
++        metadata = [obj(4242, repo + 'repodata/' + name, ('A ' + name).encode())
++                    for name in ('repomd.xml', 'repomd.xml.asc', 'primary.xml.gz')]
++        payload = obj(4242, repo + 'Packages/wukongim_3.0.0_linux_amd64.rpm', b'A signed RPM', True)
++        obj(4243, repo + 'Packages/wukongim_3.0.1_linux_amd64.rpm', b'B signed RPM', True)
++        mirror = (drill.ORIGIN + '/' + prefixes[4242] + repo + '\n').encode()
++        mirror_facts = {'sha256': hashlib.sha256(mirror).hexdigest(), 'size': len(mirror)}
++        plan['entrypoints'].append({'public_uri': drill.MIRROR, **mirror_facts})
++        def response(path, value):
++            return {'path': path, 'status': 200, 'sha256': value['sha256'], 'size': value['size'],
++                    'etag': '"' + value['sha256'] + '"', 'response_write_completed': True,
++                    'if_none_match': None, 'if_modified_since': None}
++        alias = dict(payload, public_uri='/' + prefixes[4243] + payload['source']['member'])
++        alias['object_key'] = 'public' + alias['public_uri']
++        plan['immutable_aliases'].append(alias)
++        observed = [response(drill.MIRROR, mirror_facts),
++                    *[response('/' + item['object_key'], item) for item in metadata],
++                    response(drill.MIRROR, {'sha256': hashlib.sha256((drill.ORIGIN + '/' + prefixes[4243] + repo + '\n').encode()).hexdigest(), 'size': len(mirror)}),
++                    response(alias['public_uri'], alias)]
++        return drill, plan, observed, payload, alias
++
++    def test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes(self):
++        drill, plan, observed, payload, alias = self.rpm_request_fixture()
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        original_path = observed[-1]['path']
++        observed[-1]['path'] = '/' + payload['object_key']
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        observed[-1]['path'] = original_path
++        # An identical signed member in another verified snapshot may own a
++        # deduplicated source locator; the semantic identity remains A's bytes.
++        duplicate = copy.deepcopy(payload)
++        duplicate['source']['audit_release_id'] = 4243
++        duplicate['object_key'] = alias['public_uri'].lstrip('/')
++        plan['snapshot_objects'].append(duplicate)
++        alias['source'] = copy.deepcopy(duplicate['source'])
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        plan['immutable_aliases'].clear()
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++
++    def test_rpm_switch_rejects_unbound_paths_sources_and_delivery(self):
++        for mutation in ('no-alias', 'unknown-source', 'wrong-member', 'source-sha', 'source-size',
++                         'alias-sha', 'alias-size', 'alias-channel', 'alias-architecture',
++                         'payload-sha', 'payload-size', 'payload-status', 'payload-incomplete',
++                         'metadata-prefix', 'metadata-sha', 'metadata-size', 'metadata-status',
++                         'metadata-incomplete', 'unknown-metadata', 'missing-metadata', 'missing-payload',
++                         'missing-signature', 'missing-mirror', 'wrong-first-mirror', 'wrong-later-mirror',
++                         'mirror-status', 'mirror-incomplete', 'alias-object-key', 'alias-destination',
++                         'alias-cache', 'payload-family', 'payload-version'):
++            with self.subTest(mutation=mutation):
++                drill, plan, observed, payload, alias = self.rpm_request_fixture()
++                if mutation == 'no-alias': plan['immutable_aliases'].clear()
++                elif mutation == 'unknown-source': alias['source'] = dict(alias['source'], audit_release_id=999)
++                elif mutation == 'wrong-member': alias['source'] = dict(alias['source'], member='site/apt/pool/other.deb')
++                elif mutation.startswith('source-'):
++                    # Add an explicitly named retained source which disagrees
++                    # with A; matching only the URI/basename must not pass.
++                    duplicate = copy.deepcopy(payload); duplicate['source']['audit_release_id'] = 4243
++                    duplicate['object_key'] = alias['public_uri'].lstrip('/')
++                    duplicate['sha256' if mutation == 'source-sha' else 'size'] = 'f' * 64 if mutation == 'source-sha' else 999
++                    plan['snapshot_objects'].append(duplicate); alias['source'] = copy.deepcopy(duplicate['source'])
++                elif mutation == 'alias-sha': alias['sha256'] = 'f' * 64
++                elif mutation == 'alias-size': alias['size'] += 1
++                elif mutation == 'alias-object-key': alias['object_key'] = 'public/wrong/path'
++                elif mutation == 'alias-destination':
++                    alias['public_uri'] = alias['public_uri'].replace('r4243-', 'r9999-')
++                    alias['object_key'] = 'public' + alias['public_uri']; observed[-1]['path'] = alias['public_uri']
++                elif mutation == 'alias-cache': alias['cache_control'] = 'no-store'
++                elif mutation == 'alias-channel': alias['source'] = dict(alias['source'], channel='preview')
++                elif mutation == 'alias-architecture':
++                    alias['public_uri'] = alias['public_uri'].replace('x86_64/', 'aarch64/')
++                    observed[-1]['path'] = alias['public_uri']
++                elif mutation == 'payload-family': observed[-1]['path'] = '/apt/pool/other.deb'
++                elif mutation == 'payload-version': observed[-1]['path'] = observed[-1]['path'].replace('3.0.0', '3.0.1')
++                elif mutation.startswith('payload-'):
++                    field, value = {'payload-sha': ('sha256', 'f' * 64), 'payload-size': ('size', 999),
++                        'payload-status': ('status', 404), 'payload-incomplete': ('response_write_completed', False)}[mutation]
++                    observed[-1][field] = value
++                elif mutation == 'unknown-metadata': observed[1]['path'] += '.unknown'
++                elif mutation == 'missing-metadata': observed[:] = [item for item in observed if '/repodata/' not in item['path']]
++                elif mutation == 'missing-payload': observed.pop()
++                elif mutation == 'metadata-prefix': observed[1]['path'] = observed[1]['path'].replace('r4242-' + 'a'*64, 'r4243-' + 'b'*64)
++                elif mutation.startswith('metadata-'):
++                    field, value = {'metadata-sha': ('sha256', 'f' * 64), 'metadata-size': ('size', 999),
++                        'metadata-status': ('status', 404), 'metadata-incomplete': ('response_write_completed', False)}[mutation]
++                    observed[1][field] = value
++                elif mutation == 'missing-signature': observed[:] = [item for item in observed if not item['path'].endswith('repomd.xml.asc')]
++                elif mutation == 'missing-mirror': observed[:] = [item for item in observed if item['path'] != drill.MIRROR]
++                elif mutation == 'wrong-first-mirror': observed[0]['sha256'] = 'f' * 64
++                elif mutation == 'wrong-later-mirror': observed[-2]['sha256'] = 'f' * 64
++                elif mutation == 'mirror-status': observed[0]['status'] = 404
++                elif mutation == 'mirror-incomplete': observed[0]['response_write_completed'] = False
++                with self.assertRaises(RuntimeError):
++                    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++
++    def test_rpm_conditional_metadata_binds_exact_object_and_header_precedence(self):
++        for condition in ('etag', 'modified', 'wrong-etag', 'wrong-modified', 'wrong-response-etag', 'missing', 'conflicting', 'body', 'incomplete', 'wrong-url'):
++            with self.subTest(condition=condition):
++                drill, plan, observed, payload, alias = self.rpm_request_fixture()
++                item = observed[1]; expected_sha = item['sha256']
++                modified = email.utils.formatdate(1700000000 + int(expected_sha[:6], 16), usegmt=True)
++                item.update(status=304, size=0, sha256=hashlib.sha256(b'').hexdigest())
++                if condition in ('etag', 'wrong-response-etag'): item['if_none_match'] = item['etag']
++                elif condition == 'modified': item['if_modified_since'] = modified
++                elif condition == 'wrong-etag': item['if_none_match'] = '"other"'
++                elif condition == 'wrong-modified': item['if_modified_since'] = 'Wed, 01 Jan 2020 00:00:00 GMT'
++                elif condition == 'conflicting': item.update(if_none_match='"other"', if_modified_since=modified)
++                if condition == 'wrong-response-etag': item['etag'] = '"other"'
++                if condition in ('body', 'incomplete', 'wrong-url'): item['if_none_match'] = item['etag']
++                if condition == 'body': item['size'] = 1
++                if condition == 'incomplete': item['response_write_completed'] = False
++                if condition == 'wrong-url': item['path'] = item['path'].replace('r4242-', 'r4243-')
++                if condition in ('etag', 'modified'):
++                    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
++                else:
++                    with self.assertRaises(RuntimeError):
++                        drill.verify_rpm_requests(observed, plan, 4242, switching=False)
++
++    def test_fixture_conditional_etag_precedes_modified_since(self):
++        drill = load()
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); (root / 'body').write_bytes(b'metadata')
++            route = drill.RouteTable(root, {'A': {drill.INRELEASE: {'file': 'body'}}, 'B': {}})
++            route.configure({'serial': 1, 'generation': 'A', 'mode': 'normal'})
++            _, _, headers = route.response(drill.INRELEASE, {})
++            self.assertEqual(route.response(drill.INRELEASE, {'If-None-Match': '"other"',
++                'If-Modified-Since': headers['Last-Modified']})[0], 200)
++
+     def test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors(self):
+         drill = load()
+         commands = []

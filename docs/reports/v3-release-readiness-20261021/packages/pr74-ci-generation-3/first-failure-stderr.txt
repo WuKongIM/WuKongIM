@@ -1,0 +1,12 @@
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY
+warning: /bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: Header V4 RSA/SHA256 Signature, key ID 74de49ac: NOKEY
+/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm: digests signatures OK
+Importing GPG key 0x74DE49AC:
+ Userid     : "WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>"
+ Fingerprint: 070E C631 B059 F751 A3A8 2698 14B3 79BE 74DE 49AC
+ From       : /etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable
+Error: Error downloading packages:
+  wukongim-3.0.0-1.x86_64: Cannot download, all mirrors were already tried without success
+

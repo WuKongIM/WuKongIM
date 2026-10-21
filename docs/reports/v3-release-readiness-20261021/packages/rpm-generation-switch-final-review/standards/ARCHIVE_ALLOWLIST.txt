@@ -1,0 +1,12 @@
+ARCHIVE_ALLOWLIST.txt
+checks.json
+files/CHANGELOG.md
+files/docs/stable-audit-transport.md
+files/scripts/plan-object-storage-publication.py
+files/tests/native_stable_clients_drill.py
+files/tests/test_composite_storage_plan.py
+files/tests/test_native_stable_clients_drill.py
+report.md
+review.patch
+source-freeze.json
+supporting-evidence.json

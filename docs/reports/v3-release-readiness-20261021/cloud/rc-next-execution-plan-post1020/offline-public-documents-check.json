@@ -1,0 +1,80 @@
+{
+  "schema": "wukongim.offline_prior_public_document_check/v1",
+  "executed_at": "2026-10-21T12:55:16.385232+00:00",
+  "source_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "helper_sha256": "8c87218ec62e0ce33020cb23b16cd4655e66556038ac85af0c7cb00d4f169226",
+  "inputs": [
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/run-plan.json",
+      "bytes": 2361,
+      "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/lease-plan.json",
+      "bytes": 1892,
+      "sha256": "35b85d7a5b807a7d90697535a56d2f4fcd3245bdfa3a5b19ff0dd7a21ce0d9bf"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/receipt.json",
+      "bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/release-selector.json",
+      "bytes": 319,
+      "sha256": "357aa7805becb2a64aba98aa0eab9bb62e525f9145442ec908072b7d20195711"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/zero-inventory.json",
+      "bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/cleanup.json",
+      "bytes": 172,
+      "sha256": "a2adab04775a4aa250a1b745ce31a3b5df4c6525dd402bd8541e051db0ba4984"
+    },
+    {
+      "path": "/private/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/deployment-repair-pending.json",
+      "bytes": 624,
+      "sha256": "1bf3a22914a29dbe8c1fcfb3065dde5ccece7f7d15dde7425e500cd57018d846"
+    }
+  ],
+  "network_seam_disabled": true,
+  "current_run_fabricated": false,
+  "complete_continuation_authentication": false,
+  "scope": "authenticate_run structural checks on saved fresh API objects + validate_prior_documents against locally hash-frozen historical public documents; no ZIP re-download or successor validation",
+  "status": "passed",
+  "reserve_micros": 74477600,
+  "actual_bill": null,
+  "quote_to_zero_seconds": 956.923479,
+  "zero_observed_at": "2026-10-21T10:19:19.689029905Z",
+  "release_step": {
+    "name": "Release and retain residual evidence",
+    "status": "completed",
+    "conclusion": "success",
+    "number": 7,
+    "started_at": "2026-10-21T10:18:35Z",
+    "completed_at": "2026-10-21T10:19:19Z"
+  },
+  "lease_plan_digest": "e69cc85c44fcdfe7e70a0b723ffe16343235e8a03a616c36ebd6bad131b4ce47",
+  "complete_zero_scopes": [
+    "disk_attachments",
+    "disks",
+    "eip_associations",
+    "eips",
+    "enis",
+    "instances",
+    "nat_gateways",
+    "route_entries",
+    "security_group_rules",
+    "security_groups",
+    "vpcs",
+    "vswitches"
+  ]
+}

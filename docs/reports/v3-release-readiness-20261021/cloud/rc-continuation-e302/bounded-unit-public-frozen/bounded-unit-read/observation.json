@@ -1,0 +1,57 @@
+{
+  "schema": "wukongim.bounded_unit_read/v1",
+  "started_at": "2026-10-21T13:34:33.848739+00:00",
+  "remote_command": "sudo systemctl show 'wkbench-rehearsal.service' --property=ActiveState --property=Job --property=LoadState --property=SubState --property=Result --property=ExecMainCode --property=ExecMainStatus --no-pager",
+  "target_instance_id": "i-bp1a769211422qccf8aw",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+  "note": "Post-failure state, not original before-kill state; one read only. No environment/journal/secrets requested.",
+  "ended_at": "2026-10-21T13:34:34.539164+00:00",
+  "ssh_exit": 0,
+  "stdout_bytes": 104,
+  "stdout_sha256": "d06176fb9dfd07bd8a3ae08ff2841257211c88f98d7e22ed1db1fe8d16e8479b",
+  "stderr_bytes": 83,
+  "stderr_sha256": "373358b09451fdec13e974c4dd9c08714a18f7000858ef1736ceb71f16dd81c2",
+  "unit": {
+    "bytes": 104,
+    "sha256": "d06176fb9dfd07bd8a3ae08ff2841257211c88f98d7e22ed1db1fe8d16e8479b",
+    "complete": true,
+    "schema": "wukongim.chat_lifecycle.pre_clock_unit/v1",
+    "valid": false,
+    "properties": {
+      "Result": "success",
+      "ExecMainCode": 0,
+      "ExecMainStatus": 0,
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    },
+    "field_sha256": {
+      "Result": "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27",
+      "ExecMainCode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "ExecMainStatus": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "LoadState": "2cab953f2b3607b36259abeb3703329d6b301b31277402ebf9f2b3b93e31dd53",
+      "ActiveState": "d1022618b99a974b56caeae99b4f9e2eac444335123e3ab94bbbc817c306f2c0",
+      "SubState": "28a3a5e81d1e89f0efc70b63bf717b921373fc7fac70bc1b7e4d466799c0c6b0",
+      "Job": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "invalid_fields": [
+      "Job"
+    ],
+    "missing_fields": [],
+    "unknown_fields": false,
+    "oversized": false
+  },
+  "classifier_exit": 0,
+  "classifier_stdout": "pending\n",
+  "filtered_bytes": 26,
+  "filtered_sha256": "3312c4db2e45834ea37a5a336aeddde2b8207352ac3a81ebcc589857b07464fe",
+  "safe_property_lines": [
+    "Result=success",
+    "ExecMainCode=0",
+    "ExecMainStatus=0",
+    "LoadState=loaded",
+    "ActiveState=inactive",
+    "SubState=dead",
+    "Job="
+  ]
+}

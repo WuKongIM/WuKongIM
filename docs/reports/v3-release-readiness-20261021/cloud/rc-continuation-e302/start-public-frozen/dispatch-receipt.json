@@ -1,0 +1,24 @@
+{
+  "schema": "wukongim.single_dispatch_receipt/v1",
+  "started_at": "2026-10-21T13:08:57.930867+00:00",
+  "command": [
+    "gh",
+    "workflow",
+    "run",
+    "chat-lifecycle-rehearsal.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "--json"
+  ],
+  "stdin_file": "planned-workflow-inputs.json",
+  "control_expected": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "expected_run_number": 33,
+  "expected_attempt": 1,
+  "outcome": "accepted_requires_run_reconciliation",
+  "ended_at": "2026-10-21T13:09:00.568714+00:00",
+  "exit_code": 0,
+  "stdout": "https://github.com/WuKongIM/WuKongIM/actions/runs/39605452697\n",
+  "stderr": ""
+}

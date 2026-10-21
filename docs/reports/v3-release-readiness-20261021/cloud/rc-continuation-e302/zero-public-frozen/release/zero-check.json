@@ -1,0 +1,29 @@
+{
+  "observed_at": "2026-10-21T13:43:07.020182+00:00",
+  "exact_12_scope_zero_verified": true,
+  "zero_observed_at": "2026-10-21T13:40:52.048097405Z",
+  "selector": {
+    "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+    "request_id": "chat-20261021T095421Z-cf11d65c",
+    "provider": "alibaba",
+    "region": "cn-hangzhou",
+    "repository": "WuKongIM/WuKongIM",
+    "plan_digest": "e75273c61c954136f5c146aa62ced1b5ba6e2889090e007f553d2330535473e6"
+  },
+  "account_matches_acquire": true,
+  "scopes": [
+    "disk_attachments",
+    "disks",
+    "eip_associations",
+    "eips",
+    "enis",
+    "instances",
+    "nat_gateways",
+    "route_entries",
+    "security_group_rules",
+    "security_groups",
+    "vpcs",
+    "vswitches"
+  ],
+  "source": "exact authenticated release artifact; no independent provider mutation by local verifier"
+}

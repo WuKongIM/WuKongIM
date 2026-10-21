@@ -1,0 +1,40 @@
+{
+  "created": "2026-10-21T13:32:31.174041+00:00",
+  "planner_sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74",
+  "tests_sha256": "63f21f4e1ba45d07a393d5586756b42484f1efee15e275491f3717dee8d787f3",
+  "test_names": [
+    "test_sha512_aliases_reuse_original_index_members_without_changing_archive",
+    "test_all_generations_keep_both_hash_algorithms_and_preview_is_unchanged",
+    "test_failed_native_verification_cannot_produce_aliases",
+    "test_index_changed_after_inventory_is_rejected_before_alias_output",
+    "test_alias_index_read_obeys_the_existing_metadata_bound",
+    "test_conflicting_derived_uri_is_rejected_instead_of_selecting_a_generation",
+    "test_two_generations_resolve_both_payloads_under_either_prefix_without_rewriting_archives",
+    "test_own_objects_and_unretained_or_other_family_paths_are_not_aliases",
+    "test_same_basename_and_bytes_are_legal_with_deterministic_verified_source",
+    "test_same_product_or_bootstrap_basename_with_different_signed_bytes_is_rejected",
+    "test_original_snapshot_route_collision_cannot_be_hidden_by_a_derived_alias",
+    "test_only_the_exact_two_canonical_rpm_payloads_can_enter_the_catalog",
+    "test_seven_stable_generations_are_bounded_and_existing_global_limits_remain",
+    "test_rpm_catalog_cannot_adopt_preview_or_wrong_bootstrap_architecture",
+    "test_archive_tamper_and_duplicate_audit_identity_are_rejected",
+    "test_v2_requires_explicit_composite_mode",
+    "test_composite_requires_both_current_channels_before_reading_paths",
+    "test_local_immutable_claim_does_not_skip_candidate_archive_verification"
+  ],
+  "all_planned_tests_before_implementation": true,
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_composite_storage_plan.py",
+    "-v"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 2.809895290993154,
+  "log_sha256": "de33f5202ff0864e9c5464f42727796d0dbc1b4ade2e5c0333cb9a7dc2300b4e"
+}

@@ -1,0 +1,90 @@
+{
+  "frozen_at": "2026-10-21T13:45:05.058512+00:00",
+  "files": [
+    {
+      "path": "stop-once.py",
+      "bytes": 1970,
+      "sha256": "21b71520f6d2ecfb4ad9ce3ed248ffeacc2b7621a423fa0b3ade17f4687f74a6"
+    },
+    {
+      "path": "stop/dispatch-receipt.json",
+      "bytes": 934,
+      "sha256": "d725c02c065b8aa5cd54d7e23725e70a94b32ea603cadf84a27fec0fac2d3d02"
+    },
+    {
+      "path": "stop/inputs.json",
+      "bytes": 109,
+      "sha256": "405b4272c221973ef5541417c5c6a1eb4602cfa30d4ec2800ab4adcc111c0647"
+    },
+    {
+      "path": "stop/workflow-source.yml",
+      "bytes": 3747,
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62"
+    },
+    {
+      "path": "stop/artifact-metadata.json",
+      "bytes": 799,
+      "sha256": "64eb67ad8e62c62b4ff374f33fb4af6eed585ae34ce8b24c2e7b796a765adede"
+    },
+    {
+      "path": "stop/jobs-final.json",
+      "bytes": 3694,
+      "sha256": "c3141866f0433c9d661c64788dd833164741c6bbc325281ae81b02413485f173"
+    },
+    {
+      "path": "stop/download-receipt.json",
+      "bytes": 351,
+      "sha256": "3da5951fa7abfc04e5650328cd160d5d0b3249e35f9f3942b885d55e701d0717"
+    },
+    {
+      "path": "stop/verified/operator-stop.json",
+      "bytes": 180,
+      "sha256": "268277de489be0c9041681c7da5d9eea637688e2ef3d5fa9dcea713dab1d0fcb"
+    },
+    {
+      "path": "stop/verified/verification.json",
+      "bytes": 361,
+      "sha256": "5beef8b65d177bc0f1acfa2fe2e712ce88d01251f37f348396fc9b2046694541"
+    },
+    {
+      "path": "release/artifact-metadata.json",
+      "bytes": 790,
+      "sha256": "9b6ddaf026a5e7899cc61268ca6ac10d229654dcdbddd5ac778ddb4f91b7e0ce"
+    },
+    {
+      "path": "release/jobs-before-download.json",
+      "bytes": 5626,
+      "sha256": "b5fb279c6dc43222299334185e6e80a08685a4cb3f06d709c3cf81497bcea52a"
+    },
+    {
+      "path": "release/download-receipt.json",
+      "bytes": 351,
+      "sha256": "bae230e44bca84d3e8a8b6471201fd1e3a3429cf47269e975cb32adf5516e249"
+    },
+    {
+      "path": "release/verified/release.json",
+      "bytes": 661,
+      "sha256": "89d1de3ac35b06866289fd13be9fa6fad3d40d7f4724374a8ecd2f166051fdea"
+    },
+    {
+      "path": "release/verified/verification.json",
+      "bytes": 346,
+      "sha256": "f24bad206e6435de66cbf7499668e9bd662f3b114cdc75bada6676371a70dce6"
+    },
+    {
+      "path": "release/zero-check.json",
+      "bytes": 848,
+      "sha256": "dec1e8f1a2272e515eb91ea35da861d9df3f8882be91689f89c46ea3855b0936"
+    },
+    {
+      "path": "poll-16/39609951023-jobs.json",
+      "bytes": 5626,
+      "sha256": "b5fb279c6dc43222299334185e6e80a08685a4cb3f06d709c3cf81497bcea52a"
+    },
+    {
+      "path": "README.md",
+      "bytes": 882,
+      "sha256": "217169c3be3393f6ef17f730fedb87fa9802c8b816ae9f2a5dd047b75033ae26"
+    }
+  ]
+}

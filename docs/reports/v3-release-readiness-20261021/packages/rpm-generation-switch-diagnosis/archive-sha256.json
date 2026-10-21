@@ -1,0 +1,56 @@
+{
+  "files": [
+    {
+      "path": "ci-evidence-summary.json",
+      "size": 12158,
+      "sha256": "6ea4ad4d871786fc6d50ed60ef634ff604af42d5e2174ff56f58349848d860f0"
+    },
+    {
+      "path": "failure-inventory.md",
+      "size": 3871,
+      "sha256": "c008a6491cbcc5c8b467355b1d73e4864c218a88244476126c170e296f6bb56a"
+    },
+    {
+      "path": "input-sha256.json",
+      "size": 561,
+      "sha256": "143f4d27028911071a5fce667e01af5bf12935a82fa9226012c915c30c771f39"
+    },
+    {
+      "path": "proposal.md",
+      "size": 8721,
+      "sha256": "c96f335058838087f082c89cd5c6dac4deac39dfe40e2be73dbb3fafcc1084e5"
+    },
+    {
+      "path": "serial-24.json",
+      "size": 6024,
+      "sha256": "00b826dbd490c421263b953b18463f3b412d77105389605ba2cefc60293ba4c8"
+    },
+    {
+      "path": "source/docs/stable-audit-transport.md",
+      "size": 9710,
+      "sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4"
+    },
+    {
+      "path": "source/scripts/plan-object-storage-publication.py",
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    {
+      "path": "source/scripts/validate-production-package-clients.py",
+      "size": 87886,
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    {
+      "path": "source/tests/native_stable_clients_drill.py",
+      "size": 60959,
+      "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d"
+    },
+    {
+      "path": "source/tests/test_composite_storage_plan.py",
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    }
+  ],
+  "file_count": 10,
+  "total_bytes": 242602
+}

@@ -1,0 +1,89 @@
+{
+  "schema": "wukongim.cloud_deployment.bundle_intent/v1",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "operating_system": "ubuntu",
+  "operating_system_version": "24.04",
+  "architecture": "amd64",
+  "service_nodes": 3,
+  "load_nodes": 1,
+  "hash_slots": 256,
+  "workload_slot_groups": 12,
+  "replicas": 3,
+  "secret_files": [
+    {
+      "path": "/etc/wukongim/secrets/node.env",
+      "owner": "root",
+      "mode": 384
+    },
+    {
+      "path": "/etc/wukongim/secrets/load.env",
+      "owner": "root",
+      "mode": 384
+    },
+    {
+      "path": "/etc/wukongim/secrets/analysis.env",
+      "owner": "root",
+      "mode": 384
+    },
+    {
+      "path": "/etc/wukongim/secrets/analysis-cert.pem",
+      "owner": "root",
+      "mode": 384
+    },
+    {
+      "path": "/etc/wukongim/secrets/analysis-key.pem",
+      "owner": "root",
+      "mode": 384
+    }
+  ],
+  "required_base_tools": [
+    "awk",
+    "bash",
+    "blkid",
+    "cat",
+    "chmod",
+    "chown",
+    "curl",
+    "date",
+    "df",
+    "dirname",
+    "findmnt",
+    "getconf",
+    "grep",
+    "head",
+    "id",
+    "install",
+    "lsblk",
+    "mkdir",
+    "mkfs.ext4",
+    "mount",
+    "mv",
+    "rm",
+    "scp",
+    "sed",
+    "sha256sum",
+    "sleep",
+    "ssh",
+    "stat",
+    "sudo",
+    "systemctl",
+    "tail",
+    "tar",
+    "timedatectl",
+    "timeout",
+    "uname",
+    "useradd"
+  ],
+  "offline_binaries": [
+    "caddy",
+    "node_exporter",
+    "prometheus",
+    "wkanalysis",
+    "wkcli",
+    "wkcloudbundle",
+    "wkcloudgate",
+    "wkcloudhost",
+    "wukongim"
+  ]
+}

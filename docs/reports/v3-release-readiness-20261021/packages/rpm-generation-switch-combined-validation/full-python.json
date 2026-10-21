@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients",
+  "start": "2026-10-21T13:40:15.437579+00:00",
+  "elapsed_seconds": 106.2205768339918,
+  "exit_code": 0,
+  "log_sha256": "2ea7fc74444f2412068f2ab24137784569775e27b2c620ab70f3a76e23ed0f2c"
+}

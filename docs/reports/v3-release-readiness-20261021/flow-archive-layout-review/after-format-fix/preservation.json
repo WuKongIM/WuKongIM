@@ -1,0 +1,14 @@
+{
+  "verified": [
+    "cloud/rc-next-execution-plan-post1020/source/internal/usecase/chatlifecyclerun/FLOW.md.source",
+    "cloud/released-continuation-go-review/files/internal/usecase/chatlifecyclerun/FLOW.md.source",
+    "cloud/source-b469/internal/infra/cloudlease/alibaba/FLOW.md.source",
+    "cloud/source-b469/internal/usecase/chatlifecyclerun/FLOW.md.source",
+    "cloud/source-b469/internal/usecase/cloudlease/FLOW.md.source",
+    "cloud/source-b469/scripts/cloud-deployment/FLOW.md.source"
+  ],
+  "all_original_bytes_preserved": true,
+  "historical_receipt_edits": [],
+  "validator_policy_navigation_index_changes": [],
+  "timestamp": "2026-10-21T13:13:58.477891+00:00"
+}

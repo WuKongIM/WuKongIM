@@ -1,0 +1,111 @@
+{
+  "file_count": 21,
+  "total_bytes": 270625,
+  "files": [
+    {
+      "path": "01-all-cases-before-code.py.txt",
+      "size": 29905,
+      "sha256": "63f21f4e1ba45d07a393d5586756b42484f1efee15e275491f3717dee8d787f3"
+    },
+    {
+      "path": "01-tests-first-freeze.json",
+      "size": 1670,
+      "sha256": "22934bdd9abffdcd915a1fda762d3cf92ce94f124d729e3306e0c6017409160f"
+    },
+    {
+      "path": "02-old-planner-red.json",
+      "size": 1969,
+      "sha256": "5866ca0c8c55479e88d620351feb93304b9d90fa24c2d05ec9707881c6670c5b"
+    },
+    {
+      "path": "02-old-planner-red.log",
+      "size": 17592,
+      "sha256": "de33f5202ff0864e9c5464f42727796d0dbc1b4ade2e5c0333cb9a7dc2300b4e"
+    },
+    {
+      "path": "03-all-cases-before-code.py.txt",
+      "size": 30049,
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd"
+    },
+    {
+      "path": "03-old-planner-red.json",
+      "size": 729,
+      "sha256": "9e5572b0df0d564262daa9e554c19895c11390560e699e3c357ecb23e485d3f5"
+    },
+    {
+      "path": "03-old-planner-red.log",
+      "size": 17142,
+      "sha256": "541663c4d0e4542a8b9c516ee470f4ff5823afd731d93eb3582ef80969f707b9"
+    },
+    {
+      "path": "04-composite-green.json",
+      "size": 684,
+      "sha256": "b36e748c17d68c6de465076355b60f2a236a36c4ac4898ab03aa7223edcf53e2"
+    },
+    {
+      "path": "04-composite-green.log",
+      "size": 3758,
+      "sha256": "a9fb7924285b934ca8a2fa5b882c441ee4728ff0a7543594a9bd13feee96e192"
+    },
+    {
+      "path": "05-preview-regression.json",
+      "size": 355,
+      "sha256": "dad53c852d28bdff5bbabe7d9fc6390b572449d13ae61c69c1989cc54b4e4c01"
+    },
+    {
+      "path": "05-preview-regression.log",
+      "size": 5908,
+      "sha256": "4e7a32cc769cb18b696f7ad4f3769ec0f32ad99ce2b87b9ff32ee5dd8481cb51"
+    },
+    {
+      "path": "06-diff-check.txt",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "README.md",
+      "size": 1955,
+      "sha256": "98f74f73ed143d00f43613e51308aa943d24c8efadeb0c1e5d11e526d50af39a"
+    },
+    {
+      "path": "baseline.json",
+      "size": 443,
+      "sha256": "6dabd54fd44386f45fe671c0fcd94776e0bc64a36788787efe1d66fcf7d90d99"
+    },
+    {
+      "path": "failure-inventory.md",
+      "size": 2362,
+      "sha256": "c7e0d6d06fbfa0b6ecd8540f6fb4dbd5a4d53e5405d9eb70c161020a93793e2c"
+    },
+    {
+      "path": "final-files/scripts/plan-object-storage-publication.py",
+      "size": 38978,
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "final-files/tests/test_composite_storage_plan.py",
+      "size": 30049,
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd"
+    },
+    {
+      "path": "final-freeze.json",
+      "size": 9763,
+      "sha256": "c88804dba8dca1eb2abcb6c7f015d04414a23f73acca670502ea24492cc76109"
+    },
+    {
+      "path": "final.patch",
+      "size": 24602,
+      "sha256": "5768a3952c496b5143cabe9b5d00331399cc1387ecae8358c6aa0ebd25614203"
+    },
+    {
+      "path": "plan-object-storage-publication.py.before",
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    {
+      "path": "test_composite_storage_plan.py.before",
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    }
+  ]
+}

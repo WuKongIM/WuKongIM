@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "receipt": {
+    "schema": "wukongim.cloud_deployment.receipt/v2",
+    "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+    "request_id": "chat-20261021T095421Z-cf11d65c",
+    "repository": "WuKongIM/WuKongIM",
+    "lease_plan_digest": "sha256:e75273c61c954136f5c146aa62ced1b5ba6e2889090e007f553d2330535473e6",
+    "deployment_plan_digest": "sha256:9e73282165e9032c1c99a4154678ad3a4a7901b6c260b70144804066278def91",
+    "purpose": "immutable",
+    "generation": 1,
+    "lease_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "lease_bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8",
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8",
+    "activated_at": "2026-10-21T13:26:03Z",
+    "lease_expires_at": "2026-10-22T01:11:38Z",
+    "topology": {
+      "service_nodes": 3,
+      "load_nodes": 1,
+      "physical_hash_slots": 256,
+      "logical_slot_groups": 12,
+      "slot_replicas": 3,
+      "channel_replicas": 3
+    },
+    "public_endpoints": {
+      "manager": "http://114.55.174.123/",
+      "demo": "http://114.55.174.123/demo/"
+    },
+    "hosts": [
+      {
+        "role": "service-1",
+        "instance_id": "i-bp10y6ctzjybq50p2ek1",
+        "private_address": "10.42.0.212",
+        "data_disk_id": "d-bp10y6ctzjybq50toywf",
+        "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8"
+      },
+      {
+        "role": "service-2",
+        "instance_id": "i-bp1elstnj725aomupqs8",
+        "private_address": "10.42.0.213",
+        "data_disk_id": "d-bp1elstnj725aomwo075",
+        "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8"
+      },
+      {
+        "role": "service-3",
+        "instance_id": "i-bp1fum8lr6488t5no7ww",
+        "private_address": "10.42.0.211",
+        "data_disk_id": "d-bp1fum8lr6488t5kff34",
+        "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8"
+      },
+      {
+        "role": "load",
+        "instance_id": "i-bp1a769211422qccf8aw",
+        "private_address": "10.42.0.214",
+        "public_address": "114.55.174.123",
+        "data_disk_id": "d-bp1a769211422qcjd9th",
+        "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8"
+      }
+    ]
+  }
+}

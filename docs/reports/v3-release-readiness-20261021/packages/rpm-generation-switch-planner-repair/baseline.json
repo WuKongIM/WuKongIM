@@ -1,0 +1,14 @@
+{
+  "head": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "created": "2026-10-21T13:25:06.231939+00:00",
+  "files": {
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74",
+      "size": 35903
+    },
+    "tests/test_composite_storage_plan.py": {
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf",
+      "size": 16809
+    }
+  }
+}

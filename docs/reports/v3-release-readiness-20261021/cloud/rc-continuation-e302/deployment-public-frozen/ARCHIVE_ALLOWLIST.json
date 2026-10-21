@@ -1,0 +1,91 @@
+{
+  "files": [
+    {
+      "path": "deployment-summary.json",
+      "bytes": 1744,
+      "sha256": "64be0dca601d198e4e0e351dd04c9fb65d9b5e85c4760ba53fa418dfcbc8207a"
+    },
+    {
+      "path": "issue-comments-02.json",
+      "bytes": 4624,
+      "sha256": "10db292b7ea787a3cf761eb477a87eef6f5acb33da1a5aa00527b23edcecddab"
+    },
+    {
+      "path": "issue-observation-02.json",
+      "bytes": 443,
+      "sha256": "7f8e66245c7574dab687b05baa2ab315f4c56d2e7589acb36866752828b9b929"
+    },
+    {
+      "path": "verify-public-json-artifact.py",
+      "bytes": 1619,
+      "sha256": "f28bc33415f6d03edba62f2deee3081c0f749b15d35815dbb7a29acea3a91780"
+    },
+    {
+      "path": "deployment/artifact-metadata.json",
+      "bytes": 769,
+      "sha256": "15d1cda9dd72bffe9a2cd986e79c81ded5e4a2d1364c8437bd54ca5ea4bf7e97"
+    },
+    {
+      "path": "deployment/jobs-final.json",
+      "bytes": 5632,
+      "sha256": "083e71d8d6aad7440aadbdf59d4c013f1cc8584b88e099b5f0facf37b9dcccbe"
+    },
+    {
+      "path": "deployment/run-final.json",
+      "bytes": 594,
+      "sha256": "7ec1759c8d942d07ab2f106e5e77c98eaa3cb8ec9a756be383962c17489ef009"
+    },
+    {
+      "path": "deployment/download-receipt.json",
+      "bytes": 352,
+      "sha256": "4c1465d65a168805c0b35c5a7972aeeb1615c92445bb9f5a44df4cd70c4cbebd"
+    },
+    {
+      "path": "deployment/verified/analysis-endpoint.json",
+      "bytes": 578,
+      "sha256": "9e6242e7ae5f7484c4300867f9231990ab2ebc8fe18864c3ddb7c58704ae40b2"
+    },
+    {
+      "path": "deployment/verified/readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "0e873a7ca5350ae69eb83bd18b77cd94181c9b3a78b631b8cec78db6458ef368"
+    },
+    {
+      "path": "deployment/verified/deployment-outcome.json",
+      "bytes": 2503,
+      "sha256": "12da1bdf01387833422e2c0b54571e56ccf35a132bb173405e82939ee871dd80"
+    },
+    {
+      "path": "deployment/verified/verification.json",
+      "bytes": 1542,
+      "sha256": "b409a2754bec592bf4050e8b4d17de70457b8d0851648885666805f5ef08481b"
+    },
+    {
+      "path": "deployment/verified/encrypted-deployment-identity.json",
+      "bytes": 2316,
+      "sha256": "463d5c05a3accc2ca6ec95506f1832349d585b53e8437a5195d5a9f4a7cbdcdc"
+    },
+    {
+      "path": "deployment/verified/deployment-plan.json",
+      "bytes": 3181,
+      "sha256": "fbca7abd6ac4908052d9036b1b4cd268689616948f5a21aa090d7851c671f45b"
+    },
+    {
+      "path": "deployment/verified/encrypted-access.json",
+      "bytes": 1320,
+      "sha256": "6e547a6473549732e3232b43537238fca12daf8ca1bbdf475f0cfefb7dd8656f"
+    },
+    {
+      "path": "README.md",
+      "bytes": 798,
+      "sha256": "1651e6992d68612d43efe2b5e60b9e882f2f63420f4be688b797ad4569bca16e"
+    }
+  ],
+  "encrypted_json": "Opaque original ciphertext only; not decrypted",
+  "excluded": [
+    "ZIP",
+    "binary",
+    "private key",
+    "plaintext credentials"
+  ]
+}

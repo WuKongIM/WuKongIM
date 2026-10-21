@@ -1,0 +1,11 @@
+{
+  "files": {
+    "CHANGELOG.md": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e",
+    "docs/stable-audit-transport.md": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2",
+    "scripts/plan-object-storage-publication.py": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+    "tests/native_stable_clients_drill.py": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d",
+    "tests/test_composite_storage_plan.py": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd",
+    "tests/test_native_stable_clients_drill.py": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e"
+  },
+  "unchanged_during_validation": true
+}

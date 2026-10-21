@@ -1,0 +1,16 @@
+{
+  "check": "flow-doc-contracts",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "arguments": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 0.942,
+  "log_sha256": "dcdc958c404eb24933c54ca8b6e806b081633dcbbbc8dfa61ed6b9a49f27f677",
+  "source_head": "2d9f974fddd1554711ed075d893b66947382f343",
+  "reason": "New evidence archive includes a frozen FLOW.md; run required named check."
+}

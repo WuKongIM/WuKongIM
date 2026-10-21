@@ -1,0 +1,10 @@
+{
+  "command": [
+    "./tests/contract.sh"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients",
+  "start": "2026-10-21T13:42:01.660334+00:00",
+  "elapsed_seconds": 0.8292753329733387,
+  "exit_code": 0,
+  "log_sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+}

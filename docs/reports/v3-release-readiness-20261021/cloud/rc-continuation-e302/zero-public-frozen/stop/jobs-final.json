@@ -1,0 +1,105 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 119255600687,
+      "run_id": 39609861645,
+      "workflow_name": "Chat Lifecycle Stop chat-20261021T095421Z-cf11d65c",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39609861645",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbxDAOLw",
+      "head_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119255600687",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39609861645/job/119255600687",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T13:39:14Z",
+      "started_at": "2026-10-21T13:39:16Z",
+      "completed_at": "2026-10-21T13:39:32Z",
+      "name": "Seal stop intent and request coordinated cancellation and finalization",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T13:39:17Z",
+          "completed_at": "2026-10-21T13:39:17Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T13:39:17Z",
+          "completed_at": "2026-10-21T13:39:22Z"
+        },
+        {
+          "name": "Validate exact request-scoped stop authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T13:39:22Z",
+          "completed_at": "2026-10-21T13:39:22Z"
+        },
+        {
+          "name": "Seal durable stop marker before any cancellation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T13:39:22Z",
+          "completed_at": "2026-10-21T13:39:22Z"
+        },
+        {
+          "name": "Upload stop marker that blocks future formal procurement",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T13:39:22Z",
+          "completed_at": "2026-10-21T13:39:23Z"
+        },
+        {
+          "name": "Request immediate rehearsal and formal finalization",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T13:39:23Z",
+          "completed_at": "2026-10-21T13:39:28Z"
+        },
+        {
+          "name": "Advance the exact tracking Issue",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T13:39:28Z",
+          "completed_at": "2026-10-21T13:39:30Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T13:39:30Z",
+          "completed_at": "2026-10-21T13:39:30Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T13:39:30Z",
+          "completed_at": "2026-10-21T13:39:30Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119255600687",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024335,
+      "runner_name": "GitHub Actions 1000024335",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

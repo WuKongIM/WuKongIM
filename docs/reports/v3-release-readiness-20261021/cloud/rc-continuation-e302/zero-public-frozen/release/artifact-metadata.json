@@ -1,0 +1,20 @@
+{
+  "id": 12348613835,
+  "node_id": "MDg6QXJ0aWZhY3QxMjM0ODYxMzgzNQ==",
+  "name": "cloud-lease-release-chat-20261021T095421Z-cf11d65c",
+  "size_in_bytes": 556,
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12348613835",
+  "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12348613835/zip",
+  "expired": false,
+  "digest": "sha256:9f66311d6e807e455237d3b3f889f7b3220dfc8304b7ad9c05edb73fa02863ad",
+  "created_at": "2026-10-21T13:40:53Z",
+  "updated_at": "2026-10-21T13:40:53Z",
+  "expires_at": "2026-10-28T13:40:52Z",
+  "workflow_run": {
+    "id": 39609951023,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "e30299fa59ea6669ea71024eabe209840f241f19"
+  }
+}

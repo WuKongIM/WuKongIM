@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-21T12:54:16.627674+00:00",
+  "head": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "workflow_sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+  "job_id": 119229193899,
+  "job_started_at": "2026-10-21T12:45:41Z",
+  "exercise_step_started_at": "2026-10-21T12:46:26Z",
+  "python_process_start_exact": "unavailable until job log is exposed",
+  "job_timeout_minutes": 60,
+  "driver_timeout_minutes": 55,
+  "driver_term_grace_seconds": 45,
+  "download_client_timeout_seconds": 300,
+  "download_client_kill_grace_seconds": 10,
+  "download_host_command_timeout_seconds": 330,
+  "installed_client_timeout_seconds": 600,
+  "installed_host_command_timeout_seconds": 650,
+  "in_progress_log_read": "stable-in-progress-log-read.json",
+  "case_progress": "not exposed; no pass inferred from elapsed time"
+}

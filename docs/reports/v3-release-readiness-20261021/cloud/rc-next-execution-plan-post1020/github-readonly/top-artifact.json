@@ -1,0 +1,20 @@
+{
+  "id": 12338781445,
+  "node_id": "MDg6QXJ0aWZhY3QxMjMzODc4MTQ0NQ==",
+  "name": "chat-lifecycle-rehearsal-cleanup-chat-20261021T095421Z-cf11d65c",
+  "size_in_bytes": 22845,
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12338781445",
+  "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12338781445/zip",
+  "expired": false,
+  "digest": "sha256:9415fe341edd26397def4bb07c907799cace7a0758ac256cb8cf401aae18d14f",
+  "created_at": "2026-10-21T10:19:34Z",
+  "updated_at": "2026-10-21T10:19:34Z",
+  "expires_at": "2027-01-19T10:00:38Z",
+  "workflow_run": {
+    "id": 39581355444,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+  }
+}

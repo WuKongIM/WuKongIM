@@ -1,0 +1,38 @@
+[
+  {
+    "name": "merge-commit",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/git/commits/3ca7c376fc9cef29f0530886c893dd82a7609bf4"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T12:46:32.941204+00:00",
+    "stdout_size": 2602,
+    "stdout_sha256": "b46c4e883268194227ef101fdd5516f6a98f03e3cf23bab61a5a76469bf0aa16"
+  },
+  {
+    "name": "pages-jobs-initial",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/runs/39602187472/jobs?per_page=100"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T12:46:32.942103+00:00",
+    "stdout_size": 1828,
+    "stdout_sha256": "2997fdf9b9de8dc3cff1d54678cc9e99cd6b8dce24b2093e0349cd14aded1da4"
+  },
+  {
+    "name": "native-jobs-initial",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/runs/39602187505/jobs?per_page=100"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T12:46:32.942355+00:00",
+    "stdout_size": 7513,
+    "stdout_sha256": "7163783e81ba748e96a4343103bad787b93ec6ea71ac8ad1af593a89d3dcd7b7"
+  }
+]

@@ -1,0 +1,54 @@
+{
+  "head": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "diff_command": "git diff HEAD",
+  "commits": [],
+  "untracked": [],
+  "patch_sha256": "7ac48194efb860582ac9d0ee4df144cd82ec673f1d893d41ca487b786d650d03",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e",
+      "bytes": 2435
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2",
+      "bytes": 11837
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "bytes": 38978
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d",
+      "bytes": 66272
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd",
+      "bytes": 30049
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e",
+      "bytes": 53063
+    }
+  ],
+  "specs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-generation-switch-diagnosis/proposal.md",
+      "sha256": "c96f335058838087f082c89cd5c6dac4deac39dfe40e2be73dbb3fafcc1084e5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/rpm-generation-switch-diagnosis/failure-inventory.md",
+      "sha256": "c008a6491cbcc5c8b467355b1d73e4864c218a88244476126c170e296f6bb56a"
+    }
+  ],
+  "package_local_agent_or_flow_files": [],
+  "original_ci_summary": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-3/summary.json",
+    "sha256": "980b00045bbb6cc525a91fea815fb93336ed8089967d94904406bb332a755dad"
+  }
+}

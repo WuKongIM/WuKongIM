@@ -1,0 +1,9 @@
+{
+  "first_read_failure": {
+    "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39582604546",
+    "exit": 1,
+    "raw_stderr_not_retained": "potential transport redirect details",
+    "effect": "no provider/API write and no continuation proof; remaining partial files retained"
+  },
+  "action": "one bounded exact GET retry only"
+}

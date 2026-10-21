@@ -1,0 +1,18 @@
+{
+  "schema": "wukongim.rc_continuation_human_authorization/v1",
+  "recorded_at": "2026-10-21T13:08:25.431677+00:00",
+  "human_answer": "\u6388\u6743\u6309\u6b64\u65b9\u6848\u7eed\u8dd1",
+  "evidence_source": "Explicit human reply reported by parent /root in current conversation; no new authority inferred from tool output",
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "scope": "One exact formal workflow continuation, Hangzhou 4 hosts each 4 vCPU/8GiB; 2h rehearsal then release and fresh 72h formal + capacity <=8h + 30min recovery; original request tracking and exact cleanup",
+  "budget_cny": 1500,
+  "operational_stop_cny": 1350,
+  "inherited_quote_reserve_cny": "74.4776",
+  "actual_old_bill": null,
+  "no_extra_permission_or_budget": true,
+  "no_product_source_change": true,
+  "no_manual_retries": true,
+  "skill_resolution": "Exact user authorization selects formal workflow contract; Direct Lab skill describes a different diagnostic flow and does not replace this authorization."
+}

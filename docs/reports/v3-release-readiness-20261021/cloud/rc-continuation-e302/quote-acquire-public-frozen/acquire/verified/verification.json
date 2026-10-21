@@ -1,0 +1,21 @@
+{
+  "artifact_id": 12348590979,
+  "api_size_digest_and_zip_crc_pass": true,
+  "members": [
+    {
+      "name": "quote.json",
+      "size": 1842,
+      "sha256": "634e068b65667e4511ae85cd64a9cbd164d2bbe6934fe53a8b26c244c01152ac",
+      "schema": "wukongim.cloud_lease.quote/v1",
+      "empty": false
+    },
+    {
+      "name": "receipt.json",
+      "size": 41139,
+      "sha256": "b5b7d9c27ae068004d18cd3c2165f9e4facbec868f9443143ecb5fd6062e5bbb",
+      "schema": "wukongim.cloud_lease.receipt/v1",
+      "empty": false
+    }
+  ],
+  "no_payload_execution": true
+}

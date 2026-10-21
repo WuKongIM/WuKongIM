@@ -1,0 +1,10 @@
+ci-evidence-summary.json
+failure-inventory.md
+input-sha256.json
+proposal.md
+serial-24.json
+source/docs/stable-audit-transport.md
+source/scripts/plan-object-storage-publication.py
+source/scripts/validate-production-package-clients.py
+source/tests/native_stable_clients_drill.py
+source/tests/test_composite_storage_plan.py

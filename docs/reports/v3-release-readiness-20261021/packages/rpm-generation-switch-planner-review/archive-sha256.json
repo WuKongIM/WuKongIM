@@ -1,0 +1,31 @@
+{
+  "files": [
+    {
+      "path": "evidence-references.json",
+      "size": 596,
+      "sha256": "e32544cb28c0ddd13b5fc3c2f2fe8c316f9989810cf6e2ced7b85da36a9ddef0"
+    },
+    {
+      "path": "protected-check.json",
+      "size": 19027,
+      "sha256": "e44b7ecf726c3ccd9cb6e621400f2b366f9d075a83f698e1b9559437ac170a4a"
+    },
+    {
+      "path": "review.md",
+      "size": 6300,
+      "sha256": "a7c911637aa0eee926080ff239e35225d08882b5a700a7aea30521bb227c35c1"
+    },
+    {
+      "path": "rules.md",
+      "size": 444,
+      "sha256": "f9165c33c95d144aa197797da3acc6493c254e349ae6dbba5cc3e1c8c0d95f66"
+    },
+    {
+      "path": "source-freeze.json",
+      "size": 1952,
+      "sha256": "cdb84c65979c08a5f842b944ab2271355fbe49c18762c99ce97b8c05b6511489"
+    }
+  ],
+  "file_count": 5,
+  "total_bytes": 28319
+}

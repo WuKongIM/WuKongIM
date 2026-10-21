@@ -1,0 +1,1 @@
+本审查仅只读。适用外层 AGENTS.md 已读并冻结 SHA；packages checkout 无 AGENTS.md/FLOW.md/CONTEXT.md，亦无 .github/workflows/README.md。未调用工作流或修改工作流。遵守先证据后诊断、后续实现须 tests-first；不修改签名生产者、频道、发布工作流或生产密钥。现有两个 protected 清单分别核对，数目和实际结果见 protected-check.json；不合并或重定义清单。

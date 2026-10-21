@@ -1,0 +1,16 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/actions/jobs/119229193510/logs"
+  ],
+  "exit_code": 0,
+  "at": "2026-10-21T12:51:45.296233+00:00",
+  "max_accepted_bytes": 33554432,
+  "bytes": 13475286,
+  "sha256": "962f538446a9b237117c65aceee0fb9212c334a6f285077b96d6d97c5d284644",
+  "archive_path": "native-original-job-119229193510.log.gz",
+  "compressed_bytes": 846567,
+  "compressed_sha256": "2619784ad8cf38e995267d17054d7c0b72e86c0d23e0d309e26eecf2b45bedb5",
+  "roundtrip_verified": true
+}

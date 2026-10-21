@@ -1,0 +1,11 @@
+{
+  "reviewer": "continuation_consumers",
+  "scope": "source static read only; no helper/test/network execution",
+  "findings": [],
+  "confirmed": [
+    "attempt2 prepare and validate require real live producer/API/artifacts; no offline whole-chain CLI",
+    "validate_prior_documents/validate_cost pure local checks only",
+    "formal prior remains inherited reserve plus new rehearsal conservative cost",
+    "cleanup stays independent of sidecar qualification failure"
+  ]
+}

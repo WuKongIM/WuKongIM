@@ -1,0 +1,12 @@
+{
+  "id": 329938001,
+  "node_id": "W_kwDOJgfwyc4TqnRR",
+  "name": "Safety Automation - Start Fresh Formal Chat Lifecycle",
+  "path": ".github/workflows/chat-lifecycle-formal.yml",
+  "state": "disabled_manually",
+  "created_at": "2026-08-08T19:52:22.000+08:00",
+  "updated_at": "2026-09-01T19:22:30.000+08:00",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938001",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-formal.yml",
+  "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Safety%20Automation%20-%20Start%20Fresh%20Formal%20Chat%20Lifecycle/badge.svg"
+}

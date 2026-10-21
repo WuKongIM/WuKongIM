@@ -1,0 +1,37 @@
+[
+  {
+    "line": 102,
+    "text": "2026-10-21T12:45:43.4791789Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3ca7c376fc9cef29f0530886c893dd82a7609bf4:refs/remotes/pull/74/merge",
+    "truncated": false
+  },
+  {
+    "line": 104,
+    "text": "2026-10-21T12:45:43.7967468Z  * [new ref]         3ca7c376fc9cef29f0530886c893dd82a7609bf4 -> pull/74/merge",
+    "truncated": false
+  },
+  {
+    "line": 132,
+    "text": "2026-10-21T12:45:43.8385049Z 3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+    "truncated": false
+  },
+  {
+    "line": 74708,
+    "text": "2026-10-21T12:48:15.5811952Z gpgv: Good signature from \"WuKongIM Native Package APT TEST ONLY <test-only@invalid>\"",
+    "truncated": false
+  },
+  {
+    "line": 74711,
+    "text": "2026-10-21T12:48:15.5864477Z gpgv: Good signature from \"WuKongIM Native Package APT TEST ONLY <test-only@invalid>\"",
+    "truncated": false
+  },
+  {
+    "line": 74714,
+    "text": "2026-10-21T12:48:15.6598107Z gpgv: Good signature from \"WuKongIM Native Package RPM TEST ONLY <test-only@invalid>\"",
+    "truncated": false
+  },
+  {
+    "line": 74882,
+    "text": "2026-10-21T12:49:33.0023392Z native-package signed repository container validation passed",
+    "truncated": false
+  }
+]

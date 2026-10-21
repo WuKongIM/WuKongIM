@@ -1,0 +1,43 @@
+{
+  "observed_at": "2026-10-21T13:33:11.259673+00:00",
+  "deployment_identity_and_readiness_check": "passed",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+  "deployment_plan_digest": "sha256:9e73282165e9032c1c99a4154678ad3a4a7901b6c260b70144804066278def91",
+  "activated_at": "2026-10-21T13:26:03Z",
+  "cluster": {
+    "ready_nodes": 3,
+    "members": 3,
+    "physical_hash_slots": 256,
+    "healthy_slot_leaders": 256,
+    "healthy_slot_replica_sets": 256,
+    "logical_slot_groups": 12,
+    "runtime_config_nodes": 3,
+    "slot_replicas": 3,
+    "channel_replicas": 3,
+    "pending_controller_tasks": 0
+  },
+  "load": {
+    "ready_workers": 3,
+    "prometheus_targets_up": 7,
+    "prometheus_targets_want": 7,
+    "workload_config_valid": true,
+    "proxy_ready": true,
+    "manager_ready": true,
+    "demo_ready": true,
+    "analysis_ready": true
+  },
+  "encrypted_material_opened": false,
+  "later_preclock_state": "rehearsal_deployment_repair_pending",
+  "later_failure_code": "stage_state_parse_failed",
+  "later_public_issue_comment_id": 6317250473,
+  "original_clock_not_started": true,
+  "diagnostic_bytes_available": false,
+  "hypotheses": [
+    "H1 strict service state parser rejects actual field shape; unit receipt invalid/missing Job or ActiveState would support",
+    "H2 capture/filter pipeline differs from accepted state input; valid unit receipt plus nonzero classifier suggests this seam",
+    "H3 systemd ActiveState outside original classifier closed branches; known maintenance/refreshing would support"
+  ],
+  "root_cause": "unconfirmed; no retained preclock diagnostic bytes yet"
+}

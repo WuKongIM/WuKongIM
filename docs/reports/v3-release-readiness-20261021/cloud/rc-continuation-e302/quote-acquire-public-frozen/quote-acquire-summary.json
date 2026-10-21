@@ -1,0 +1,41 @@
+{
+  "observed_at": "2026-10-21T13:21:05.739195+00:00",
+  "identity_and_budget_checks": "passed",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "state": "active",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "bundle_digest": "sha256:e810a871dbf2d97fb7b30adba60470461081a3439c3bd7c833e67b34c8f56ca8",
+  "plan_digest": "e75273c61c954136f5c146aa62ced1b5ba6e2889090e007f553d2330535473e6",
+  "created_at": "2026-10-21T13:18:59.628591196Z",
+  "expires_at": "2026-10-22T01:11:38Z",
+  "region": "cn-hangzhou",
+  "zone": "cn-hangzhou-b",
+  "resource_counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "instance_role_counts": {
+    "service": 3,
+    "load": 1
+  },
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1500000000,
+    "committed_micros": 74477600,
+    "operational_stop_micros": 1350000000
+  },
+  "new_quote_cost_micros": 74477600,
+  "old_reserve_plus_new_full_quote_micros": 148955200,
+  "actual_bill": null,
+  "quote_identical_in_quote_and_acquire": true,
+  "limits": "Authenticated workflow artifacts and selected identity/budget/resource checks; no independent provider read or measured workload qualification."
+}

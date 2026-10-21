@@ -1,0 +1,43 @@
+{
+  "observed_at": "2026-10-21T12:54:54.605409+00:00",
+  "main_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "product_ancestor": true,
+  "workflow_state": "active",
+  "workflow_id": 329938003,
+  "latest_observed_run_id": 39581355444,
+  "latest_observed_number": 32,
+  "next_required_number": 33,
+  "tracking_issue": {
+    "number": 1018,
+    "title": "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+    "state": "open",
+    "locked": false
+  },
+  "artifacts": [
+    {
+      "role": "top-artifact",
+      "id": 12338781445,
+      "expired": false,
+      "expires_at": "2027-01-19T10:00:38Z",
+      "digest": "sha256:9415fe341edd26397def4bb07c907799cace7a0758ac256cb8cf401aae18d14f",
+      "size_in_bytes": 22845
+    },
+    {
+      "role": "acquire-artifact",
+      "id": 12336503577,
+      "expired": false,
+      "expires_at": "2026-10-28T10:11:53Z",
+      "digest": "sha256:d9f29affe4a48481c646b702bbc28b32359e67ee2b8f7469142f616815d24813",
+      "size_in_bytes": 3613
+    },
+    {
+      "role": "release-artifact",
+      "id": 12338506487,
+      "expired": false,
+      "expires_at": "2026-10-28T10:19:19Z",
+      "digest": "sha256:2adcf95fa99f445907727aece3a2acddae0fbadd96065dd57a3d7af896b6b055",
+      "size_in_bytes": 557
+    }
+  ],
+  "scope": "Exact public GitHub metadata GET only; latest run query is one page of one newest run, not full global inventory or continuation authentication."
+}

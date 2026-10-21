@@ -1,0 +1,6 @@
+{
+  "schema": "wukongim.chat_lifecycle.operator_stop/v1",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "outcome": "operator_stop",
+  "observed_at": "2026-10-21T13:39:22Z"
+}

@@ -1,0 +1,14 @@
+{
+  "artifact_id": 12349218799,
+  "api_size_digest_and_zip_crc_pass": true,
+  "members": [
+    {
+      "name": "operator-stop.json",
+      "size": 180,
+      "sha256": "268277de489be0c9041681c7da5d9eea637688e2ef3d5fa9dcea713dab1d0fcb",
+      "schema": "wukongim.chat_lifecycle.operator_stop/v1",
+      "empty": false
+    }
+  ],
+  "no_payload_execution": true
+}

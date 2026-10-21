@@ -1,0 +1,181 @@
+{
+  "schema": "wukongim.rc_released_continuation_plan/v1",
+  "state": "prepared_read_only_not_authorized_to_start",
+  "created_at": "2026-10-21T12:57:00.408160+00:00",
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "operator": "tangtaoit",
+  "workflow": {
+    "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "numeric_id": 329938003,
+    "ref": "main",
+    "predecessor_run_id": 39581355444,
+    "predecessor_run_number": 32,
+    "successor_run_number_requirement": "exact predecessor + 1 (observed next=33)",
+    "both_run_attempts": 1,
+    "actual_successor_run_id": null,
+    "new_lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-2",
+    "prior_lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1"
+  },
+  "planned_inputs_file": "planned-dispatch.json",
+  "planned_command_not_executed": [
+    "gh",
+    "workflow",
+    "run",
+    "chat-lifecycle-rehearsal.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "--json"
+  ],
+  "planned_stdin": "planned-workflow-inputs.json",
+  "planned_rest_request_not_sent": {
+    "method": "POST",
+    "path": "/repos/WuKongIM/WuKongIM/actions/workflows/329938003/dispatches",
+    "body_file": "planned-dispatch.json"
+  },
+  "guard": {
+    "required_main_before_start": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "current_main_verified": true,
+    "product_reachable_from_main": true,
+    "ref_main_sha_guard_limitation": "The workflow dispatch API accepts ref main, not a compare-and-swap control SHA. This read-only snapshot is not an atomic future control pin; changed main/run number requires rechecking this plan, not silently proceeding.",
+    "no_repair_trailer_or_source_change_authorized": true
+  },
+  "budget": {
+    "currency": "CNY",
+    "whole_request_limit_micros": 1500000000,
+    "whole_request_operational_stop_micros": 1350000000,
+    "inherited_full_quote_reserve_micros": 74477600,
+    "reserve_cny": "74.4776",
+    "remaining_before_new_cost_to_hard_cny": "1425.5224",
+    "remaining_before_new_cost_to_stop_cny": "1275.5224",
+    "actual_provider_bill": null,
+    "reserve_is_invoice": false,
+    "amount_is_operator_input": false,
+    "formal_prior_equation": "74477600 + new_rehearsal_conservative_cost_micros; reauthenticated/recomputed before formal acquisition",
+    "do_not_reset_budget_or_release_reserve": true
+  },
+  "shape": {
+    "region": "cn-hangzhou",
+    "architecture": "x86_64",
+    "host_count": 4,
+    "vcpus_each": 4,
+    "memory_bytes_each": 8589934592,
+    "service_hosts": 3,
+    "load_hosts": 1,
+    "system_disk_gib_each": 40,
+    "service_data_disk_gib_each": 500,
+    "load_data_disk_gib": 200,
+    "data_disk": "ESSD PL0",
+    "public_ipv4_host": "load only",
+    "public_peak_bandwidth_mbps": 20,
+    "rehearsal_lease_seconds": 43200,
+    "rehearsal_readiness_seconds": 7200,
+    "rehearsal_workload_seconds": 7200,
+    "formal_fresh_lease_seconds": 345600,
+    "formal_soak_seconds": 259200,
+    "formal_readiness_seconds": 7200,
+    "capacity_max_seconds": 28800,
+    "recovery_seconds": 1800
+  },
+  "historical_failure": {
+    "root_cause": "unknown",
+    "last_successful_gate": "deployment_receipt",
+    "no_accepted_run_start_retained": true,
+    "runtime_or_correctness_failure_retry_allowed": false
+  },
+  "observed_readonly": {
+    "observed_at": "2026-10-21T12:54:54.605409+00:00",
+    "main_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "product_ancestor": true,
+    "workflow_state": "active",
+    "workflow_id": 329938003,
+    "latest_observed_run_id": 39581355444,
+    "latest_observed_number": 32,
+    "next_required_number": 33,
+    "tracking_issue": {
+      "number": 1018,
+      "title": "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+      "state": "open",
+      "locked": false
+    },
+    "artifacts": [
+      {
+        "role": "top-artifact",
+        "id": 12338781445,
+        "expired": false,
+        "expires_at": "2027-01-19T10:00:38Z",
+        "digest": "sha256:9415fe341edd26397def4bb07c907799cace7a0758ac256cb8cf401aae18d14f",
+        "size_in_bytes": 22845
+      },
+      {
+        "role": "acquire-artifact",
+        "id": 12336503577,
+        "expired": false,
+        "expires_at": "2026-10-28T10:11:53Z",
+        "digest": "sha256:d9f29affe4a48481c646b702bbc28b32359e67ee2b8f7469142f616815d24813",
+        "size_in_bytes": 3613
+      },
+      {
+        "role": "release-artifact",
+        "id": 12338506487,
+        "expired": false,
+        "expires_at": "2026-10-28T10:19:19Z",
+        "digest": "sha256:2adcf95fa99f445907727aece3a2acddae0fbadd96065dd57a3d7af896b6b055",
+        "size_in_bytes": 557
+      }
+    ],
+    "scope": "Exact public GitHub metadata GET only; latest run query is one page of one newest run, not full global inventory or continuation authentication."
+  },
+  "validation": {
+    "offline_prior_documents": "passed",
+    "full_continuation_live_auth_performed": false,
+    "real_successor_not_created": true,
+    "reason": "prepare needs genuine current first-attempt workflow run and complete retained inventory; validate attempt2 needs authentic sidecar. No such current run/sidecar exists before dispatch.",
+    "authority_that_remains_at_existing_startup": [
+      "complete bounded retained Artifact inventory and active Lease/stop guards",
+      "exact old/current run adjacency, main provenance and API source identity",
+      "fresh exact top/Acquire/Release artifact metadata, ZIP digests/sizes, safe contents and children",
+      "same request/source/public bootstrap keys, original zero-prior/rehearsal-1 and no runtime/start marker",
+      "twelve-scope selector/account-bound zero and release operation chronology",
+      "old full-Quote resource/cost envelope",
+      "current Issue search uniqueness/readiness",
+      "current Quote, quota/capacity, cost/expiry admission before Acquire"
+    ],
+    "original_child_authority_expires_at": [
+      "2026-10-28T10:11:53Z",
+      "2026-10-28T10:19:19Z"
+    ],
+    "ninety_day_sidecar_extends_authority": false
+  },
+  "bundle": {
+    "new_workflow_build_required_by_existing_orchestrator": true,
+    "fixed_product_source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "new_run_id": null,
+    "new_digest": null,
+    "old_digest_reference_only": "sha256:73a5d1e67053966d38b38ef23ab58207350dc134673e45b68532e927ed1eeb88",
+    "old_ed705_substitution_allowed": false
+  },
+  "approval": {
+    "latest_human_scope": "merge #1020 only",
+    "new_paid_start_authorized": false,
+    "explicit_new_start_decision_required": true,
+    "no_new_mandatory_gate_added": true
+  },
+  "performed": [
+    "read exact committed source and freeze hashes",
+    "bounded GitHub GET metadata only",
+    "offline public document validation with network seam disabled"
+  ],
+  "not_performed": [
+    "Actions invocation or enable",
+    "Quote or Acquire",
+    "cloud API call",
+    "private key or Secret value read",
+    "Issue comment or edit",
+    "runtime load",
+    "formal release"
+  ]
+}

@@ -1,0 +1,179 @@
+{
+  "at": "2026-10-21T13:49:03.553850+00:00",
+  "groups": [
+    {
+      "path": "cloud/rc-continuation-e302/zero-public-frozen",
+      "files": [
+        {
+          "path": "ARCHIVE_ALLOWLIST.json",
+          "size": 2784,
+          "sha256": "9f4f9dd2cc58e8320aa1b54aa83818641c8da72862e7fa38c61293dd7d87eb48"
+        },
+        {
+          "path": "README.md",
+          "size": 882,
+          "sha256": "217169c3be3393f6ef17f730fedb87fa9802c8b816ae9f2a5dd047b75033ae26"
+        },
+        {
+          "path": "poll-16/39609951023-jobs.json",
+          "size": 5626,
+          "sha256": "b5fb279c6dc43222299334185e6e80a08685a4cb3f06d709c3cf81497bcea52a"
+        },
+        {
+          "path": "release/artifact-metadata.json",
+          "size": 790,
+          "sha256": "9b6ddaf026a5e7899cc61268ca6ac10d229654dcdbddd5ac778ddb4f91b7e0ce"
+        },
+        {
+          "path": "release/download-receipt.json",
+          "size": 351,
+          "sha256": "bae230e44bca84d3e8a8b6471201fd1e3a3429cf47269e975cb32adf5516e249"
+        },
+        {
+          "path": "release/jobs-before-download.json",
+          "size": 5626,
+          "sha256": "b5fb279c6dc43222299334185e6e80a08685a4cb3f06d709c3cf81497bcea52a"
+        },
+        {
+          "path": "release/verified/release.json",
+          "size": 661,
+          "sha256": "89d1de3ac35b06866289fd13be9fa6fad3d40d7f4724374a8ecd2f166051fdea"
+        },
+        {
+          "path": "release/verified/verification.json",
+          "size": 346,
+          "sha256": "f24bad206e6435de66cbf7499668e9bd662f3b114cdc75bada6676371a70dce6"
+        },
+        {
+          "path": "release/zero-check.json",
+          "size": 848,
+          "sha256": "dec1e8f1a2272e515eb91ea35da861d9df3f8882be91689f89c46ea3855b0936"
+        },
+        {
+          "path": "stop/artifact-metadata.json",
+          "size": 799,
+          "sha256": "64eb67ad8e62c62b4ff374f33fb4af6eed585ae34ce8b24c2e7b796a765adede"
+        },
+        {
+          "path": "stop/dispatch-receipt.json",
+          "size": 934,
+          "sha256": "d725c02c065b8aa5cd54d7e23725e70a94b32ea603cadf84a27fec0fac2d3d02"
+        },
+        {
+          "path": "stop/download-receipt.json",
+          "size": 351,
+          "sha256": "3da5951fa7abfc04e5650328cd160d5d0b3249e35f9f3942b885d55e701d0717"
+        },
+        {
+          "path": "stop/inputs.json",
+          "size": 109,
+          "sha256": "405b4272c221973ef5541417c5c6a1eb4602cfa30d4ec2800ab4adcc111c0647"
+        },
+        {
+          "path": "stop/jobs-final.json",
+          "size": 3694,
+          "sha256": "c3141866f0433c9d661c64788dd833164741c6bbc325281ae81b02413485f173"
+        },
+        {
+          "path": "stop/verified/operator-stop.json",
+          "size": 180,
+          "sha256": "268277de489be0c9041681c7da5d9eea637688e2ef3d5fa9dcea713dab1d0fcb"
+        },
+        {
+          "path": "stop/verified/verification.json",
+          "size": 361,
+          "sha256": "5beef8b65d177bc0f1acfa2fe2e712ce88d01251f37f348396fc9b2046694541"
+        },
+        {
+          "path": "stop/workflow-source.yml",
+          "size": 3747,
+          "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62"
+        },
+        {
+          "path": "stop-once.py",
+          "size": 1970,
+          "sha256": "21b71520f6d2ecfb4ad9ce3ed248ffeacc2b7621a423fa0b3ade17f4687f74a6"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 1658,
+          "sha256": "fbdf0dc6a95c7a10dac6767fc5594e8b938323856934911864ec5d3a7b205617"
+        }
+      ]
+    },
+    {
+      "path": "packages/rpm-generation-switch-final-review/spec",
+      "files": [
+        {
+          "path": "review.patch",
+          "size": 50434,
+          "sha256": "7ac48194efb860582ac9d0ee4df144cd82ec673f1d893d41ca487b786d650d03"
+        },
+        {
+          "path": "report.md",
+          "size": 630,
+          "sha256": "e86d044d39de0ec7a0d86287c5c3f84bd8a37b4baf2be56f207e9666151edf33"
+        },
+        {
+          "path": "evidence.md",
+          "size": 6122,
+          "sha256": "fa8f95e9a7d5aee7313d4d12bca19e0f20da99188eab90b304b54222d82c4829"
+        },
+        {
+          "path": "failure-inventory.md",
+          "size": 3871,
+          "sha256": "c008a6491cbcc5c8b467355b1d73e4864c218a88244476126c170e296f6bb56a"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 1923,
+          "sha256": "225429663fdfbf8ffcd5599448f8f08fe71bbbe8358038d18aac7e6b6af6dde1"
+        },
+        {
+          "path": "proposal.md",
+          "size": 8721,
+          "sha256": "c96f335058838087f082c89cd5c6dac4deac39dfe40e2be73dbb3fafcc1084e5"
+        },
+        {
+          "path": "review.json",
+          "size": 1480,
+          "sha256": "29d55669efcc063a051c3ba79b8043c4b39449eb8664056602056f1a44126658"
+        },
+        {
+          "path": "files/CHANGELOG.md",
+          "size": 2435,
+          "sha256": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e"
+        },
+        {
+          "path": "files/tests/test_native_stable_clients_drill.py",
+          "size": 53063,
+          "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e"
+        },
+        {
+          "path": "files/tests/native_stable_clients_drill.py",
+          "size": 66272,
+          "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d"
+        },
+        {
+          "path": "files/tests/test_composite_storage_plan.py",
+          "size": 30049,
+          "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd"
+        },
+        {
+          "path": "files/docs/stable-audit-transport.md",
+          "size": 11837,
+          "sha256": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2"
+        },
+        {
+          "path": "files/scripts/plan-object-storage-publication.py",
+          "size": 38978,
+          "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+        }
+      ]
+    }
+  ],
+  "additional_files": [
+    "packages/rpm-generation-switch-combined-validation/commit-source-binding.json",
+    "packages/stable-native-clients-delivery/pr-body-generation-4.md"
+  ]
+}

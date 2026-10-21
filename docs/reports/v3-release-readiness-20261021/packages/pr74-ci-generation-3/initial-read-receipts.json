@@ -1,0 +1,38 @@
+[
+  {
+    "name": "pr-initial",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/pulls/74"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T12:46:15.470606+00:00",
+    "stdout_size": 17266,
+    "stdout_sha256": "ac8cf1aa38a5a119735c7c5892225f1244f8a9619aada67ff60f04957e7fb60b"
+  },
+  {
+    "name": "runs-initial",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/actions/runs?head_sha=f2c37e92b09bcd11599d31449bbca5de0ac52c25&per_page=20"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T12:46:15.471652+00:00",
+    "stdout_size": 24958,
+    "stdout_sha256": "ebb3ce325272c2944c9103c3fb4dfa68ff8fce7153059e193455be0effb1102a"
+  },
+  {
+    "name": "head-commit",
+    "command": [
+      "gh",
+      "api",
+      "repos/WuKongIM/packages/git/commits/f2c37e92b09bcd11599d31449bbca5de0ac52c25"
+    ],
+    "exit_code": 0,
+    "at": "2026-10-21T12:46:15.471892+00:00",
+    "stdout_size": 1124,
+    "stdout_sha256": "7870ed3fe69066cc449e29862d541b21c501a45ccfdce0f240380f29d10c8d37"
+  }
+]

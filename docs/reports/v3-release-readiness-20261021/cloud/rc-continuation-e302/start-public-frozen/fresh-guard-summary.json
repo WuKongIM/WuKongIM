@@ -1,0 +1,102 @@
+{
+  "observed_at": "2026-10-21T13:08:28.747807+00:00",
+  "ready_for_single_dispatch": true,
+  "control_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "latest_run": {
+    "id": 39581355444,
+    "run_number": 32,
+    "run_attempt": 1,
+    "status": "completed",
+    "conclusion": "failure",
+    "head_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+  },
+  "issue": {
+    "number": 1018,
+    "title": "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+    "state": "open",
+    "locked": false
+  },
+  "scheduler_states": {
+    "rehearsal-finalizer": {
+      "id": 329938002,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    "formal-starter": {
+      "id": 329938001,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal.yml"
+    },
+    "formal-finalizer": {
+      "id": 329938000,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml"
+    },
+    "lease-sweep": {
+      "id": 329938010,
+      "state": "disabled_manually",
+      "path": ".github/workflows/cloud-lease-release.yml"
+    }
+  },
+  "receipts": {
+    "main": {
+      "observed_at": "2026-10-21T13:08:25.681391+00:00",
+      "endpoint": "commits/main",
+      "exit_code": 0,
+      "sha256": "02599194859a7143ad8cea013e8d1b27a7ab587fa53231b946f244e5feaeb854"
+    },
+    "top-workflow": {
+      "observed_at": "2026-10-21T13:08:25.681451+00:00",
+      "endpoint": "actions/workflows/329938003",
+      "exit_code": 0,
+      "sha256": "1c65455edd98a96675b034fc81ff7666eae6399b5407b653a1e3319521e40dc1"
+    },
+    "latest-top": {
+      "observed_at": "2026-10-21T13:08:25.682110+00:00",
+      "endpoint": "actions/workflows/329938003/runs?per_page=1",
+      "exit_code": 0,
+      "sha256": "c8be4beef76a3ba54c712317b0dc4eca8fc1542a0d3b31532620dcefc65278d1"
+    },
+    "prior-run": {
+      "observed_at": "2026-10-21T13:08:25.682313+00:00",
+      "endpoint": "actions/runs/39581355444",
+      "exit_code": 0,
+      "sha256": "781804e6b20cd84a32f697e8c1bba46b983a23a35638f0f15adc379ff2e3857b"
+    },
+    "issue": {
+      "observed_at": "2026-10-21T13:08:26.620370+00:00",
+      "endpoint": "issues/1018",
+      "exit_code": 0,
+      "sha256": "2dedb7cdde4bc7a549fd72a8c8decc266222b280aa23da6f4bac442ef3de6ed3"
+    },
+    "rehearsal-finalizer": {
+      "observed_at": "2026-10-21T13:08:26.641573+00:00",
+      "endpoint": "actions/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "exit_code": 0,
+      "sha256": "37526c61aea4321964df20befd4e12cd0ec260d24cc61562dc3bdebcc60ef72e"
+    },
+    "formal-starter": {
+      "observed_at": "2026-10-21T13:08:26.668373+00:00",
+      "endpoint": "actions/workflows/chat-lifecycle-formal.yml",
+      "exit_code": 0,
+      "sha256": "affd1ea1f9038241197f08e382b38b99a7cc7d50e3574ed39b91b3c396a21aac"
+    },
+    "formal-finalizer": {
+      "observed_at": "2026-10-21T13:08:27.063907+00:00",
+      "endpoint": "actions/workflows/chat-lifecycle-formal-finalize.yml",
+      "exit_code": 0,
+      "sha256": "5c9b01642c430c0a1b6a5974862693a20a5fc13a82d55cbe86c6fdc31e126b82"
+    },
+    "lease-sweep": {
+      "observed_at": "2026-10-21T13:08:27.617434+00:00",
+      "endpoint": "actions/workflows/cloud-lease-release.yml",
+      "exit_code": 0,
+      "sha256": "bc34341b32bf19dc96ed726b2bdad6636adb5420f20b4f51f99190ef59b7beee"
+    }
+  },
+  "limitations": [
+    "Direct issue GET is not unique-issue preflight; workflow rechecks",
+    "No live cloud inventory or OIDC call by this local guard",
+    "ref main API is not an atomic SHA compare-and-swap"
+  ]
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "job-log",
+    "exit_code": 0,
+    "bytes": 62153,
+    "sha256": "83e2ebdfc306e8d48945b51a853491dbd720fadfd14443949fe6720819430564"
+  },
+  {
+    "id": 12346988638,
+    "exit_code": 0,
+    "at": "2026-10-21T13:08:03.670906+00:00",
+    "api_digest": "sha256:cd7c5e889a1af5fec49d627c2c8c8984ac22874c0ad4666f363a187f30d5cee2",
+    "zip_sha256": "cd7c5e889a1af5fec49d627c2c8c8984ac22874c0ad4666f363a187f30d5cee2",
+    "zip_bytes": 105820,
+    "members": [
+      {
+        "name": "clients-B.json",
+        "size": 6925,
+        "sha256": "4661fbd2d6a23676f55952684409fd3914782643ecd0d741b255d23d903d7644",
+        "crc32": 3266180156
+      },
+      {
+        "name": "https-requests.jsonl",
+        "size": 53422,
+        "sha256": "1f93573316bc84fa7bc88c2ccc77aafa60d9ba4d46dcf68818080691803dfb1c",
+        "crc32": 633912020
+      },
+      {
+        "name": "clients-A.json",
+        "size": 6925,
+        "sha256": "fd0e268018d6fe08507ddc70b8ce1dbf6d7dc6947094ac6151a0b4e030ccf125",
+        "crc32": 1542322969
+      },
+      {
+        "name": "native-stable-clients.json",
+        "size": 633761,
+        "sha256": "1dd37cee941fc87c9d238f59c742716d71881db8b98793920707fde3913dda38",
+        "crc32": 1501322807
+      }
+    ]
+  }
+]

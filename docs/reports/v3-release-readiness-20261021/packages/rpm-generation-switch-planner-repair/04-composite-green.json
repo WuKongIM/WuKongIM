@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-21T13:34:06.562080+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_composite_storage_plan.py",
+    "-v"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 3.1299692910397425,
+  "files": {
+    "scripts/plan-object-storage-publication.py": {
+      "size": 38978,
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    "tests/test_composite_storage_plan.py": {
+      "size": 30049,
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd"
+    }
+  },
+  "log_sha256": "a9fb7924285b934ca8a2fa5b882c441ee4728ff0a7543594a9bd13feee96e192"
+}

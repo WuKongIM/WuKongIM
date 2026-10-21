@@ -1,0 +1,70 @@
+---
+scope: package
+summary: Materializes bounded repair, rehearsal, and formal chat-lifecycle run plans from reviewed templates and trusted context.
+---
+
+# Chat Lifecycle Run Flow
+
+## Responsibility
+
+This package binds four operator inputs and trusted workflow context to the
+versioned repository Run Plan, generic Cloud Lease input, and public bootstrap
+identities. It never calls providers, deploys hosts, runs workers, or retains
+private credentials.
+
+## Boundaries
+
+- Infrastructure quantities and workload thresholds come from a reviewed
+  template. The direct repair controller may derive its bounded workload and
+  Lease durations from the operator's qualification window and bind an
+  explicitly authorized whole-CNY repair budget independently of the template.
+- Each invocation has exactly one procurement attempt. Deployment readiness
+  repairs reuse the exact Lease, bundle, sealed identity, and request-bound
+  control fix. One explicit adjacent workflow may start rehearsal-2 after the
+  original rehearsal-1 is released and its public evidence is authenticated.
+- Runtime YAML owns workload details; this use case owns cross-stage identity,
+  budget, duration, and transition policy.
+
+## Main Flows
+
+1. Validate source, operator, request, bundle, clock, attempt, and trusted
+   context; materialize either the bounded direct-repair Lease or the fixed
+   12-hour rehearsal Lease and budget ledger.
+2. Require a typed released rehearsal transition with exact zero inventory,
+   matching identities, public diagnostic owner, and carried commitment.
+3. Materialize a fresh 96-hour formal lease bound to the same source, bundle,
+   request, diagnostic identity, and aggregate ledger.
+4. For a released rehearsal continuation, strictly decode the bounded helper
+   proof and bind its request/source/diagnostic identity and full old Quote
+   reserve to rehearsal-2. GitHub/artifact authentication remains the protected
+   helper's responsibility; this package performs no network verification.
+
+## Invariants and Failure Semantics
+
+- The shared CNY 1,350 operational stop and CNY 1,500 hard limit cover all
+  stages, including the original released rehearsal's conservative reserve.
+  A reserve is not provider billing evidence.
+- Topology is fixed at four Ubuntu x86 hosts, one EIP, and reviewed disk and
+  port settings; rehearsal runs two hours and formal runs 72 hours after their
+  two-hour readiness windows.
+- Direct repair accepts a 16-minute through 72-hour-15-minute workload ceiling
+  and derives its Lease as the larger of six hours or workload plus four hours
+  45 minutes. Its default hard/stop limits are CNY 300/250; an exact explicit
+  whole-CNY authorization may raise the hard limit through CNY 1,500, with a
+  CNY 20 operational reserve, while every other quantity remains fixed.
+- No automatic deployment retry creates a fresh Lease. The explicit released
+  continuation requires adjacent first-attempt workflow runs, the original
+  rehearsal-1 identity, and nonzero authenticated commitment; it cannot chain
+  another continuation or authorize a known runtime/correctness failure.
+- The exact release selector is derived before paid Acquire so ambiguous or
+  artifact-losing acquisition remains cleanup-capable.
+
+## Read First
+
+- [Run plan materialization](run.go)
+- [Run plan contracts](run_test.go)
+
+## Update Triggers
+
+Update this file when operator inputs, stage templates, topology, budgets,
+durations, transition proof, retry policy, or cleanup selector derivation changes.

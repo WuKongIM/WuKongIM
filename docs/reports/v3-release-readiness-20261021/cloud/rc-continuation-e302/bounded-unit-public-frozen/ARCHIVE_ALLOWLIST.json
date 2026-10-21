@@ -1,0 +1,57 @@
+{
+  "frozen_at": "2026-10-21T13:36:55.180692+00:00",
+  "files": [
+    {
+      "path": "read-unit-once.py",
+      "bytes": 4125,
+      "sha256": "59635f9ed6db8841cbb43b9ad758397a2b1d7e7a30e02c07f6df21773867d719"
+    },
+    {
+      "path": "replay-unit-remote.py",
+      "bytes": 2806,
+      "sha256": "36a05806b675106708a317ea7dd8962905e895a3fcef67db4c9612ed9d795603"
+    },
+    {
+      "path": "bounded-unit-read/ssh-trust-basis.json",
+      "bytes": 483,
+      "sha256": "f7ede02d072566be793fa56e145e2ac42792ad9ccc05f46f6a8324fb77d078a0"
+    },
+    {
+      "path": "bounded-unit-read/observation.json",
+      "bytes": 2373,
+      "sha256": "4bf7a1b0c8603970fab8b08636e720fa285bdaf5340098293226b7eb205d1b4b"
+    },
+    {
+      "path": "bounded-unit-read/unit.json",
+      "bytes": 963,
+      "sha256": "8aa394df11feebba25456fae9b89593f6ea83205560bb655c8e519af287b3507"
+    },
+    {
+      "path": "bounded-unit-read/remote-replay.json",
+      "bytes": 1953,
+      "sha256": "cd7d0b5f433f20b43b57baa1efca80381034c6c0382b93366f9eb3f422dc0c35"
+    },
+    {
+      "path": "bounded-unit-read/classify-stage-service-state.sh",
+      "bytes": 711,
+      "sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c"
+    },
+    {
+      "path": "bounded-unit-read/pre-clock-diagnostic.py",
+      "bytes": 3911,
+      "sha256": "9126aca34087a17e3be200168e636526009f93797fbea6910cb5fe4a55b6ab24"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1500,
+      "sha256": "5de684a3571dec4efd547f08f2b8abeabc0329ce9f13bbb63d650b9d36ab64a5"
+    }
+  ],
+  "excluded": [
+    "private identity",
+    "known_hosts",
+    "raw stderr",
+    "environment",
+    "raw journal"
+  ]
+}

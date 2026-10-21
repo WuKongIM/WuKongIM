@@ -216,7 +216,7 @@ regression attempts; it is not a published release or a long-run qualification.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.
-`SHA256SUMS` covers every archived file except itself. Paths and times inside the
+`SHA256SUMS` covers every archived file except itself. Historical copies of `FLOW.md` are stored as `FLOW.md.source` with identical bytes so they are not interpreted as current module navigation. `ARCHIVED_SOURCE_PATHS.json` maps the six original evidence paths to their archive paths and SHA-256 values. Historical nested manifests remain unchanged: to check their original layouts, copy to a fresh directory outside the repository, verify these hashes, and restore only those six original names there. Do not restore them in the live checkout or treat partial historical snapshots as current navigation. Paths and times inside the
 receipts describe the original execution environment; replay commands need fresh
 output directories and the recorded product revision/binary identity.
 
@@ -312,3 +312,15 @@ immutable publication and signed native-package public-client acceptance.
 
 - [#1020 经用户批准合并、正常清理及后置文档发布](cloud/pr1020-merge/frozen-final-v2/README.md)：e30299fa同验收tree、保护未改、primary main未动，4个CDN刷新请求受理不等于全edge完成。
 - [报告事实复核](report-final-fact-review/review.md)：截至12:46Z冻结稿的128相对链接及新事实边界核对，无实质错报；后续合并接线/新CI状态另据精确收据更新。
+
+- [#1020 合并后的精确续跑计划](cloud/rc-next-execution-plan-post1020/README.md)：公开输入及旧8文档本地验证通过，保留¥74.4776 reserve；未派发，完整live认证需真实successor run。
+
+- [#74 第三代完整CI](packages/pr74-ci-generation-3/README.md)：501+4和原native通过；23个新案例中22通过、Rocky跨两个DNF命令的版本切换缺旧payload，26未达；两代八套CLI与最终Docker零遗留均有独立收据。
+- `ARCHIVED_SOURCE_PATHS.json`、[归档布局复核](flow-archive-layout-review/review.md)及`flow-archive-layout-review/after-format-fix/`：6份冻结FLOW原字节改存.source，旧清单不改；保留首失败，当前88份导航全部有效、20个既有行数警告。
+- [云续跑单次启动](cloud/rc-continuation-e302/start-public-frozen/README.md)与[新bundle验证](cloud/rc-continuation-e302/bundle-public-frozen/README.md)：用户另行明确授权后的真实第33次运行，不复用旧bundle或重置累计成本；不代表长稳通过。
+
+- [续跑部署及计时前失败](cloud/rc-continuation-e302/deployment-public-frozen/README.md)、[Linux有界只读复现](cloud/rc-continuation-e302/bounded-unit-public-frozen/README.md)：空Job使原分类器拒绝；kill后观察与首次诊断分开，原顶层已执行Stop/Release并取得13:40:52Z零库存，终态归档待收集。
+- [RPM跨代planner修复](packages/rpm-generation-switch-planner-repair/README.md)：18项先红后绿及31项preview回归，源绑定和冲突检查保持；尚未替代真实49项Linux验收。
+
+- [本次已授权Stop/Release及exact零库存](cloud/rc-continuation-e302/zero-public-frozen/README.md)：13:40:52Z十二scope清零，未开始预演计时。
+- [RPM修复规范复核](packages/rpm-generation-switch-final-review/standards/report.md)、[行为复核](packages/rpm-generation-switch-final-review/spec/report.md)、[driver红绿结果](packages/rpm-generation-switch-driver-repair/report.md)及`packages/rpm-generation-switch-combined-validation/`：六文件97dd5976已推送，完整本地514项（1既有skip）+4合同绿，待Linux49项实跑。

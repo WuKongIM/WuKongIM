@@ -1,0 +1,330 @@
+{
+  "at": "2026-10-21T13:46:34.101316+00:00",
+  "groups": [
+    {
+      "path": "rpm-generation-switch-driver-repair",
+      "files": [
+        {
+          "path": "01-driver-red.log",
+          "size": 24437,
+          "sha256": "03b2512975a87eccf162418f23446ffee8e3ded0eadffb586043b430b89abdad"
+        },
+        {
+          "path": "02-complete-driver-red.log",
+          "size": 35746,
+          "sha256": "81bbd20e506479a4a2db263a8d375719f57bf6d2442b13da03d73b1b88a0cf01"
+        },
+        {
+          "path": "03-driver-green.log",
+          "size": 5610,
+          "sha256": "eb82b4a7ea6fd2c3b0e6e94d826b9ee2092c4af3cb04c91653ebafeade5dd9dd"
+        },
+        {
+          "path": "04-related-green.log",
+          "size": 12860,
+          "sha256": "0113fd13c43ce5296c1042cbf70e26f450b1efa3379f858d13f7ce00b958de49"
+        },
+        {
+          "path": "final-freeze.json",
+          "size": 2629,
+          "sha256": "ba36b058cff7af85b091edc4cc6af0255ce03494a968f63f7df296e1df88b6e8"
+        },
+        {
+          "path": "final.patch",
+          "size": 25832,
+          "sha256": "a99e72fc44c17a9f38bad5ba9e463ee7f4073bac3f2c8e9b87a6ff39538b5351"
+        },
+        {
+          "path": "report.md",
+          "size": 3834,
+          "sha256": "12d06dcaadd3d1248ab1d47464a990e4b34003c721712a1f6796c4b75de60e6d"
+        },
+        {
+          "path": "source/CHANGELOG.md",
+          "size": 2435,
+          "sha256": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e"
+        },
+        {
+          "path": "source/docs/stable-audit-transport.md",
+          "size": 11837,
+          "sha256": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2"
+        },
+        {
+          "path": "source/tests/native_stable_clients_drill.py",
+          "size": 66272,
+          "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d"
+        },
+        {
+          "path": "source/tests/test_native_stable_clients_drill.py",
+          "size": 53063,
+          "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e"
+        },
+        {
+          "path": "tests-before-implementation.py",
+          "size": 53063,
+          "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e"
+        },
+        {
+          "path": "tests-before-implementation.sha256",
+          "size": 65,
+          "sha256": "3a4dfe772c895fccfa6f8b1560120309b41c5136fc1ca6d1d485c5b5b4a3a87c"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 1201,
+          "sha256": "5bb5ffef9464d57659750c471b520cb244113a2fee7f38bcfdfe5b9cde558451"
+        },
+        {
+          "path": "ARCHIVE_ALLOWLIST",
+          "size": 343,
+          "sha256": "3cf2035b4cf772b30e95e817882935d396bc54b31aa4040319abba90bad7b8f9"
+        },
+        {
+          "path": "archive-sha256.json",
+          "size": 2143,
+          "sha256": "b9786d4ae0297f767c62fd6beb7caf81a7b7d5572bdafb3d4a1d0ef700225632"
+        }
+      ],
+      "file_count": 16
+    },
+    {
+      "path": "rpm-generation-switch-diagnosis",
+      "files": [
+        {
+          "path": "ci-evidence-summary.json",
+          "size": 12158,
+          "sha256": "6ea4ad4d871786fc6d50ed60ef634ff604af42d5e2174ff56f58349848d860f0"
+        },
+        {
+          "path": "failure-inventory.md",
+          "size": 3871,
+          "sha256": "c008a6491cbcc5c8b467355b1d73e4864c218a88244476126c170e296f6bb56a"
+        },
+        {
+          "path": "input-sha256.json",
+          "size": 561,
+          "sha256": "143f4d27028911071a5fce667e01af5bf12935a82fa9226012c915c30c771f39"
+        },
+        {
+          "path": "proposal.md",
+          "size": 8721,
+          "sha256": "c96f335058838087f082c89cd5c6dac4deac39dfe40e2be73dbb3fafcc1084e5"
+        },
+        {
+          "path": "serial-24.json",
+          "size": 6024,
+          "sha256": "00b826dbd490c421263b953b18463f3b412d77105389605ba2cefc60293ba4c8"
+        },
+        {
+          "path": "source/docs/stable-audit-transport.md",
+          "size": 9710,
+          "sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4"
+        },
+        {
+          "path": "source/scripts/plan-object-storage-publication.py",
+          "size": 35903,
+          "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+        },
+        {
+          "path": "source/scripts/validate-production-package-clients.py",
+          "size": 87886,
+          "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+        },
+        {
+          "path": "source/tests/native_stable_clients_drill.py",
+          "size": 60959,
+          "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d"
+        },
+        {
+          "path": "source/tests/test_composite_storage_plan.py",
+          "size": 16809,
+          "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 981,
+          "sha256": "baf007fcc7c493cdc580ec5c7ebb12c55d35585358841c7bebe71b4508785d74"
+        },
+        {
+          "path": "ARCHIVE_ALLOWLIST",
+          "size": 321,
+          "sha256": "9094f1429035d9b10b12beaa12ba554b605c903ec22caf98e40b50cfae7de310"
+        },
+        {
+          "path": "archive-sha256.json",
+          "size": 1720,
+          "sha256": "12ccf8890ff1bb9a5886a129720c04e5e770c3e2856c3ec44e043e3f49046956"
+        }
+      ],
+      "file_count": 13
+    },
+    {
+      "path": "rpm-generation-switch-planner-review",
+      "files": [
+        {
+          "path": "evidence-references.json",
+          "size": 596,
+          "sha256": "e32544cb28c0ddd13b5fc3c2f2fe8c316f9989810cf6e2ced7b85da36a9ddef0"
+        },
+        {
+          "path": "protected-check.json",
+          "size": 19027,
+          "sha256": "e44b7ecf726c3ccd9cb6e621400f2b366f9d075a83f698e1b9559437ac170a4a"
+        },
+        {
+          "path": "review.md",
+          "size": 6300,
+          "sha256": "a7c911637aa0eee926080ff239e35225d08882b5a700a7aea30521bb227c35c1"
+        },
+        {
+          "path": "rules.md",
+          "size": 444,
+          "sha256": "f9165c33c95d144aa197797da3acc6493c254e349ae6dbba5cc3e1c8c0d95f66"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 1952,
+          "sha256": "cdb84c65979c08a5f842b944ab2271355fbe49c18762c99ce97b8c05b6511489"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 414,
+          "sha256": "060c3f0c59b74d514493b714c6075e2aa2be1064b78e6330a14b03450f4c17a5"
+        },
+        {
+          "path": "ARCHIVE_ALLOWLIST",
+          "size": 84,
+          "sha256": "09ce76f342c141c07564c5ff8af750c0b277889edceca7083add0eeafabc59cb"
+        },
+        {
+          "path": "archive-sha256.json",
+          "size": 811,
+          "sha256": "75e53517ee9476dc277f3e6cb6fd8dc7318a49c775594215dce745dd1a5c180f"
+        }
+      ],
+      "file_count": 8
+    },
+    {
+      "path": "rpm-generation-switch-final-review/standards",
+      "files": [
+        {
+          "path": "ARCHIVE_ALLOWLIST.txt",
+          "size": 340,
+          "sha256": "fe2b8ab39f6c7cdee34a34aec40b3b172843da9f2e4bf6f6719f27a14d8def7b"
+        },
+        {
+          "path": "checks.json",
+          "size": 13293,
+          "sha256": "e242470adf9d4d31248592d774a382d6e77fe9176503aec7d457813099c250cc"
+        },
+        {
+          "path": "files/CHANGELOG.md",
+          "size": 2435,
+          "sha256": "3f99583ad90b8193289b6782b1f28c0d7ddbc68193e2d0e1b15e555ed222ab1e"
+        },
+        {
+          "path": "files/docs/stable-audit-transport.md",
+          "size": 11837,
+          "sha256": "9655c8d7b7fbdf6fd8542d8afa6ddac65e0038f8cab95f25d765b99e306703b2"
+        },
+        {
+          "path": "files/scripts/plan-object-storage-publication.py",
+          "size": 38978,
+          "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+        },
+        {
+          "path": "files/tests/native_stable_clients_drill.py",
+          "size": 66272,
+          "sha256": "47d13b7e8f5467492e39bcbbae30f3688da20a57cc0f304560d46d713d7b691d"
+        },
+        {
+          "path": "files/tests/test_composite_storage_plan.py",
+          "size": 30049,
+          "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd"
+        },
+        {
+          "path": "files/tests/test_native_stable_clients_drill.py",
+          "size": 53063,
+          "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e"
+        },
+        {
+          "path": "report.md",
+          "size": 724,
+          "sha256": "3942b2bae8f36ab259be18ff2e1aba4bbd7222cd2743e59124f68fa03b5bc848"
+        },
+        {
+          "path": "review.patch",
+          "size": 50434,
+          "sha256": "7ac48194efb860582ac9d0ee4df144cd82ec673f1d893d41ca487b786d650d03"
+        },
+        {
+          "path": "source-freeze.json",
+          "size": 1789,
+          "sha256": "62411d0bbb52321ea33e13aea36b60bd689bde27077c93909673c38556ff0822"
+        },
+        {
+          "path": "supporting-evidence.json",
+          "size": 3348,
+          "sha256": "7e52e58c949d2ee149b881f03b925930e8968769e5576274122a7c462ec5da55"
+        },
+        {
+          "path": "SHA256SUMS",
+          "size": 1132,
+          "sha256": "3f0a1c54187359e840802f367bcfee681a1a1f97303b13f5c5c56db9480e321a"
+        }
+      ],
+      "file_count": 13
+    },
+    {
+      "path": "rpm-generation-switch-combined-validation",
+      "files": [
+        {
+          "path": "contracts.json",
+          "size": 340,
+          "sha256": "5927704bd629a39e57ed0e06e15c5c4359b11967559ba32eb3db2be42ec1f73b"
+        },
+        {
+          "path": "contracts.log",
+          "size": 176,
+          "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+        },
+        {
+          "path": "diff-check.json",
+          "size": 352,
+          "sha256": "cdb4fff7dfb489b9ff52347db34d3d42692dc4df0f98da066937c4565aa9c601"
+        },
+        {
+          "path": "diff-check.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "full-python.json",
+          "size": 419,
+          "sha256": "b3edb0221f8980b531207503d1a510d3a36dd35a5834f8cebab066a195f4a78e"
+        },
+        {
+          "path": "full-python.log",
+          "size": 2236,
+          "sha256": "2ea7fc74444f2412068f2ab24137784569775e27b2c620ab70f3a76e23ed0f2c"
+        },
+        {
+          "path": "source-after.json",
+          "size": 712,
+          "sha256": "da0d17d70286947673624819e5b896beb3ba900d42e2be15d6773d1f84cc2a13"
+        },
+        {
+          "path": "source-before.json",
+          "size": 727,
+          "sha256": "369df43a0c92ffe43df3c181c79c68724a70988783635f11b4ef1788f850b4d6"
+        },
+        {
+          "path": "summary.json",
+          "size": 1184,
+          "sha256": "f299ee4a80a45df59503a02ac3edc4e25eacc5242d0689aecbbcba178456ffc6"
+        }
+      ],
+      "file_count": 9
+    }
+  ]
+}

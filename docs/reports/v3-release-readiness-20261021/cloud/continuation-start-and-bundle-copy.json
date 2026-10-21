@@ -1,0 +1,190 @@
+{
+  "public_only": true,
+  "files": [
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/SHA256SUMS",
+      "bytes": 1943,
+      "sha256": "4cbe752adede78a1c7fe92daac8e8f92742fc98a3f80711a6d692aca1df5876c"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/ARCHIVE_ALLOWLIST.json",
+      "bytes": 3417,
+      "sha256": "eae9971893af958406819baee7a186e27c9bf44be0b78d6da0b526d550ffe431"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/README.md",
+      "bytes": 1133,
+      "sha256": "13e569287ec926e089053639a9f434a0ecb8239cbbd4d6fde3b43cf08d95ad85"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/authorization.json",
+      "bytes": 1123,
+      "sha256": "287816c5a5a236509cdab43a8f531c2f96a97f58b02b90f11e315aa31154cb3b"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/dispatch-once.py",
+      "bytes": 1299,
+      "sha256": "eed88b900371c7d79112c997f8d40bafb4c277c4d36b7e08a5fe192a8ee2045e"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/dispatch-receipt.json",
+      "bytes": 660,
+      "sha256": "fc99251382c34a0dd3196f02ee4f069839037524640114535c5fd4e961d756ee"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/fresh-guard-summary.json",
+      "bytes": 3608,
+      "sha256": "d22cee543e67487a2b4fc8c235c24a63c83e5a34515224dd12a3b7e14ece585a"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-formal-finalizer.json",
+      "bytes": 671,
+      "sha256": "a64a9bbc16211f03ca39c12e1e593af029dbcc7d163ee132e2900308426c7862"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-formal-starter.json",
+      "bytes": 649,
+      "sha256": "cf3a3f7fb4db631c9923abc42622b600c8fa478b9812bf56c093ae367b6c653f"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-issue.json",
+      "bytes": 6669,
+      "sha256": "46723a30fa64f7277b6b99e05709db78dacae7bc375bbb2f9aca74160fed5866"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-latest-top.json",
+      "bytes": 18846,
+      "sha256": "9cb0b79fe6bc4be25eb6391e0742e6c5521d86099cfb7d80afb84d34ed3449c7"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-lease-sweep.json",
+      "bytes": 615,
+      "sha256": "3e3c24e8c9027b21a3de16237b9cef7062b0f97715abece7bd42639096c83677"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-main.json",
+      "bytes": 251462,
+      "sha256": "720a7fa81983f9e8fcb0242bee652b998af2fb89a375e34f3160fffab07551af"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-prior-run.json",
+      "bytes": 17344,
+      "sha256": "655219d62679d45b728932c84a57852f34617926d7b7eedc9b918e478df90203"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-rehearsal-finalizer.json",
+      "bytes": 673,
+      "sha256": "c0aeba2a785c672ab7e68afb3a2a04f344c804d11f787fd87686bb16b8d2680d"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard-top-workflow.json",
+      "bytes": 622,
+      "sha256": "73b63f0eb7a1a0d95c18688f170733deda2523151188175ef78b01888a0e579b"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/guard.py",
+      "bytes": 4772,
+      "sha256": "17022596be3ba66b4adbbe41c30ce390f0f2bff6c52998dc0c34e0c736ffbeaf"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/planned-dispatch.json",
+      "bytes": 374,
+      "sha256": "ada472b455e7b297d3082bb91bd7f087602ec6eccfb0421d9f05f60c2ad9bfd8"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/planned-workflow-inputs.json",
+      "bytes": 329,
+      "sha256": "1ab1cfa4afbbfc4883a90aaea55f1a594425bb439290c4f84e3ef0639d011c5d"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/poll-01/top.json",
+      "bytes": 553,
+      "sha256": "2cf957b9aa56cf659330a84b38f3d94ed5ab5e6fe081d9a6c5c4008433eac4a2"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/poll-02/summary.json",
+      "bytes": 4403,
+      "sha256": "c33e7ce40a6aa9c84f3053cffda9ad5700d32a26dbdbfff274ea4824cfb4b74a"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/reconciliation-get-initial-failure.json",
+      "bytes": 318,
+      "sha256": "0ae6b1e77cef2627de767e809bed2104a7422b8f85c56829d3b5db1f9a9c2fdb"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/start-public-frozen/rules-and-source-freeze.json",
+      "bytes": 3835,
+      "sha256": "1030179944f382fa3691768bfe26260e7a8085b447c828f1e42e172878d073a7"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/SHA256SUMS",
+      "bytes": 1234,
+      "sha256": "1648c8591b4c3f8a647e44e1699112602619505e55c311821f3013930bae0691"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/ARCHIVE_ALLOWLIST.json",
+      "bytes": 2093,
+      "sha256": "c401f0f7683764b06d874036e144d84d3342dbd9d49cb656de43eeebfcd8d8b0"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/README.md",
+      "bytes": 539,
+      "sha256": "4e5b4f827ad74500354215e18d880acd1fe7b5c69c6e6e9465713ff4b838cecb"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/artifact-metadata.json",
+      "bytes": 834,
+      "sha256": "7d0c4bb89dc31b420017c9729bd9fec046552603e7ba905de55e02c0607a6ead"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/download-receipt.json",
+      "bytes": 357,
+      "sha256": "134c01f5ec1f3ec8c06d084ec998ba2d924d064e8849e2a6f89f67de0eec93f8"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/jobs-final.json",
+      "bytes": 6213,
+      "sha256": "cb7b92bfb894cb61580ce0aa38eb9cd563bec9e3419e411caf75ad40cbabf79e"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/run-final.json",
+      "bytes": 595,
+      "sha256": "f840037fe3569c8ee8d6706d182f0a91607a6c8bc9c2ab78b5b2857cabb73ab8"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/verified/bundle-manifest-output.json",
+      "bytes": 21151,
+      "sha256": "a12528694d7736e0d417751b51f9c29da8a59fd43c5fd50eec70609a0c00b48a"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/verified/bundle-manifest.json",
+      "bytes": 21151,
+      "sha256": "a12528694d7736e0d417751b51f9c29da8a59fd43c5fd50eec70609a0c00b48a"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/verified/deployment-intent.json",
+      "bytes": 1627,
+      "sha256": "e19976ef7735382ea7d6d3eb3ff98218bb8b0249128fa1426be40fd3c92c877d"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/bundle/verified/verification.json",
+      "bytes": 1378,
+      "sha256": "d9574e349f47d0cd65aa5cf3391824b4ca995ec10b4874c4882ec17ec1ff1720"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/expected-deployment-intent.json",
+      "bytes": 1627,
+      "sha256": "e19976ef7735382ea7d6d3eb3ff98218bb8b0249128fa1426be40fd3c92c877d"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/expected-intent-basis.json",
+      "bytes": 1006,
+      "sha256": "f346ac1c63c14c42e2548943556e6f72d4ad1f26dccfe3f9e299ef7a9c947578"
+    },
+    {
+      "path": "cloud/rc-continuation-e302/bundle-public-frozen/verify-bundle-artifact.py",
+      "bytes": 8372,
+      "sha256": "613f6cb9f23fd76f10586d45b1e597c2cea1f65fd33fc9bfc3e9f2b2e53316a4"
+    }
+  ]
+}

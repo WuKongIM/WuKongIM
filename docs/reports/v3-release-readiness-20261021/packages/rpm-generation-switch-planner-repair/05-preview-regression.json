@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-21T13:34:24.095494+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_plan_object_storage_publication.py",
+    "-v"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 2.735047540976666,
+  "log_sha256": "4e7a32cc769cb18b696f7ad4f3769ec0f32ad99ce2b87b9ff32ee5dd8481cb51"
+}

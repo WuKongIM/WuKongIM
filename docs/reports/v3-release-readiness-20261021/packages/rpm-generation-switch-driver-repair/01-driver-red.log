@@ -1,0 +1,277 @@
+EEEEEEEEEEEEEEEEEEEEEEEEEEEEEF
+======================================================================
+ERROR: test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 545, in test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='no-alias')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='unknown-source')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='wrong-member')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='source-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='source-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-channel')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-architecture')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-prefix')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='missing-signature')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='missing-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='wrong-first-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 592, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='etag')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 608, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='modified')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 608, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='wrong-etag')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 611, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='wrong-modified')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 611, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='wrong-response-etag')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 611, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 611, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+ERROR: test_rpm_conditional_metadata_binds_exact_object_and_header_precedence (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_conditional_metadata_binds_exact_object_and_header_precedence) (condition='conflicting')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 611, in test_rpm_conditional_metadata_binds_exact_object_and_header_precedence
+    drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'verify_rpm_requests'
+
+======================================================================
+FAIL: test_fixture_conditional_etag_precedes_modified_since (tests.test_native_stable_clients_drill.NativeStableClientsTests.test_fixture_conditional_etag_precedes_modified_since)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients/tests/test_native_stable_clients_drill.py", line 620, in test_fixture_conditional_etag_precedes_modified_since
+    self.assertEqual(route.response(drill.INRELEASE, {'If-None-Match': '"other"',
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        'If-Modified-Since': headers['Last-Modified']})[0], 200)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 304 != 200
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.151s
+
+FAILED (failures=1, errors=29)

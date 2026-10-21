@@ -1,0 +1,5 @@
+{
+  "phase": "read policy before command execution",
+  "check_executed": false,
+  "error": "Local wrapper looked for checks/allowed_checks; actual key is trusted_checks. Corrected selector access; no test ran in first invocation."
+}

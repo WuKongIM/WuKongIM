@@ -1,0 +1,50 @@
+{
+  "reviewed_at": "2026-10-21T13:17:19.057662+00:00",
+  "head": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+  "tree": "11ead51354aecc30087202959eeb09028617387f",
+  "git_status": "",
+  "files": {
+    "scripts/plan-object-storage-publication.py": {
+      "size": 35903,
+      "sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74"
+    },
+    "scripts/compose-package-site.py": {
+      "size": 125707,
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7"
+    },
+    "scripts/verify-stable-seal-inputs.py": {
+      "size": 21424,
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e"
+    },
+    "scripts/archive-package-snapshot.py": {
+      "size": 30568,
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6"
+    },
+    "scripts/validate-production-package-clients.py": {
+      "size": 87886,
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    "tests/native_stable_clients_drill.py": {
+      "size": 60959,
+      "sha256": "c4eb25b9816bf5de51d3e59207feaf6f75c83e3ba5fe8912dbee2d3611bda00d"
+    },
+    "tests/test_composite_storage_plan.py": {
+      "size": 16809,
+      "sha256": "1c99ccd5807d0b2ae6b4054cfe5a12d18be7d14952b17113b9ce0aededb2f7cf"
+    },
+    "docs/stable-audit-transport.md": {
+      "size": 9710,
+      "sha256": "fdcf18f364a8a1e53af7965c9577a0d3236e3962a3b4c46d251c9ec9ca6030c4"
+    },
+    "docs/object-storage-planning.md": {
+      "size": 7359,
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6"
+    }
+  },
+  "root_AGENTS": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "package_AGENTS_FLOW_CONTEXT": [],
+  "mutations": "Only new review evidence below this directory; no source writes, tests, Docker, cloud or GitHub operations."
+}

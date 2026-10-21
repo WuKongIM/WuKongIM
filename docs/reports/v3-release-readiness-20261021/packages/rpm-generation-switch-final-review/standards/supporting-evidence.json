@@ -1,0 +1,90 @@
+{
+  "path_base": "packages/ within the readiness evidence root",
+  "files": [
+    {
+      "path": "rpm-generation-switch-diagnosis/proposal.md",
+      "sha256": "c96f335058838087f082c89cd5c6dac4deac39dfe40e2be73dbb3fafcc1084e5",
+      "size": 8721
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/failure-inventory.md",
+      "sha256": "c7e0d6d06fbfa0b6ecd8540f6fb4dbd5a4d53e5405d9eb70c161020a93793e2c",
+      "size": 2362
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/01-tests-first-freeze.json",
+      "sha256": "22934bdd9abffdcd915a1fda762d3cf92ce94f124d729e3306e0c6017409160f",
+      "size": 1670
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/03-all-cases-before-code.py.txt",
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd",
+      "size": 30049
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/03-old-planner-red.json",
+      "sha256": "9e5572b0df0d564262daa9e554c19895c11390560e699e3c357ecb23e485d3f5",
+      "size": 729
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/03-old-planner-red.log",
+      "sha256": "541663c4d0e4542a8b9c516ee470f4ff5823afd731d93eb3582ef80969f707b9",
+      "size": 17142
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/04-composite-green.json",
+      "sha256": "b36e748c17d68c6de465076355b60f2a236a36c4ac4898ab03aa7223edcf53e2",
+      "size": 684
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/04-composite-green.log",
+      "sha256": "a9fb7924285b934ca8a2fa5b882c441ee4728ff0a7543594a9bd13feee96e192",
+      "size": 3758
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/05-preview-regression.json",
+      "sha256": "dad53c852d28bdff5bbabe7d9fc6390b572449d13ae61c69c1989cc54b4e4c01",
+      "size": 355
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/05-preview-regression.log",
+      "sha256": "4e7a32cc769cb18b696f7ad4f3769ec0f32ad99ce2b87b9ff32ee5dd8481cb51",
+      "size": 5908
+    },
+    {
+      "path": "rpm-generation-switch-planner-repair/final-freeze.json",
+      "sha256": "c88804dba8dca1eb2abcb6c7f015d04414a23f73acca670502ea24492cc76109",
+      "size": 9763
+    },
+    {
+      "path": "rpm-generation-switch-driver-repair/report.md",
+      "sha256": "12d06dcaadd3d1248ab1d47464a990e4b34003c721712a1f6796c4b75de60e6d",
+      "size": 3834
+    },
+    {
+      "path": "rpm-generation-switch-driver-repair/tests-before-implementation.py",
+      "sha256": "c17f79a2b4e27d46890a18a3d92247cde146d065852a167752caceb65073eb8e",
+      "size": 53063
+    },
+    {
+      "path": "rpm-generation-switch-driver-repair/02-complete-driver-red.log",
+      "sha256": "81bbd20e506479a4a2db263a8d375719f57bf6d2442b13da03d73b1b88a0cf01",
+      "size": 35746
+    },
+    {
+      "path": "rpm-generation-switch-driver-repair/03-driver-green.log",
+      "sha256": "eb82b4a7ea6fd2c3b0e6e94d826b9ee2092c4af3cb04c91653ebafeade5dd9dd",
+      "size": 5610
+    },
+    {
+      "path": "rpm-generation-switch-driver-repair/04-related-green.log",
+      "sha256": "0113fd13c43ce5296c1042cbf70e26f450b1efa3379f858d13f7ce00b958de49",
+      "size": 12860
+    },
+    {
+      "path": "rpm-generation-switch-driver-repair/final-freeze.json",
+      "sha256": "ba36b058cff7af85b091edc4cc6af0255ce03494a968f63f7df296e1df88b6e8",
+      "size": 2629
+    }
+  ]
+}

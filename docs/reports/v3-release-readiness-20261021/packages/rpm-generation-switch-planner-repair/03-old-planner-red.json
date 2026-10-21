@@ -1,0 +1,21 @@
+{
+  "created": "2026-10-21T13:33:19.665775+00:00",
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_composite_storage_plan.py",
+    "-v"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 3.0502923750318587,
+  "planner_sha256": "241ba7f0a7a787ceaa4fbeb2ba7106effa6ff41fb2074ecd81b8a6fd6aa4ea74",
+  "tests_sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd",
+  "log_sha256": "541663c4d0e4542a8b9c516ee470f4ff5823afd731d93eb3582ef80969f707b9",
+  "all_planned_tests_before_implementation": true,
+  "previous_red_note": "02 preserved: 11 assertion failures plus two cascading fixture errors; test restoration now in finally, production unchanged."
+}

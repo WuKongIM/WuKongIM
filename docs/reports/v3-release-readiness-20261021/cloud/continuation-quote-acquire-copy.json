@@ -1,0 +1,101 @@
+{
+  "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-continuation-e302/quote-acquire-public-frozen",
+  "public_only": true,
+  "files": [
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/SHA256SUMS",
+      "sha256": "364ff53f81848a79e2bfbd0c86d4dd1dda35838d40e344ab839ac8ee1efab555",
+      "bytes": 1671
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/ARCHIVE_ALLOWLIST.json",
+      "sha256": "498fa735c9c1cdd50665983855fc30ff828162e88860208cd7537e7dc084c6cb",
+      "bytes": 2832
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/README.md",
+      "sha256": "0c8498fc997aa8e9ec187e10727afaa1b31d879b1946dd1193c84f9690b12f0d",
+      "bytes": 764
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/artifact-metadata.json",
+      "sha256": "c3a13692347212c3094d8f68c4957bfb9ab72423cbf36fb35e9323c5afc7ae3c",
+      "bytes": 793
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/download-receipt.json",
+      "sha256": "26422582c0ab1a3f630095d990b95cb714f83e38261e8e70a42991932f30881f",
+      "bytes": 352
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/jobs-final.json",
+      "sha256": "2f11468b5d54a694a665a41f846fa26bacc73249d1b3a98729603f9dfdb74b46",
+      "bytes": 7263
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/run-final.json",
+      "sha256": "d7d8cda47c0177dc0d3d81c3f8cc22823451e2c3390cbbe1b80a80f35e328764",
+      "bytes": 550
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/verified/quote.json",
+      "sha256": "634e068b65667e4511ae85cd64a9cbd164d2bbe6934fe53a8b26c244c01152ac",
+      "bytes": 1842
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/verified/receipt.json",
+      "sha256": "b5b7d9c27ae068004d18cd3c2165f9e4facbec868f9443143ecb5fd6062e5bbb",
+      "bytes": 41139
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/acquire/verified/verification.json",
+      "sha256": "4c364e0005daf3f1891ed40c4503c2df059b0eef4353bb16457b59dd8847b557",
+      "bytes": 563
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/cleanup-scheduler-observed.json",
+      "sha256": "1a16e883a733bc2946ca4acf54bc83c26cc4212ae06941946523a460e1c79aac",
+      "bytes": 663
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote/artifact-metadata.json",
+      "sha256": "1aba0da4bd69884d0844637d5cda370833ee41c70fb9f11a3dc09b36046594c6",
+      "bytes": 792
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote/download-receipt.json",
+      "sha256": "50a3846aa084e23cd1e0d4b255fba7d0aab3a16c2ca420a7d06335b5eb1ebda5",
+      "bytes": 351
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote/jobs-final.json",
+      "sha256": "f894ecb9eeb27f4b85e10f4be449de52c1f5484a22f858173c0d912dce96d387",
+      "bytes": 5868
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote/run-final.json",
+      "sha256": "95174c055ddf0c74a4df0dd74a7a855efed4490cb175ddf3255a5130fd2cf96f",
+      "bytes": 550
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote/verified/quote.json",
+      "sha256": "634e068b65667e4511ae85cd64a9cbd164d2bbe6934fe53a8b26c244c01152ac",
+      "bytes": 1842
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote/verified/verification.json",
+      "sha256": "3b2b1bbbd678db4501de50ef5c08e72026d824c396aa5305a8d0855d13358786",
+      "bytes": 343
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/quote-acquire-summary.json",
+      "sha256": "cdda4dd70ca0efdeb3cb0b59c1b6e94463f0c584465ec960685216eeeb5aadc1",
+      "bytes": 1371
+    },
+    {
+      "path": "cloud/rc-continuation-e302/quote-acquire-public-frozen/verify-public-json-artifact.py",
+      "sha256": "f28bc33415f6d03edba62f2deee3081c0f749b15d35815dbb7a29acea3a91780",
+      "bytes": 1619
+    }
+  ]
+}

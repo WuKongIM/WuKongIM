@@ -1,0 +1,27 @@
+{
+  "schema": "wukongim.single_cleanup_dispatch/v1",
+  "started_at": "2026-10-21T13:39:10.513725+00:00",
+  "command": [
+    "gh",
+    "workflow",
+    "run",
+    "chat-lifecycle-stop.yml",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--ref",
+    "main",
+    "--json"
+  ],
+  "inputs": {
+    "request_id": "chat-20261021T095421Z-cf11d65c",
+    "stop_authorization": "operator-stop-chat-lifecycle"
+  },
+  "control_sha_expected": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "workflow_source_sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62",
+  "authority": "Original authorized final cleanup; parent explicitly instructed immediate existing Stop/Release after bounded diagnostic on same exact request",
+  "outcome": "accepted_reconcile_exact_run",
+  "ended_at": "2026-10-21T13:39:12.912604+00:00",
+  "exit_code": 0,
+  "stdout": "https://github.com/WuKongIM/WuKongIM/actions/runs/39609861645\n",
+  "stderr": ""
+}

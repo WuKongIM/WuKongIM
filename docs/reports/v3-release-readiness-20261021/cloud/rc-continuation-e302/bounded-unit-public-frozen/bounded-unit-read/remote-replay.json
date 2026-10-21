@@ -1,0 +1,38 @@
+{
+  "observed_at": "2026-10-21T13:35:51.020681+00:00",
+  "source_control": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "classifier_sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+  "replays": [
+    {
+      "case": "observed-empty-job",
+      "input": "ActiveState=inactive\nJob=\n",
+      "input_sha256": "3312c4db2e45834ea37a5a336aeddde2b8207352ac3a81ebcc589857b07464fe",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "single-variable-job-zero-control",
+      "input": "ActiveState=inactive\nJob=0\n",
+      "input_sha256": "8d4ee7067c719ca3c39817fbadfdbcdd7bf335b2159a1e38e6121cefc2bac00a",
+      "exit_code": 0,
+      "stdout": "terminal\n",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "host_tools": {
+    "exit_code": 0,
+    "stdout": "GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)\nsystemd 255 (255.4-1ubuntu8.17)\n/usr/bin/gawk\nGNU Awk 5.2.1, API 3.2, PMA Avon 8-g1, (GNU MPFR 4.2.1, GNU MP 6.3.0)\nCopyright (C) 1989, 1991-2022 Free Software Foundation.\n\n",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "awk_interval_probe": {
+    "command": "printf '123\\n' | awk '$0 ~ /^[0-9]{3}$/ { matched=1 } END { print matched+0; exit !matched }'",
+    "exit_code": 0,
+    "stdout": "1\n",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "relevance": "classifier for stage_state_parse_failed uses Bash regex without interval quantifiers, not awk; standalone environment observation is not causation"
+  },
+  "limits": "Read-only replay of observed post-kill ActiveState/Job on same real load host. No original pre-kill bytes yet. No service/config/environment/key-content read or mutation."
+}

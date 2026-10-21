@@ -1,0 +1,8 @@
+{
+  "observed_at": "2026-10-21T13:09:28.087564+00:00",
+  "operation": "read-only GET workflow runs per_page=3 after successful dispatch",
+  "exit_code": 1,
+  "stderr": "Not retained by initial check=True inline script; cause unknown",
+  "dispatch_not_repeated": true,
+  "exact_run_from_dispatch_stdout": 39605452697
+}

@@ -1,0 +1,14 @@
+{
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-3/first-failure.json": {
+    "sha256": "886b819e7c5112da9fd9ece3182f27bc35f496c24b09751630fdb96b1b274652",
+    "size": 26476
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-3/first-failure-requests.json": {
+    "sha256": "00b826dbd490c421263b953b18463f3b412d77105389605ba2cefc60293ba4c8",
+    "size": 6024
+  },
+  "/tmp/wukongim-v3-readiness-20261021/packages/pr74-ci-generation-3/summary.json": {
+    "sha256": "980b00045bbb6cc525a91fea815fb93336ed8089967d94904406bb332a755dad",
+    "size": 39281
+  }
+}

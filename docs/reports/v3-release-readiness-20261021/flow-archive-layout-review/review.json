@@ -1,0 +1,31 @@
+{
+  "recorded_at_utc": "2026-10-21T13:05:10.954182+00:00",
+  "source_head": "2d9f974fddd1554711ed075d893b66947382f343",
+  "original_discovered_flows": 94,
+  "archived_flows": 6,
+  "remaining_live_flow_count": 88,
+  "checked_index_rows": 88,
+  "remaining_discovery_exactly_matches_current_index_paths": true,
+  "direct_markdown_links_to_renamed_files": [],
+  "rules_and_validator_inputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "scripts/flowcheck/main.go",
+      "sha256": "98b866e2acce96c4d1b30873da958487d5f28d1a10c8abea0780afb18e45d856"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "23affeede85be6556acb955558ba6d000a1b6ea1b9e1202dfda16cbbc70f524d"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    }
+  ],
+  "repository_mutations": false,
+  "named_check_run_by_reviewer": false,
+  "expected_effect": "remove5invalid plus1historicalindexextra; actual named check after root applies still required"
+}

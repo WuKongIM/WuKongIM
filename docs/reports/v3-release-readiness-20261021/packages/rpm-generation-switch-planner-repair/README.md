@@ -1,0 +1,11 @@
+Planner修复已冻结，等待root独审及完整组合验收。仅两owned文件；未commit/push/CI/容器。原方案审查独立保留于../rpm-generation-switch-planner-review/。
+
+Tests first：failure-inventory和before源码→完整测试源码01→旧planner首红02（11assert失败+2由于子例未恢复引起的fixture级联错误）→仅测试finally恢复后完整源码03，旧planner18 tests/13assert失败/0 errors→实现→04 18/18 PASS→05旧preview31/31 PASS。当前测试文件与03逐字相同，未在实现后补unit。
+
+两个产品RPM和bootstrap的既有first-candidate闭包严格保留，最多7stable/84缺失别名；source仍定位真实已验证原archive成员，snapshot_objects不增加伪造成员。目标URI若已有原快照成员则必须sameSHA/size/cache且不重复。异签名bytes的同basename继续拒绝；同bytes合法，以stable auditID顺序确定RPMcatalog source。Composite旧aliases对retain按ID排序，保留current优先；preview-only入口及_snapshot等AST不变，31回归通过。
+
+结构fixture真实归档/读写/身份锚，但native verifier按既有边界隔离；本次不宣称native GPG/RPM验签或Rocky49已通过。snapshot-route冲突用contradictory inventory故障注入验证合并gate，不声称该损坏状态曾通过原生验证。真实HTTP/barrier/cache/安装验收由driver作者与后续LinuxCI完成。
+
+保留界限：仅明确提供的已验证stable snapshots；不新增rotation/retirement/GC，不改频道/密钥/12producers/生产发布workflows，不保证公网CDN原子性或404负缓存消失。同版本签名发生变化仍需版本bump或完全相同已签bytes复用。34保护字段逐一无变；较早38清单的native TESTONLY workflow在本修复前已由#74授权改变，不能误报历史38全未变。
+
+最终diff/freeze与原红绿均在allowlist；root可直接对两个文件freeze进行独立review，然后统一fullsuite。

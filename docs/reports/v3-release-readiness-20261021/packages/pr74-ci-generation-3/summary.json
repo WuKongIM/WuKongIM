@@ -1,0 +1,952 @@
+{
+  "artifact_integrity": {
+    "all_five_full_zip_sha256_match_github_api": true,
+    "all_member_crc_verified": true,
+    "retained_only_public_json_jsonl": true,
+    "zip_not_retained": true
+  },
+  "fixture": {
+    "generations": {
+      "A": {
+        "apt_receipt": "A/apt-receipt.json",
+        "archive": "A/wukongim-stable-3.0.0-d30029e6f095b020c3c402a3c8f7f67eb5f14ebfc4bc6a027ee548446ea7e940-candidate-site.tar",
+        "bootstrap_version": "1.1.1",
+        "control": "A/control",
+        "plan": "A/plan.json",
+        "receipt": "A/wukongim-stable-3.0.0-d30029e6f095b020c3c402a3c8f7f67eb5f14ebfc4bc6a027ee548446ea7e940-candidate-receipt.json",
+        "rpm_receipt": "A/rpm-receipt.json",
+        "site": "A/site",
+        "source": "A/source",
+        "version": "3.0.0"
+      },
+      "B": {
+        "apt_receipt": "B/apt-receipt.json",
+        "archive": "B/wukongim-stable-3.0.1-977700cd88b676fb302f29131ac5649f253c37f113b205e129ada120354bbd7b-candidate-site.tar",
+        "bootstrap_version": "1.1.2",
+        "control": "B/control",
+        "plan": "B/plan.json",
+        "receipt": "B/wukongim-stable-3.0.1-977700cd88b676fb302f29131ac5649f253c37f113b205e129ada120354bbd7b-candidate-receipt.json",
+        "rpm_receipt": "B/rpm-receipt.json",
+        "site": "B/site",
+        "source": "B/source",
+        "version": "3.0.1"
+      }
+    },
+    "secret_tree_removed": true,
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "test_only": true
+  },
+  "frozen_at": "2026-10-21T13:10:46.106508+00:00",
+  "generation": 3,
+  "identity": {
+    "head": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+    "head_tree": "11ead51354aecc30087202959eeb09028617387f",
+    "merge": "3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+    "merge_tree": "11ead51354aecc30087202959eeb09028617387f",
+    "parents": [
+      "335cd2569d2b62de577916ed86c097fd3a22547e",
+      "f2c37e92b09bcd11599d31449bbca5de0ac52c25"
+    ],
+    "trees_equal": true
+  },
+  "legacy_full_signed_repository_drill": {
+    "job_id": 119229193510,
+    "log": "native-original-job-119229193510.log.gz",
+    "passed": true,
+    "success_line_at": "2026-10-21T12:49:33.0023392Z"
+  },
+  "legacy_native": [
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 6,
+      "cleanup": {
+        "scratch_removed": true
+      },
+      "passed": true,
+      "path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "schema": "wukongim.native_bootstrap_preparation_drill/v1",
+      "source_sha": "3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+      "transport_cases": 0
+    },
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 10,
+      "cleanup": {
+        "secret_tree_removed_before_verification": true
+      },
+      "passed": true,
+      "path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+      "schema": "wukongim/test-only-native-local-signing/v1",
+      "source_sha": null,
+      "transport_cases": 0
+    },
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 7,
+      "cleanup": {},
+      "passed": true,
+      "path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+      "schema": "wukongim/test-only-native-source-metadata/v1",
+      "source_sha": null,
+      "transport_cases": 0
+    },
+    {
+      "all_cases_passed": true,
+      "all_transport_passed": true,
+      "cases": 31,
+      "cleanup": {
+        "checked_in_control_unchanged": true,
+        "scratch_removed": true,
+        "secret_tree_removed_before_verification": true
+      },
+      "passed": true,
+      "path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+      "schema": "wukongim/test-only-native-stable-candidate/v1",
+      "source_sha": "3ca7c376fc9cef29f0530886c893dd82a7609bf4",
+      "transport_cases": 8
+    }
+  ],
+  "overall": "failure; 49-case Linux acceptance incomplete",
+  "pages_validation": {
+    "additional_contract_tests": 4,
+    "deployment": "skipped",
+    "duration_seconds": 120.464,
+    "passed": true,
+    "tests_run": 501,
+    "tests_skipped": 0
+  },
+  "pr": 74,
+  "product_binaries": {
+    "3.0.0/wkcli": {
+      "sha256": "7292c8b284825159c7f7534daca3528e2c1377d84be11a640379055fdbab13de",
+      "size": 42950840
+    },
+    "3.0.0/wukongim": {
+      "sha256": "c7702baff5ac6c9c5f791ad4d4f5b733dff2463cbad386e637885248c5742425",
+      "size": 68182200
+    },
+    "3.0.1/wkcli": {
+      "sha256": "6fe74a480e1d1482e3e44f3d4524a8f2e4dd3cd4f63bb416c7383af1ed9cc225",
+      "size": 42950840
+    },
+    "3.0.1/wukongim": {
+      "sha256": "7e03adaef078ad19379dcc6b4c8540344898f07cf2665e8567623e1cc2bb15b1",
+      "size": 68182200
+    }
+  },
+  "product_build": {
+    "go_version": "go version go1.25.11 linux/amd64",
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "test_only_versions": true,
+    "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a"
+  },
+  "read_errors": [
+    {
+      "evidence": "native-bootstrap-preparation-test-only.download.stderr",
+      "operation": "bootstrap artifact download",
+      "outcome": "EOF; successful second read in bootstrap-download-read2.json; no workflow retry"
+    },
+    {
+      "evidence": "stable-in-progress-log-read.json",
+      "operation": "job log while running",
+      "outcome": "HTTP404, unavailable while running; no failure inferred"
+    },
+    {
+      "evidence": "stable-job-119229193899.log.stderr.redacted",
+      "excluded_raw_path": "stable-job-119229193899.log.stderr",
+      "excluded_raw_sha256": "3e641dc80efd434b24cfded504a427c67196e63ceb3a448dedbed9b2f664c417",
+      "operation": "final stable job log first GET",
+      "outcome": "EOF; read2 retrieved complete log",
+      "reason": "temporary signed download URL in transport error; raw retained locally mode0600, query removed in public copy"
+    }
+  ],
+  "runs": [
+    {
+      "conclusion": "success",
+      "created_at": "2026-10-21T12:45:39Z",
+      "head_sha": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39602187472",
+      "id": 39602187472,
+      "jobs": [
+        {
+          "completed_at": "2026-10-21T12:47:52Z",
+          "conclusion": "success",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39602187472/job/119229192935",
+          "id": 119229192935,
+          "name": "Validate complete Pages snapshot",
+          "started_at": "2026-10-21T12:45:41Z",
+          "status": "completed"
+        },
+        {
+          "completed_at": "2026-10-21T12:47:52Z",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39602187472/job/119230232085",
+          "id": 119230232085,
+          "name": "Deploy complete Pages snapshot",
+          "started_at": "2026-10-21T12:47:53Z",
+          "status": "completed"
+        }
+      ],
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-21T12:47:53Z"
+    },
+    {
+      "conclusion": "failure",
+      "created_at": "2026-10-21T12:45:39Z",
+      "head_sha": "f2c37e92b09bcd11599d31449bbca5de0ac52c25",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39602187505",
+      "id": 39602187505,
+      "jobs": [
+        {
+          "completed_at": "2026-10-21T12:49:46Z",
+          "conclusion": "success",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39602187505/job/119229193510",
+          "id": 119229193510,
+          "name": "TEST ONLY signed APT/RPM repository",
+          "started_at": "2026-10-21T12:45:41Z",
+          "status": "completed"
+        },
+        {
+          "completed_at": "2026-10-21T13:06:32Z",
+          "conclusion": "failure",
+          "html_url": "https://github.com/WuKongIM/packages/actions/runs/39602187505/job/119229193899",
+          "id": 119229193899,
+          "name": "TEST ONLY stable four clients and A/B",
+          "started_at": "2026-10-21T12:45:41Z",
+          "status": "completed"
+        }
+      ],
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-21T13:06:33Z"
+    }
+  ],
+  "schema": "wukongim.review.pr74_ci_generation/v1",
+  "scope": {
+    "dispatches": 0,
+    "public_origin_verified": false,
+    "published": false,
+    "read_only_github": true,
+    "source_modifications": false,
+    "source_provenance_verified": false,
+    "test_only": true,
+    "workflow_cancellations": 0,
+    "workflow_reruns": 0
+  },
+  "stable_clients": {
+    "actual_cases_passed": 22,
+    "actual_cases_started": 23,
+    "baselines": [
+      {
+        "bootstrap_version": "1.1.1",
+        "clients": [
+          {
+            "distribution": "ubuntu-24.04",
+            "download": {
+              "filename": "wukongim_3.0.0_amd64.deb",
+              "sha256": "5b58f0fe67ba7410d20cca6a219bd68a0c1ad4ce9a520317b823242ac83811c2",
+              "size": 29932180,
+              "snapshot_versions": [
+                "3.0.0"
+              ]
+            },
+            "family": "apt",
+            "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.0"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          },
+          {
+            "distribution": "debian-13",
+            "download": {
+              "filename": "wukongim_3.0.0_amd64.deb",
+              "sha256": "5b58f0fe67ba7410d20cca6a219bd68a0c1ad4ce9a520317b823242ac83811c2",
+              "size": 29932180,
+              "snapshot_versions": [
+                "3.0.0"
+              ]
+            },
+            "family": "apt",
+            "image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.0"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          },
+          {
+            "distribution": "rocky-linux-9",
+            "download": {
+              "filename": "wukongim_3.0.0_linux_amd64.rpm",
+              "sha256": "dedc60d01f30a81dca33ce2bd0dc5a9f975a6c84fa7e53f08240eaddb22d50b2",
+              "size": 38398461,
+              "snapshot_versions": [
+                "3.0.0"
+              ]
+            },
+            "family": "rpm",
+            "image": "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.0"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          },
+          {
+            "distribution": "alma-linux-9",
+            "download": {
+              "filename": "wukongim_3.0.0_linux_amd64.rpm",
+              "sha256": "dedc60d01f30a81dca33ce2bd0dc5a9f975a6c84fa7e53f08240eaddb22d50b2",
+              "size": 38398461,
+              "snapshot_versions": [
+                "3.0.0"
+              ]
+            },
+            "family": "rpm",
+            "image": "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.0"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          }
+        ],
+        "expected_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "expected_version": "3.0.0",
+        "generation": "A",
+        "github_provenance_verified": false,
+        "installed_cli_verified": true,
+        "publication_verified": false,
+        "receipt": "artifacts/native-stable-four-clients-test-only/clients-A.json",
+        "sha256": "fd0e268018d6fe08507ddc70b8ce1dbf6d7dc6947094ac6151a0b4e030ccf125",
+        "test_only": true
+      },
+      {
+        "bootstrap_version": "1.1.2",
+        "clients": [
+          {
+            "distribution": "ubuntu-24.04",
+            "download": {
+              "filename": "wukongim_3.0.1_amd64.deb",
+              "sha256": "aa2e7ee0929a3ae64cd9fa76e192f122fd8fda87cfa5bb89ccb45d238c4ca6ba",
+              "size": 29932174,
+              "snapshot_versions": [
+                "3.0.1"
+              ]
+            },
+            "family": "apt",
+            "image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.1"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          },
+          {
+            "distribution": "debian-13",
+            "download": {
+              "filename": "wukongim_3.0.1_amd64.deb",
+              "sha256": "aa2e7ee0929a3ae64cd9fa76e192f122fd8fda87cfa5bb89ccb45d238c4ca6ba",
+              "size": 29932174,
+              "snapshot_versions": [
+                "3.0.1"
+              ]
+            },
+            "family": "apt",
+            "image": "debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.1"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          },
+          {
+            "distribution": "rocky-linux-9",
+            "download": {
+              "filename": "wukongim_3.0.1_linux_amd64.rpm",
+              "sha256": "180c51c76462e5f36e8a72c25c6ec9a7b883ea8285415f0a9bd2f9480d50abe0",
+              "size": 38398464,
+              "snapshot_versions": [
+                "3.0.1"
+              ]
+            },
+            "family": "rpm",
+            "image": "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.1"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          },
+          {
+            "distribution": "alma-linux-9",
+            "download": {
+              "filename": "wukongim_3.0.1_linux_amd64.rpm",
+              "sha256": "180c51c76462e5f36e8a72c25c6ec9a7b883ea8285415f0a9bd2f9480d50abe0",
+              "size": 38398464,
+              "snapshot_versions": [
+                "3.0.1"
+              ]
+            },
+            "family": "rpm",
+            "image": "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+            "installed_cli": {
+              "checks": [
+                "version",
+                "help",
+                "bench_validate",
+                "db_query",
+                "migrate_diagnose",
+                "invalid_inputs",
+                "read_only_data"
+              ],
+              "fixtures": {
+                "native-v3-unregistered.tar.gz": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+                "native-v3.tar.gz": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+                "original-v2-empty.tar.gz": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+                "scenario.yaml": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+                "target.yaml": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+                "workers.yaml": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+              },
+              "identity": {
+                "build_source": "release",
+                "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+                "version": "3.0.1"
+              },
+              "schema": "wukongim/installed-cli-acceptance/v1",
+              "verified": true
+            }
+          }
+        ],
+        "expected_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "expected_version": "3.0.1",
+        "generation": "B",
+        "github_provenance_verified": false,
+        "installed_cli_verified": true,
+        "publication_verified": false,
+        "receipt": "artifacts/native-stable-four-clients-test-only/clients-B.json",
+        "sha256": "4661fbd2d6a23676f55952684409fd3914782643ecd0d741b255d23d903d7644",
+        "test_only": true
+      }
+    ],
+    "cache_cleanup": [
+      {
+        "cache": "cache-ubuntu-24.04",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-debian-13",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-rocky-linux-9",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      }
+    ],
+    "cache_reuse": [
+      {
+        "case": "ubuntu-24.04-cache-A-repeat",
+        "metadata_reads": [
+          "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+          "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+        ],
+        "reuse_signal": "same inode and content; atime advanced after epoch arming before native execution"
+      },
+      {
+        "case": "debian-13-cache-A-repeat",
+        "metadata_reads": [
+          "apt/lists/packages.githubim.com_apt_dists_stable_InRelease",
+          "apt/lists/packages.githubim.com_apt_dists_stable_main_binary-amd64_Packages.lz4"
+        ],
+        "reuse_signal": "same inode and content; atime advanced after epoch arming before native execution"
+      }
+    ],
+    "cases": [
+      {
+        "case": "baseline-A-four-download-and-installed-cli",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "baseline-B-four-download-and-installed-cli",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-A-to-B-request-barrier",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-cache-A-first",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-cache-A-repeat",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-cache-B-target",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-reject-missing-byhash",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-reject-corrupt-byhash",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-reject-redirect",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-reject-disconnect",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-reject-untrusted-TLS",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "ubuntu-24.04-reject-wrong-SAN",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "debian-13-A-to-B-request-barrier",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "debian-13-cache-A-first",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "debian-13-cache-A-repeat",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "debian-13-cache-B-target",
+        "expected_rejection": false,
+        "passed": true
+      },
+      {
+        "case": "debian-13-reject-missing-byhash",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "debian-13-reject-corrupt-byhash",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "debian-13-reject-redirect",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "debian-13-reject-disconnect",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "debian-13-reject-untrusted-TLS",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "debian-13-reject-wrong-SAN",
+        "expected_rejection": true,
+        "passed": true
+      },
+      {
+        "case": "rocky-linux-9-A-to-B-request-barrier",
+        "expected_rejection": false,
+        "passed": false
+      }
+    ],
+    "container_attempts": 54,
+    "failure": "real download client failed",
+    "final_cleanup": {
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-152a367e14b9444b8687035a92181eba-1",
+          "wk-scl-152a367e14b9444b8687035a92181eba-10",
+          "wk-scl-152a367e14b9444b8687035a92181eba-11",
+          "wk-scl-152a367e14b9444b8687035a92181eba-12",
+          "wk-scl-152a367e14b9444b8687035a92181eba-13",
+          "wk-scl-152a367e14b9444b8687035a92181eba-14",
+          "wk-scl-152a367e14b9444b8687035a92181eba-15",
+          "wk-scl-152a367e14b9444b8687035a92181eba-16",
+          "wk-scl-152a367e14b9444b8687035a92181eba-17",
+          "wk-scl-152a367e14b9444b8687035a92181eba-18",
+          "wk-scl-152a367e14b9444b8687035a92181eba-19",
+          "wk-scl-152a367e14b9444b8687035a92181eba-2",
+          "wk-scl-152a367e14b9444b8687035a92181eba-20",
+          "wk-scl-152a367e14b9444b8687035a92181eba-21",
+          "wk-scl-152a367e14b9444b8687035a92181eba-22",
+          "wk-scl-152a367e14b9444b8687035a92181eba-23",
+          "wk-scl-152a367e14b9444b8687035a92181eba-24",
+          "wk-scl-152a367e14b9444b8687035a92181eba-25",
+          "wk-scl-152a367e14b9444b8687035a92181eba-26",
+          "wk-scl-152a367e14b9444b8687035a92181eba-27",
+          "wk-scl-152a367e14b9444b8687035a92181eba-28",
+          "wk-scl-152a367e14b9444b8687035a92181eba-29",
+          "wk-scl-152a367e14b9444b8687035a92181eba-3",
+          "wk-scl-152a367e14b9444b8687035a92181eba-30",
+          "wk-scl-152a367e14b9444b8687035a92181eba-31",
+          "wk-scl-152a367e14b9444b8687035a92181eba-32",
+          "wk-scl-152a367e14b9444b8687035a92181eba-33",
+          "wk-scl-152a367e14b9444b8687035a92181eba-34",
+          "wk-scl-152a367e14b9444b8687035a92181eba-35",
+          "wk-scl-152a367e14b9444b8687035a92181eba-36",
+          "wk-scl-152a367e14b9444b8687035a92181eba-37",
+          "wk-scl-152a367e14b9444b8687035a92181eba-38",
+          "wk-scl-152a367e14b9444b8687035a92181eba-39",
+          "wk-scl-152a367e14b9444b8687035a92181eba-4",
+          "wk-scl-152a367e14b9444b8687035a92181eba-40",
+          "wk-scl-152a367e14b9444b8687035a92181eba-41",
+          "wk-scl-152a367e14b9444b8687035a92181eba-42",
+          "wk-scl-152a367e14b9444b8687035a92181eba-43",
+          "wk-scl-152a367e14b9444b8687035a92181eba-44",
+          "wk-scl-152a367e14b9444b8687035a92181eba-45",
+          "wk-scl-152a367e14b9444b8687035a92181eba-46",
+          "wk-scl-152a367e14b9444b8687035a92181eba-47",
+          "wk-scl-152a367e14b9444b8687035a92181eba-48",
+          "wk-scl-152a367e14b9444b8687035a92181eba-49",
+          "wk-scl-152a367e14b9444b8687035a92181eba-5",
+          "wk-scl-152a367e14b9444b8687035a92181eba-50",
+          "wk-scl-152a367e14b9444b8687035a92181eba-51",
+          "wk-scl-152a367e14b9444b8687035a92181eba-52",
+          "wk-scl-152a367e14b9444b8687035a92181eba-53",
+          "wk-scl-152a367e14b9444b8687035a92181eba-54",
+          "wk-scl-152a367e14b9444b8687035a92181eba-6",
+          "wk-scl-152a367e14b9444b8687035a92181eba-7",
+          "wk-scl-152a367e14b9444b8687035a92181eba-8",
+          "wk-scl-152a367e14b9444b8687035a92181eba-9"
+        ],
+        "networks": [
+          "wk-scl-152a367e14b9444b8687035a92181eba"
+        ]
+      },
+      "discovered": {
+        "containers": [
+          "a82690c7301e43e0cc331aeaeb0a1879838820cafffb770a5d31c919da5643e9",
+          "50cc21278f38dc5032d2149986205a35c7d9a81298ad8ee732b134c5b438e808",
+          "e73aa259c3d0c291b6b6a3eebd658606d1e0fd6da13b1baa819a86326f399d94"
+        ],
+        "networks": []
+      },
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "verified": true
+    },
+    "network_attempts": 1,
+    "passed": false,
+    "phase": "rocky-linux-9-A-to-B-request-barrier",
+    "reader_cleanup": {
+      "creation_attempts": {
+        "containers": [
+          "wk-scl-152a367e14b9444b8687035a92181eba-1",
+          "wk-scl-152a367e14b9444b8687035a92181eba-10",
+          "wk-scl-152a367e14b9444b8687035a92181eba-11",
+          "wk-scl-152a367e14b9444b8687035a92181eba-12",
+          "wk-scl-152a367e14b9444b8687035a92181eba-13",
+          "wk-scl-152a367e14b9444b8687035a92181eba-14",
+          "wk-scl-152a367e14b9444b8687035a92181eba-15",
+          "wk-scl-152a367e14b9444b8687035a92181eba-16",
+          "wk-scl-152a367e14b9444b8687035a92181eba-17",
+          "wk-scl-152a367e14b9444b8687035a92181eba-18",
+          "wk-scl-152a367e14b9444b8687035a92181eba-19",
+          "wk-scl-152a367e14b9444b8687035a92181eba-2",
+          "wk-scl-152a367e14b9444b8687035a92181eba-20",
+          "wk-scl-152a367e14b9444b8687035a92181eba-21",
+          "wk-scl-152a367e14b9444b8687035a92181eba-22",
+          "wk-scl-152a367e14b9444b8687035a92181eba-23",
+          "wk-scl-152a367e14b9444b8687035a92181eba-24",
+          "wk-scl-152a367e14b9444b8687035a92181eba-25",
+          "wk-scl-152a367e14b9444b8687035a92181eba-26",
+          "wk-scl-152a367e14b9444b8687035a92181eba-27",
+          "wk-scl-152a367e14b9444b8687035a92181eba-28",
+          "wk-scl-152a367e14b9444b8687035a92181eba-29",
+          "wk-scl-152a367e14b9444b8687035a92181eba-3",
+          "wk-scl-152a367e14b9444b8687035a92181eba-30",
+          "wk-scl-152a367e14b9444b8687035a92181eba-31",
+          "wk-scl-152a367e14b9444b8687035a92181eba-32",
+          "wk-scl-152a367e14b9444b8687035a92181eba-33",
+          "wk-scl-152a367e14b9444b8687035a92181eba-34",
+          "wk-scl-152a367e14b9444b8687035a92181eba-35",
+          "wk-scl-152a367e14b9444b8687035a92181eba-36",
+          "wk-scl-152a367e14b9444b8687035a92181eba-37",
+          "wk-scl-152a367e14b9444b8687035a92181eba-38",
+          "wk-scl-152a367e14b9444b8687035a92181eba-39",
+          "wk-scl-152a367e14b9444b8687035a92181eba-4",
+          "wk-scl-152a367e14b9444b8687035a92181eba-40",
+          "wk-scl-152a367e14b9444b8687035a92181eba-41",
+          "wk-scl-152a367e14b9444b8687035a92181eba-42",
+          "wk-scl-152a367e14b9444b8687035a92181eba-43",
+          "wk-scl-152a367e14b9444b8687035a92181eba-44",
+          "wk-scl-152a367e14b9444b8687035a92181eba-45",
+          "wk-scl-152a367e14b9444b8687035a92181eba-46",
+          "wk-scl-152a367e14b9444b8687035a92181eba-47",
+          "wk-scl-152a367e14b9444b8687035a92181eba-48",
+          "wk-scl-152a367e14b9444b8687035a92181eba-49",
+          "wk-scl-152a367e14b9444b8687035a92181eba-5",
+          "wk-scl-152a367e14b9444b8687035a92181eba-50",
+          "wk-scl-152a367e14b9444b8687035a92181eba-51",
+          "wk-scl-152a367e14b9444b8687035a92181eba-6",
+          "wk-scl-152a367e14b9444b8687035a92181eba-7",
+          "wk-scl-152a367e14b9444b8687035a92181eba-8",
+          "wk-scl-152a367e14b9444b8687035a92181eba-9"
+        ],
+        "networks": [
+          "wk-scl-152a367e14b9444b8687035a92181eba"
+        ]
+      },
+      "discovered": {
+        "containers": [
+          "6e3cb01c9d0765d5b2f35d8502c3cf7e6bfa9ccfe616981627d2da380f44b8e5",
+          "d37fae60823767c4115021cb2ab55a9e3c8f638857996b0b52c9d12858ea5c84",
+          "44fd8914556155fa87fc6f7db0cf0ef1a6071a650882deee4ebc25d0987ed070",
+          "b3459536fc525b8cc5ca38f312e3c65535793f6ac7ce27d7456b2b2917049848",
+          "b1288a5d48ba9ee7e3d3de402ec9d59b6e6db828e8a3ef3d47d327bfcd367c04",
+          "40c51868eb5e8a6121060917679d4e2608b92a6fcc5531099a39ca9af03a066f",
+          "8c0bbba9d5c5b3d1cbc6c3f7f03932da88e0bfc0931600ef4cc6235ab3bcbba1",
+          "4d204a21260199dd92c0267ef15eab6457bbc4c347d979bae3f855e6f2345d3e",
+          "8a007a94d348c275113b2760a35a5e79e7e0d27802a3bdef0b7caf86b4c134e2",
+          "02c7c23347a63561155c06ef976dae9c398f66be44aef3b778682a6b101b2519",
+          "1bb8e74ae880456960c60dc67ac3efebc5a9d5a0f8b90ff29c215886c24e0a82",
+          "5d344ec3913d7bb0ae77053b45c9685a0ad0214019b7ef6650bba8054129fde8",
+          "0529f73e149eb2b585fc07168c028e00dfc7d5c0e40c4bfb5df09a30092c8007",
+          "047651ed960b9fb07d5f847767812b80be3237ffe765fb6d6919bc8d9f03e2aa",
+          "58ad8eccdd07287cbff09294b86ec03d8215a349d4f6ad7fdab3e4807baa9088",
+          "ea259d0f074a1c07255dabb7c8d327cfede919d135aa5459926de3bdb19aff6f",
+          "364e8f6a4491c25a7cfcc00a5060b20f11d5c7e7ce10651fcef52942ded508b9",
+          "3223140d277e02a4b41bd857250d475b1fdd8c22f54a50eba6f255ba311c1587",
+          "aaf7b40e8ab50e154759de72c0f005ec0b92ab89658140dddb36de7551dd2743",
+          "bc2e2dd119a406cdcc7bedfc72363b89b0bc188eea5779e56910c9462ebb6f00",
+          "9b2c433eb6e932e4ca8d0776843b5232a730a0a6baa21df62c8967a8affcbbe3",
+          "414ec1f9ee34488b1a2328bad9b34445346db8cdd0cfbda054fe76fcaceba48b",
+          "547580d6524e9c735dd87426be2f9514c6c8c7296634c2c2bdcbb4bdfa566957",
+          "6a03584902691feaff9daa10b32467772d1ba7e0561ba4725e2d5d80ed94544f",
+          "bb401c91893df10c54e37abe9b683e054db6f20cb4de1a63e81d269b4ab28ed2",
+          "a01eeed7fcb522e6d64e4d1bbe013df417f52c13412175a61811361455f36093",
+          "aa6826f67b6d6ec400fe8c89e16fabe3d2a4d91821973f9489cb31521015a762",
+          "de3b1ace78bdf9b20885c70ef5db5bbd9a14ba01512d02f01d55d7bed69aefae",
+          "7353d4fa815eba88006538e80b2f842d6688d2f313e4086054340eaf16adf4b4",
+          "a77669518ce9f3452919c2eec4e040a4d2982c558df5f9bebc7defb6d0bd6d1b",
+          "97855eca93e088c1cf9e82781a2ae42c0183ba6ff9d13ccd2076593860b43cac",
+          "cc5e41f96f28f45562a70537f9de11039c275317850cd80efd36928036e47eb9",
+          "30f76e667c38f6a2ca9dd6478c3f3117085bda8ec6f9206b5b795bc854be21d4",
+          "90022b15a61c994c918d44e910256d65da5eea3854f148ccf37422d3e066689a",
+          "a478e56e1f57baa6a7164f76903dcc6855de24d192ebab98b2ba16e5dbc5c606",
+          "159bfe40b31ca3ff270f2147fa61683de224c7ded103e87ac7f0c5c95bd52dcd",
+          "45dd80d4ac7116245fd89cd47d04c60730553539403c5ad0829b74a67fff8c40",
+          "909002f90d4333f9895c7ca98a0f11f3fc5a223b1b1913de3ac4a740255b8956",
+          "46c59f33338cc942dc23eda50f0ac6f55e2ab371d537fcb41e7ff9f51452b3b4",
+          "4cd8ffc5d7cfa71002b01b64baafd69aabb2faab356d94ce14ffa1e5dd837cf7",
+          "e6d01ee867687d707121cdd6d64c811ea175be2db9f8025582e3d53c7c628d3e",
+          "b8625cd58fdaf441e616c5b05a670584f0e18292e5ceabed48ec2df1340fe2f7",
+          "940337ae2357ae8a575b5530813e281426c1ad936540c00e06003434007bf097",
+          "a50f4ec53efd3e6ddab9721fe68665c3bbf3bf07a0714e4856da35ce6c80c0e5",
+          "3582c9f61eb0f9ed2684eed1926c35a0f6bf66e4314a197b0d83d50f772a37b5",
+          "38d0a1ed59c5a079c4b887dd8c368ed210c76f646f4f8c1370831534815daaa0",
+          "276267e6e3fd869a296d9ec7f45410827163b0054bd40e3466cd2a4a815e5951",
+          "29a1010dc2d9c4cf65270a6d8bf7548e2d3ac680aa0a308c18070c5b2f36cc94",
+          "d19e83fc109bec59def004f85d66b23715b12c4a59c232fb4a9969351b0e1710",
+          "e19ca1111253a29e515ebada85628b647a1524d7e281120473b6844e11f07aea",
+          "db913749394699e7263eeafd279f3a84dd7f63300cc1968670fd6d5ca2874dd9"
+        ],
+        "networks": [
+          "b7595aa6f8c2a9eb03d0d830aaf0c4821cdfa16961946311061672706990739e"
+        ]
+      },
+      "errors": [],
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "verified": true
+    },
+    "target_cases": 49,
+    "unreached_cases": 26
+  }
+}
