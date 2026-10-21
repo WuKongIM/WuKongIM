@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-21T07:32:11.988781+00:00",
+  "approved_seam": "Existing credential-free v3-candidate Workflow static contracts; new independent Linux job consumes frozen base scripts-integration named check. Existing command runner behavior is reused.",
+  "failure_modes": [
+    "Required scripts gate absent on Linux",
+    "Scripts failure suppresses independent go-unit or E2E evidence",
+    "Candidate overrides frozen base policy or command bounds",
+    "Commands/timeout/output copied into workflow instead of consuming policy",
+    "Credentials/write permissions/cloud/publication introduced",
+    "Runner failure or cancellation loses identity/cleanup/artifact",
+    "Old default suite or serial E2E behavior changes"
+  ],
+  "before_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    ".github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    ".github/workflows/v3-candidate-regression.yml": "37a8998cfba6c3c0984eea6d27cd1e0d4563fa90adc585068ce97b8524397016",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "scripts/run-v3-candidate-check.py": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc",
+    "scripts/v3_candidate_workflow_contract_test.py": "99b8a7a4f8f373e23f9afcad62552fd4fadcf84b735dbd48b2f277270f1cf972"
+  },
+  "applicable_rules": [
+    "AGENTS.md"
+  ],
+  "applicable_FLOW": [],
+  "no_full_local_suite_rerun": true
+}

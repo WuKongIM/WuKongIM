@@ -1,0 +1,20 @@
+{
+  "complete": true,
+  "items": [
+    {
+      "service": "WuKongIM-Stable-APT-TEST-ONLY-a2f4de44a7c3",
+      "account": "tt",
+      "deleted": true,
+      "absence_exit_code": 44
+    },
+    {
+      "service": "WuKongIM-Stable-RPM-TEST-ONLY-a2f4de44a7c3",
+      "account": "tt",
+      "deleted": true,
+      "absence_exit_code": 44
+    }
+  ],
+  "target_removed": true,
+  "secure_erasure_claim": false,
+  "production_items_changed": false
+}

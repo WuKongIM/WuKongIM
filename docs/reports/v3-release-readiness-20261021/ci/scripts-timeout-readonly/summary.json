@@ -1,0 +1,28 @@
+{
+  "status": "diagnosis_with_observation_patch_ready",
+  "product_scripts_gate": "not_passed",
+  "root_cause_confidence": {
+    "aggregate_budget_exhaustion_on_mac": "confirmed",
+    "same_budget_impossible_on_all_linux": "not_established",
+    "duplicate_build_invocations": "confirmed_source_only",
+    "subtest_gate_bypass_examples": "confirmed_source_only",
+    "linux_cold_build_as_sole_cause": "not_established",
+    "single_hung_test": "not_supported_by_terminal_stacks"
+  },
+  "reviewed_source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "linux_source_sha": "753005853ea3253d9d1ce6c525a3c3ba8c2f5c09",
+  "identical_tree": "ad05497c99502a4d076bacb7dee150d10e939d28",
+  "proposal": "observation-patch/observation-json.patch",
+  "proposal_sha256": "d39d2a9884d063b8149169bd0d9f168b754314a238f463f9971a4eecbc3162b8",
+  "proposal_changes": "scripts job GOFLAGS -p=2 -json only; README and static contract",
+  "policy_runner_testselection_limits_changed": false,
+  "source_worktree_changed": false,
+  "tests": {
+    "static_red": "8 attempted, expected 1 failure before workflow delta",
+    "static_green": "8/8",
+    "AST_and_apply_check": "pass",
+    "Go_build_or_runtime": "not_run"
+  },
+  "remaining": "root-created new revision remote run to collect streamed test progress; no blind retry or prewarm",
+  "owned_live_processes": false
+}

@@ -1,11 +1,13 @@
 README.md
 additional-rule-source-hashes.json
 checks-before-isolated-repeat.json
+commit-receipt.json
 config-example-red-receipt.json
 config-example-red.log
 default-red-receipt.json
 default-red.log
 default-tests-first.patch
+delivery-summary.json
 evidence-excerpt.json
 extract-evidence.py
 failure-inventory.md
@@ -15,6 +17,19 @@ final-source.patch
 findings.md
 focused-green-receipt.json
 focused-green.log
+linux-scripts-gate/actionlint.log
+linux-scripts-gate/contracts-red.py.txt
+linux-scripts-gate/failure-inventory.json
+linux-scripts-gate/final-policy-selection.json
+linux-scripts-gate/green.log
+linux-scripts-gate/implementation-1.log
+linux-scripts-gate/named-checks/go-format.json
+linux-scripts-gate/named-checks/go-format.log
+linux-scripts-gate/named-checks/workflow-contracts.json
+linux-scripts-gate/named-checks/workflow-contracts.log
+linux-scripts-gate/red-receipt.json
+linux-scripts-gate/red.log
+linux-scripts-gate/validation.json
 local-shakeout-budget-red_test.go.txt
 named-checks-flow/flow-doc-contracts.json
 named-checks-flow/flow-doc-contracts.log
@@ -43,6 +58,7 @@ named-checks/go-unit.json
 named-checks/go-unit.log
 named-checks/go-vet.json
 named-checks/go-vet.log
+pr-body.md
 probe-v1-receipt.json
 probe-v1-repeat-receipt.json
 probe-v1-repeat.log
@@ -59,6 +75,7 @@ render-green.log
 render-red-receipt.json
 render-red.log
 run-flow-check.py
+run-linux-workflow-checks.py
 run-named-checks.py
 run-remaining-checks.py
 run-scripts-isolated.py
@@ -271,4 +288,5 @@ runner-repair/run-shakeout-once.final.py
 runner-repair/runner-final.patch
 runner-repair/runner.patch
 scripts-timeout-diagnosis.json
+shipping-final-source.patch
 vet-failure-inventory.json

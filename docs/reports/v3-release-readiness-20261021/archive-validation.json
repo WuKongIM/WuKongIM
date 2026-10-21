@@ -1,0 +1,15 @@
+{
+  "json_parse": "all valid except preserved original failed-read empty stdout",
+  "exceptions": [
+    {
+      "path": "packages/pr70-merge/merged-pr-read2.json",
+      "reason": "preserved empty stdout from failed GitHub GET; see companion stderr and merge receipts"
+    },
+    {
+      "path": "packages/pr70-merge/merged-pr.json",
+      "reason": "preserved empty stdout from failed GitHub GET; see companion stderr and merge receipts"
+    }
+  ],
+  "diff_check": "authored assessment, preparation report and evidence index passed; byte-exact imported logs, patches and upstream documents retain original whitespace",
+  "private_material_archive_scope": "public-receipt/key allowlists only; no persistent private directory copied"
+}

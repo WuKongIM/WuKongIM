@@ -1,0 +1,4 @@
+/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor
++ set -euo pipefail
++ umask 077
++ set +x

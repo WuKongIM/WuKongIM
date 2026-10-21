@@ -1,0 +1,15 @@
+{
+  "files": {
+    "docs/reports/2026-10-21-v3-release-readiness.md": "f288477f5609ac0c99b99f3de60586830e274d34e05cff6e71160f3e8be6e21e",
+    "docs/reports/2026-10-21-v3-stable-key-preparation.md": "ed56b2c159cd5c7bb54bf123887527886f4b94bb0ea2be79ae9faf2815691f78"
+  },
+  "patch_sha256": "ae7f0d6f9948e0b252c1a98bface9f5257135823a9202f99dff2f81a5d7da1c7",
+  "evidence_cutoff_utc": "2026-10-21T08:33:00Z",
+  "diff_check_pass": true,
+  "relative_links_existing": true,
+  "six_public_fingerprints_and_expiries_match_receipt": true,
+  "read_private_keys": false,
+  "accessed_keychain_or_nas": false,
+  "committed": false,
+  "other_repository_files_edited_by_this_task": false
+}

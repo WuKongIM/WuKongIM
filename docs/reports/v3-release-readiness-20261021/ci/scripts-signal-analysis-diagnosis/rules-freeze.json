@@ -1,0 +1,34 @@
+{
+  "source_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "applicable_path_discovery": {
+    "AGENTS.md": {
+      "present": true,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "FLOW.md": {
+      "present": false,
+      "sha256": null
+    },
+    "scripts/AGENTS.md": {
+      "present": false,
+      "sha256": null
+    },
+    "scripts/FLOW.md": {
+      "present": false,
+      "sha256": null
+    },
+    "scripts/cloud-sim/AGENTS.md": {
+      "present": false,
+      "sha256": null
+    },
+    "scripts/cloud-sim/FLOW.md": {
+      "present": false,
+      "sha256": null
+    }
+  },
+  "skills": [
+    "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "/Users/tt/.agents/skills/tdd/SKILL.md"
+  ],
+  "no_applicable_flow": true
+}

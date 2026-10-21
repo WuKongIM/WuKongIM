@@ -1,0 +1,665 @@
+diff --git a/.github/workflows/README.md b/.github/workflows/README.md
+index 21736a508..fffa0c445 100644
+--- a/.github/workflows/README.md
++++ b/.github/workflows/README.md
+@@ -19,7 +19,7 @@ authorization and the applicable budget.
+ | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | While armed, collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
+ | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
+ | `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
+-| `v3-candidate-regression.yml` | `Safety Automation - V3 Candidate Regression` | Runs the frozen `go-unit` named check, then serial migration, cross-node delivery, and self-chat E2E with one exact server binary on Linux |
++| `v3-candidate-regression.yml` | `Safety Automation - V3 Candidate Regression` | Runs independent frozen `go-unit` and `scripts-integration` named checks, plus serial migration and messaging E2E with one exact server binary on Linux |
+ | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
+ | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
+ | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
+@@ -243,13 +243,15 @@ source, the selected process E2E scenarios, their shared harness, or workflow
+ contracts change. Manual dispatch runs the selected ref once with no command
+ inputs. Both paths have only `contents: read`, credential-free exact-SHA
+ checkouts, no persistent Go cache, and no cloud or publication authority.
+-The named jobs are `Candidate default suite (go-unit)` and
+-`Candidate migration and messaging E2E`; each has a 35-minute bound, and the
+-second starts only after the first passes.
++The named jobs are `Candidate default suite (go-unit)`, `Candidate scripts integration`,
++and `Candidate migration and messaging E2E`. The default suite and E2E each have
++a 35-minute bound; E2E starts only after the default suite passes. The independent
++scripts job has a 20-minute job bound and runs even when the default suite or E2E
++fails, so either result cannot suppress the other check's evidence.
+ 
+-The first job freezes the PR event's exact base SHA, or the fetched `origin/main`
++Each named-check job freezes the PR event's exact base SHA, or the fetched `origin/main`
+ SHA for a manual run, and requires that revision to be an ancestor of the tested
+-commit. Its `go-unit` named check is read from that revision's
++commit. Its `go-unit` or `scripts-integration` named check is read from that revision's
+ `.github/review-agent/policy.json`. The Workflow consumes the command arguments,
+ working directory, timeout and combined output limit directly from that policy;
+ it does not redefine the check or its path selector. `GOFLAGS=-p=2` bounds package
+@@ -258,9 +260,12 @@ candidate command runner starts each command in its own session, then cleans all
+ live members of that SID, including server nodes with separate process groups.
+ The retained receipt binds source SHA, policy SHA and
+ digest, command, environment, duration, exit status and bounded combined
+-stdout/stderr. The workflow's Python static contracts run before the named check.
++stdout/stderr. The workflow's Python static contracts run before each named check.
++The scripts job runs the complete policy command once on Linux with its original
++test, parallelism and outer limits; it adds no retry, test filter or deadline
++override. A local timeout remains retained evidence even if this Linux check passes.
+ 
+-The second job builds one `e2e`-tagged server from the same exact source SHA.
++The process E2E job builds one `e2e`-tagged server from the same exact source SHA.
+ Every scenario uses that frozen `WK_E2E_BINARY`, with its SHA256 checked before
+ each scenario and after the last. It runs the complete default package tests
+ for `ordinary_history` (all five migration topologies, serial subtests),
+@@ -281,12 +286,12 @@ repeated cancellation signals cannot interrupt that attempt. Failed process
+ enumeration remains unverified, and nonzero survivors or unverified cleanup
+ prevent a passing result. There is no host-wide process-name kill.
+ 
+-Both jobs reject tracked-source mutation and attempt evidence upload after
++All three jobs reject tracked-source mutation and attempt evidence upload after
+ success, failure, or cancellation, retaining each exact run/attempt for 14 days.
+ SIGKILL, hard job cancellation or runner loss can prevent cleanup or upload;
+ missing or incomplete cleanup/artifacts are inconclusive, never zero-survivor
+ proof. A new PR revision cancels the older PR run; cancellation is never
+-passing evidence. Inspect the exact source SHA, run attempt, both job results,
++passing evidence. Inspect the exact source SHA, run attempt, all three job results,
+ and receipts before reusing a result. Preserve a failure and diagnose its cause
+ before any deliberate rerun. A pass covers this candidate regression scope;
+ performance gates, released SDK acceptance, long-duration stability and signed
+diff --git a/.github/workflows/v3-candidate-regression.yml b/.github/workflows/v3-candidate-regression.yml
+index c4d9e1cda..00ac3fc16 100644
+--- a/.github/workflows/v3-candidate-regression.yml
++++ b/.github/workflows/v3-candidate-regression.yml
+@@ -127,6 +127,96 @@ jobs:
+           if-no-files-found: error
+           retention-days: 14
+ 
++  scripts-integration:
++    name: Candidate scripts integration
++    runs-on: ubuntu-24.04
++    timeout-minutes: 20
++    env:
++      GOWORK: "off"
++      GOFLAGS: "-p=2"
++    steps:
++      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
++        with:
++          ref: ${{ github.sha }}
++          fetch-depth: 0
++          persist-credentials: false
++      - name: Freeze source and named-check authority
++        id: identity
++        env:
++          SOURCE_SHA: ${{ github.sha }}
++          BASE_SHA: ${{ github.event.pull_request.base.sha }}
++          EVIDENCE_DIR: ${{ runner.temp }}/v3-candidate-${{ github.run_id }}-${{ github.run_attempt }}/scripts
++        shell: bash
++        run: |
++          set -euo pipefail
++          mkdir -p "$EVIDENCE_DIR"
++          printf 'EVIDENCE_DIR=%s\n' "$EVIDENCE_DIR" >> "$GITHUB_ENV"
++          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
++          test -z "$(git status --porcelain --untracked-files=no)"
++          policy_sha="${BASE_SHA:-$(git rev-parse origin/main)}"
++          [[ "$policy_sha" =~ ^[0-9a-f]{40}$ ]]
++          git merge-base --is-ancestor "$policy_sha" HEAD
++          git show "$policy_sha:.github/review-agent/policy.json" > "$EVIDENCE_DIR/policy.json"
++          policy_sha256="$(sha256sum "$EVIDENCE_DIR/policy.json" | cut -d ' ' -f 1)"
++          jq -n --arg source_sha "$SOURCE_SHA" --arg policy_sha "$policy_sha" \
++            --arg policy_sha256 "$policy_sha256" --arg event "$GITHUB_EVENT_NAME" \
++            --arg run_id "$GITHUB_RUN_ID" --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
++            '{source_sha:$source_sha,policy_sha:$policy_sha,policy_sha256:$policy_sha256,event:$event,run_id:$run_id,run_attempt:$run_attempt}' \
++            > "$EVIDENCE_DIR/identity.json"
++      - name: Validate workflow static contracts
++        run: python3 scripts/v3_candidate_workflow_contract_test.py
++      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5
++        with:
++          go-version-file: go.mod
++          cache: false
++      - name: Run frozen scripts-integration named check once
++        shell: bash
++        run: |
++          set -euo pipefail
++          go version > "$EVIDENCE_DIR/go-version.txt"
++          python3 - <<'PY'
++          import json
++          import os
++          from pathlib import Path
++          import importlib.util
++
++          evidence = Path(os.environ["EVIDENCE_DIR"])
++          root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
++          policy = json.loads((evidence / "policy.json").read_text())
++          check = policy["trusted_checks"]["scripts-integration"]
++          arguments = check["arguments"]
++          working_dir = check["working_dir"]
++          timeout_seconds = check["timeout_seconds"]
++          max_output_bytes = check["max_output_bytes"]
++          if (not isinstance(arguments, list) or not arguments or
++                  not all(isinstance(arg, str) and arg for arg in arguments) or
++                  not isinstance(working_dir, str) or
++                  type(timeout_seconds) is not int or timeout_seconds <= 0 or
++                  type(max_output_bytes) is not int or max_output_bytes <= 0):
++              raise SystemExit("invalid frozen scripts-integration policy")
++          cwd = (root / working_dir).resolve()
++          if not cwd.is_relative_to(root) or not cwd.is_dir():
++              raise SystemExit("scripts-integration working directory escapes checkout")
++          spec = importlib.util.spec_from_file_location("candidate_runner", root / "scripts/run-v3-candidate-check.py")
++          runner = importlib.util.module_from_spec(spec)
++          spec.loader.exec_module(runner)
++          result = runner.run_command(arguments, cwd, evidence, timeout_seconds, max_output_bytes,
++                                      metadata={"named_check": "scripts-integration", "working_dir": working_dir,
++                                                "environment": {"GOWORK": "off", "GOFLAGS": os.environ["GOFLAGS"]}})
++          print(json.dumps(result))
++          raise SystemExit(result["wrapper_exit_code"])
++          PY
++      - name: Reject tracked-tree mutation
++        if: always()
++        run: git diff --exit-code HEAD --
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        if: always()
++        with:
++          name: v3-candidate-scripts-${{ github.run_id }}-${{ github.run_attempt }}
++          path: ${{ env.EVIDENCE_DIR }}
++          if-no-files-found: error
++          retention-days: 14
++
+   process-e2e:
+     name: Candidate migration and messaging E2E
+     needs: default-suite
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0b9fc845d..f9612fada 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,12 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Raise the local chat-lifecycle shakeout's default SEND budget to 500/s so its
++  2,500-user bootstrap can complete mandatory conversation activity before
++  expiry; retain all latency and correctness thresholds. / 本地聊天生命周期预检
++  默认发送预算提高至 500 条/秒，使 2,500 用户的启动会话活动能在到期前完成；
++  延迟和正确性门槛保持不变。
++
+ - Stop nested MQTT subscription cleanup when the original caller is canceled,
+   before further contention reads or source sealing; preserve owner fencing
+   and deadlines. / MQTT 订阅清理的嵌套操作及时检查原始调用方取消，停止后续争用
+diff --git a/configs/wkbench/chat-lifecycle/README.md b/configs/wkbench/chat-lifecycle/README.md
+index ed98ab6ee..1ef9d2323 100644
+--- a/configs/wkbench/chat-lifecycle/README.md
++++ b/configs/wkbench/chat-lifecycle/README.md
+@@ -9,9 +9,14 @@ credentials in YAML. `local-shakeout.yaml` keeps the same 12 logical Slot Raft G
+ physical hash slots, replicas 3/3, real TCP traffic, and zero-coverage paginated
+ conversation sync at smaller scale. Its native-process default keeps 2,500
+ simultaneously online users, 500 fixed groups including one 100,000-member
+-group, and 100 SEND/s. This is the highest sustained profile validated on the
+-shared developer workstation; 5,000 users completed login and sync but made
+-the three service nodes and three workers contend on one local filesystem,
++group, and 500 SEND/s with a two-second, 1,000-message burst budget. The former
++100 SEND/s default could not admit its mandatory bootstrap conversation bursts
++before the unchanged five-minute eligibility window. A fixed-clock regression
++checks the configured 500 SEND/s grant budget through that boundary for all three
++workers; the Linux regression also uses 500 SEND/s. Neither check establishes a
++particular developer workstation's sustained capacity: the full local shakeout
++must still run there with the unchanged 400 ms hot SENDACK P99 and correctness
++thresholds. Three service nodes and three workers share one local filesystem,
+ which is not representative of the four-host cloud topology. It is not formal
+ evidence.
+ 
+diff --git a/configs/wkbench/chat-lifecycle/local-shakeout.yaml b/configs/wkbench/chat-lifecycle/local-shakeout.yaml
+index 959618f9d..52bc3d27d 100644
+--- a/configs/wkbench/chat-lifecycle/local-shakeout.yaml
++++ b/configs/wkbench/chat-lifecycle/local-shakeout.yaml
+@@ -8,14 +8,14 @@ workload:
+   online_users: 2500
+   bootstrap_logins_per_second: 200
+   new_users_per_day: 250000
+-  send_rate_per_second: 100
++  send_rate_per_second: 500
+   traffic: {person_percent: 90, group_percent: 10}
+   hot_set: {person_channels: 2000, group_channels: 500}
+   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
+   runtime_sampling: {every: 1m, size: 12}
+   sync: {completed_coverage: 0, max_conversations: 500}
+   burst_credit: 2s
+-  max_global_burst: 200
++  max_global_burst: 1000
+   max_channels_per_node: 50000
+   login: {new_percent: 80, returning_percent: 20}
+   sessions:
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 01876a836..83d7cec27 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1826,6 +1826,13 @@ specification, runbook, report, or module documentation; link to them when neede
+   report underdelivery instead of catching up. Qualification after this harness
+   repair does not establish performance under the former synchronized bursts.
+   See [nightly diagnosis](../reports/2026-10-15-nightly-chat-arrivals.md).
++- A reduced chat-lifecycle SEND rate must still cover the online population's
++  mandatory bootstrap relationship activity inside its eligibility window.
++  Reducing only the rate can make a local profile intrinsically undeliverable,
++  even with immediate ACKs and no host contention. Keep obligations and expiry
++  rules intact; verify the configured worker shares across the deadline boundary.
++  A maximum-work estimate is a conservative support envelope, not proof that
++  every configuration outside it is impossible.
+ - A physical commit collection timeout ends waiting for new arrivals. After an
+   owner scheduling pause, one captured bounded set of queued requests may still
+   join the cohort under the existing request/record/byte and lane-fairness limits;
+diff --git a/docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md b/docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md
+index abe39e012..38ddcd1a7 100644
+--- a/docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md
++++ b/docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md
+@@ -118,6 +118,14 @@ Use a fresh run directory. The helper builds binaries and owns three service
+ processes, three workers, three host-metrics processes, the coordinator, PID
+ files, logs, report output, and graceful cleanup.
+ 
++The default keeps 2,500 online sessions and offers 500 SEND/s, with the existing
++two-second burst credit yielding a 1,000-message burst budget. This budget lets
++the fixed bootstrap scenario clear its mandatory initial conversations inside
++the unchanged five-minute eligibility window; the former 100 SEND/s default
++could not. The 400 ms hot SENDACK P99 and correctness thresholds still apply.
++A fixed-clock grant test and the Linux 500 SEND/s regression do not prove the
++local workstation can sustain this load; retain any failure from this run.
++
+ ```bash
+ export WK_BENCH_API_TOKEN='replace-local-bench-token'
+ export WK_BENCH_WORKER_TOKEN='replace-local-worker-token'
+diff --git a/internal/bench/chatlifecycle/config_examples_test.go b/internal/bench/chatlifecycle/config_examples_test.go
+index f20df4ebb..7e6a27c7a 100644
+--- a/internal/bench/chatlifecycle/config_examples_test.go
++++ b/internal/bench/chatlifecycle/config_examples_test.go
+@@ -46,7 +46,8 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
+ 	}
+ 	if local.Profile != ProfileLocal || local.Mode != ModeSoak || local.Workload.Sync.CompletedCoverage != 0 ||
+ 		local.Workload.OnlineUsers != 2_500 || local.Workload.BootstrapLoginsPerSecond != 200 ||
+-		local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
++		local.Workload.NewUsersPerDay != 250_000 || local.Workload.SendRatePerSecond != 500 ||
++		local.Workload.MaxGlobalBurst != 1_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
+ 		local.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 ||
+ 		local.Thresholds.Latency.HotSendACK.P99 != 400*time.Millisecond ||
+ 		local.Workload.MaxChannelsPerNode != 50_000 ||
+diff --git a/internal/bench/chatlifecycle/local_shakeout_budget_test.go b/internal/bench/chatlifecycle/local_shakeout_budget_test.go
+new file mode 100644
+index 000000000..f5d2b10cd
+--- /dev/null
++++ b/internal/bench/chatlifecycle/local_shakeout_budget_test.go
+@@ -0,0 +1,184 @@
++package chatlifecycle
++
++import (
++	"context"
++	"math"
++	"testing"
++	"time"
++)
++
++// Failure cases: a supported default cannot admit its mandatory bootstrap
++// activity before the unchanged eligibility deadline; only one worker is
++// covered; a fixed-clock test skips SEND deadlines; or the historical low-rate
++// failure is hidden by a changed runtime guard. This exercises the actual worker
++// factory and grant allocator with immediate fake ACKs, not product RECV or
++// latency correctness. Clock advancement and I/O are deterministic test seams.
++func TestLocalShakeoutBootstrapGrantBudget(t *testing.T) {
++	for _, probe := range []struct {
++		name           string
++		workerID       uint64
++		historicalRate bool
++	}{
++		{"default_worker_0", 0, false}, {"default_worker_1", 1, false},
++		{"default_worker_2", 2, false}, {"historical_100_underbudget", 2, true},
++	} {
++		t.Run(probe.name, func(t *testing.T) {
++			cfg, err := LoadConfig("../../../configs/wkbench/chat-lifecycle/local-shakeout.yaml")
++			if err != nil {
++				t.Fatal(err)
++			}
++			if probe.historicalRate {
++				cfg.Workload.SendRatePerSecond = 100
++				cfg.Workload.MaxGlobalBurst = 200
++			}
++			clock := &sessionFakeClock{now: time.Unix(1700000000, 0)}
++			sessions := &engineFakeFactory{autoAck: true}
++			factory := engineWorkerGenerationFactory{clock: clock,
++				newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) { return sessions, nil },
++				newSyncer:         func(WorkerAssignment) (ConversationSyncer, error) { return engineSyncer{}, nil },
++			}
++			assignments := make([]CoordinatorAssignment, 3)
++			for i := range assignments {
++				assignments[i] = CoordinatorAssignment{WorkerAssignment: WorkerAssignment{
++					WorkerFence: WorkerFence{RunID: cfg.RunID, AssignmentID: "bootstrap-budget-regression", Generation: 1},
++					WorkerID:    uint64(i), WorkerCount: 3, CoordinatorGrants: true, Config: cfg,
++				}, Partition: CoordinatorPartition{RateWeight: 1}}
++			}
++			worker, err := factory.New(assignments[probe.workerID].WorkerAssignment)
++			if err != nil {
++				t.Fatal(err)
++			}
++			g := worker.(*engineWorkerGeneration)
++			if err := g.engine.StartGeneration(context.Background(), 1); err != nil {
++				t.Fatal(err)
++			}
++			t.Cleanup(func() { g.Stop() })
++			for second := 0; second < 60 && !g.TrafficReady(); second++ {
++				clock.Set(clock.Now().Add(time.Second))
++				if err := g.step(context.Background(), clock.Now()); err != nil {
++					t.Fatalf("bootstrap step: %v", err)
++				}
++				g.engine.loginOps.Wait()
++				if err := g.step(context.Background(), clock.Now()); err != nil {
++					t.Fatalf("bootstrap settle: %v", err)
++				}
++			}
++			if !g.TrafficReady() {
++				t.Fatal("bootstrap did not complete")
++			}
++			plan, err := NewCoordinatorGrantPlan(assignments)
++			if err != nil {
++				t.Fatal(err)
++			}
++			origin := clock.Now()
++			for second := 0; second <= 360; second++ {
++				now := origin.Add(time.Duration(second) * time.Second)
++				clock.Set(now)
++				if second > 0 {
++					if err := g.step(context.Background(), now); err != nil {
++						t.Fatalf("second=%d tick: %v", second, err)
++					}
++					g.engine.loginOps.Wait()
++					if err := g.step(context.Background(), now); err != nil {
++						t.Fatalf("second=%d settle: %v", second, err)
++					}
++				}
++				before := localBootstrapGrantState(t, g, now)
++				grant, err := plan.Tick([3]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
++				if err != nil {
++					t.Fatal(err)
++				}
++				result, err := g.ApplyGrant(context.Background(), grant.Released[probe.workerID])
++				if err != nil {
++					after, snapshotErr := g.engine.Snapshot()
++					if snapshotErr != nil {
++						t.Fatal(snapshotErr)
++					}
++					if probe.historicalRate && result.Admitted && workerRuntimeFailureCode(err) == RuntimeFailureUnderDelivery && after.ActivityUnderDelivered == 1 && after.HarnessInvalid == 1 && before.Activity > after.ActivityCurrent {
++						t.Logf("historical budget rejected at virtual_second=%d sequence=%d remaining_activity=%d", second, grant.Sequence, after.ActivityCurrent)
++						return
++					}
++					t.Fatalf("second=%d sequence=%d released=%d admitted=%v runtime=%s err=%v before=%+v after_activity=%d after_under=%d harness=%d", second, grant.Sequence, grant.Released[probe.workerID], result.Admitted, workerRuntimeFailureCode(err), err, before, after.ActivityCurrent, after.ActivityUnderDelivered, after.HarnessInvalid)
++				}
++				if !probe.historicalRate && second == 240 && before.Activity != 0 {
++					t.Fatalf("default has not drained bootstrap activity before its eligibility deadlines: %+v", before)
++				}
++				if second == 0 {
++					t.Logf("after_first_grant=%+v", localBootstrapGrantState(t, g, now))
++				}
++				if second%60 == 0 {
++					t.Logf("second=%d before=%+v", second, before)
++				}
++				waitForEngineCompletions(t, g.engine, "grant")
++				for tick := 1; tick <= 100; tick++ {
++					clock.Set(now.Add(time.Duration(tick) * workerTrafficAdvanceCadence))
++					if _, err := g.engine.AdvanceContext(context.Background(), clock.Now()); err != nil {
++						t.Fatalf("second=%d subtick=%d advance: %v", second, tick, err)
++					}
++					waitForEngineCompletions(t, g.engine, "subtick")
++				}
++			}
++			if probe.historicalRate {
++				t.Fatal("historical underbudget profile no longer exposes its expired mandatory activity")
++			}
++			final, err := g.engine.Snapshot()
++			if err != nil {
++				t.Fatal(err)
++			}
++			if final.ActivityUnderDelivered != 0 || final.HarnessInvalid != 0 {
++				t.Fatalf("default retained invalid engine evidence: underdelivery=%d harness=%d", final.ActivityUnderDelivered, final.HarnessInvalid)
++			}
++			t.Logf("default admitted through virtual360s; bootstrap was empty at240s; underdelivery=%d harness=%d", final.ActivityUnderDelivered, final.HarnessInvalid)
++		})
++	}
++}
++
++type localBootstrapGrantStateState struct {
++	Activity, Active, Online, Expired, EligibleActivity, DueActivity                              int
++	EarliestDue, EarliestDeadline, MinDue, MaxDue, MinDeadline, MaxDeadline, CanaryUnavailableAge time.Duration
++	HeadSenderEligible, HeadSenderGenerationEligible                                              bool
++}
++
++func localBootstrapGrantState(t *testing.T, g *engineWorkerGeneration, now time.Time) localBootstrapGrantStateState {
++	t.Helper()
++	result := make(chan localBootstrapGrantStateState, 1)
++	if err := g.engine.enqueueBlocking(engineCommand{run: func() {
++		e := g.engine
++		s := localBootstrapGrantStateState{Activity: len(e.activity), Active: len(e.activeChannels), Online: e.sessions.Counts().Online, Expired: int(e.schedulerMetrics.expired.Load())}
++		if !e.canaryUnavailableSince.IsZero() {
++			s.CanaryUnavailableAge = now.Sub(e.canaryUnavailableSince)
++		}
++		for i, a := range e.activity {
++			due, deadline := a.due.Sub(now), a.eligibilityDeadline.Sub(now)
++			if i == 0 || due < s.MinDue {
++				s.MinDue = due
++			}
++			if i == 0 || due > s.MaxDue {
++				s.MaxDue = due
++			}
++			if i == 0 || deadline < s.MinDeadline {
++				s.MinDeadline = deadline
++			}
++			if i == 0 || deadline > s.MaxDeadline {
++				s.MaxDeadline = deadline
++			}
++			if !a.due.After(now) {
++				s.DueActivity++
++			}
++			if e.sessions.sendEligibleAt(a.intent.Logical.Sender, now) {
++				s.EligibleActivity++
++			}
++		}
++		if len(e.activity) > 0 {
++			a := e.activity[0]
++			s.EarliestDue = a.due.Sub(now)
++			s.EarliestDeadline = a.eligibilityDeadline.Sub(now)
++			s.HeadSenderEligible = e.sessions.sendEligibleAt(a.intent.Logical.Sender, now)
++			s.HeadSenderGenerationEligible = !a.senderLoginBound || e.sessions.sendEligibleLoginAt(a.intent.Logical.Sender, a.senderLoginOrdinal, now)
++		}
++		result <- s
++	}}); err != nil {
++		t.Fatal(err)
++	}
++	return <-result
++}
+diff --git a/pkg/transport/internal/buffer/retained_test.go b/pkg/transport/internal/buffer/retained_test.go
+index 89effcf60..7a40a405b 100644
+--- a/pkg/transport/internal/buffer/retained_test.go
++++ b/pkg/transport/internal/buffer/retained_test.go
+@@ -4,7 +4,8 @@ import "testing"
+ 
+ func TestDefaultSlabsBoundRoundingOverhead(t *testing.T) {
+ 	for n := 512; n <= 1<<20; n++ {
+-		for _, class := range DefaultSlabPool.classes {
++		for i := range DefaultSlabPool.classes {
++			class := &DefaultSlabPool.classes[i]
+ 			if class.size < n {
+ 				continue
+ 			}
+diff --git a/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh b/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh
+index ee6e9fe5b..4608a450d 100755
+--- a/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh
++++ b/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh
+@@ -7,7 +7,7 @@ RUN_DIR=""
+ BASE_PORT=15000
+ READY_TIMEOUT=120
+ STOP_AFTER=0
+-SEND_RATE=100
++SEND_RATE=500
+ MEASURE_SECONDS=0
+ WARMUP_SECONDS=60
+ HOT_SENDACK_P99_MS=400
+@@ -76,7 +76,7 @@ usage() {
+ #   --base-port PORT    First port in a reserved 64-port range (default 15000).
+ #   --ready-timeout S   Readiness deadline in seconds (default 120).
+ #   --stop-after S      Request graceful coordinator stop after S seconds; 0 waits.
+-#   --send-rate N       Offered SEND rate per second (default 100).
++#   --send-rate N       Offered SEND rate per second (default 500).
+ #   --measure-seconds S After warmup, measure for S seconds; 0 keeps legacy mode.
+ #   --warmup-seconds S  Traffic warmup before a measured step (default 60).
+ #   --drain-timeout S   Maximum graceful drain in seconds (default 90).
+@@ -366,8 +366,8 @@ sed \
+ 	-e "s/__WK_WORKER_1__/$(worker_port 1)/g" -e "s/__WK_WORKER_2__/$(worker_port 2)/g" -e "s/__WK_WORKER_3__/$(worker_port 3)/g" \
+ 	-e "s/__WK_HOST_METRICS_1__/$(host_metrics_port 1)/g" -e "s/__WK_HOST_METRICS_2__/$(host_metrics_port 2)/g" -e "s/__WK_HOST_METRICS_3__/$(host_metrics_port 3)/g" \
+ 	-e "s/__WK_LOAD_HOST_METRICS__/$(load_host_metrics_port)/g" \
+-	-e "s/send_rate_per_second: 100/send_rate_per_second: $SEND_RATE/" \
+-	-e "s/max_global_burst: 200/max_global_burst: $((SEND_RATE * 2))/" \
++	-e "s/send_rate_per_second: 500/send_rate_per_second: $SEND_RATE/" \
++	-e "s/max_global_burst: 1000/max_global_burst: $((SEND_RATE * 2))/" \
+ 	-e "s/hot_sendack: {p99: 400ms, p999: 1s}/hot_sendack: {p99: ${HOT_SENDACK_P99_MS}ms, p999: 1s}/" \
+   "$ROOT_DIR/configs/wkbench/chat-lifecycle/local-shakeout.yaml" >"$LIFECYCLE_CONFIG"
+ 
+diff --git a/scripts/v3_candidate_workflow_contract_test.py b/scripts/v3_candidate_workflow_contract_test.py
+index fa3e3d948..5ebe5c043 100644
+--- a/scripts/v3_candidate_workflow_contract_test.py
++++ b/scripts/v3_candidate_workflow_contract_test.py
+@@ -30,11 +30,11 @@ class CandidateWorkflowContract(unittest.TestCase):
+                        'gh workflow run', 'gh pr ', 'retry:'):
+             self.assertNotIn(denied, text)
+         actions = re.findall(r'uses:\s+([^\s]+)', text)
+-        self.assertEqual(len(actions), 6)
++        self.assertEqual(len(actions), 9)
+         for action in actions:
+             self.assertRegex(action, r'^actions/(checkout|setup-go|upload-artifact)@[0-9a-f]{40}$')
+-        self.assertEqual(text.count('persist-credentials: false'), 2)
+-        self.assertEqual(text.count('cache: false'), 2)
++        self.assertEqual(text.count('persist-credentials: false'), 3)
++        self.assertEqual(text.count('cache: false'), 3)
+ 
+     def test_frozen_named_check_enforces_policy_limits(self):
+         text = self.source
+@@ -50,6 +50,38 @@ class CandidateWorkflowContract(unittest.TestCase):
+         self.assertIn('time.monotonic()', self.runner)
+         self.assertIn('raise SystemExit', text)
+ 
++    def test_scripts_gate_is_independent_and_consumes_frozen_base_policy(self):
++        match = re.search(r'^  scripts-integration:\n(.*?)(?=^  [a-z0-9-]+:|\Z)',
++                          self.source, re.MULTILINE | re.DOTALL)
++        self.assertIsNotNone(match, 'missing independent Linux scripts-integration job')
++        job = match.group(1)
++        self.assertIn('name: Candidate scripts integration', job)
++        self.assertIn('runs-on: ubuntu-24.04', job)
++        self.assertIn('timeout-minutes: 20', job)
++        self.assertNotIn('needs:', job)
++        self.assertIn('BASE_SHA: ${{ github.event.pull_request.base.sha }}', job)
++        self.assertIn('policy_sha="${BASE_SHA:-$(git rev-parse origin/main)}"', job)
++        self.assertIn('git merge-base --is-ancestor "$policy_sha" HEAD', job)
++        self.assertIn('git show "$policy_sha:.github/review-agent/policy.json"', job)
++        self.assertIn('policy["trusted_checks"]["scripts-integration"]', job)
++        for field in ('arguments', 'working_dir', 'timeout_seconds', 'max_output_bytes'):
++            self.assertIn('check["' + field + '"]', job)
++        self.assertIn('cwd.is_relative_to(root)', job)
++        self.assertIn('runner.run_command(arguments, cwd, evidence, timeout_seconds, max_output_bytes,', job)
++        self.assertIn('metadata={"named_check": "scripts-integration"', job)
++        self.assertIn('raise SystemExit(result["wrapper_exit_code"])', job)
++        self.assertIn('GOFLAGS: "-p=2"', job)
++        self.assertIn('v3-candidate-scripts-${{ github.run_id }}-${{ github.run_attempt }}', job)
++        self.assertIn('source_sha', job)
++        self.assertIn('policy_sha256', job)
++        self.assertEqual(job.count('if: always()'), 2)
++        self.assertNotIn('go test', job)
++        self.assertNotIn('-timeout=', job)
++        self.assertNotIn('-run ', job)
++        # The existing default suite still exclusively controls the E2E dependency.
++        self.assertEqual(self.source.count('needs: default-suite'), 1)
++        self.assertNotIn('needs: scripts-integration', self.source)
++
+     def test_cleanup_covers_only_owned_session_and_fails_closed(self):
+         text = self.runner
+         self.assertIn('session_members', text)
+@@ -85,10 +117,10 @@ class CandidateWorkflowContract(unittest.TestCase):
+ 
+     def test_source_failure_and_upload_evidence(self):
+         text = self.source
+-        self.assertEqual(text.count('ref: ${{ github.sha }}'), 2)
+-        self.assertEqual(text.count('git diff --exit-code HEAD --'), 2)
+-        self.assertEqual(text.count('if: always()'), 4)
+-        self.assertEqual(text.count('retention-days: 14'), 2)
++        self.assertEqual(text.count('ref: ${{ github.sha }}'), 3)
++        self.assertEqual(text.count('git diff --exit-code HEAD --'), 3)
++        self.assertEqual(text.count('if: always()'), 6)
++        self.assertEqual(text.count('retention-days: 14'), 3)
+         self.assertIn('source_sha', text)
+         self.assertIn('policy_sha256', text)
+         self.assertIn('binary.sha256', text)
+diff --git a/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go b/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
+index f1597a496..a8fb4542b 100644
+--- a/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
++++ b/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
+@@ -156,6 +156,12 @@ cat "$FAKE_PS_FIXTURE"
+ }
+ 
+ func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *testing.T) {
++	for _, rate := range []int{0, 400} {
++		t.Run(fmt.Sprintf("send_rate_%d", rate), func(t *testing.T) { testShakeoutBuildWindowAndRenderedPorts(t, rate) })
++	}
++}
++
++func testShakeoutBuildWindowAndRenderedPorts(t *testing.T, rate int) {
+ 	root := repoRoot(t)
+ 	testRoot := t.TempDir()
+ 	scriptsDir := filepath.Join(testRoot, "scripts")
+@@ -206,7 +212,7 @@ commit_coordinator_shards = 1
+ 	}
+ 	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
+ timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
+-workload: {send_rate_per_second: 100, max_global_burst: 200}
++workload: {send_rate_per_second: 500, max_global_burst: 1000}
+ thresholds:
+   latency:
+     hot_sendack: {p99: 400ms, p999: 1s}
+@@ -264,7 +270,11 @@ fi
+ 		}
+ 	}
+ 	runDir := filepath.Join(testRoot, "run")
+-	command := exec.Command("bash", shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000")
++	args := []string{shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000"}
++	if rate > 0 {
++		args = append(args, "--send-rate", strconv.Itoa(rate))
++	}
++	command := exec.Command("bash", args...)
+ 	command.Dir = testRoot
+ 	command.Env = append(os.Environ(),
+ 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+@@ -302,6 +312,16 @@ fi
+ 		t.Fatalf("runtime-defaults node config removed unrelated setting:\n%s", renderedNode)
+ 	}
+ 	rendered := readFile(t, filepath.Join(runDir, "chat-lifecycle.yaml"))
++	expectedRate := rate
++	if expectedRate == 0 {
++		expectedRate = 500
++	}
++	if identity["offered_send_rate_per_second"] != strconv.Itoa(expectedRate) {
++		t.Fatalf("identity rate=%q; want rendered rate %d", identity["offered_send_rate_per_second"], expectedRate)
++	}
++	if want := fmt.Sprintf("workload: {send_rate_per_second: %d, max_global_burst: %d}", expectedRate, expectedRate*2); !strings.Contains(rendered, want) {
++		t.Fatalf("rendered grant budget missing %q: %s", want, rendered)
++	}
+ 	for _, want := range []string{
+ 		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
+ 		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
+diff --git a/scripts/wukongim_three_node_chat_lifecycle_script_test.go b/scripts/wukongim_three_node_chat_lifecycle_script_test.go
+index bbf5891c8..3c2384390 100644
+--- a/scripts/wukongim_three_node_chat_lifecycle_script_test.go
++++ b/scripts/wukongim_three_node_chat_lifecycle_script_test.go
+@@ -469,3 +469,18 @@ wkbench_host_block_io_available{field="read_write_split",physical_device="unavai
+ 		})
+ 	}
+ }
++
++// The helper must render the same affordable bootstrap budget as the YAML;
++// this no-background dry run also checks that the documented default is real.
++func TestChatLifecycleShakeoutDefaultSendBudget(t *testing.T) {
++	root := repoRoot(t)
++	cmd := exec.Command("bash", "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh", "--dry-run", "--run-dir", filepath.Join(t.TempDir(), "run"))
++	cmd.Dir = root
++	output, err := cmd.CombinedOutput()
++	if err != nil {
++		t.Fatalf("dry run: %v\n%s", err, output)
++	}
++	if !strings.Contains(string(output), "offered_send_rate_per_second=500") {
++		t.Fatalf("default budget is not 500 SEND/s: %s", output)
++	}
++}

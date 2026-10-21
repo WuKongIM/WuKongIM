@@ -14,3 +14,16 @@
 
 归档只列小文本、收据、代码和日志，排除专用 `go-cache` 与任何二进制。
 历史首红和两次 scripts 超时完整保留。
+
+## 提交与后续入口
+
+最终提交 `0672c115950f65e6d92381aa5b3ea9f0a20fc790` 包含14文件。
+`delivery-summary.json` / `commit-receipt.json` 是提交时状态；
+`shipping-final-source.patch` 是最终完整差异。`final-check-summary.json`
+和 `final-source.patch` 保留增加 Linux job 前的11文件阶段，不冒充最终diff。
+
+增加的独立 Linux scripts job 的先红/绿、Actionlint与 named checks 在
+`linux-scripts-gate/`。它读取未改变的 frozen base policy，全量检查不加筛选、
+重试或时限覆盖；现有 default/E2E job 块逐字保持不变。
+新的30分钟实机运行在相邻 `local-shakeout-0672c1159-500/`，本目录只记录
+启动信息，运行终局单独归档。原始100SEND/s失败和两次本机scripts超时均保留。

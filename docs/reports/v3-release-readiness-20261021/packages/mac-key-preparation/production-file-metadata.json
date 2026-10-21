@@ -1,0 +1,139 @@
+{
+  "root": "/Users/tt/Library/Application Support/WuKongIM/stable-signing",
+  "permissions_verified": true,
+  "private_contents_exported": false,
+  "entries": [
+    {
+      "path": ".",
+      "type": "directory",
+      "mode": "0o700",
+      "size": null
+    },
+    {
+      "path": "apt",
+      "type": "directory",
+      "mode": "0o700",
+      "size": null
+    },
+    {
+      "path": "apt/current-secret-subkey.b64",
+      "type": "file",
+      "mode": "0o600",
+      "size": 4276
+    },
+    {
+      "path": "apt/full-secret-backup.gpg",
+      "type": "file",
+      "mode": "0o600",
+      "size": 6516
+    },
+    {
+      "path": "apt/revocation.rev",
+      "type": "file",
+      "mode": "0o600",
+      "size": 1620
+    },
+    {
+      "path": "public",
+      "type": "directory",
+      "mode": "0o700",
+      "size": null
+    },
+    {
+      "path": "public/apt-current-proof.bin",
+      "type": "file",
+      "mode": "0o600",
+      "size": 48
+    },
+    {
+      "path": "public/apt-current-proof.sig",
+      "type": "file",
+      "mode": "0o600",
+      "size": 438
+    },
+    {
+      "path": "public/apt-next-proof.bin",
+      "type": "file",
+      "mode": "0o600",
+      "size": 48
+    },
+    {
+      "path": "public/apt-next-proof.sig",
+      "type": "file",
+      "mode": "0o600",
+      "size": 438
+    },
+    {
+      "path": "public/apt-stable.asc",
+      "type": "file",
+      "mode": "0o600",
+      "size": 4772
+    },
+    {
+      "path": "public/rpm-current-proof.bin",
+      "type": "file",
+      "mode": "0o600",
+      "size": 48
+    },
+    {
+      "path": "public/rpm-current-proof.sig",
+      "type": "file",
+      "mode": "0o600",
+      "size": 438
+    },
+    {
+      "path": "public/rpm-next-proof.bin",
+      "type": "file",
+      "mode": "0o600",
+      "size": 48
+    },
+    {
+      "path": "public/rpm-next-proof.sig",
+      "type": "file",
+      "mode": "0o600",
+      "size": 438
+    },
+    {
+      "path": "public/rpm-stable.asc",
+      "type": "file",
+      "mode": "0o600",
+      "size": 4772
+    },
+    {
+      "path": "public-receipt.json",
+      "type": "file",
+      "mode": "0o600",
+      "size": 6072
+    },
+    {
+      "path": "rpm",
+      "type": "directory",
+      "mode": "0o700",
+      "size": null
+    },
+    {
+      "path": "rpm/current-secret-subkey.b64",
+      "type": "file",
+      "mode": "0o600",
+      "size": 4276
+    },
+    {
+      "path": "rpm/full-secret-backup.gpg",
+      "type": "file",
+      "mode": "0o600",
+      "size": 6516
+    },
+    {
+      "path": "rpm/revocation.rev",
+      "type": "file",
+      "mode": "0o600",
+      "size": 1620
+    },
+    {
+      "path": "README.md",
+      "type": "file",
+      "mode": "0o600",
+      "size": 936
+    }
+  ]
+}

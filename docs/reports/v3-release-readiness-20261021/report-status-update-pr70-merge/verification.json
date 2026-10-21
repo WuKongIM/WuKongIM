@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-21T08:41:33.087364+00:00",
+  "scope": [
+    "docs/reports/2026-10-21-v3-release-readiness.md",
+    "docs/reports/2026-10-21-v3-stable-key-preparation.md"
+  ],
+  "diff_check_exit_code": 0,
+  "report_sha256": {
+    "docs/reports/2026-10-21-v3-release-readiness.md": "39d1934403ece80b926dc7f07069235775ec00f6b1eb9a76bbaa703ed6b2ff93",
+    "docs/reports/2026-10-21-v3-stable-key-preparation.md": "bc31dc5ea9717dacbfabf55a60cee2f7cdfa910ce3d6609f63d63641d7952d95"
+  },
+  "previous_generation_preserved": true,
+  "pr70_merge_receipt_directory": "/tmp/wukongim-v3-readiness-20261021/packages/pr70-merge",
+  "no_source_or_other_report_edits": true,
+  "go_no_go": "NO-GO",
+  "relative_links_missing": []
+}

@@ -1,0 +1,30 @@
+{
+  "baseline": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "applicable_rules": "source-freeze.json",
+  "files": {
+    "scripts/sign-package-family.py": {
+      "size": 38036,
+      "sha256": "f2655db378d2b6d9dbda8cca08fa0123e4db56519187aa054db6e18a64f0d893"
+    },
+    "tests/test_sign_package_family.py": {
+      "size": 27486,
+      "sha256": "7e004679c29100f388e8dedd59d5ec48dc07d3872e3b089c2767b90e2753d8d5"
+    },
+    "scripts/validate-signing-material.py": {
+      "size": 34568,
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4"
+    },
+    "tests/native_source_metadata_drill.py": {
+      "size": 9821,
+      "sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1"
+    },
+    "tests/test_validate_signing_material.py": {
+      "size": 24911,
+      "sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe"
+    },
+    "toolchain/native-package-signing/Dockerfile": {
+      "size": 911,
+      "sha256": "45c8d63f5580e51db968d70fb62777fa9a05c6e0ed019032f6365e491a1481bd"
+    }
+  }
+}

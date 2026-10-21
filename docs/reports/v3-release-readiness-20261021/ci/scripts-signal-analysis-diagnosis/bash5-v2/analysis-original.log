@@ -1,0 +1,23 @@
++ set -euo pipefail
++ analysis_bridge_pid=
++ analysis_bridge_url=
++ session_open=true
++ repository=fixture/project
++ request_id=fixture-request
++ run_id=fixture-run
++ close_attempted_request_id=
++ analysis_token=
++ analysis_worktree_added=false
++ analysis_worktree=
++ analysis_temp=
++ result_temp=
++ analysis_temp=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/analysis-original.temp
++ trap cleanup EXIT
++ exit 17
++ cleanup
++ local exit_status=17
++ trap - EXIT
++ stop_analysis_bridge
++ local bridge_wait
++ [[ -z '' ]]
++ return

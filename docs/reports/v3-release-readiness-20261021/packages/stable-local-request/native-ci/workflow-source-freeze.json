@@ -1,0 +1,30 @@
+{
+  "packages_workflow_README_exists": false,
+  "main_workflow_README": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md",
+    "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    "applicable_sections": "general authorization lines1-10 and native package preview section178-236"
+  },
+  "baseline_files": {
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "38b0d7248c2eb34c86564ca81cce3079bf027eb0ff7ef046769ddc894ddb377b",
+      "size": 5127
+    },
+    "tests/test_source_preflight_workflow.py": {
+      "sha256": "5f8f7efbe39fb858546669d6db240bf5613fe2579f998bbafc345df097ef1069",
+      "size": 2827
+    },
+    "tests/native_source_metadata_drill.py": {
+      "sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1",
+      "size": 9821
+    },
+    "docs/release-contract.md": {
+      "sha256": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871",
+      "size": 31622
+    },
+    "tests/contract.sh": {
+      "sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+      "size": 54998
+    }
+  }
+}

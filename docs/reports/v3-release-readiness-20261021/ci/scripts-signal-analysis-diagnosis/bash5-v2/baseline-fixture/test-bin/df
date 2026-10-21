@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\nfake 100000 10000 90000 10%% /\n'

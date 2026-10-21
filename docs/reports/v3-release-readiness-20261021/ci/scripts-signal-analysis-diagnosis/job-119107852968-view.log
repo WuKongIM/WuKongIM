@@ -1,0 +1,842 @@
+Candidate scripts integration	Set up job	﻿2026-10-21T07:59:08.8354927Z Current runner version: '2.338.0'
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8380692Z ##[group]Runner Image Provisioner
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8381698Z Hosted Compute Agent
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8382317Z Version: 20261015.610
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8382949Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8383740Z Build Date: 2026-10-14T17:06:54Z
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8384480Z Worker ID: {00b8b403-c58b-465c-a1a2-2a512461fdc7}
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8385301Z Region: westus
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8385931Z Cloud: Azure
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8386526Z ##[endgroup]
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8388319Z ##[group]Operating System
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8388998Z Ubuntu
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8389545Z 24.04.5
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8390140Z LTS
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8390718Z ##[endgroup]
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8391379Z ##[group]Runner Image
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8392158Z Image: ubuntu-24.04
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8392807Z Version: 20261018.339.1
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8393935Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8395809Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8396835Z ##[endgroup]
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8398277Z ##[group]GITHUB_TOKEN Permissions
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8400495Z Contents: read
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8401112Z Metadata: read
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8401782Z ##[endgroup]
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8403883Z Secret source: Actions
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8404950Z Cache mode: write
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8405976Z Prepare workflow directory
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8850080Z Prepare all required actions
+Candidate scripts integration	Set up job	2026-10-21T07:59:08.8904247Z Getting action download info
+Candidate scripts integration	Set up job	2026-10-21T07:59:09.2689759Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+Candidate scripts integration	Set up job	2026-10-21T07:59:09.3815537Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+Candidate scripts integration	Set up job	2026-10-21T07:59:09.7991742Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+Candidate scripts integration	Set up job	2026-10-21T07:59:09.9639898Z Complete job name: Candidate scripts integration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	﻿2026-10-21T07:59:10.0429262Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0430402Z with:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0430891Z   ref: abd628769baf7552a8cf8abb29a7ba63e52c3326
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0431483Z   fetch-depth: 0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0431941Z   persist-credentials: false
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0432467Z   repository: WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0436053Z   token: ***
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0436487Z   ssh-strict: true
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0436924Z   ssh-user: git
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0437334Z   clean: true
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0437772Z   sparse-checkout-cone-mode: true
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0438527Z   fetch-tags: false
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0438980Z   show-progress: true
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0439433Z   lfs: false
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0439847Z   submodules: false
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0440320Z   set-safe-directory: true
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0440841Z   allow-unsafe-pr-checkout: false
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0441601Z env:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0442007Z   GOWORK: off
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0442447Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.0442937Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1537934Z Syncing repository: WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1541193Z ##[group]Getting Git version info
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1542501Z Working directory is '/home/runner/work/WuKongIM/WuKongIM'
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1544704Z [command]/usr/bin/git version
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1630385Z git version 2.55.0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1652669Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1664477Z Temporarily overriding HOME='/home/runner/work/_temp/cd9cf881-0c74-4aa3-8c27-4361e0d1c901' before making global git config changes
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1666922Z Adding repository directory to the temporary git global config as a safe directory
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1674458Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1724066Z Deleting the contents of '/home/runner/work/WuKongIM/WuKongIM'
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1727468Z ##[group]Determining repository object format
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1729604Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1730448Z ##[group]Initializing the repository
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1735627Z [command]/usr/bin/git init /home/runner/work/WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1861335Z hint: Using 'master' as the name for the initial branch. This default branch name
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1862934Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1864374Z hint: to use in all of your new repositories, which will suppress this warning,
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1865880Z hint: call:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1866735Z hint:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1867406Z hint: 	git config --global init.defaultBranch <name>
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1868406Z hint:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1869524Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1871295Z hint: 'development'. The just-created branch can be renamed via this command:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1872255Z hint:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1872706Z hint: 	git branch -m <name>
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1873209Z hint:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1873889Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1875180Z Initialized empty Git repository in /home/runner/work/WuKongIM/WuKongIM/.git/
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1877525Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1929867Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1930659Z ##[group]Disabling automatic garbage collection
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1932950Z [command]/usr/bin/git config --local gc.auto 0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1967204Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1967959Z ##[group]Setting up auth
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1969054Z Removing SSH command configuration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.1973795Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2007241Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2370575Z Removing HTTP extra header
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2375921Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2410435Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2635119Z Removing includeIf entries pointing to credentials config files
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2640166Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2674247Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2905293Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2946879Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.2978734Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.3014370Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.3046720Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.3078411Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.3079205Z ##[group]Fetching the repository
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:10.3086644Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7184392Z From https://github.com/WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7185552Z  * [new branch]          1.0.1                   -> origin/1.0.1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7186541Z  * [new branch]          agent-state/issue-685   -> origin/agent-state/issue-685
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7187633Z  * [new branch]          agent-state/issue-697   -> origin/agent-state/issue-697
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7188971Z  * [new branch]          agent-state/issue-700   -> origin/agent-state/issue-700
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7190131Z  * [new branch]          agent-state/issue-703   -> origin/agent-state/issue-703
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7191205Z  * [new branch]          agent-state/issue-705   -> origin/agent-state/issue-705
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7192306Z  * [new branch]          agent-state/issue-706   -> origin/agent-state/issue-706
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7193479Z  * [new branch]          agent-state/issue-708   -> origin/agent-state/issue-708
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7194693Z  * [new branch]          agent-state/issue-712   -> origin/agent-state/issue-712
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7196057Z  * [new branch]          agent-state/issue-742   -> origin/agent-state/issue-742
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7201409Z  * [new branch]          agent-state/issue-744   -> origin/agent-state/issue-744
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7202577Z  * [new branch]          agent-state/issue-748   -> origin/agent-state/issue-748
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7203617Z  * [new branch]          agent-state/issue-750   -> origin/agent-state/issue-750
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7204643Z  * [new branch]          agent-state/issue-751   -> origin/agent-state/issue-751
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7205731Z  * [new branch]          agent-state/issue-775   -> origin/agent-state/issue-775
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7206737Z  * [new branch]          agent-state/issue-776   -> origin/agent-state/issue-776
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7207811Z  * [new branch]          agent-state/issue-793   -> origin/agent-state/issue-793
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7209401Z  * [new branch]          agent-state/issue-799   -> origin/agent-state/issue-799
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7210829Z  * [new branch]          agent-state/issue-809   -> origin/agent-state/issue-809
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7296820Z  * [new branch]          agent/app-flow-index    -> origin/agent/app-flow-index
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7298657Z  * [new branch]          agent/app-flow-runtime-reference -> origin/agent/app-flow-runtime-reference
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7300048Z  * [new branch]          agent/channel-rpc-capacity-recovery -> origin/agent/channel-rpc-capacity-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7301478Z  * [new branch]          agent/channel-rpc-medium-remediation -> origin/agent/channel-rpc-medium-remediation
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7302895Z  * [new branch]          agent/cloud-medium-pressure-spill-v3 -> origin/agent/cloud-medium-pressure-spill-v3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7303863Z  * [new branch]          agent/e2e-stable-slot-readiness -> origin/agent/e2e-stable-slot-readiness
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7304589Z  * [new branch]          agent/enable-issue-agent-intake -> origin/agent/enable-issue-agent-intake
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7305331Z  * [new branch]          agent/fix-medium-qps-handoff-cache -> origin/agent/fix-medium-qps-handoff-cache
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7306090Z  * [new branch]          agent/fix-medium-recipient-capacity -> origin/agent/fix-medium-recipient-capacity
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7306891Z  * [new branch]          agent/fix-medium-recipient-hotpath -> origin/agent/fix-medium-recipient-hotpath
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7307558Z  * [new branch]          agent/fix-nightly-e2e   -> origin/agent/fix-nightly-e2e
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7308585Z  * [new branch]          agent/fix-wkbench-terminal-stop -> origin/agent/fix-wkbench-terminal-stop
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7309699Z  * [new branch]          agent/issue-751         -> origin/agent/issue-751
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7326411Z  * [new branch]          agent/issue-776         -> origin/agent/issue-776
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7327011Z  * [new branch]          agent/issue-agent-auto-start -> origin/agent/issue-agent-auto-start
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7327686Z  * [new branch]          agent/issue-agent-auto-start-v2 -> origin/agent/issue-agent-auto-start-v2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7328772Z  * [new branch]          agent/issue-agent-canary-unblock -> origin/agent/issue-agent-canary-unblock
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7329539Z  * [new branch]          agent/issue-agent-single-json-envelope -> origin/agent/issue-agent-single-json-envelope
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7330300Z  * [new branch]          agent/issue-agent-state-recovery -> origin/agent/issue-agent-state-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7330939Z  * [new branch]          agent/medium-qps-hifi   -> origin/agent/medium-qps-hifi
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7331580Z  * [new branch]          agent/medium-qps-hifi-ci-headroom -> origin/agent/medium-qps-hifi-ci-headroom
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7332250Z  * [new branch]          agent/medium-qps-hifi-ci-scale -> origin/agent/medium-qps-hifi-ci-scale
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7332923Z  * [new branch]          agent/medium-qps-hifi-readiness -> origin/agent/medium-qps-hifi-readiness
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7333538Z  * [new branch]          agent/medium-qps-hotpath -> origin/agent/medium-qps-hotpath
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7334115Z  * [new branch]          agent/medium-rc-slot-timing -> origin/agent/medium-rc-slot-timing
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7334791Z  * [new branch]          agent/medium-route-handoff-recovery -> origin/agent/medium-route-handoff-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7335574Z  * [new branch]          agent/online-delivery-channelappend-port -> origin/agent/online-delivery-channelappend-port
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7336380Z  * [new branch]          agent/online-delivery-compat-adapters -> origin/agent/online-delivery-compat-adapters
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7337171Z  * [new branch]          agent/online-delivery-goroutine-catalog -> origin/agent/online-delivery-goroutine-catalog
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7337946Z  * [new branch]          agent/online-delivery-runtime-core -> origin/agent/online-delivery-runtime-core
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7339045Z  * [new branch]          agent/online-delivery-runtime-implementation -> origin/agent/online-delivery-runtime-implementation
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7340314Z  * [new branch]          agent/online-delivery-runtime-prerequisites -> origin/agent/online-delivery-runtime-prerequisites
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7341138Z  * [new branch]          agent/online-delivery-runtime-tests -> origin/agent/online-delivery-runtime-tests
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7341862Z  * [new branch]          agent/promote-issue-agent-intake -> origin/agent/promote-issue-agent-intake
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7342474Z  * [new branch]          agent/readme-refresh    -> origin/agent/readme-refresh
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7343090Z  * [new branch]          agent/review-agent-app-identity -> origin/agent/review-agent-app-identity
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7343856Z  * [new branch]          agent/review-agent-automated-governance -> origin/agent/review-agent-automated-governance
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7344641Z  * [new branch]          agent/review-agent-automerge-canary -> origin/agent/review-agent-automerge-canary
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7345438Z  * [new branch]          agent/review-agent-budget-contract-cleanup -> origin/agent/review-agent-budget-contract-cleanup
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7346251Z  * [new branch]          agent/review-agent-check-mcp-runtime -> origin/agent/review-agent-check-mcp-runtime
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7346982Z  * [new branch]          agent/review-agent-context-budget -> origin/agent/review-agent-context-budget
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7347737Z  * [new branch]          agent/review-agent-context-contract -> origin/agent/review-agent-context-contract
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7348878Z  * [new branch]          agent/review-agent-hosted-userns-runtime -> origin/agent/review-agent-hosted-userns-runtime
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7349701Z  * [new branch]          agent/review-agent-runner-connectivity -> origin/agent/review-agent-runner-connectivity
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7350734Z  * [new branch]          agent/review-agent-scheduler-canonical-empty -> origin/agent/review-agent-scheduler-canonical-empty
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7351606Z  * [new branch]          agent/review-agent-state-ref-visibility -> origin/agent/review-agent-state-ref-visibility
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7352421Z  * [new branch]          agent/review-agent-system-bwrap-profile -> origin/agent/review-agent-system-bwrap-profile
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7353257Z  * [new branch]          agent/review-agent-trusted-author-automerge -> origin/agent/review-agent-trusted-author-automerge
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7354053Z  * [new branch]          agent/review-agent-userns-apparmor -> origin/agent/review-agent-userns-apparmor
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7354793Z  * [new branch]          agent/review-agent-worker-fail-closed -> origin/agent/review-agent-worker-fail-closed
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7355584Z  * [new branch]          agent/review-agent-workflow-run-identity -> origin/agent/review-agent-workflow-run-identity
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7356327Z  * [new branch]          agent/wkbench-recv-buffer-tail -> origin/agent/wkbench-recv-buffer-tail
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7356922Z  * [new branch]          ci/nightly-direct-1000  -> origin/ci/nightly-direct-1000
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7357456Z  * [new branch]          ci/nightly-direct-500   -> origin/ci/nightly-direct-500
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7358224Z  * [new branch]          ci/three-node-1000-regression-gates -> origin/ci/three-node-1000-regression-gates
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7358874Z  * [new branch]          circleci-project-setup  -> origin/circleci-project-setup
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7359382Z  * [new branch]          cluster                 -> origin/cluster
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7359930Z  * [new branch]          codex/agent-artifact-contracts -> origin/codex/agent-artifact-contracts
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7360584Z  * [new branch]          codex/agent-artifact-ownership -> origin/codex/agent-artifact-ownership
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7361211Z  * [new branch]          codex/agent-e2e-workflow-fix -> origin/codex/agent-e2e-workflow-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7361855Z  * [new branch]          codex/agent-github-action-tools -> origin/codex/agent-github-action-tools
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7362536Z  * [new branch]          codex/agent-validation-same-pilot -> origin/codex/agent-validation-same-pilot
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7363402Z  * [new branch]          codex/app-delivery-test-extraction -> origin/codex/app-delivery-test-extraction
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7364137Z  * [new branch]          codex/app-delivery-wiring-extraction -> origin/codex/app-delivery-wiring-extraction
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7364776Z  * [new branch]          codex/backup-oss-cos    -> origin/codex/backup-oss-cos
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7365422Z  * [new branch]          codex/backup-repository-verification -> origin/codex/backup-repository-verification
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7366093Z  * [new branch]          codex/backup-slot-frontier -> origin/codex/backup-slot-frontier
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7366671Z  * [new branch]          codex/backup-web-redesign -> origin/codex/backup-web-redesign
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7367219Z  * [new branch]          codex/beta16-evidence   -> origin/codex/beta16-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7367729Z  * [new branch]          codex/beta16-release    -> origin/codex/beta16-release
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7368626Z  * [new branch]          codex/channel-member-management -> origin/codex/channel-member-management
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7369261Z  * [new branch]          codex/channel-repair-scan -> origin/codex/channel-repair-scan
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7369874Z  * [new branch]          codex/channel-runtime-activity -> origin/codex/channel-runtime-activity
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7370559Z  * [new branch]          codex/channelv2-pull-ack-piggyback -> origin/codex/channelv2-pull-ack-piggyback
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7371244Z  * [new branch]          codex/chat-credentials-default -> origin/codex/chat-credentials-default
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7372021Z  * [new branch]          codex/chat-lifecycle-channel-append-diagnosis -> origin/codex/chat-lifecycle-channel-append-diagnosis
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7373077Z  * [new branch]          codex/chat-lifecycle-late-sendack-recovery -> origin/codex/chat-lifecycle-late-sendack-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7373843Z  * [new branch]          codex/chat-lifecycle-repair-loop -> origin/codex/chat-lifecycle-repair-loop
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7374487Z  * [new branch]          codex/ci-500qps-reliability -> origin/codex/ci-500qps-reliability
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7375159Z  * [new branch]          codex/cloud-analysis-agent-evidence -> origin/codex/cloud-analysis-agent-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7375818Z  * [new branch]          codex/cloud-sim-access-key -> origin/codex/cloud-sim-access-key
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7376443Z  * [new branch]          codex/cluster-restart-contracts -> origin/codex/cluster-restart-contracts
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7377075Z  * [new branch]          codex/concise-package-repo -> origin/codex/concise-package-repo
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7377698Z  * [new branch]          codex/control-snapshot-startup -> origin/codex/control-snapshot-startup
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7378570Z  * [new branch]          codex/controller-wal-crc-diagnosis -> origin/codex/controller-wal-crc-diagnosis
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7379237Z  * [new branch]          codex/conversation-mixed-fix -> origin/codex/conversation-mixed-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7379840Z  * [new branch]          codex/cpp-prebuilt-docs -> origin/codex/cpp-prebuilt-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7380421Z  * [new branch]          codex/cpp-three-node-docs -> origin/codex/cpp-three-node-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7381029Z  * [new branch]          codex/cpp-vcpkg-upstream-docs -> origin/codex/cpp-vcpkg-upstream-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7381669Z  * [new branch]          codex/csharp-browser-wss-docs -> origin/codex/csharp-browser-wss-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7382269Z  * [new branch]          codex/csharp-cluster-docs -> origin/codex/csharp-cluster-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7382862Z  * [new branch]          codex/csharp-cluster-recovery -> origin/codex/csharp-cluster-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7383513Z  * [new branch]          codex/csharp-conflict-diagnostic -> origin/codex/csharp-conflict-diagnostic
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7384146Z  * [new branch]          codex/csharp-interop-docs -> origin/codex/csharp-interop-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7384716Z  * [new branch]          codex/data-format-identity -> origin/codex/data-format-identity
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7385906Z  * [new branch]          codex/delete-legacy-delivery-runtime -> origin/codex/delete-legacy-delivery-runtime
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7387426Z  * [new branch]          codex/delete-legacy-delivery-runtime-part1 -> origin/codex/delete-legacy-delivery-runtime-part1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7389517Z  * [new branch]          codex/delete-legacy-delivery-runtime-part1-rereview -> origin/codex/delete-legacy-delivery-runtime-part1-rereview
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7390749Z  * [new branch]          codex/delete-legacy-delivery-runtime-part2 -> origin/codex/delete-legacy-delivery-runtime-part2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7391648Z  * [new branch]          codex/delete-legacy-delivery-runtime-part3 -> origin/codex/delete-legacy-delivery-runtime-part3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7392525Z  * [new branch]          codex/delete-legacy-delivery-runtime-part4 -> origin/codex/delete-legacy-delivery-runtime-part4
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7393332Z  * [new branch]          codex/delete-legacy-recipient-worker -> origin/codex/delete-legacy-recipient-worker
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7393987Z  * [new branch]          codex/demo-beta24-pins  -> origin/codex/demo-beta24-pins
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7394568Z  * [new branch]          codex/demo-deployment-config -> origin/codex/demo-deployment-config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7395176Z  * [new branch]          codex/demo-message-editing -> origin/codex/demo-message-editing
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7395824Z  * [new branch]          codex/docs-cdn-acme-bootstrap-fix -> origin/codex/docs-cdn-acme-bootstrap-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7396520Z  * [new branch]          codex/docs-cdn-boolean-output-fix -> origin/codex/docs-cdn-boolean-output-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7397254Z  * [new branch]          codex/docs-cdn-certificate-status-fix -> origin/codex/docs-cdn-certificate-status-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7398455Z  * [new branch]          codex/docs-cdn-origin-pr -> origin/codex/docs-cdn-origin-pr
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7399166Z  * [new branch]          codex/docs-cdn-public-edge-status-fix -> origin/codex/docs-cdn-public-edge-status-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7399838Z  * [new branch]          codex/docs-github-pages -> origin/codex/docs-github-pages
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7400440Z  * [new branch]          codex/docs-pages-migration-fix -> origin/codex/docs-pages-migration-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7401047Z  * [new branch]          codex/docs-rsc-cache-key -> origin/codex/docs-rsc-cache-key
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7401594Z  * [new branch]          codex/docs-rsc-manifest -> origin/codex/docs-rsc-manifest
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7402178Z  * [new branch]          codex/docs-server-deployment -> origin/codex/docs-server-deployment
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7402847Z  * [new branch]          codex/docs-site-advanced-scenarios -> origin/codex/docs-site-advanced-scenarios
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7403520Z  * [new branch]          codex/docs-site-architecture -> origin/codex/docs-site-architecture
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7404177Z  * [new branch]          codex/docs-site-guide-foundations -> origin/codex/docs-site-guide-foundations
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7404826Z  * [new branch]          codex/docs-site-integration -> origin/codex/docs-site-integration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7405417Z  * [new branch]          codex/docs-site-operations -> origin/codex/docs-site-operations
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7405977Z  * [new branch]          codex/docs-site-phase1  -> origin/codex/docs-site-phase1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7406539Z  * [new branch]          codex/docs-site-quickstart -> origin/codex/docs-site-quickstart
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7407803Z  * [new branch]          codex/docs-site-scenario-tutorials -> origin/codex/docs-site-scenario-tutorials
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7409130Z  * [new branch]          codex/docs-site-troubleshooting-tools -> origin/codex/docs-site-troubleshooting-tools
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7409998Z  * [new branch]          codex/docs-wkcli-beta12 -> origin/codex/docs-wkcli-beta12
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7410587Z  * [new branch]          codex/e2e-baseline-stability -> origin/codex/e2e-baseline-stability
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7411430Z  * [new branch]          codex/easy-sdk-cpp-review-docs -> origin/codex/easy-sdk-cpp-review-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7412078Z  * [new branch]          codex/easy-sdk-cpp-vcpkg-docs -> origin/codex/easy-sdk-cpp-vcpkg-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7412690Z  * [new branch]          codex/easy-sdk-python-docs -> origin/codex/easy-sdk-python-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7413315Z  * [new branch]          codex/easy-sdk-python-pypi-docs -> origin/codex/easy-sdk-python-pypi-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7413943Z  * [new branch]          codex/easy-sdk-release-docs -> origin/codex/easy-sdk-release-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7414511Z  * [new branch]          codex/easy-sdk-rust-docs -> origin/codex/easy-sdk-rust-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7415052Z  * [new branch]          codex/easy-sdk-versions -> origin/codex/easy-sdk-versions
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7415582Z  * [new branch]          codex/easy-sdk-web-sync -> origin/codex/easy-sdk-web-sync
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7416188Z  * [new branch]          codex/easysdk-release-acceptance -> origin/codex/easysdk-release-acceptance
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7416956Z  * [new branch]          codex/fix-agent-validation-label-cleanup -> origin/codex/fix-agent-validation-label-cleanup
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7417715Z  * [new branch]          codex/fix-agent-validation-status -> origin/codex/fix-agent-validation-status
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7418647Z  * [new branch]          codex/fix-chat-commit-batching -> origin/codex/fix-chat-commit-batching
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7419244Z  * [new branch]          codex/fix-ci-readiness  -> origin/codex/fix-ci-readiness
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7419933Z  * [new branch]          codex/fix-local-backup-smoke-qualification -> origin/codex/fix-local-backup-smoke-qualification
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7420706Z  * [new branch]          codex/fix-nightly-chat-regression -> origin/codex/fix-nightly-chat-regression
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7421542Z  * [new branch]          codex/fix-nightly-preflight -> origin/codex/fix-nightly-preflight
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7422170Z  * [new branch]          codex/fix-validation-baseline -> origin/codex/fix-validation-baseline
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7422849Z  * [new branch]          codex/fix-wkbench-churn-membership -> origin/codex/fix-wkbench-churn-membership
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7423525Z  * [new branch]          codex/flow-md-agent-navigation -> origin/codex/flow-md-agent-navigation
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7424182Z  * [new branch]          codex/gateway-rejection-logging -> origin/codex/gateway-rejection-logging
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7424789Z  * [new branch]          codex/github-issue-agent -> origin/codex/github-issue-agent
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7425391Z  * [new branch]          codex/github-issue-agent-design -> origin/codex/github-issue-agent-design
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7426000Z  * [new branch]          codex/go-webhook-example -> origin/codex/go-webhook-example
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7426642Z  * [new branch]          codex/goroutine-supervisor-monitor -> origin/codex/goroutine-supervisor-monitor
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7427354Z  * [new branch]          codex/grafana-conversation-metrics -> origin/codex/grafana-conversation-metrics
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7428261Z  * [new branch]          codex/group-membership-fanout -> origin/codex/group-membership-fanout
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7428895Z  * [new branch]          codex/issue-890-acceptance -> origin/codex/issue-890-acceptance
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7429542Z  * [new branch]          codex/issue-890-before-send-webhook -> origin/codex/issue-890-before-send-webhook
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7430200Z  * [new branch]          codex/issue-890-webhook-docs -> origin/codex/issue-890-webhook-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7430831Z  * [new branch]          codex/issue-927-cluster-recovery -> origin/codex/issue-927-cluster-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7431532Z  * [new branch]          codex/issue-931-replica-replacement -> origin/codex/issue-931-replica-replacement
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7432189Z  * [new branch]          codex/issue-977-darwin-sync -> origin/codex/issue-977-darwin-sync
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7432864Z  * [new branch]          codex/issue-977-darwin-sync-candidate -> origin/codex/issue-977-darwin-sync-candidate
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7433795Z  * [new branch]          codex/issue-977-evidence-baseline -> origin/codex/issue-977-evidence-baseline
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7434526Z  * [new branch]          codex/issue-977-evidence-cohort-stages -> origin/codex/issue-977-evidence-cohort-stages
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7435317Z  * [new branch]          codex/issue-977-evidence-main-integration -> origin/codex/issue-977-evidence-main-integration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7436162Z  * [new branch]          codex/issue-977-evidence-sequential-part-1 -> origin/codex/issue-977-evidence-sequential-part-1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7436999Z  * [new branch]          codex/issue-977-evidence-sequential-part-2 -> origin/codex/issue-977-evidence-sequential-part-2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7437825Z  * [new branch]          codex/issue-977-evidence-timeline-part-1 -> origin/codex/issue-977-evidence-timeline-part-1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7438895Z  * [new branch]          codex/issue-977-evidence-timeline-part-2 -> origin/codex/issue-977-evidence-timeline-part-2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7439671Z  * [new branch]          codex/issue-977-metrics-gzip-probe -> origin/codex/issue-977-metrics-gzip-probe
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7440355Z  * [new branch]          codex/issue-977-observer-repair -> origin/codex/issue-977-observer-repair
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7441051Z  * [new branch]          codex/issue-977-permission-baseline -> origin/codex/issue-977-permission-baseline
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7441760Z  * [new branch]          codex/issue-977-permission-cohorts -> origin/codex/issue-977-permission-cohorts
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7442468Z  * [new branch]          codex/issue-977-permission-controls -> origin/codex/issue-977-permission-controls
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7443206Z  * [new branch]          codex/issue-977-proposal-wal-evidence -> origin/codex/issue-977-proposal-wal-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7444139Z  * [new branch]          codex/issue-977-quorum-boundaries-driver -> origin/codex/issue-977-quorum-boundaries-driver
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7444987Z  * [new branch]          codex/issue-977-quorum-boundaries-evidence -> origin/codex/issue-977-quorum-boundaries-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7445781Z  * [new branch]          codex/issue-977-quorum-boundaries-new -> origin/codex/issue-977-quorum-boundaries-new
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7446525Z  * [new branch]          codex/issue-977-quorum-boundaries-old -> origin/codex/issue-977-quorum-boundaries-old
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7447233Z  * [new branch]          codex/issue-977-remaining-driver -> origin/codex/issue-977-remaining-driver
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7448163Z  * [new branch]          codex/issue-977-remaining-evidence -> origin/codex/issue-977-remaining-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7449051Z  * [new branch]          codex/issue-977-sequential-composite-evidence -> origin/codex/issue-977-sequential-composite-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7449817Z  * [new branch]          codex/issue-977-wal-evidence -> origin/codex/issue-977-wal-evidence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7450510Z  * [new branch]          codex/issue-agent-artifact-secret-fix -> origin/codex/issue-agent-artifact-secret-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7451272Z  * [new branch]          codex/issue-agent-bot-publisher-fix -> origin/codex/issue-agent-bot-publisher-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7451973Z  * [new branch]          codex/issue-agent-buildinfo-fix -> origin/codex/issue-agent-buildinfo-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7452623Z  * [new branch]          codex/issue-agent-codex-action -> origin/codex/issue-agent-codex-action
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7453342Z  * [new branch]          codex/issue-agent-dispatch-reliability -> origin/codex/issue-agent-dispatch-reliability
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7454014Z  * [new branch]          codex/issue-agent-kimi3 -> origin/codex/issue-agent-kimi3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7454652Z  * [new branch]          codex/issue-agent-legacy-entrypoint -> origin/codex/issue-agent-legacy-entrypoint
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7455330Z  * [new branch]          codex/issue-agent-openrouter -> origin/codex/issue-agent-openrouter
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7456039Z  * [new branch]          codex/issue-agent-openrouter-preflight -> origin/codex/issue-agent-openrouter-preflight
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7456979Z  * [new branch]          codex/issue-agent-reproduction-rollout -> origin/codex/issue-agent-reproduction-rollout
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7457785Z  * [new branch]          codex/issue-agent-state-publish-recovery -> origin/codex/issue-agent-state-publish-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7458859Z  * [new branch]          codex/issue-agent-v2-canary-fix -> origin/codex/issue-agent-v2-canary-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7459506Z  * [new branch]          codex/issue-agent-v2-design -> origin/codex/issue-agent-v2-design
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7460186Z  * [new branch]          codex/issue-agent-worker-diagnostics -> origin/codex/issue-agent-worker-diagnostics
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7460921Z  * [new branch]          codex/issue-agent-worker-run-name -> origin/codex/issue-agent-worker-run-name
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7461705Z  * [new branch]          codex/issue-agent-worker-stage-diagnostics -> origin/codex/issue-agent-worker-stage-diagnostics
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7462459Z  * [new branch]          codex/manager-admission-alert -> origin/codex/manager-admission-alert
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7463077Z  * [new branch]          codex/manager-preload-order -> origin/codex/manager-preload-order
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7463681Z  * [new branch]          codex/message-edit-pressure -> origin/codex/message-edit-pressure
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7464344Z  * [new branch]          codex/message-edit-release-headroom -> origin/codex/message-edit-release-headroom
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7465042Z  * [new branch]          codex/message-edit-release-perf -> origin/codex/message-edit-release-perf
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7465719Z  * [new branch]          codex/message-update-hint-latency -> origin/codex/message-update-hint-latency
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7466492Z  * [new branch]          codex/message-updates   -> origin/codex/message-updates
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7467112Z  * [new branch]          codex/migration-docs-final-20260912 -> origin/codex/migration-docs-final-20260912
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7467891Z  * [new branch]          codex/migration-docs-publication-20260912 -> origin/codex/migration-docs-publication-20260912
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7468992Z  * [new branch]          codex/native-bootstrap-diagnostics -> origin/codex/native-bootstrap-diagnostics
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7469694Z  * [new branch]          codex/native-package-lifecycle -> origin/codex/native-package-lifecycle
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7470391Z  * [new branch]          codex/native-package-release-assets -> origin/codex/native-package-release-assets
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7471078Z  * [new branch]          codex/native-packages-preview -> origin/codex/native-packages-preview
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7471724Z  * [new branch]          codex/native-release-preflight -> origin/codex/native-release-preflight
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7472341Z  * [new branch]          codex/no-persist-realtime -> origin/codex/no-persist-realtime
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7473010Z  * [new branch]          codex/online-delivery-app-cutover-v2 -> origin/codex/online-delivery-app-cutover-v2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7473787Z  * [new branch]          codex/online-delivery-canonical-tests -> origin/codex/online-delivery-canonical-tests
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7474521Z  * [new branch]          codex/online-delivery-convergence -> origin/codex/online-delivery-convergence
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7475112Z  * [new branch]          codex/ops-mcp           -> origin/codex/ops-mcp
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7475725Z  * [new branch]          codex/pluginhost-readiness-test-sync -> origin/codex/pluginhost-readiness-test-sync
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7476414Z  * [new branch]          codex/public-js-interop-docs -> origin/codex/public-js-interop-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7477069Z  * [new branch]          codex/publish-linux-package-docs -> origin/codex/publish-linux-package-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7477757Z  * [new branch]          codex/python-cluster-acceptance -> origin/codex/python-cluster-acceptance
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7478656Z  * [new branch]          codex/python-group-docs -> origin/codex/python-group-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7479400Z  * [new branch]          codex/query-capacity-repair -> origin/codex/query-capacity-repair
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7479972Z  * [new branch]          codex/readme-demo-home  -> origin/codex/readme-demo-home
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7480622Z  * [new branch]          codex/reconsider-after-control-change -> origin/codex/reconsider-after-control-change
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7481265Z  * [new branch]          codex/release-beta17    -> origin/codex/release-beta17
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7481776Z  * [new branch]          codex/release-beta18    -> origin/codex/release-beta18
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7482278Z  * [new branch]          codex/release-beta23    -> origin/codex/release-beta23
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7482779Z  * [new branch]          codex/release-beta24    -> origin/codex/release-beta24
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7483362Z  * [new branch]          codex/release-beta5-integration -> origin/codex/release-beta5-integration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7483991Z  * [new branch]          codex/release-notes-publish -> origin/codex/release-notes-publish
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7484627Z  * [new branch]          codex/release-query-performance -> origin/codex/release-query-performance
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7485271Z  * [new branch]          codex/release-registry-chunks -> origin/codex/release-registry-chunks
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7485895Z  * [new branch]          codex/release-registry-http1 -> origin/codex/release-registry-http1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7486515Z  * [new branch]          codex/release-registry-serial -> origin/codex/release-registry-serial
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7487128Z  * [new branch]          codex/release-v3.0.0-beta.14 -> origin/codex/release-v3.0.0-beta.14
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7487823Z  * [new branch]          codex/remove-scheduled-automatic-tests -> origin/codex/remove-scheduled-automatic-tests
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7488864Z  * [new branch]          codex/retry-formal-artifact-pages -> origin/codex/retry-formal-artifact-pages
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7489508Z  * [new branch]          codex/review-agent-design -> origin/codex/review-agent-design
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7490135Z  * [new branch]          codex/review-agent-output-budget -> origin/codex/review-agent-output-budget
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7490830Z  * [new branch]          codex/review-agent-recovery-canary -> origin/codex/review-agent-recovery-canary
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7491570Z  * [new branch]          codex/review-agent-recovery-hardening -> origin/codex/review-agent-recovery-hardening
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7492235Z  * [new branch]          codex/review-agent-speed -> origin/codex/review-agent-speed
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7492842Z  * [new branch]          codex/review-agent-system-bwrap -> origin/codex/review-agent-system-bwrap
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7493574Z  * [new branch]          codex/review-agent-terminal-fail-closed -> origin/codex/review-agent-terminal-fail-closed
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7494247Z  * [new branch]          codex/rust-cluster-docs -> origin/codex/rust-cluster-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7494863Z  * [new branch]          codex/rust-cluster-membership-fix -> origin/codex/rust-cluster-membership-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7495537Z  * [new branch]          codex/rust-crates-release-docs -> origin/codex/rust-crates-release-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7496119Z  * [new branch]          codex/rust-group-docs   -> origin/codex/rust-group-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7496648Z  * [new branch]          codex/rust-network-docs -> origin/codex/rust-network-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7497217Z  * [new branch]          codex/rust-sdk-ws-buffer-fix -> origin/codex/rust-sdk-ws-buffer-fix
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7497825Z  * [new branch]          codex/scheduled-full-backup -> origin/codex/scheduled-full-backup
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7498703Z  * [new branch]          codex/scripts-test-tiering -> origin/codex/scripts-test-tiering
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7499268Z  * [new branch]          codex/sdk-ci-diagnosis  -> origin/codex/sdk-ci-diagnosis
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7499842Z  * [new branch]          codex/send-ban-doc-contracts -> origin/codex/send-ban-doc-contracts
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7500500Z  * [new branch]          codex/server-v2-migration-20260910 -> origin/codex/server-v2-migration-20260910
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7501305Z  * [new branch]          codex/skill-contract-canary -> origin/codex/skill-contract-canary
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7501924Z  * [new branch]          codex/startup-readiness-proof -> origin/codex/startup-readiness-proof
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7502506Z  * [new branch]          codex/startup-recovery  -> origin/codex/startup-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7503141Z  * [new branch]          codex/stop-idle-cloud-sim-schedules -> origin/codex/stop-idle-cloud-sim-schedules
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7503899Z  * [new branch]          codex/suspend-idle-formal-cloud-safety -> origin/codex/suspend-idle-formal-cloud-safety
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7504570Z  * [new branch]          codex/three-node-qps-5000 -> origin/codex/three-node-qps-5000
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7505203Z  * [new branch]          codex/three-step-package-install -> origin/codex/three-step-package-install
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7505810Z  * [new branch]          codex/unit-test-speed   -> origin/codex/unit-test-speed
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7506411Z  * [new branch]          codex/update-docs       -> origin/codex/update-docs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7506911Z  * [new branch]          codex/v2-v3-migration   -> origin/codex/v2-v3-migration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7507435Z  * [new branch]          codex/v3-rc-qualification -> origin/codex/v3-rc-qualification
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7508234Z  * [new branch]          codex/v3-release-recovery -> origin/codex/v3-release-recovery
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7508878Z  * [new branch]          codex/v3-shakeout-grant-repair -> origin/codex/v3-shakeout-grant-repair
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7509476Z  * [new branch]          codex/v3.0.0-beta.7-release -> origin/codex/v3.0.0-beta.7-release
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7510087Z  * [new branch]          codex/wkcli-release-acceptance -> origin/codex/wkcli-release-acceptance
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7510826Z  * [new branch]          codex/wkcli-sim-qps4k   -> origin/codex/wkcli-sim-qps4k
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7511289Z  * [new branch]          dev                     -> origin/dev
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7511706Z  * [new branch]          feat/cs                 -> origin/feat/cs
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7512128Z  * [new branch]          feat/e2e                -> origin/feat/e2e
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7512570Z  * [new branch]          feat/json-rpc           -> origin/feat/json-rpc
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7513024Z  * [new branch]          feat/plugin             -> origin/feat/plugin
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7513479Z  * [new branch]          feat/tagManage          -> origin/feat/tagManage
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7513985Z  * [new branch]          feat/upgrade_pebble_to_v2 -> origin/feat/upgrade_pebble_to_v2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7514478Z  * [new branch]          fix/249                 -> origin/fix/249
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7514891Z  * [new branch]          fix/317                 -> origin/fix/317
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7515374Z  * [new branch]          fix/backup-runner-clock -> origin/fix/backup-runner-clock
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7516038Z  * [new branch]          fix/chat-lifecycle-readiness-contract -> origin/fix/chat-lifecycle-readiness-contract
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7516879Z  * [new branch]          fix/conversation-active-admission-contention -> origin/fix/conversation-active-admission-contention
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7517535Z  * [new branch]          main                    -> origin/main
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7517957Z  * [new branch]          perf/raft               -> origin/perf/raft
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7518679Z  * [new branch]          prototype/online-delivery-split -> origin/prototype/online-delivery-split
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7519239Z  * [new branch]          ref/reactor             -> origin/ref/reactor
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7519687Z  * [new branch]          refactor/flow           -> origin/refactor/flow
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7520172Z  * [new branch]          review-state/pr-716     -> origin/review-state/pr-716
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7520680Z  * [new branch]          review-state/pr-717     -> origin/review-state/pr-717
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7521170Z  * [new branch]          review-state/pr-718     -> origin/review-state/pr-718
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7521796Z  * [new branch]          review-state/pr-719     -> origin/review-state/pr-719
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7522288Z  * [new branch]          review-state/pr-720     -> origin/review-state/pr-720
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7522786Z  * [new branch]          review-state/pr-721     -> origin/review-state/pr-721
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7523278Z  * [new branch]          review-state/pr-722     -> origin/review-state/pr-722
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7523767Z  * [new branch]          review-state/pr-723     -> origin/review-state/pr-723
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7524256Z  * [new branch]          review-state/pr-724     -> origin/review-state/pr-724
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7524743Z  * [new branch]          review-state/pr-725     -> origin/review-state/pr-725
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7525244Z  * [new branch]          review-state/pr-726     -> origin/review-state/pr-726
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7525732Z  * [new branch]          review-state/pr-727     -> origin/review-state/pr-727
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7526225Z  * [new branch]          review-state/pr-728     -> origin/review-state/pr-728
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7526718Z  * [new branch]          review-state/pr-729     -> origin/review-state/pr-729
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7527208Z  * [new branch]          review-state/pr-730     -> origin/review-state/pr-730
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7527696Z  * [new branch]          review-state/pr-731     -> origin/review-state/pr-731
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7528441Z  * [new branch]          review-state/pr-732     -> origin/review-state/pr-732
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7528935Z  * [new branch]          review-state/pr-733     -> origin/review-state/pr-733
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7529420Z  * [new branch]          review-state/pr-734     -> origin/review-state/pr-734
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7529902Z  * [new branch]          review-state/pr-735     -> origin/review-state/pr-735
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7530533Z  * [new branch]          review-state/pr-736     -> origin/review-state/pr-736
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7531018Z  * [new branch]          review-state/pr-737     -> origin/review-state/pr-737
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7531504Z  * [new branch]          review-state/pr-738     -> origin/review-state/pr-738
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7531990Z  * [new branch]          review-state/pr-739     -> origin/review-state/pr-739
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7532474Z  * [new branch]          review-state/pr-740     -> origin/review-state/pr-740
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7532956Z  * [new branch]          review-state/pr-741     -> origin/review-state/pr-741
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7533442Z  * [new branch]          review-state/pr-743     -> origin/review-state/pr-743
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7533931Z  * [new branch]          review-state/pr-745     -> origin/review-state/pr-745
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7534426Z  * [new branch]          review-state/pr-746     -> origin/review-state/pr-746
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7534915Z  * [new branch]          review-state/pr-747     -> origin/review-state/pr-747
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7535397Z  * [new branch]          review-state/pr-749     -> origin/review-state/pr-749
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7535886Z  * [new branch]          review-state/pr-752     -> origin/review-state/pr-752
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7536369Z  * [new branch]          review-state/pr-753     -> origin/review-state/pr-753
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7536851Z  * [new branch]          review-state/pr-754     -> origin/review-state/pr-754
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7537338Z  * [new branch]          review-state/pr-755     -> origin/review-state/pr-755
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7537829Z  * [new branch]          review-state/pr-756     -> origin/review-state/pr-756
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7538459Z  * [new branch]          review-state/pr-757     -> origin/review-state/pr-757
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7538976Z  * [new branch]          review-state/pr-758     -> origin/review-state/pr-758
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7539473Z  * [new branch]          review-state/pr-759     -> origin/review-state/pr-759
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7539966Z  * [new branch]          review-state/pr-760     -> origin/review-state/pr-760
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7540454Z  * [new branch]          review-state/pr-761     -> origin/review-state/pr-761
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7541068Z  * [new branch]          review-state/pr-762     -> origin/review-state/pr-762
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7541554Z  * [new branch]          review-state/pr-763     -> origin/review-state/pr-763
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7542047Z  * [new branch]          review-state/pr-764     -> origin/review-state/pr-764
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7542545Z  * [new branch]          review-state/pr-765     -> origin/review-state/pr-765
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7543029Z  * [new branch]          review-state/pr-766     -> origin/review-state/pr-766
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7543519Z  * [new branch]          review-state/pr-767     -> origin/review-state/pr-767
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7544004Z  * [new branch]          review-state/pr-768     -> origin/review-state/pr-768
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7544495Z  * [new branch]          review-state/pr-769     -> origin/review-state/pr-769
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7544981Z  * [new branch]          review-state/pr-770     -> origin/review-state/pr-770
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7545473Z  * [new branch]          review-state/pr-771     -> origin/review-state/pr-771
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7545962Z  * [new branch]          review-state/pr-772     -> origin/review-state/pr-772
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7546458Z  * [new branch]          review-state/pr-773     -> origin/review-state/pr-773
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7546948Z  * [new branch]          review-state/pr-774     -> origin/review-state/pr-774
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7547484Z  * [new branch]          review-state/pr-777     -> origin/review-state/pr-777
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7548098Z  * [new branch]          review-state/pr-778     -> origin/review-state/pr-778
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7548602Z  * [new branch]          review-state/pr-779     -> origin/review-state/pr-779
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7549223Z  * [new branch]          review-state/pr-780     -> origin/review-state/pr-780
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7549712Z  * [new branch]          review-state/pr-781     -> origin/review-state/pr-781
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7550197Z  * [new branch]          review-state/pr-782     -> origin/review-state/pr-782
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7550693Z  * [new branch]          review-state/pr-783     -> origin/review-state/pr-783
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7551181Z  * [new branch]          review-state/pr-784     -> origin/review-state/pr-784
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7551670Z  * [new branch]          review-state/pr-785     -> origin/review-state/pr-785
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7552153Z  * [new branch]          review-state/pr-788     -> origin/review-state/pr-788
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7552638Z  * [new branch]          review-state/pr-789     -> origin/review-state/pr-789
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7553129Z  * [new branch]          review-state/pr-792     -> origin/review-state/pr-792
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7553613Z  * [new branch]          review-state/pr-794     -> origin/review-state/pr-794
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7554108Z  * [new branch]          review-state/pr-821     -> origin/review-state/pr-821
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7554593Z  * [new branch]          review-state/pr-829     -> origin/review-state/pr-829
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7555082Z  * [new branch]          review-state/pr-849     -> origin/review-state/pr-849
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7555565Z  * [new branch]          review-state/pr-850     -> origin/review-state/pr-850
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7556050Z  * [new branch]          review-state/pr-858     -> origin/review-state/pr-858
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7556536Z  * [new branch]          review-state/pr-859     -> origin/review-state/pr-859
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7557021Z  * [new branch]          review-state/pr-862     -> origin/review-state/pr-862
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7557509Z  * [new branch]          review-state/pr-863     -> origin/review-state/pr-863
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7558121Z  * [new branch]          review-state/pr-892     -> origin/review-state/pr-892
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7558654Z  * [new branch]          review-state/scheduler  -> origin/review-state/scheduler
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7559169Z  * [new branch]          tangtaoit-patch-1       -> origin/tangtaoit-patch-1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7559662Z  * [new branch]          tangtaoit-patch-2       -> origin/tangtaoit-patch-2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7560282Z  * [new branch]          tangtaoit-patch-3       -> origin/tangtaoit-patch-3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7560733Z  * [new branch]          v1                      -> origin/v1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7561126Z  * [new branch]          v2                      -> origin/v2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7561554Z  * [new branch]          v2.0.9-20241220-dev     -> origin/v2.0.9-20241220-dev
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7561992Z  * [new tag]             latest                  -> latest
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7562545Z  * [new tag]             v1.0.0                  -> v1.0.0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7563137Z  * [new tag]             v1.0.1                  -> v1.0.1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7563751Z  * [new tag]             v1.0.2                  -> v1.0.2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7564408Z  * [new tag]             v1.0.3                  -> v1.0.3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7565065Z  * [new tag]             v1.0.4                  -> v1.0.4
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7565459Z  * [new tag]             v1.0.5                  -> v1.0.5
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7565828Z  * [new tag]             v1.0.6                  -> v1.0.6
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7566188Z  * [new tag]             v1.0.7                  -> v1.0.7
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7566542Z  * [new tag]             v1.0.8                  -> v1.0.8
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7566894Z  * [new tag]             v1.0.9                  -> v1.0.9
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7567243Z  * [new tag]             v1.1.0                  -> v1.1.0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7567595Z  * [new tag]             v1.1.1                  -> v1.1.1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7567946Z  * [new tag]             v1.1.2                  -> v1.1.2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7568651Z  * [new tag]             v1.1.3                  -> v1.1.3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7569203Z  * [new tag]             v1.1.4                  -> v1.1.4
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7569556Z  * [new tag]             v1.1.5                  -> v1.1.5
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7569913Z  * [new tag]             v1.1.6                  -> v1.1.6
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7570273Z  * [new tag]             v1.1.7                  -> v1.1.7
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7570627Z  * [new tag]             v1.1.8                  -> v1.1.8
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7570979Z  * [new tag]             v1.1.9                  -> v1.1.9
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7571334Z  * [new tag]             v1.2.0                  -> v1.2.0
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7571690Z  * [new tag]             v1.2.1                  -> v1.2.1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7572045Z  * [new tag]             v1.2.2                  -> v1.2.2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7572397Z  * [new tag]             v1.2.3                  -> v1.2.3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7572758Z  * [new tag]             v1.2.4                  -> v1.2.4
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7573122Z  * [new tag]             v1.2.5                  -> v1.2.5
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7573480Z  * [new tag]             v1.2.6                  -> v1.2.6
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7573855Z  * [new tag]             v2.0.0-beta             -> v2.0.0-beta
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7574280Z  * [new tag]             v2.0.1-beta-20240715    -> v2.0.1-beta-20240715
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7574715Z  * [new tag]             v2.0.10-20241221        -> v2.0.10-20241221
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7575138Z  * [new tag]             v2.0.2-beta-20240805    -> v2.0.2-beta-20240805
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7575558Z  * [new tag]             v2.0.3-beta-20240828    -> v2.0.3-beta-20240828
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7575977Z  * [new tag]             v2.0.4-beta-20240904    -> v2.0.4-beta-20240904
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7576391Z  * [new tag]             v2.0.5-20240925         -> v2.0.5-20240925
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7576791Z  * [new tag]             v2.0.6-20241008         -> v2.0.6-20241008
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7577185Z  * [new tag]             v2.0.7-20241104         -> v2.0.7-20241104
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7577577Z  * [new tag]             v2.0.8-20241129         -> v2.0.8-20241129
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7578124Z  * [new tag]             v2.0.9-20241220         -> v2.0.9-20241220
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7578665Z  * [new tag]             v2.1.0-20241224         -> v2.1.0-20241224
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7579212Z  * [new tag]             v2.1.1-20241230         -> v2.1.1-20241230
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7579601Z  * [new tag]             v2.1.2-20250120         -> v2.1.2-20250120
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7579991Z  * [new tag]             v2.1.3-20250210         -> v2.1.3-20250210
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7580378Z  * [new tag]             v2.1.4-20250319         -> v2.1.4-20250319
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7580761Z  * [new tag]             v2.1.5-20250424         -> v2.1.5-20250424
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7581149Z  * [new tag]             v2.2.0-20250426         -> v2.2.0-20250426
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7581535Z  * [new tag]             v2.2.1-20250624         -> v2.2.1-20250624
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7581917Z  * [new tag]             v2.2.2-20251229         -> v2.2.2-20251229
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7582308Z  * [new tag]             v2.2.3-20260128         -> v2.2.3-20260128
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7582689Z  * [new tag]             v2.2.4-20260313         -> v2.2.4-20260313
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7583079Z  * [new tag]             v2.2.5-20260422         -> v2.2.5-20260422
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7583479Z  * [new tag]             v3.0.0-beta.1           -> v3.0.0-beta.1
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7583878Z  * [new tag]             v3.0.0-beta.10          -> v3.0.0-beta.10
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7584275Z  * [new tag]             v3.0.0-beta.11          -> v3.0.0-beta.11
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7584664Z  * [new tag]             v3.0.0-beta.12          -> v3.0.0-beta.12
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7585053Z  * [new tag]             v3.0.0-beta.13          -> v3.0.0-beta.13
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7585440Z  * [new tag]             v3.0.0-beta.14          -> v3.0.0-beta.14
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7585828Z  * [new tag]             v3.0.0-beta.15          -> v3.0.0-beta.15
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7586212Z  * [new tag]             v3.0.0-beta.16          -> v3.0.0-beta.16
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7586798Z  * [new tag]             v3.0.0-beta.17          -> v3.0.0-beta.17
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7587183Z  * [new tag]             v3.0.0-beta.18          -> v3.0.0-beta.18
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7587576Z  * [new tag]             v3.0.0-beta.19          -> v3.0.0-beta.19
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7588109Z  * [new tag]             v3.0.0-beta.2           -> v3.0.0-beta.2
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7588520Z  * [new tag]             v3.0.0-beta.20          -> v3.0.0-beta.20
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7588907Z  * [new tag]             v3.0.0-beta.21          -> v3.0.0-beta.21
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7589295Z  * [new tag]             v3.0.0-beta.22          -> v3.0.0-beta.22
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7589681Z  * [new tag]             v3.0.0-beta.23          -> v3.0.0-beta.23
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7590078Z  * [new tag]             v3.0.0-beta.24          -> v3.0.0-beta.24
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7590470Z  * [new tag]             v3.0.0-beta.3           -> v3.0.0-beta.3
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7590860Z  * [new tag]             v3.0.0-beta.4           -> v3.0.0-beta.4
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7591251Z  * [new tag]             v3.0.0-beta.5           -> v3.0.0-beta.5
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7591638Z  * [new tag]             v3.0.0-beta.6           -> v3.0.0-beta.6
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7592027Z  * [new tag]             v3.0.0-beta.7           -> v3.0.0-beta.7
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7592413Z  * [new tag]             v3.0.0-beta.8           -> v3.0.0-beta.8
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7592794Z  * [new tag]             v3.0.0-beta.9           -> v3.0.0-beta.9
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7594227Z [command]/usr/bin/git rev-parse --verify --quiet abd628769baf7552a8cf8abb29a7ba63e52c3326^{object}
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:23.7595537Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin abd628769baf7552a8cf8abb29a7ba63e52c3326
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.0977253Z From https://github.com/WuKongIM/WuKongIM
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.0979198Z  * branch                abd628769baf7552a8cf8abb29a7ba63e52c3326 -> FETCH_HEAD
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.0987575Z [command]/usr/bin/git rev-parse --verify --quiet abd628769baf7552a8cf8abb29a7ba63e52c3326^{object}
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1015854Z abd628769baf7552a8cf8abb29a7ba63e52c3326
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1023083Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1023967Z ##[group]Determining the checkout info
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1024457Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1026918Z [command]/usr/bin/git sparse-checkout disable
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1080842Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1110922Z ##[group]Checking out the ref
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.1114561Z [command]/usr/bin/git checkout --progress --force abd628769baf7552a8cf8abb29a7ba63e52c3326
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9440977Z Note: switching to 'abd628769baf7552a8cf8abb29a7ba63e52c3326'.
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9441591Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9441909Z You are in 'detached HEAD' state. You can look around, make experimental
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9442471Z changes and commit them, and you can discard any commits you make in this
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9443281Z state without impacting any branches by switching back to a branch.
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9443809Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9444145Z If you want to create a new branch to retain commits you create, you may
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9444970Z do so (now or later) by using -c with the switch command. Example:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9445537Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9445727Z   git switch -c <new-branch-name>
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9446080Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9446273Z Or undo this operation with:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9446569Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9446726Z   git switch -
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9446881Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9447154Z Turn off this advice by setting config variable advice.detachedHead to false
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9447664Z 
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9448645Z HEAD is now at abd628769 Merge eda77697db42ba14f14bfad58cdd3557342b9989 into ed705c0fbffdea485bbb65608d6e340bb049d97e
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9538600Z ##[endgroup]
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9599917Z [command]/usr/bin/git log -1 --format=%H
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9650830Z abd628769baf7552a8cf8abb29a7ba63e52c3326
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9661877Z ##[group]Removing auth
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9662475Z Removing SSH command configuration
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9668517Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:24.9705842Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0077396Z Removing HTTP extra header
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0085072Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0139307Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0410377Z Removing includeIf entries pointing to credentials config files
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0429491Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0450597Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0460649Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0468682Z includeif.gitdir:/github/workspace/.git.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0469691Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0472128Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0489204Z /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0503373Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0560032Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0588685Z /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.0611332Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.1889652Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.1900329Z /github/runner_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.1909912Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.3263570Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.3289077Z /github/runner_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.3369444Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.3754485Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.4015383Z Removing credentials config '/home/runner/work/_temp/git-credentials-30b745e8-9355-4a09-beb3-fa72b2ab5799.config'
+Candidate scripts integration	Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T07:59:25.5287082Z ##[endgroup]
+Candidate scripts integration	Freeze source and named-check authority	﻿2026-10-21T07:59:25.7363560Z ##[group]Run set -euo pipefail
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7364155Z ^[[36;1mset -euo pipefail^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7364582Z ^[[36;1mmkdir -p "$EVIDENCE_DIR"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7365174Z ^[[36;1mprintf 'EVIDENCE_DIR=%s\n' "$EVIDENCE_DIR" >> "$GITHUB_ENV"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7365873Z ^[[36;1m[[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7366522Z ^[[36;1mtest -z "$(git status --porcelain --untracked-files=no)"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7367464Z ^[[36;1mpolicy_sha="${BASE_SHA:-$(git rev-parse origin/main)}"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7368254Z ^[[36;1m[[ "$policy_sha" =~ ^[0-9a-f]{40}$ ]]^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7368836Z ^[[36;1mgit merge-base --is-ancestor "$policy_sha" HEAD^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7369680Z ^[[36;1mgit show "$policy_sha:.github/review-agent/policy.json" > "$EVIDENCE_DIR/policy.json"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7370682Z ^[[36;1mpolicy_sha256="$(sha256sum "$EVIDENCE_DIR/policy.json" | cut -d ' ' -f 1)"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7371582Z ^[[36;1mjq -n --arg source_sha "$SOURCE_SHA" --arg policy_sha "$policy_sha" \^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7372493Z ^[[36;1m  --arg policy_sha256 "$policy_sha256" --arg event "$GITHUB_EVENT_NAME" \^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7373346Z ^[[36;1m  --arg run_id "$GITHUB_RUN_ID" --arg run_attempt "$GITHUB_RUN_ATTEMPT" \^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7374574Z ^[[36;1m  '{source_sha:$source_sha,policy_sha:$policy_sha,policy_sha256:$policy_sha256,event:$event,run_id:$run_id,run_attempt:$run_attempt}' \^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:25.7375664Z ^[[36;1m  > "$EVIDENCE_DIR/identity.json"^[[0m
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0437005Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0437395Z env:
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0437604Z   GOWORK: off
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0437805Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0438483Z   SOURCE_SHA: abd628769baf7552a8cf8abb29a7ba63e52c3326
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0438857Z   BASE_SHA: ed705c0fbffdea485bbb65608d6e340bb049d97e
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0439272Z   EVIDENCE_DIR: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Freeze source and named-check authority	2026-10-21T07:59:26.0439646Z ##[endgroup]
+Candidate scripts integration	Validate workflow static contracts	﻿2026-10-21T07:59:26.5446247Z ##[group]Run python3 scripts/v3_candidate_workflow_contract_test.py
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5446756Z ^[[36;1mpython3 scripts/v3_candidate_workflow_contract_test.py^[[0m
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5498628Z shell: /usr/bin/bash -e {0}
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5498888Z env:
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5499074Z   GOWORK: off
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5499283Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5499641Z   EVIDENCE_DIR: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.5500029Z ##[endgroup]
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.6508563Z ........
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.6509131Z ----------------------------------------------------------------------
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.6509719Z Ran 8 tests in 0.005s
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.6509954Z 
+Candidate scripts integration	Validate workflow static contracts	2026-10-21T07:59:26.6510103Z OK
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	﻿2026-10-21T07:59:26.6674019Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6674415Z with:
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6674619Z   go-version-file: go.mod
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6674846Z   cache: false
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6675038Z   check-latest: false
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6677522Z   token: ***
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6677721Z env:
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6677896Z   GOWORK: off
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6678376Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6678719Z   EVIDENCE_DIR: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.6679095Z ##[endgroup]
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.8026885Z Setup go version spec 1.25.11
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:26.8040433Z Attempting to download 1.25.11...
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:27.5431755Z matching 1.25.11...
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:27.5479011Z Acquiring 1.25.11 from https://github.com/actions/go-versions/releases/download/1.25.11-26891828414/go-1.25.11-linux-x64.tar.gz
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:28.4455024Z Extracting Go...
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:28.4571299Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/a3ac50f1-95fb-49bc-acf4-51a94d104b4d -f /home/runner/work/_temp/d5bfc2f2-ef5b-4317-8528-a426c7898bc2
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:29.9248273Z Successfully extracted go to /home/runner/work/_temp/a3ac50f1-95fb-49bc-acf4-51a94d104b4d
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:29.9249238Z Adding to the cache ...
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.5135761Z Successfully cached go to /opt/hostedtoolcache/go/1.25.11/x64
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.5139224Z Added go to the path
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.5142037Z Successfully set up Go version 1.25.11
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.5356350Z go version go1.25.11 linux/amd64
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.5356947Z 
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.5357366Z ##[group]go env
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6816484Z {
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6817081Z 	"AR": "ar",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6817463Z 	"CC": "gcc",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6817848Z 	"CGO_CFLAGS": "-O2 -g",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6818449Z 	"CGO_CPPFLAGS": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6818706Z 	"CGO_CXXFLAGS": "-O2 -g",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6818953Z 	"CGO_ENABLED": "1",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6819177Z 	"CGO_FFLAGS": "-O2 -g",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6819444Z 	"CGO_LDFLAGS": "-O2 -g",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6819669Z 	"CXX": "g++",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6819871Z 	"GCCGO": "gccgo",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6820079Z 	"GO111MODULE": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6820293Z 	"GOAMD64": "v1",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6820526Z 	"GOARCH": "amd64",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6820730Z 	"GOAUTH": "netrc",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6820930Z 	"GOBIN": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6821175Z 	"GOCACHE": "/home/runner/.cache/go-build",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6821487Z 	"GOCACHEPROG": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6821698Z 	"GODEBUG": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6821950Z 	"GOENV": "/home/runner/.config/go/env",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6822250Z 	"GOEXE": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6822452Z 	"GOEXPERIMENT": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6822670Z 	"GOFIPS140": "off",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6822888Z 	"GOFLAGS": "-p=2 -json",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6823740Z 	"GOGCCFLAGS": "-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build1509243131=/tmp/go-build -gno-record-gcc-switches",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6824481Z 	"GOHOSTARCH": "amd64",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6824715Z 	"GOHOSTOS": "linux",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6824941Z 	"GOINSECURE": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6825223Z 	"GOMOD": "/home/runner/work/WuKongIM/WuKongIM/go.mod",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6825580Z 	"GOMODCACHE": "/home/runner/go/pkg/mod",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6825859Z 	"GONOPROXY": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6826070Z 	"GONOSUMDB": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6826269Z 	"GOOS": "linux",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6826483Z 	"GOPATH": "/home/runner/go",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6826729Z 	"GOPRIVATE": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6827028Z 	"GOPROXY": "https://proxy.golang.org,direct",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6827405Z 	"GOROOT": "/opt/hostedtoolcache/go/1.25.11/x64",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6827732Z 	"GOSUMDB": "sum.golang.org",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6828216Z 	"GOTELEMETRY": "local",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6828552Z 	"GOTELEMETRYDIR": "/home/runner/.config/go/telemetry",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6828872Z 	"GOTMPDIR": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6829084Z 	"GOTOOLCHAIN": "local",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6829710Z 	"GOTOOLDIR": "/opt/hostedtoolcache/go/1.25.11/x64/pkg/tool/linux_amd64",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6830093Z 	"GOVCS": "",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6830303Z 	"GOVERSION": "go1.25.11",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6830532Z 	"GOWORK": "off",
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6830748Z 	"PKG_CONFIG": "pkg-config"
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6830968Z }
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6831067Z 
+Candidate scripts integration	Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16	2026-10-21T07:59:34.6831396Z ##[endgroup]
+Candidate scripts integration	Run frozen scripts-integration named check once	﻿2026-10-21T07:59:34.7006041Z ##[group]Run set -euo pipefail
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7006392Z ^[[36;1mset -euo pipefail^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7006690Z ^[[36;1mgo version > "$EVIDENCE_DIR/go-version.txt"^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7007021Z ^[[36;1mpython3 - <<'PY'^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7007250Z ^[[36;1mimport json^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7007456Z ^[[36;1mimport os^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7007676Z ^[[36;1mfrom pathlib import Path^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7007944Z ^[[36;1mimport importlib.util^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7008526Z ^[[36;1m^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7008764Z ^[[36;1mevidence = Path(os.environ["EVIDENCE_DIR"])^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7009135Z ^[[36;1mroot = Path(os.environ["GITHUB_WORKSPACE"]).resolve()^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7009553Z ^[[36;1mpolicy = json.loads((evidence / "policy.json").read_text())^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7009978Z ^[[36;1mcheck = policy["trusted_checks"]["scripts-integration"]^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7010328Z ^[[36;1marguments = check["arguments"]^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7010613Z ^[[36;1mworking_dir = check["working_dir"]^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7010970Z ^[[36;1mtimeout_seconds = check["timeout_seconds"]^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7011305Z ^[[36;1mmax_output_bytes = check["max_output_bytes"]^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7011843Z ^[[36;1mif (not isinstance(arguments, list) or not arguments or^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7012278Z ^[[36;1m        not all(isinstance(arg, str) and arg for arg in arguments) or^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7012673Z ^[[36;1m        not isinstance(working_dir, str) or^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7013050Z ^[[36;1m        type(timeout_seconds) is not int or timeout_seconds <= 0 or^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7013504Z ^[[36;1m        type(max_output_bytes) is not int or max_output_bytes <= 0):^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7013981Z ^[[36;1m    raise SystemExit("invalid frozen scripts-integration policy")^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7014382Z ^[[36;1mcwd = (root / working_dir).resolve()^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7014723Z ^[[36;1mif not cwd.is_relative_to(root) or not cwd.is_dir():^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7015193Z ^[[36;1m    raise SystemExit("scripts-integration working directory escapes checkout")^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7015882Z ^[[36;1mspec = importlib.util.spec_from_file_location("candidate_runner", root / "scripts/run-v3-candidate-check.py")^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7016475Z ^[[36;1mrunner = importlib.util.module_from_spec(spec)^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7016805Z ^[[36;1mspec.loader.exec_module(runner)^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7017253Z ^[[36;1mresult = runner.run_command(arguments, cwd, evidence, timeout_seconds, max_output_bytes,^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7017866Z ^[[36;1m                            metadata={"named_check": "scripts-integration", "working_dir": working_dir,^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7018984Z ^[[36;1m                                      "environment": {"GOWORK": "off", "GOFLAGS": os.environ["GOFLAGS"]}})^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7019436Z ^[[36;1mprint(json.dumps(result))^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7019746Z ^[[36;1mraise SystemExit(result["wrapper_exit_code"])^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7020043Z ^[[36;1mPY^[[0m
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7073143Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7073504Z env:
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7073690Z   GOWORK: off
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7073891Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7074239Z   EVIDENCE_DIR: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7074629Z   GOTOOLCHAIN: local
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T07:59:34.7074843Z ##[endgroup]
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T08:09:34.8919708Z {"status": "timeout", "exit_code": -15, "session_id": 2532, "output_bytes": 1320113, "output_truncated": false, "passed": false, "cleanup": {"session_id": 2532, "verified": true, "complete": true, "initial_processes": [2532, 12901, 107184, 107718, 107768, 107770, 107878, 107912, 107929], "remaining_processes": []}, "command_status": "timeout", "wrapper_exit_code": 124, "elapsed_seconds": 600.14}
+Candidate scripts integration	Run frozen scripts-integration named check once	2026-10-21T08:09:34.8988347Z ##[error]Process completed with exit code 124.
+Candidate scripts integration	Reject tracked-tree mutation	﻿2026-10-21T08:09:34.9060355Z ##[group]Run git diff --exit-code HEAD --
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9064524Z ^[[36;1mgit diff --exit-code HEAD --^[[0m
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9117233Z shell: /usr/bin/bash -e {0}
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9117487Z env:
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9117682Z   GOWORK: off
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9117889Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9118526Z   EVIDENCE_DIR: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9118903Z   GOTOOLCHAIN: local
+Candidate scripts integration	Reject tracked-tree mutation	2026-10-21T08:09:34.9119107Z ##[endgroup]
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	﻿2026-10-21T08:09:34.9356011Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9356442Z with:
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9356673Z   name: v3-candidate-scripts-39565861218-1
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9357048Z   path: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9357406Z   if-no-files-found: error
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9357654Z   retention-days: 14
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9357871Z   compression-level: 6
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9358391Z   overwrite: false
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9358620Z   include-hidden-files: false
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9358857Z   archive: true
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9359047Z env:
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9359221Z   GOWORK: off
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9359418Z   GOFLAGS: -p=2 -json
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9359752Z   EVIDENCE_DIR: /home/runner/work/_temp/v3-candidate-39565861218-1/scripts
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9360364Z   GOTOOLCHAIN: local
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:34.9360580Z ##[endgroup]
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:35.0873884Z With the provided path, there will be 6 files uploaded
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:35.0879741Z Artifact name is valid!
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:35.0880280Z Root directory input is valid!
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:35.4977063Z Uploading artifact: v3-candidate-scripts-39565861218-1.zip
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:35.5016640Z Beginning upload of artifact content to blob storage
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.0357771Z Uploaded bytes 107866
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.1116535Z Finished uploading artifact content to blob storage!
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.1117772Z SHA256 digest of uploaded artifact is 9f58dac6c178db70aa3834b3e3590d091a92331744ed8d127e9944804d1dfe11
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.1119021Z Finalizing artifact upload
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.5191976Z Artifact v3-candidate-scripts-39565861218-1 successfully finalized. Artifact ID 12330322889
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.5193643Z Artifact v3-candidate-scripts-39565861218-1 has been successfully uploaded! Final size is 107866 bytes. Artifact ID is 12330322889
+Candidate scripts integration	Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a	2026-10-21T08:09:36.5196877Z Artifact download URL: https://github.com/WuKongIM/WuKongIM/actions/runs/39565861218/artifacts/12330322889
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	﻿2026-10-21T08:09:36.5413643Z Post job cleanup.
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6263705Z [command]/usr/bin/git version
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6306593Z git version 2.55.0
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6346523Z Temporarily overriding HOME='/home/runner/work/_temp/bf1bacc5-cdac-4986-a514-a410f10e3ef0' before making global git config changes
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6348335Z Adding repository directory to the temporary git global config as a safe directory
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6353282Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6386064Z Removing SSH command configuration
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6392788Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6428263Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6671571Z Removing HTTP extra header
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6677103Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6715592Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6953409Z Removing includeIf entries pointing to credentials config files
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6960435Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Candidate scripts integration	Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0	2026-10-21T08:09:36.6993842Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Candidate scripts integration	Complete job	﻿2026-10-21T08:09:36.7378769Z Cleaning up orphan processes

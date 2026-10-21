@@ -1,0 +1,36 @@
+diff --git a/scripts/wukongim_three_nodes_build_integration_test.go b/scripts/wukongim_three_nodes_build_integration_test.go
+index cfdeae0e7..d00ea72c0 100644
+--- a/scripts/wukongim_three_nodes_build_integration_test.go
++++ b/scripts/wukongim_three_nodes_build_integration_test.go
+@@ -3,6 +3,7 @@
+ package scripts_test
+ 
+ import (
++	"crypto/rand"
+ 	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+@@ -13,6 +14,7 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 	sourceRoot := repoRoot(t)
+ 	root, revision := nestedBuildWorktree(t, sourceRoot)
+ 	outputBin := filepath.Join(t.TempDir(), "wukongim")
++	freshBuildID := "worktree-" + rand.Text()
+ 	// Keep this assertion independent from link artifacts produced by earlier
+ 	// repository checks so it always exercises this checkout's VCS context.
+ 	buildCache := t.TempDir()
+@@ -51,6 +53,15 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 		t.Fatalf("build local e2e binary: %v\n%s", err, buildOutput)
+ 	}
+ 
++	buildIDCommand := exec.Command("go", "tool", "buildid", outputBin)
++	buildIDOutput, err := buildIDCommand.CombinedOutput()
++	if err != nil {
++		t.Fatalf("inspect fresh local e2e link: %v\n%s", err, buildIDOutput)
++	}
++	if got := strings.TrimSpace(string(buildIDOutput)); got != freshBuildID {
++		t.Fatalf("binary build ID = %q, want fresh link %q", got, freshBuildID)
++	}
++
+ 	versionCommand := exec.Command("go", "version", "-m", outputBin)
+ 	versionOutput, err := versionCommand.CombinedOutput()
+ 	if err != nil {

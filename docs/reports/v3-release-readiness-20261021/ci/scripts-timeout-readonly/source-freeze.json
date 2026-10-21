@@ -1,0 +1,55 @@
+{
+  "reviewed_source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "linux_receipt_source_sha": "753005853ea3253d9d1ce6c525a3c3ba8c2f5c09",
+  "linux_sha_available_locally": false,
+  "source_files": {
+    "scripts/script_test_helpers_integration_test.go": {
+      "sha256": "7e04c8a2f1c6551fe1614477d761d207f78a34d5b0300e88e888340666b538ac",
+      "bytes": 1605
+    },
+    "scripts/script_test_helpers_test.go": {
+      "sha256": "ab1e9730796794ea94959d6e3b8b1c3ec34fa0bcf850658f3df483bceda10bb7",
+      "bytes": 1806
+    },
+    "scripts/test_main_test.go": {
+      "sha256": "178aa1f7240368e10e842372a90c75d3ae0844ce5cb552d5d522f12c9082cbba",
+      "bytes": 1415
+    },
+    "scripts/chat_lifecycle_repair_integration_test.go": {
+      "sha256": "077dc2ad6e55f7ad60e43485143531b36fec5e6f1f86e89f9cbc6fab5f5c48b7",
+      "bytes": 30507
+    },
+    "scripts/wkdb_import_smoke_script_integration_test.go": {
+      "sha256": "145a7ca256c7ce5ecc195ff1d4ec565edc1150fa56700319115008227d2da0e0",
+      "bytes": 3334
+    },
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": {
+      "sha256": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82",
+      "bytes": 41273
+    },
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": {
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+      "bytes": 79740
+    },
+    "scripts/cloud_deployment_execution_integration_test.go": {
+      "sha256": "86efe6a3cafa8ed5ff75a5640b533cfeabb510640bb68516bdc49457c53ca794",
+      "bytes": 11614
+    },
+    "scripts/native_package_bootstrap_diagnostics_integration_test.go": {
+      "sha256": "e29a53d2bed1a114542912764b078acb3281b874cffbba3ac4abbec2025c848c",
+      "bytes": 4782
+    },
+    ".github/workflows/v3-candidate-regression.yml": {
+      "sha256": "3581a155baa78511cb3af3192d3df4c0be79172484dfaa04cd6ce0de9a8b111c",
+      "bytes": 13945
+    },
+    ".github/workflows/README.md": {
+      "sha256": "299393170cc08561d5ba99c91a48c1763bea3afae169795b9cf367436259ba0a",
+      "bytes": 78407
+    },
+    ".github/review-agent/policy.json": {
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    }
+  }
+}

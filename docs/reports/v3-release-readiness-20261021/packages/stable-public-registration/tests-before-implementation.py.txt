@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+import copy
+from contextlib import contextmanager
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+DECLARATION = 'stable-public-keys.json'
+# Independently recorded from the operator's public-only production receipt.
+STABLE = {
+    'schema': 'wukongim.stable_public_keys/v1',
+    'apt': {'public_key': 'keys/apt-stable.asc',
+            'primary_fingerprint': 'F68735072235EDC3BEBA83A55F19C486C2108B64',
+            'signing_subkeys': {'current': '870709103947DCA5C19D76A817A8FB409BB05E51',
+                               'next': '46F98702B783D39F2009B75B3528CA2EEEFC54DF',
+                               'historical': []}},
+    'rpm': {'public_key': 'keys/rpm-stable.asc',
+            'primary_fingerprint': '4C76B7B37EBDAF05EB44976F96EC1B2D5976F45D',
+            'signing_subkeys': {'current': '7C090D6807F29854C25824B0C620CF61C8256051',
+                               'next': '333EB560B893835062CE28332022BAA4F4BE83D1',
+                               'historical': []}},
+}
+
+
+def write(root, value):
+    (root / 'manifests' / DECLARATION).write_text(json.dumps(value, indent=2) + '\n')
+
+
+@contextmanager
+def control_root(*, registered=True):
+    with tempfile.TemporaryDirectory(prefix='wk-stable-public-') as temporary:
+        root = Path(temporary)
+        for directory in ('manifests', 'keys', 'site'):
+            shutil.copytree(ROOT / directory, root / directory)
+        (root / 'manifests' / DECLARATION).unlink(missing_ok=True)
+        if registered:
+            write(root, STABLE)
+        else:
+            for family in ('apt', 'rpm'):
+                (root / STABLE[family]['public_key']).unlink()
+        yield root
+
+
+class StablePublicKeysTest(unittest.TestCase):
+    def run_control(self, root):
+        return subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/validate-control.py'),
+                               '--root', str(root)], capture_output=True, text=True, timeout=30)
+
+    def reject(self, root, diagnostic):
+        result = self.run_control(root)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(diagnostic, result.stderr)
+
+    def test_accepts_complete_registration_with_public_only_certificates(self):
+        with control_root() as root:
+            before = {path: (root / path).read_bytes() for path in
+                      ('manifests/channels.json', 'manifests/preview-signing.json')}
+            result = self.run_control(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('publication control validation passed', result.stdout)
+            self.assertEqual({path: (root / path).read_bytes() for path in before}, before)
+            stable = json.loads(before['manifests/channels.json'])['channels']['stable']
+            self.assertEqual(stable, {'enabled': False, 'status': 'object_storage_required', 'releases': []})
+
+    def test_accepts_historical_control_without_any_stable_registration(self):
+        with control_root(registered=False) as root:
+            result = self.run_control(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_partial_registration(self):
+        for missing in ('manifests/' + DECLARATION, 'keys/apt-stable.asc', 'keys/rpm-stable.asc'):
+            with self.subTest(missing=missing), control_root() as root:
+                (root / missing).unlink()
+                self.reject(root, 'stable' if missing.startswith('keys/') else 'keys directory entries')
+        with control_root(registered=False) as root:
+            write(root, STABLE)
+            self.reject(root, 'stable')
+
+    def test_rejects_non_public_declaration_fields(self):
+        mutations = [lambda x: x.update(schema='other'), lambda x: x.update(enabled=True),
+                     lambda x: x['apt'].update(environment='native-package-stable'),
+                     lambda x: x['rpm'].update(secret_subkey_env='SECRET'),
+                     lambda x: x['rpm'].update(passphrase_env='SECRET'),
+                     lambda x: x['apt'].update(public_key='keys/apt-preview.asc')]
+        for change in mutations:
+            with self.subTest(change=change), control_root() as root:
+                value = copy.deepcopy(STABLE)
+                change(value)
+                write(root, value)
+                self.reject(root, 'stable')
+
+    def test_rejects_duplicate_json_fields(self):
+        with control_root() as root:
+            path = root / 'manifests' / DECLARATION
+            path.write_text('{"schema":"duplicate",' + path.read_text().lstrip()[1:])
+            self.reject(root, 'duplicate JSON key: schema')
+
+    def test_rejects_malformed_or_duplicate_roles(self):
+        for field, value in (('current', 'bad'), ('next', None), ('historical', 'bad'),
+                             ('historical', ['B' * 40, 'A' * 40]),
+                             ('historical', ['B' * 40, 'B' * 40])):
+            with self.subTest(field=field, value=value), control_root() as root:
+                declaration = copy.deepcopy(STABLE)
+                declaration['apt']['signing_subkeys'][field] = value
+                write(root, declaration)
+                self.reject(root, 'stable')
+
+    def test_rejects_certificate_role_mismatch(self):
+        for field in ('primary_fingerprint', 'current', 'next'):
+            with self.subTest(field=field), control_root() as root:
+                declaration = copy.deepcopy(STABLE)
+                target = declaration['apt'] if field == 'primary_fingerprint' else declaration['apt']['signing_subkeys']
+                target[field] = 'A' * 40
+                write(root, declaration)
+                self.reject(root, 'fingerprint')
+
+    def test_rejects_reversed_current_and_next(self):
+        with control_root() as root:
+            declaration = copy.deepcopy(STABLE)
+            roles = declaration['apt']['signing_subkeys']
+            roles['current'], roles['next'] = roles['next'], roles['current']
+            write(root, declaration)
+            self.reject(root, 'rotation runway')
+
+    def test_rejects_cross_channel_full_and_short_id_collisions(self):
+        for width in (40, 16, 8):
+            with self.subTest(width=width), control_root() as root:
+                preview = json.loads((root / 'manifests/preview-signing.json').read_text())
+                collision = preview['rpm']['signing_subkeys']['current']
+                declaration = copy.deepcopy(STABLE)
+                declaration['apt']['signing_subkeys']['current'] = '0' * (40 - width) + collision[-width:]
+                write(root, declaration)
+                self.reject(root, 'fingerprints must all be distinct' if width == 40 else f'globally distinct {width}-hex')
+
+    def test_rejects_cross_stable_family_collision(self):
+        with control_root() as root:
+            declaration = copy.deepcopy(STABLE)
+            declaration['rpm']['primary_fingerprint'] = declaration['apt']['primary_fingerprint']
+            write(root, declaration)
+            self.reject(root, 'fingerprints must all be distinct')
+
+    def test_rejects_linked_or_extra_registration_inputs(self):
+        for kind in ('symlink-cert', 'hardlink-cert', 'symlink-manifest', 'extra'):
+            with self.subTest(kind=kind), control_root() as root:
+                path = root / ('manifests/' + DECLARATION if kind == 'symlink-manifest' else 'keys/apt-stable.asc')
+                if kind == 'extra':
+                    (root / 'keys/unlisted.asc').write_text('extra')
+                else:
+                    original = root / 'preserved-public-input'
+                    path.rename(original)
+                    if kind.startswith('symlink'):
+                        path.symlink_to(original)
+                    else:
+                        os.link(original, path)
+                self.reject(root, 'symbolic link' if kind.startswith('symlink') else
+                            'hard-linked' if kind == 'hardlink-cert' else 'keys directory entries')
+
+    def test_rejects_private_armor_in_registered_public_file(self):
+        with control_root() as root:
+            (root / 'keys/apt-stable.asc').write_text('-----BEGIN PGP PRIVATE KEY BLOCK-----\nTEST ONLY non-key marker\n')
+            self.reject(root, 'private key material is forbidden')
+
+    def test_registration_does_not_depend_on_preview_being_enabled(self):
+        with control_root() as root:
+            signing_path = root / 'manifests/preview-signing.json'
+            signing = json.loads(signing_path.read_text())
+            signing['enabled'] = False
+            for family in ('apt', 'rpm'):
+                (root / signing[family]['public_key']).unlink()
+                signing[family]['primary_fingerprint'] = None
+                signing[family]['signing_subkeys'] = {'current': None, 'next': None, 'historical': []}
+            signing_path.write_text(json.dumps(signing))
+            # This case targets the public signing-control boundary only; the
+            # complete publisher separately rejects enabled preview without keys.
+            spec = __import__('importlib.util', fromlist=['util'])
+            descriptor = spec.spec_from_file_location('stable_public_control', ROOT / 'scripts/validate-control.py')
+            module = spec.module_from_spec(descriptor)
+            descriptor.loader.exec_module(module)
+            self.assertEqual(module.validate_signing(root), signing)
+
+
+if __name__ == '__main__':
+    unittest.main()

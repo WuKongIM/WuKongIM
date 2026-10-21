@@ -1,0 +1,23 @@
+{
+  "status": "timeout",
+  "exit_code": -15,
+  "session_id": 2544,
+  "output_bytes": 5206,
+  "output_truncated": false,
+  "passed": false,
+  "cleanup": {
+    "session_id": 2544,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [
+      2544,
+      12870,
+      97409,
+      97838
+    ],
+    "remaining_processes": []
+  },
+  "command_status": "timeout",
+  "wrapper_exit_code": 124,
+  "elapsed_seconds": 602.137
+}

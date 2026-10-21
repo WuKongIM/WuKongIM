@@ -1,0 +1,2 @@
+Filesystem 1024-blocks Used Available Capacity Mounted on
+fake 100000 10000 90000 10% /

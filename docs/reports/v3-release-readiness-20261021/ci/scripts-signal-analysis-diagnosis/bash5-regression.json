@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-10-21T08:24:58.125974+00:00",
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^(TestCloudSimulationAnalyze(PreservesPrimaryFailureWhenCloseCannotBeProven|ClassifiesHealthCurlFailure|ClosesWindowWhenPrepareHandoffFails|ClosesAmbiguousRebindRequest|BoundsCryptoAndWorktreeProcessGroups|BoundsCodexEnvironmentProbes|ExitTrapCompletesCleanupAndPreservesStatus)|TestChatLifecycleLocalBaselineForwardsSignalAndJoinsActiveStep|TestSingleNodeTerminalObserverJoinSurvivesParentSignal)$",
+    "-count=1",
+    "-timeout=3m",
+    "-parallel=2"
+  ],
+  "shell_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+  "source_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "gocache": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+  "stage": "existing failures regression actual Bash5",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T08:25:26.417641+00:00"
+}

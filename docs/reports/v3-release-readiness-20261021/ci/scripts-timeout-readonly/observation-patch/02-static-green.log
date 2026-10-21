@@ -1,0 +1,13 @@
+test_authority_and_trigger_scope (__main__.CandidateWorkflowContract.test_authority_and_trigger_scope) ... ok
+test_cleanup_covers_only_owned_session_and_fails_closed (__main__.CandidateWorkflowContract.test_cleanup_covers_only_owned_session_and_fails_closed) ... ok
+test_embedded_python_is_valid (__main__.CandidateWorkflowContract.test_embedded_python_is_valid) ... ok
+test_frozen_named_check_enforces_policy_limits (__main__.CandidateWorkflowContract.test_frozen_named_check_enforces_policy_limits) ... ok
+test_registered_in_existing_catalog (__main__.CandidateWorkflowContract.test_registered_in_existing_catalog) ... ok
+test_scripts_gate_is_independent_and_consumes_frozen_base_policy (__main__.CandidateWorkflowContract.test_scripts_gate_is_independent_and_consumes_frozen_base_policy) ... ok
+test_sequential_e2e_uses_one_frozen_binary (__main__.CandidateWorkflowContract.test_sequential_e2e_uses_one_frozen_binary) ... ok
+test_source_failure_and_upload_evidence (__main__.CandidateWorkflowContract.test_source_failure_and_upload_evidence) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.003s
+
+OK

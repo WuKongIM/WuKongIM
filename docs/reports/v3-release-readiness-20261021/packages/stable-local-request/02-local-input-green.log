@@ -1,0 +1,11 @@
+test_environment_arguments_remain_compatible (test_sign_package_family.PackageFamilyLocalInputTest.test_environment_arguments_remain_compatible) ... ok
+test_file_and_stdin_options_reach_existing_validator_arguments (test_sign_package_family.PackageFamilyLocalInputTest.test_file_and_stdin_options_reach_existing_validator_arguments) ... ok
+test_input_choices_are_required_and_mutually_exclusive (test_sign_package_family.PackageFamilyLocalInputTest.test_input_choices_are_required_and_mutually_exclusive) ... ok
+test_passphrase_file_failures_use_existing_checks_before_gpg (test_sign_package_family.PackageFamilyLocalInputTest.test_passphrase_file_failures_use_existing_checks_before_gpg) ... ok
+test_secret_file_failures_use_existing_checks_before_gpg (test_sign_package_family.PackageFamilyLocalInputTest.test_secret_file_failures_use_existing_checks_before_gpg) ... ok
+test_stdin_uses_existing_base64_and_passphrase_validation (test_sign_package_family.PackageFamilyLocalInputTest.test_stdin_uses_existing_base64_and_passphrase_validation) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.478s
+
+OK

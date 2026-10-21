@@ -1,0 +1,19 @@
+{
+  "arguments": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts/...",
+    "-count=1",
+    "-timeout=9m",
+    "-parallel=2"
+  ],
+  "working_dir": ".",
+  "timeout_seconds": 600,
+  "max_output_bytes": 8388608,
+  "named_check": "scripts-integration",
+  "environment": {
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "gh",
+    "api",
+    "repos/WuKongIM/packages/pulls/70",
+    "--jq",
+    "{number,state,draft,merged,merged_at,merge_commit_sha,head_sha:.head.sha,base_sha:.base.sha,html_url}"
+  ],
+  "exit_code": 1,
+  "observed_at": "2026-10-21T08:39:42.605003+00:00"
+}

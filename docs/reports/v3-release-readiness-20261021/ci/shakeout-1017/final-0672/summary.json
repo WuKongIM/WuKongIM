@@ -1,0 +1,266 @@
+{
+  "head": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "tested_merge": "753005853ea3253d9d1ce6c525a3c3ba8c2f5c09",
+  "tree": "ad05497c99502a4d076bacb7dee150d10e939d28",
+  "qualification_complete": false,
+  "checks": [
+    {
+      "id": 119099050076,
+      "name": "Candidate scripts integration",
+      "conclusion": "failure",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:46:59Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185818/job/119099050076"
+    },
+    {
+      "id": 119099050381,
+      "name": "Candidate default suite (go-unit)",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:43:54Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185818/job/119099050381"
+    },
+    {
+      "id": 119101918437,
+      "name": "Candidate migration and messaging E2E",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:43:56Z",
+      "completed_at": "2026-10-21T07:48:58Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185818/job/119101918437"
+    },
+    {
+      "id": 119099050020,
+      "name": "Android Maven Central 1.0.5",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:40:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185819/job/119099050020"
+    },
+    {
+      "id": 119099050304,
+      "name": "Flutter pub.dev 1.1.0 on iOS",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:44:52Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185819/job/119099050304"
+    },
+    {
+      "id": 119099050370,
+      "name": "iOS CocoaPods 1.1.1",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:37Z",
+      "completed_at": "2026-10-21T07:43:40Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185819/job/119099050370"
+    },
+    {
+      "id": 119099050330,
+      "name": "PR performance baseline evidence",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:36:49Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099050330"
+    },
+    {
+      "id": 119099050533,
+      "name": "PR messaging unit and race",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:39:28Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099050533"
+    },
+    {
+      "id": 119099050544,
+      "name": "PR three-node correctness",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:41:34Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099050544"
+    },
+    {
+      "id": 119099052242,
+      "name": "Fixed Linux SEND diagnosis",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T07:36:33Z",
+      "completed_at": "2026-10-21T07:36:33Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099052242"
+    },
+    {
+      "id": 119099052292,
+      "name": "Nightly direct 500 QPS qualification",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T07:36:33Z",
+      "completed_at": "2026-10-21T07:36:33Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099052292"
+    },
+    {
+      "id": 119099153455,
+      "name": "PR 500 QPS / mixed-send",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:51Z",
+      "completed_at": "2026-10-21T07:42:07Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099153455"
+    },
+    {
+      "id": 119099153515,
+      "name": "PR 500 QPS / channel-append",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:51Z",
+      "completed_at": "2026-10-21T07:41:44Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099153515"
+    },
+    {
+      "id": 119099153539,
+      "name": "PR 500 QPS / tcp-sendack",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:51Z",
+      "completed_at": "2026-10-21T07:41:30Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119099153539"
+    },
+    {
+      "id": 119101219056,
+      "name": "PR three-node regression",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:42:09Z",
+      "completed_at": "2026-10-21T07:42:12Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185852/job/119101219056"
+    },
+    {
+      "id": 119099050060,
+      "name": "Build and install deb/rpm preview",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:36:35Z",
+      "completed_at": "2026-10-21T07:43:04Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185899/job/119099050060"
+    },
+    {
+      "id": 119101593263,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:43:06Z",
+      "completed_at": "2026-10-21T07:44:46Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185899/job/119101593263"
+    },
+    {
+      "id": 119101593414,
+      "name": "Exercise Debian 12 package lifecycle",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:43:06Z",
+      "completed_at": "2026-10-21T07:44:46Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185899/job/119101593414"
+    },
+    {
+      "id": 119101593433,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:43:06Z",
+      "completed_at": "2026-10-21T07:44:54Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185899/job/119101593433"
+    },
+    {
+      "id": 119101593524,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "conclusion": "success",
+      "started_at": "2026-10-21T07:43:06Z",
+      "completed_at": "2026-10-21T07:44:56Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39563185899/job/119101593524"
+    }
+  ],
+  "e2e_results": {
+    "build": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 2305,
+      "output_bytes": 5051,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 2305,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 86.756
+    },
+    "ordinary_history": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 7789,
+      "output_bytes": 27565,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 7789,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 101.423
+    },
+    "cross_node_delivery": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 13643,
+      "output_bytes": 8447,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 13643,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 52.719
+    },
+    "self_chat": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 13974,
+      "output_bytes": 3698,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 13974,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 37.044
+    }
+  },
+  "self_chat": {
+    "passed": true,
+    "cases": [
+      {
+        "nodes": 1,
+        "passed": true,
+        "acks": 6,
+        "restarts": 1,
+        "history_checks": 3,
+        "sender_suppression_windows": 4,
+        "duplicate_realtime_frames": 8
+      },
+      {
+        "nodes": 3,
+        "passed": true,
+        "acks": 6,
+        "restarts": 1,
+        "history_checks": 9,
+        "sender_suppression_windows": 4,
+        "duplicate_realtime_frames": 8
+      }
+    ]
+  },
+  "remaining_failure": "scripts-integration outer 600 seconds; original failure and cleanup retained; new observation-only commit required"
+}

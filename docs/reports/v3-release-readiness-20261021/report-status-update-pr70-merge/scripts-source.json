@@ -1,0 +1,5 @@
+{
+  "path": "/tmp/wukongim-v3-readiness-20261021/scripts-combined-delivery/scripts-failure-summary.json",
+  "sha256": "aaed47872ca7a8a0789be4d79018a105e4ce1f9721ad0f78d8c256258b2efbde",
+  "related_ci_status_source": "rc_cloud_plan message: default go-unit 408.937s pass; chat and three SDK suites pass; migration E2E/native four distro checks still running at cutoff"
+}

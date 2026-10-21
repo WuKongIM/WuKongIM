@@ -1,0 +1,12 @@
+# VCS integration fixture narrow repair — failure inventory before edits
+
+Authorized scope: `scripts/wukongim_three_nodes_build_integration_test.go` only. No production launcher, named-check policy, time limit, scheduler, or signal harness change. Baseline eda77697.
+
+1. Inherited GOFLAGS=-json changes real `go version -m` output, so text VCS assertion falsely fails. Existing exact Linux CI is RED; metadata-only local probe confirms explicit -json=false is sufficient. Preserve those receipts, no need to repeat an empty-cache full build just to reproduce the same format failure.
+2. Reusing a prior linked binary could allow a stale checkout context to pass. Write an assertion for a fresh per-invocation build ID BEFORE wiring the new ID into the build. Verify exact `go tool buildid` output, in addition to unchanged exact vcs.revision assertion. The assertion-only patch is preserved, but that expensive assertion-only intermediate is NOT executed; it is not reported as a red run.
+3. Removing nested linked-worktree topology, selecting its unrelated primary HEAD, or dropping launcher Git binding would invalidate regression coverage. Keep fixture, real dry-run-derived build command, and exact selected revision assertion unchanged. No test-selected fake Go tool or forced expected VCS linker string.
+4. Reusing compile cache must not silently accept wrong workdir/GOWORK. Keep deliberately missing ambient GOWORK input and rely on actual launcher GOWORK=off. Keep buildvcs=true and e2e tag.
+5. The fresh ID must be shell/GOFLAGS-safe and unique per test invocation; use crypto/rand.Text() with fixed prefix, no path interpolation. Apply ldflags only to child build environment and retain original -p/-json flags. Current Go1.25.11 includes Ldflags in the link action cache key.
+6. A fresh link must not force all dependencies to compile from empty cache. Preserve inherited GOCACHE. Non-trimpath packages still depend on their relocated fixture path; savings are not assumed to equal the prior113.94s.
+
+Validation plan: one focused real integration run with GOWORK=off, GOFLAGS=-p=2 -json, existing 9m/parallel2 settings. Record exact source/diff, command, duration, event output and result. No full suite rerun, policy relaxation, runtime startup, or benchmark claim. Concurrent temporary GNU Bash build may affect elapsed time; this is correctness validation, not a comparative performance result.

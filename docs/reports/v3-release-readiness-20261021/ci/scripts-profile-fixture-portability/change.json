@@ -1,0 +1,8 @@
+{
+  "reason": "Exact fixed-string fixture assertions require no ripgrep dependency; Linux run failed exit127 because rg was absent.",
+  "occurrences": 2,
+  "prior_failure_run": 39565861218,
+  "test": "TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures",
+  "before_sha256": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82",
+  "after_sha256": "f78e050ad34b71c5b0177629265b8428b1ee9bf30cb8c2411e356149f047007f"
+}

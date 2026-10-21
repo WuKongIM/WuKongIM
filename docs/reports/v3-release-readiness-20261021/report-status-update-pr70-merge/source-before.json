@@ -1,0 +1,10 @@
+{
+  "observed_at": "2026-10-21T08:40:40.289454+00:00",
+  "worktree_head": "9a23014ba7e38d9a57770e317cf40fc21bd288cd",
+  "report_sha256": {
+    "docs/reports/2026-10-21-v3-release-readiness.md": "f288477f5609ac0c99b99f3de60586830e274d34e05cff6e71160f3e8be6e21e",
+    "docs/reports/2026-10-21-v3-stable-key-preparation.md": "ed56b2c159cd5c7bb54bf123887527886f4b94bb0ea2be79ae9faf2815691f78"
+  },
+  "previous_audit_directory": "/tmp/wukongim-v3-readiness-20261021/report-status-update",
+  "scope": "Only #70 merge/postmerge status; other historical evidence remains unchanged"
+}

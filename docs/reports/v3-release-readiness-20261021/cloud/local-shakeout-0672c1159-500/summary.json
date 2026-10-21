@@ -1,0 +1,1411 @@
+{
+  "status": "completed_local_operator_stop_with_logged_warnings",
+  "source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "source_clean_before_and_after": true,
+  "attempts": 1,
+  "helper_exit_code": 130,
+  "wrapper_exit_code": 130,
+  "helper_planned_operator_stop": true,
+  "formal_qualification": false,
+  "helper_stop_after_seconds": 1800,
+  "started_at": "2026-10-21T07:35:26.451214+00:00",
+  "finished_at": "2026-10-21T08:06:11.305220+00:00",
+  "window": {
+    "start": "2026-10-21T07:36:51.219782Z",
+    "warmup_end": "2026-10-21T07:46:51.219782Z",
+    "qualification_at": "2026-10-21T07:56:51.219782Z",
+    "final_at": "2026-10-21T08:06:51.219782Z",
+    "end": "2026-10-21T08:06:04.333745Z",
+    "elapsed": 1753104288875
+  },
+  "measured_duration_seconds": 1753.104288875,
+  "final_sha256": "b4ae55c54ea4fa41d4cc1d2fb5874c1e55f0621e9f5336a676cd30ecdd92da76",
+  "config_sha256": "6936f5400d5bdb4e55a86e9c2507c388c2463e6e2a9fb5b6b60f36d60d5294d8",
+  "binary_identity": [
+    {
+      "name": "wukongim",
+      "bytes": 92904434,
+      "sha256": "a6df18bdf60c3c8eecf776a8059cd9d1b0b7fadc8690e811b636919a7c9a779e",
+      "matches_helper_identity": true
+    },
+    {
+      "name": "wkcli",
+      "bytes": 59162610,
+      "sha256": "36e683708546bb9e4d04428564f4eb6e5f677b839b26315eebeba3aa7b108e9b",
+      "matches_helper_identity": true
+    }
+  ],
+  "profile": "local",
+  "stage": "shakeout",
+  "verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 13,
+      "minute_capacity": 16,
+      "latency_samples": [
+        61,
+        61,
+        61
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "topology": {
+    "validated": true,
+    "logical_slot_groups": 12,
+    "hash_slots": 256,
+    "slot_replicas": 3,
+    "channel_replicas": 3
+  },
+  "messages": {
+    "sent": 876529,
+    "send_attempts": 876531,
+    "first_attempts": 876529,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 876529,
+    "send_rejected": 0,
+    "received": 1099924,
+    "receive_acknowledged": 1099924,
+    "receive_ack_failures": 0,
+    "retry_attempts": 2,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "generated": {
+    "primary": 876500,
+    "person": 788850,
+    "group": 87650,
+    "canary": 29,
+    "payload_bytes": 668664320
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 134,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "sessions": {
+    "target": 2500,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0,
+    "planned_new": 3242,
+    "planned_returning": 807,
+    "completed_new": 3741,
+    "completed_returning": 273,
+    "expired": 13,
+    "close_reasons": {
+      "expired": 1515,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 2500,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    }
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 10758,
+    "delivered": 10758,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 54486,
+    "work_capacity": 114500,
+    "retry_current": 0,
+    "retry_peak": 1,
+    "retry_capacity": 12288,
+    "inflight_current": 0,
+    "inflight_peak": 500,
+    "inflight_capacity": 12288,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 2
+  },
+  "histogram_quantile_bounds": {
+    "hot_sendack": {
+      "count": 810725,
+      "mean_ms": 64.85138125725862,
+      "max_ms": 663.132291,
+      "p99_interval_ms": {
+        "lower_exclusive": 100.0,
+        "upper_inclusive": 200.0
+      },
+      "p999_interval_ms": {
+        "lower_exclusive": 200.0,
+        "upper_inclusive": 400.0
+      },
+      "above_400ms": 102
+    },
+    "cold_first_create_sendack": {
+      "count": 65804,
+      "mean_ms": 148.5299543723178,
+      "max_ms": 803.085375,
+      "p99_interval_ms": {
+        "lower_exclusive": 400.0,
+        "upper_inclusive": 1000.0
+      },
+      "p999_interval_ms": {
+        "lower_exclusive": 400.0,
+        "upper_inclusive": 1000.0
+      }
+    },
+    "worker_lifecycle_reheat_sendack": {
+      "count": 0,
+      "mean_ms": null,
+      "max_ms": 0.0,
+      "p99_interval_ms": null,
+      "p999_interval_ms": null
+    },
+    "receive_ack": {
+      "count": 1099924,
+      "mean_ms": 0.01629297155167084,
+      "max_ms": 13.594625,
+      "p99_interval_ms": {
+        "lower_exclusive": 0.0,
+        "upper_inclusive": 1.0
+      },
+      "p999_interval_ms": {
+        "lower_exclusive": 0.0,
+        "upper_inclusive": 1.0
+      }
+    },
+    "send_pending_to_write": {
+      "count": 876529,
+      "mean_ms": 1.159013247571957,
+      "max_ms": 54.827959,
+      "p99_interval_ms": {
+        "lower_exclusive": 1.0,
+        "upper_inclusive": 2.0
+      },
+      "p999_interval_ms": {
+        "lower_exclusive": 2.0,
+        "upper_inclusive": 5.0
+      }
+    },
+    "send_write_to_ack": {
+      "count": 876529,
+      "mean_ms": 69.96886236736606,
+      "max_ms": 801.892375,
+      "p99_interval_ms": {
+        "lower_exclusive": 200.0,
+        "upper_inclusive": 400.0
+      },
+      "p999_interval_ms": {
+        "lower_exclusive": 400.0,
+        "upper_inclusive": 1000.0
+      }
+    },
+    "full_sync": {
+      "count": 4015,
+      "mean_ms": 9.283919961394771,
+      "max_ms": 358.6195,
+      "p99_interval_ms": {
+        "lower_exclusive": 200.0,
+        "upper_inclusive": 400.0
+      },
+      "p999_interval_ms": {
+        "lower_exclusive": 200.0,
+        "upper_inclusive": 400.0
+      }
+    }
+  },
+  "cluster": {
+    "healthy_samples": 351,
+    "unhealthy_samples": 0,
+    "logical_slot_groups": 12,
+    "leader_groups": 12,
+    "full_replica_groups": 12,
+    "hot_replica_lag_breaches": 0,
+    "leader_imbalance_warnings": 0
+  },
+  "resources": {
+    "nodes": [
+      {
+        "data_filesystem_bytes": 994662584320,
+        "data_filesystem_available_bytes": 772166889472,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 137468792,
+        "heap_end_bytes": 137468792,
+        "goroutine_start": 2538,
+        "goroutine_end": 2538,
+        "sched_latency_mean_nanos": 978,
+        "sched_latency_mean_peak_nanos": 6160,
+        "queue_baseline": 178,
+        "queue_current": 50,
+        "inflight_baseline": 198,
+        "inflight_current": 46
+      },
+      {
+        "data_filesystem_bytes": 994662584320,
+        "data_filesystem_available_bytes": 772166889472,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 131936752,
+        "heap_end_bytes": 131936752,
+        "goroutine_start": 2492,
+        "goroutine_end": 2492,
+        "sched_latency_mean_nanos": 1454,
+        "sched_latency_mean_peak_nanos": 4276,
+        "queue_baseline": 210,
+        "queue_current": 50,
+        "inflight_baseline": 199,
+        "inflight_current": 60
+      },
+      {
+        "data_filesystem_bytes": 994662584320,
+        "data_filesystem_available_bytes": 772166889472,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 133990336,
+        "heap_end_bytes": 133990336,
+        "goroutine_start": 2527,
+        "goroutine_end": 2527,
+        "sched_latency_mean_nanos": 1656,
+        "sched_latency_mean_peak_nanos": 3943,
+        "queue_baseline": 192,
+        "queue_current": 55,
+        "inflight_baseline": 185,
+        "inflight_current": 53
+      }
+    ],
+    "retention": {
+      "minute_samples": 13,
+      "minute_capacity": 16,
+      "latency_samples": [
+        61,
+        61,
+        61
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    },
+    "capacity": {
+      "samples": 351,
+      "missing_samples": 0,
+      "sustained_window": 900000000000,
+      "host_cpu_percent_basis_points": [
+        3497,
+        3497,
+        3497,
+        3497
+      ],
+      "host_memory_percent_basis_points": [
+        6378,
+        6378,
+        6378,
+        6378
+      ],
+      "service_queue_percent_basis_points": [
+        78,
+        20,
+        117
+      ],
+      "cpu_high_samples": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "memory_high_samples": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "queue_high_samples": [
+        0,
+        0,
+        0
+      ],
+      "cpu_sustained_events": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "memory_sustained_events": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "queue_sustained_events": [
+        0,
+        0,
+        0
+      ],
+      "cpu_sustained_active": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "memory_sustained_active": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "queue_sustained_active": [
+        false,
+        false,
+        false
+      ],
+      "worker_queue_samples": 351,
+      "worker_queue_missing_samples": 0,
+      "worker_queue_percent_basis_points": [
+        [
+          15,
+          0,
+          10,
+          0
+        ],
+        [
+          12,
+          0,
+          10,
+          0
+        ],
+        [
+          14,
+          0,
+          15,
+          0
+        ]
+      ],
+      "worker_queue_high_samples": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "worker_queue_sustained_events": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "worker_queue_sustained_active": [
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "worker_queues_complete": true,
+      "data_filesystem_bytes": [
+        994662584320,
+        994662584320,
+        994662584320,
+        994662584320
+      ],
+      "data_filesystem_available_bytes": [
+        772166889472,
+        772166889472,
+        772166889472,
+        772166889472
+      ],
+      "system_filesystem_bytes": [
+        994662584320,
+        994662584320,
+        994662584320,
+        994662584320
+      ],
+      "system_filesystem_available_bytes": [
+        772166889472,
+        772166889472,
+        772166889472,
+        772166889472
+      ],
+      "prometheus_bytes": 85161,
+      "network_transmit_bytes": 0,
+      "process_up": [
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          true,
+          true,
+          true,
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "process_cpu_jiffies": [
+        [
+          96655,
+          68,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          95552,
+          34,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          96919,
+          36,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          36,
+          7941,
+          7927,
+          7933,
+          924,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "process_resident_memory_bytes": [
+        [
+          901431296,
+          27426816,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          866467840,
+          26296320,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          869056512,
+          26624000,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          26968064,
+          225918976,
+          233881600,
+          228704256,
+          52314112,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "processes_complete": true,
+      "accrued_cost_micros": 0,
+      "lease_remaining_seconds": 0,
+      "complete": true
+    }
+  },
+  "lifecycle": {
+    "candidates": 0,
+    "loaded": 0,
+    "cold_eligible": 0,
+    "reheated": 0,
+    "completed": 0,
+    "product_failures": 0,
+    "product_failure_reasons": {
+      "initial_load": 0,
+      "runtime_state": 0,
+      "role_disagreement": 0,
+      "watermark_regression": 0,
+      "continued_loading": 0,
+      "premature_absence": 0,
+      "reheat_timeout": 0,
+      "partial_reheat": 0,
+      "sequence_proof": 0,
+      "unexpected_reload": 0,
+      "control_transition": 0
+    },
+    "harness_failures": 0,
+    "reheat_latency": {
+      "count": 0,
+      "sum_nanos": 0,
+      "max_nanos": 0,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "warnings": [],
+  "native_log_warnings": [
+    {
+      "path": "run/logs/node1/app.log",
+      "groups": [
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "error",
+            "error": "internal/runtime/presence: route not ready",
+            "phase": "presence"
+          },
+          "count": 94,
+          "first_at": "2026-10-21 07:41:05.775",
+          "first_line": 56,
+          "last_at": "2026-10-21 08:06:07.752",
+          "last_line": 150,
+          "before_report_end": 93,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "error",
+            "error": "transport: dial failed: dial tcp 127.0.0.1:15012: connect: connection refused",
+            "phase": "presence"
+          },
+          "count": 14,
+          "first_at": "2026-10-21 08:06:07.755",
+          "first_line": 151,
+          "last_at": "2026-10-21 08:06:07.782",
+          "last_line": 164,
+          "before_report_end": 0,
+          "after_report_end": 14
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[node.rpc]",
+            "message": "delivery push rpc rejected",
+            "event": "internal.access.node.delivery_push_rejected",
+            "error": "internal/runtime/delivery: runtime closed"
+          },
+          "count": 3,
+          "first_at": "2026-10-21 08:06:08.864",
+          "first_line": 165,
+          "last_at": "2026-10-21 08:06:08.884",
+          "last_line": 167,
+          "before_report_end": 0,
+          "after_report_end": 3
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[lifecycle]",
+            "message": "app lifecycle component stop failed",
+            "event": "internal.app.lifecycle_stop_failed",
+            "error": "context deadline exceeded",
+            "component": "delivery_worker",
+            "phase": "stop"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.164",
+          "first_line": 170,
+          "last_at": "2026-10-21 08:06:10.164",
+          "last_line": 170,
+          "before_report_end": 0,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "canceled",
+            "error": "context canceled",
+            "phase": "presence"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.164",
+          "first_line": 171,
+          "last_at": "2026-10-21 08:06:10.164",
+          "last_line": 171,
+          "before_report_end": 0,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[lifecycle]",
+            "message": "app lifecycle component stop failed",
+            "event": "internal.app.lifecycle_stop_failed",
+            "error": "context deadline exceeded",
+            "component": "plugin_hook",
+            "phase": "stop"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.186",
+          "first_line": 172,
+          "last_at": "2026-10-21 08:06:10.186",
+          "last_line": 172,
+          "before_report_end": 0,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "canceled",
+            "error": "context canceled",
+            "phase": "context"
+          },
+          "count": 115,
+          "first_at": "2026-10-21 08:06:10.198",
+          "first_line": 173,
+          "last_at": "2026-10-21 08:06:10.251",
+          "last_line": 288,
+          "before_report_end": 0,
+          "after_report_end": 115
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[lifecycle]",
+            "message": "app lifecycle component stop failed",
+            "event": "internal.app.lifecycle_stop_failed",
+            "error": "context deadline exceeded",
+            "component": "cluster",
+            "phase": "stop"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.699",
+          "first_line": 289,
+          "last_at": "2026-10-21 08:06:10.699",
+          "last_line": 289,
+          "before_report_end": 0,
+          "after_report_end": 1
+        }
+      ]
+    },
+    {
+      "path": "run/logs/node2/app.log",
+      "groups": []
+    },
+    {
+      "path": "run/logs/node3/app.log",
+      "groups": [
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "error",
+            "error": "internal/runtime/presence: route not ready",
+            "phase": "presence"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:08.885",
+          "first_line": 57,
+          "last_at": "2026-10-21 08:06:08.885",
+          "last_line": 57,
+          "before_report_end": 0,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "error",
+            "error": "transport: dial failed: dial tcp 127.0.0.1:15012: connect: connection refused",
+            "phase": "presence"
+          },
+          "count": 7,
+          "first_at": "2026-10-21 08:06:08.888",
+          "first_line": 58,
+          "last_at": "2026-10-21 08:06:10.165",
+          "last_line": 66,
+          "before_report_end": 0,
+          "after_report_end": 7
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[lifecycle]",
+            "message": "app lifecycle component stop failed",
+            "event": "internal.app.lifecycle_stop_failed",
+            "error": "context deadline exceeded",
+            "component": "delivery_worker",
+            "phase": "stop"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.165",
+          "first_line": 65,
+          "last_at": "2026-10-21 08:06:10.165",
+          "last_line": 65,
+          "before_report_end": 0,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[lifecycle]",
+            "message": "app lifecycle component stop failed",
+            "event": "internal.app.lifecycle_stop_failed",
+            "error": "context deadline exceeded",
+            "component": "plugin_hook",
+            "phase": "stop"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.198",
+          "first_line": 67,
+          "last_at": "2026-10-21 08:06:10.198",
+          "last_line": 67,
+          "before_report_end": 0,
+          "after_report_end": 1
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[delivery]",
+            "message": "online delivery plan incomplete",
+            "event": "internal.app.delivery.plan_incomplete",
+            "result": "canceled",
+            "error": "context canceled",
+            "phase": "context"
+          },
+          "count": 6,
+          "first_at": "2026-10-21 08:06:10.198",
+          "first_line": 68,
+          "last_at": "2026-10-21 08:06:10.237",
+          "last_line": 73,
+          "before_report_end": 0,
+          "after_report_end": 6
+        },
+        {
+          "signature": {
+            "level": "WARN",
+            "logger": "[lifecycle]",
+            "message": "app lifecycle component stop failed",
+            "event": "internal.app.lifecycle_stop_failed",
+            "error": "context deadline exceeded",
+            "component": "cluster",
+            "phase": "stop"
+          },
+          "count": 1,
+          "first_at": "2026-10-21 08:06:10.710",
+          "first_line": 74,
+          "last_at": "2026-10-21 08:06:10.710",
+          "last_line": 74,
+          "before_report_end": 0,
+          "after_report_end": 1
+        }
+      ]
+    }
+  ],
+  "warning_minute_counts": [
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:41",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 1
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:42",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 3
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:44",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 1
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:45",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 2
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:46",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 2
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:48",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 7
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:49",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 4
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:50",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 6
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:51",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 7
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:52",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 5
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:53",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 7
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:54",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 6
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:55",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 9
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:56",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 6
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:57",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 2
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:58",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 1
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 07:59",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 2
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:00",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 2
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:01",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 1
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:02",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 2
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:03",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 5
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:04",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 4
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:05",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 7
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:06",
+      "event": "internal.access.node.delivery_push_rejected",
+      "count": 3
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:06",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 132
+    },
+    {
+      "node": "node1",
+      "minute_utc": "2026-10-21 08:06",
+      "event": "internal.app.lifecycle_stop_failed",
+      "count": 3
+    },
+    {
+      "node": "node3",
+      "minute_utc": "2026-10-21 08:06",
+      "event": "internal.app.delivery.plan_incomplete",
+      "count": 14
+    },
+    {
+      "node": "node3",
+      "minute_utc": "2026-10-21 08:06",
+      "event": "internal.app.lifecycle_stop_failed",
+      "count": 3
+    }
+  ],
+  "panic_fatal_log_hits": [],
+  "observations": {
+    "host_lines": 122,
+    "process_lines": 364,
+    "host_errors_including_startup_shutdown": {
+      "URLError": 12
+    },
+    "process_errors_including_startup_shutdown": {
+      "FileNotFoundError": 28
+    },
+    "host_per_port_measured_cuts": {
+      "15060": {
+        "successful_measured_cuts": 116,
+        "metrics": {
+          "wkbench_host_cpu_busy_percent": {
+            "min": 22.222222,
+            "max": 69.058524,
+            "mean_of_observed_cuts": 31.344355,
+            "last": 40.731155
+          },
+          "wkbench_host_memory_used_percent": {
+            "min": 61.328745,
+            "max": 63.205385,
+            "mean_of_observed_cuts": 62.14812130172414,
+            "last": 63.205385
+          }
+        },
+        "availability": {
+          "wkbench_host_block_io_available{field=\"iops\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"bytes_per_second\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"utilization\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"service_time\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"read_write_split\",physical_device=\"unavailable\"}": [
+            0.0
+          ]
+        }
+      },
+      "15061": {
+        "successful_measured_cuts": 116,
+        "metrics": {
+          "wkbench_host_cpu_busy_percent": {
+            "min": 22.633053,
+            "max": 69.050649,
+            "mean_of_observed_cuts": 31.34054274137931,
+            "last": 40.731155
+          },
+          "wkbench_host_memory_used_percent": {
+            "min": 61.328745,
+            "max": 63.205385,
+            "mean_of_observed_cuts": 62.148243379310344,
+            "last": 63.205385
+          }
+        },
+        "availability": {
+          "wkbench_host_block_io_available{field=\"iops\",physical_device=\"disk0\"}": [
+            0.0,
+            1.0
+          ],
+          "wkbench_host_block_io_available{field=\"bytes_per_second\",physical_device=\"disk0\"}": [
+            0.0,
+            1.0
+          ],
+          "wkbench_host_block_io_available{field=\"utilization\",physical_device=\"disk0\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"service_time\",physical_device=\"disk0\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"read_write_split\",physical_device=\"disk0\"}": [
+            0.0
+          ]
+        }
+      },
+      "15062": {
+        "successful_measured_cuts": 116,
+        "metrics": {
+          "wkbench_host_cpu_busy_percent": {
+            "min": 22.222222,
+            "max": 69.058524,
+            "mean_of_observed_cuts": 31.353816146551722,
+            "last": 40.731155
+          },
+          "wkbench_host_memory_used_percent": {
+            "min": 61.328745,
+            "max": 63.205385,
+            "mean_of_observed_cuts": 62.14824215517242,
+            "last": 63.205385
+          }
+        },
+        "availability": {
+          "wkbench_host_block_io_available{field=\"iops\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"bytes_per_second\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"utilization\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"service_time\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"read_write_split\",physical_device=\"unavailable\"}": [
+            0.0
+          ]
+        }
+      },
+      "15063": {
+        "successful_measured_cuts": 116,
+        "metrics": {
+          "wkbench_host_cpu_busy_percent": {
+            "min": 22.44898,
+            "max": 69.050649,
+            "mean_of_observed_cuts": 31.32906856034483,
+            "last": 40.731155
+          },
+          "wkbench_host_memory_used_percent": {
+            "min": 61.328745,
+            "max": 63.205385,
+            "mean_of_observed_cuts": 62.14827256896552,
+            "last": 63.205385
+          }
+        },
+        "availability": {
+          "wkbench_host_block_io_available{field=\"iops\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"bytes_per_second\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"utilization\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"service_time\",physical_device=\"unavailable\"}": [
+            0.0
+          ],
+          "wkbench_host_block_io_available{field=\"read_write_split\",physical_device=\"unavailable\"}": [
+            0.0
+          ]
+        }
+      }
+    },
+    "business_cuts": 352,
+    "business_first_cut": "2026-10-21T07:36:56.251385333Z",
+    "business_last_cut": "2026-10-21T08:06:04.333745Z",
+    "worker_cut_interval_seconds": 5,
+    "single_physical_host": true
+  },
+  "cleanup": {
+    "pass": true,
+    "recorded_processes": 12,
+    "all_recorded_pids_exited": true,
+    "all_64_ports_closed": true,
+    "owned_session": {
+      "session_id": 94726,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "post_available_percent": 77.54177139288737,
+    "task_tmp_empty": true
+  },
+  "credential_scan": {
+    "raw_token_match_paths": [],
+    "scope": "Uncompressed regular logs/config/report/evidence/observations files and top-level evidence files <=64MiB. No token values saved.",
+    "pass": true
+  },
+  "observer_errors": [],
+  "limitations": [
+    "Native macOS three-node cluster on one host, explicit rehearsal tuning; not Linux four-host formal qualification.",
+    "1800-second helper timer begins at coordinator process start; measured window is 1753.104 seconds. Native outcome is operator_stop, not pass.",
+    "Histogram intervals are bucket bounds, not exact P99/P999 samples. Histograms include all retained measured and initial samples; do not substitute them for per-window evaluator logic.",
+    "One high CPU sample on one logical host projection is retained; zero sustained CPU/memory/queue saturation events. Four exporters observe one physical Mac.",
+    "Forced-GC and goroutine retention do not cover 6-hour/24-hour growth windows; lifecycle cold/reheat proof and capacity staircase were not exercised.",
+    "94 node1 route-not-ready warnings include measured and shutdown phases; six component-stop timeout warnings occurred after final report. Zero benchmark errors and complete OS cleanup do not erase those warnings.",
+    "Credential scan only covers stated uncompressed <=64MiB evidence, not arbitrary filesystem contents."
+  ],
+  "load_retried": false,
+  "thresholds_changed": false,
+  "cloud_operations": false
+}

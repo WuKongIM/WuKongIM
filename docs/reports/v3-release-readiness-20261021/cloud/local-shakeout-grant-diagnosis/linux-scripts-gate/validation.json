@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-21T07:34:12.862913+00:00",
+  "existing_default_job_unchanged": true,
+  "existing_e2e_job_unchanged": true,
+  "python_contracts": {
+    "command": [
+      "python3",
+      "-B",
+      "scripts/v3_candidate_workflow_contract_test.py"
+    ],
+    "exit_code": 0,
+    "tests": 8,
+    "log_sha256": "75ff54e727b57e4bd7b88956ed0c92c4b9a416e6f0976707e8fb54aa385ac0bd"
+  },
+  "actionlint": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/ci/actionlint/actionlint",
+    "sha256": "c1da13dc71b4bdec6519dc5bed7edd25515f12a3ff2ff84617dd27b5e6216550",
+    "version": "1.7.9\ninstalled by downloading from release page\nbuilt with go1.25.4 compiler for darwin/arm64",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

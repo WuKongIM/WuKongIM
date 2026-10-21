@@ -1,0 +1,19 @@
+{
+  "source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "source_clean": true,
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/app/FLOW.md": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+    "internal/runtime/presence/FLOW.md": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+    "internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "internal/app/online_delivery.go": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+    "internal/app/lifecycle.go": "ef6b274554f37bf82ea37cf40036cf8a130bef4920f58329bae99dac103aa147",
+    "internal/runtime/presence/types.go": "1c8e8bdb35c6bdcacf362ad65c4355cb634e8f0641a32003e0ab92f7c4f74798",
+    "internal/runtime/presence/directory.go": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900",
+    "internal/runtime/presence/recovery.go": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+    "cmd/wukongim/main.go": "fe97e541f44d9288cf961b2aef5aaf210b0ab633e1bbc0092ffc29cccd3eb214",
+    "pkg/cluster/config.go": "01d679e8ab42610fec6166841341b5da2a3d0bac620d0b7d828281563de477a3",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf"
+  }
+}

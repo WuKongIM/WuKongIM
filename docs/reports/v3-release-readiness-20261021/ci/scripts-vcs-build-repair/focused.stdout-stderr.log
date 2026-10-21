@@ -1,0 +1,37 @@
+{"Time":"2026-10-21T16:20:43.34227+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts"}
+{"Time":"2026-10-21T16:20:43.364875+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper"}
+{"Time":"2026-10-21T16:20:43.860773+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision"}
+{"Time":"2026-10-21T16:20:43.860868+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision","Output":"=== RUN   TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision\n"}
+{"Time":"2026-10-21T16:20:43.860883+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision","Output":"=== PAUSE TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision\n"}
+{"Time":"2026-10-21T16:20:43.860886+08:00","Action":"pause","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision"}
+{"Time":"2026-10-21T16:20:43.860889+08:00","Action":"cont","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision"}
+{"Time":"2026-10-21T16:20:43.860892+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision","Output":"=== CONT  TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision\n"}
+{"Time":"2026-10-21T16:20:44.097017+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-21T16:20:44.097051+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper","Output":"PASS\n"}
+{"Time":"2026-10-21T16:20:44.097353+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper\t0.732s [no tests to run]\n"}
+{"Time":"2026-10-21T16:20:44.097372+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper","Elapsed":0.733}
+{"Time":"2026-10-21T16:20:44.209569+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts/flowcheck"}
+{"Time":"2026-10-21T16:20:44.54541+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/flowcheck","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-21T16:20:44.545496+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/flowcheck","Output":"PASS\n"}
+{"Time":"2026-10-21T16:20:44.545722+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/flowcheck","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts/flowcheck\t0.336s [no tests to run]\n"}
+{"Time":"2026-10-21T16:20:44.545809+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts/flowcheck","Elapsed":0.336}
+{"Time":"2026-10-21T16:20:44.745365+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcheck"}
+{"Time":"2026-10-21T16:20:45.073698+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcheck","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-21T16:20:45.073736+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcheck","Output":"PASS\n"}
+{"Time":"2026-10-21T16:20:45.073969+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcheck","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts/skillcheck\t0.329s [no tests to run]\n"}
+{"Time":"2026-10-21T16:20:45.073992+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcheck","Elapsed":0.329}
+{"Time":"2026-10-21T16:20:45.218713+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcontracts"}
+{"Time":"2026-10-21T16:20:45.627146+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcontracts","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-21T16:20:45.627199+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcontracts","Output":"PASS\n"}
+{"Time":"2026-10-21T16:20:45.627414+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcontracts","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts/skillcontracts\t0.409s [no tests to run]\n"}
+{"Time":"2026-10-21T16:20:45.62743+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts/skillcontracts","Elapsed":0.409}
+{"Time":"2026-10-21T16:20:45.82675+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe"}
+{"Time":"2026-10-21T16:20:46.188427+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-21T16:20:46.188472+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe","Output":"PASS\n"}
+{"Time":"2026-10-21T16:20:46.188792+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts/transport-perf/probe\t0.362s [no tests to run]\n"}
+{"Time":"2026-10-21T16:20:46.188815+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe","Elapsed":0.362}
+{"Time":"2026-10-21T16:21:02.077466+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision","Output":"--- PASS: TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision (18.22s)\n"}
+{"Time":"2026-10-21T16:21:02.078446+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision","Elapsed":18.22}
+{"Time":"2026-10-21T16:21:02.078465+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"PASS\n"}
+{"Time":"2026-10-21T16:21:02.078751+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t18.736s\n"}
+{"Time":"2026-10-21T16:21:02.078768+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Elapsed":18.736}

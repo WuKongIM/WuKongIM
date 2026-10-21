@@ -1,0 +1,3 @@
+[codex/v3-shakeout-grant-repair d7affe274] fix: preserve trap cleanup and make Linux fixtures portable
+ 6 files changed, 119 insertions(+), 13 deletions(-)
+ create mode 100644 scripts/shell_trap_cleanup_integration_test.go

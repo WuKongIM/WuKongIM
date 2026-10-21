@@ -1,0 +1,14 @@
+{
+  "sha256": "sha256:9f58dac6c178db70aa3834b3e3590d091a92331744ed8d127e9944804d1dfe11",
+  "bytes": 107866,
+  "api_digest_matches": true,
+  "expected_files": [
+    "command.json",
+    "go-version.txt",
+    "identity.json",
+    "policy.json",
+    "result.json",
+    "stdout-stderr.log"
+  ],
+  "downloaded_at": "2026-10-21T08:10:25.192899+00:00"
+}

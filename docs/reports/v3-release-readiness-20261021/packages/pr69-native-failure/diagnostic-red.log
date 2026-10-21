@@ -1,0 +1,48 @@
+E.FFF
+======================================================================
+ERROR: test_main_retains_failure_in_public_always_written_receipt (test_native_local_signing_drill.NativeLocalSigningDiagnosticsTest.test_main_retains_failure_in_public_always_written_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 82, in test_main_retains_failure_in_public_always_written_receipt
+    failure = drill.SignerInvocationError({'case': 'rpm-files', 'family': 'rpm',
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_local_drill_under_test' has no attribute 'SignerInvocationError'
+
+======================================================================
+FAIL: test_positive_rejection_retains_case_and_existing_signer_stage (test_native_local_signing_drill.NativeLocalSigningDiagnosticsTest.test_positive_rejection_retains_case_and_existing_signer_stage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 45, in test_positive_rejection_retains_case_and_existing_signer_stage
+    result = self.rejected(b'package-family signing failed: RPM payload signing: Packages/wukongim.rpm failed\n')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 41, in rejected
+    self.assertIsNotNone(diagnostic, 'failure must retain exact signer case diagnostic')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : failure must retain exact signer case diagnostic
+
+======================================================================
+FAIL: test_recognized_diagnostic_redacts_test_secret_and_passphrase (test_native_local_signing_drill.NativeLocalSigningDiagnosticsTest.test_recognized_diagnostic_redacts_test_secret_and_passphrase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 53, in test_recognized_diagnostic_redacts_test_secret_and_passphrase
+    result = self.rejected(b'package-family signing failed: ' + self.key.selected_secret_base64.read_bytes()
+                           + b' ' + self.key.passphrase_file.read_bytes() + b'\n')
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 41, in rejected
+    self.assertIsNotNone(diagnostic, 'failure must retain exact signer case diagnostic')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : failure must retain exact signer case diagnostic
+
+======================================================================
+FAIL: test_unknown_or_excessive_stderr_is_not_published (test_native_local_signing_drill.NativeLocalSigningDiagnosticsTest.test_unknown_or_excessive_stderr_is_not_published)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 61, in test_unknown_or_excessive_stderr_is_not_published
+    result = self.rejected(b'unknown secret output\x00\xff' + b'x' * 10000)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_native_local_signing_drill.py", line 41, in rejected
+    self.assertIsNotNone(diagnostic, 'failure must retain exact signer case diagnostic')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : failure must retain exact signer case diagnostic
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.246s
+
+FAILED (failures=3, errors=1)

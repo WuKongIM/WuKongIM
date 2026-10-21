@@ -1,0 +1,13 @@
+{
+  "name": "focused-default-scripts",
+  "command": [
+    "go",
+    "test",
+    "./scripts",
+    "-count=1"
+  ],
+  "not_full_named_go_unit": true,
+  "started_at": "2026-10-21T08:29:00.122146+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T08:29:28.468454+00:00"
+}

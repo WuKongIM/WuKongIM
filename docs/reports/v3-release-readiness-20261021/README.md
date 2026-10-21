@@ -56,7 +56,8 @@ regression attempts; it is not a published release or a long-run qualification.
   seven actual native metadata cases. No production deployment occurred.
 - `packages/public-signing-observation.json`, `local-backup-classification.json`
   (under `packages/`): public fingerprint comparisons only. The latest user
-  clarification confirms independent stable keys are not yet created.
+  clarification at that historical audit confirmed independent stable keys did
+  not yet exist. The subsequently generated identities are recorded below.
 - `packages/storage-design/`: source-frozen OSS/CDN design and official sources;
   not an implemented transport or cloud authorization.
 - `review-merge/`: product PR #1016 merge evidence. The disabled Review Agent
@@ -74,8 +75,8 @@ regression attempts; it is not a published release or a long-run qualification.
   isolated external system, subject to an implemented and verified ceremony.
 - `packages/stable-local-custody-decision.json`: the user's subsequent explicit
   choice of Mac/NAS custody supersedes the offline/hardware-only requirement
-  for this work. Contract/tooling changes are pending; no production keys,
-  repository enablement or release are implied by the choice.
+  for this work. The choice itself did not create keys or enable a release;
+  subsequent key generation and #69 implementation are recorded below.
 - `packages/stable-signing-protocol-plan/`: proposed Mac-local public-key and
   request preparation, then two-stage native signing/receipt verification.
   This protocol proposal is historical and is no longer the implementation
@@ -108,14 +109,53 @@ regression attempts; it is not a published release or a long-run qualification.
 - `cloud/local-shakeout-grant-diagnosis/`: real-factory fixed-clock diagnosis,
   default-budget red/green regression, and unchanged-threshold repair. Five
   named checks passed; both full macOS scripts-integration attempts hit the
-  original nine-minute package limit. A Linux check and fresh 30-minute run
-  remain pending. The nested `runner-repair/` contains failure-preservation and
+  original nine-minute package limit. Subsequent Linux failures and the fresh
+  local workload are recorded separately below. The nested `runner-repair/` contains failure-preservation and
   owned-session cleanup probes for the external local runner, not product load.
 - `cloud/local-shakeout-repair-review/`: independent mechanism and implementation
   review, including the pre-existing test-only lock-copy vet correction.
 - `postmerge-preparation-archive.json`,
   `planner-merge-and-shakeout-archive.json`: verified allowlist copies and
   original-file hashes for these new bounded receipts.
+
+- `cloud/local-shakeout-0672c1159-500/`: completed local helper with 1,753.104
+  measured seconds, 876,529 SEND/ACK, zero correctness or under-delivery errors
+  and verified process/port cleanup. Two retries, 102 hot requests over 400 ms,
+  presence warnings and shutdown deadline warnings remain explicit; this is
+  a local precheck, not the planned cloud soak.
+- `ci/shakeout-1017/`: first repaired-budget candidate CI, including the full
+  Linux scripts timeout; other passing jobs cannot replace that failed gate.
+- `ci/scripts-timeout-readonly/`, `ci/scripts-json-observation-39565861218/`:
+  first timeout analysis and subsequent bounded JSON observations. They retain
+  real assertion failures, cold-build cost and the diagnostic flag's own text
+  format interference without assigning every failure to one cause.
+- `ci/scripts-vcs-build-repair/`, `ci/scripts-profile-fixture-portability/`:
+  cached compilation with a verified fresh link and text-format inspection,
+  plus literal grep assertions removing an undeclared rg dependency.
+- `ci/scripts-signal-analysis-diagnosis/`, `ci/scripts-shell-cleanup-review/`:
+  Bash 3/5 differential probes, failing-before/fixed-after cleanup tests and
+  independent review. The original observer exit 255 remains unclassified;
+  the next complete Linux gate finished in 533.570 seconds with 600 passes,
+  6 skips and one different signal-join test returning 255. The old observer
+  passing that run does not establish a shared cause or complete repair.
+- `packages/stable-local-request/`, `packages/pr69-native-failure/`,
+  `packages/pr69-ci-c217/`, `packages/pr69-merge/`: #69 local signer adapter,
+  preserved original fixture/allowlist failures, passing final native drill
+  and authorized merge to `8b3ae9a08`. Postmerge validation passed; publication
+  steps skipped and stable remained disabled.
+- `packages/mac-key-preparation/`: reviewed one-time preparation program,
+  TEST ONLY rehearsal and public production receipts/certificates. New distinct
+  APT/RPM identities were generated on the Mac, encrypted backup restoration
+  and public-only signature checks passed. Private material and Keychain
+  passwords are excluded; NAS backup has not been performed.
+- `packages/stable-public-registration/`, `packages/pr70-ci-0c26496b/`:
+  #70 public-only key registration and validation, independent review,
+  400+3 tests and the full signed-repository drill. Both first CI attempts
+  passed. The separately approved normal rebase merge is recorded in
+  `packages/pr70-merge/`: source trees match, postmerge 400+3 tests passed,
+  publication steps skipped. The channel remains disabled.
+- `local-completion-archive.json`, `signing-and-scripts-archive.json`: bounded
+  allowlist copies with original sizes/hashes for this continuation.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.

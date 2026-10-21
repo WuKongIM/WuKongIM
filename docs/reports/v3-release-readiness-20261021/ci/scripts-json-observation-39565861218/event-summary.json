@@ -1,0 +1,386 @@
+{
+  "events": 5552,
+  "non_json_lines": 96,
+  "actions": {
+    "start": 1,
+    "run": 835,
+    "output": 2813,
+    "pass": 792,
+    "pause": 228,
+    "cont": 210,
+    "skip": 6,
+    "fail": 15
+  },
+  "package_start": "2026-10-21T08:01:34.491846015Z",
+  "first_top_level_cont": "2026-10-21T08:05:10.836337653Z",
+  "serial_stage_seconds": 216.344491,
+  "pre_scripts_start_from_job_step_075934_seconds": 120.491846,
+  "last_event_time": "2026-10-21T08:09:34.302036853Z",
+  "observed_package_seconds": 479.81019,
+  "finished_top_level": 505,
+  "finished_top_level_statuses": {
+    "pass": 489,
+    "skip": 6,
+    "fail": 10
+  },
+  "serial_completed_elapsed_sum": 197.49,
+  "slow_top_level": [
+    {
+      "Test": "TestChatLifecycleShakeoutScriptIntegration",
+      "Action": "pass",
+      "Elapsed": 123.64,
+      "Time": "2026-10-21T08:05:10.660775532Z"
+    },
+    {
+      "Test": "TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision",
+      "Action": "fail",
+      "Elapsed": 113.94,
+      "Time": "2026-10-21T08:07:05.051696669Z"
+    },
+    {
+      "Test": "TestWukongIMSingleNodeScriptAllowsPrometheusDisableOverride",
+      "Action": "pass",
+      "Elapsed": 46.43,
+      "Time": "2026-10-21T08:07:06.082768425Z"
+    },
+    {
+      "Test": "TestCloudSimulationAnalyzeSignalsCloseWindowAndKillDiagnosisGroup",
+      "Action": "pass",
+      "Elapsed": 21.7,
+      "Time": "2026-10-21T08:09:29.934625294Z"
+    },
+    {
+      "Test": "TestNativePackageBootstrapFailureDiagnostics",
+      "Action": "pass",
+      "Elapsed": 20.43,
+      "Time": "2026-10-21T08:02:54.4323965Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineFreezesExternalConfigAcrossProductGenerations",
+      "Action": "pass",
+      "Elapsed": 13.64,
+      "Time": "2026-10-21T08:07:55.915464939Z"
+    },
+    {
+      "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire",
+      "Action": "pass",
+      "Elapsed": 13.62,
+      "Time": "2026-10-21T08:01:50.221302004Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineRestartsOneProductGenerationPerRateAndPreservesData",
+      "Action": "pass",
+      "Elapsed": 13.58,
+      "Time": "2026-10-21T08:07:58.058562939Z"
+    },
+    {
+      "Test": "TestCloudSimulationSetupConfiguresAlibabaAndGitHubWithoutAPIKey",
+      "Action": "pass",
+      "Elapsed": 12.72,
+      "Time": "2026-10-21T08:08:11.814422719Z"
+    },
+    {
+      "Test": "TestWKDBDiffSmokeScript",
+      "Action": "pass",
+      "Elapsed": 12.69,
+      "Time": "2026-10-21T08:08:24.500564282Z"
+    },
+    {
+      "Test": "TestCloudSimulationAnalyzeBoundsCryptoAndWorktreeProcessGroups",
+      "Action": "fail",
+      "Elapsed": 10.92,
+      "Time": "2026-10-21T08:09:17.351764522Z"
+    },
+    {
+      "Test": "TestCloudSimulationAnalyzeFallsBackWhenSameHostObservationIsUnavailable",
+      "Action": "pass",
+      "Elapsed": 10.78,
+      "Time": "2026-10-21T08:09:03.698230748Z"
+    },
+    {
+      "Test": "TestCloudDeploymentExecution",
+      "Action": "pass",
+      "Elapsed": 10.39,
+      "Time": "2026-10-21T08:02:14.20168344Z"
+    },
+    {
+      "Test": "TestCloudSimulationAnalyzeBoundsNonInteractiveSourceFetch",
+      "Action": "pass",
+      "Elapsed": 10.09,
+      "Time": "2026-10-21T08:09:06.433250749Z"
+    },
+    {
+      "Test": "TestWKDBExportRoundTripSmokeScript",
+      "Action": "pass",
+      "Elapsed": 10.07,
+      "Time": "2026-10-21T08:08:22.247433807Z"
+    },
+    {
+      "Test": "TestLocalThresholdPprofAuthenticatesWithoutExposingTokenInArgumentsOrEvidence",
+      "Action": "pass",
+      "Elapsed": 9.27,
+      "Time": "2026-10-21T08:08:12.176652488Z"
+    },
+    {
+      "Test": "TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes",
+      "Action": "fail",
+      "Elapsed": 8.76,
+      "Time": "2026-10-21T08:09:33.747418926Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineRedactsSecretsAndUsesPrivateModes",
+      "Action": "pass",
+      "Elapsed": 8.4,
+      "Time": "2026-10-21T08:07:15.549583067Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineDefaultProfileDoesNotCreatePprofArtifacts",
+      "Action": "pass",
+      "Elapsed": 8.39,
+      "Time": "2026-10-21T08:07:23.925769539Z"
+    },
+    {
+      "Test": "TestWukongIMBenchScriptsLogActualChannelCount",
+      "Action": "pass",
+      "Elapsed": 8.32,
+      "Time": "2026-10-21T08:05:46.253949721Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineCrashBeforeAtomicCompletionDoesNotPublishResult",
+      "Action": "pass",
+      "Elapsed": 8.32,
+      "Time": "2026-10-21T08:07:15.539106864Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange",
+      "Action": "pass",
+      "Elapsed": 8.25,
+      "Time": "2026-10-21T08:07:42.278693212Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering",
+      "Action": "pass",
+      "Elapsed": 8.24,
+      "Time": "2026-10-21T08:07:44.479535222Z"
+    },
+    {
+      "Test": "TestSingleNodeBaselineGitObservationFailureFailsSourceIdentityClosed",
+      "Action": "pass",
+      "Elapsed": 8.22,
+      "Time": "2026-10-21T08:07:34.027866245Z"
+    },
+    {
+      "Test": "TestCloudSimulationAnalyzeBoundsDiagnosisAndValidationProcessGroups",
+      "Action": "pass",
+      "Elapsed": 7.64,
+      "Time": "2026-10-21T08:09:24.988726191Z"
+    }
+  ],
+  "live": [
+    {
+      "test": "TestChatLifecycleLocalBaselineAcceptsSealedGracefulStopTimeoutEvidenceAndStops",
+      "state": "pause",
+      "at": "2026-10-21T08:01:36.033834226Z",
+      "since_state_to_last_event_seconds": 478.268202
+    },
+    {
+      "test": "TestChatLifecycleLocalBaselineRejectsTimeoutSnapshotThatContradictsTypedStatus",
+      "state": "pause",
+      "at": "2026-10-21T08:01:36.033903005Z",
+      "since_state_to_last_event_seconds": 478.268133
+    },
+    {
+      "test": "TestChatLifecycleLocalBaselineRetainsDirtySourceBinary",
+      "state": "pause",
+      "at": "2026-10-21T08:01:36.033924045Z",
+      "since_state_to_last_event_seconds": 478.268112
+    },
+    {
+      "test": "TestChatLifecycleDirectLabDeployActivatesAndGatesOneLocalGeneration",
+      "state": "pause",
+      "at": "2026-10-21T08:01:36.034170729Z",
+      "since_state_to_last_event_seconds": 478.267866
+    },
+    {
+      "test": "TestChatLifecycleLocalBaselinePreservesRuntimeStateWhenTypedResultIsInvalid",
+      "state": "pause",
+      "at": "2026-10-21T08:01:51.218159654Z",
+      "since_state_to_last_event_seconds": 463.083877
+    },
+    {
+      "test": "TestChatLifecycleLocalBaselineRunsFixedStaircaseThenRequired1000Soak",
+      "state": "pause",
+      "at": "2026-10-21T08:01:52.41969618Z",
+      "since_state_to_last_event_seconds": 461.88234
+    },
+    {
+      "test": "TestChatLifecycleRepairMonitorStopsAfterRealWorkerProgressStall",
+      "state": "cont",
+      "at": "2026-10-21T08:09:34.302032616Z",
+      "since_state_to_last_event_seconds": 4e-06
+    },
+    {
+      "test": "TestChatLifecycleRepairMonitorRetriesTransientRemoteAndInconsistentCuts",
+      "state": "pause",
+      "at": "2026-10-21T08:01:52.47453275Z",
+      "since_state_to_last_event_seconds": 461.827504
+    },
+    {
+      "test": "TestChatLifecycleRepairMonitorSurvivesOneServiceProbeFailure",
+      "state": "pause",
+      "at": "2026-10-21T08:01:52.474588184Z",
+      "since_state_to_last_event_seconds": 461.827448
+    },
+    {
+      "test": "TestChatLifecycleRepairMonitorFinalizesQualifiedStageBeforeStoppingWorkers",
+      "state": "pause",
+      "at": "2026-10-21T08:01:52.474611428Z",
+      "since_state_to_last_event_seconds": 461.827425
+    },
+    {
+      "test": "TestChatLifecycleDirectLabPreservesTypedReasonWhenStopCannotBeProven",
+      "state": "pause",
+      "at": "2026-10-21T08:01:52.474640673Z",
+      "since_state_to_last_event_seconds": 461.827396
+    },
+    {
+      "test": "TestChatLifecycleDirectLabRefusesRunThatOutlivesLease",
+      "state": "pause",
+      "at": "2026-10-21T08:01:52.474678664Z",
+      "since_state_to_last_event_seconds": 461.827358
+    },
+    {
+      "test": "TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT",
+      "state": "cont",
+      "at": "2026-10-21T08:09:30.296132625Z",
+      "since_state_to_last_event_seconds": 4.005904
+    },
+    {
+      "test": "TestIssueAgentSchemas",
+      "state": "cont",
+      "at": "2026-10-21T08:08:34.022602463Z",
+      "since_state_to_last_event_seconds": 60.279434
+    },
+    {
+      "test": "TestReviewAgentSchemas",
+      "state": "cont",
+      "at": "2026-10-21T08:08:33.775823474Z",
+      "since_state_to_last_event_seconds": 60.526213
+    },
+    {
+      "test": "TestReviewAgentSchemas/review_result",
+      "state": "pause",
+      "at": "2026-10-21T08:08:33.775849483Z",
+      "since_state_to_last_event_seconds": 60.526187
+    },
+    {
+      "test": "TestReviewAgentSchemas/explanation_result",
+      "state": "pause",
+      "at": "2026-10-21T08:08:33.77587446Z",
+      "since_state_to_last_event_seconds": 60.526162
+    },
+    {
+      "test": "TestReviewAgentSchemas/state",
+      "state": "pause",
+      "at": "2026-10-21T08:08:33.775894037Z",
+      "since_state_to_last_event_seconds": 60.526142
+    },
+    {
+      "test": "TestIssueAgentSchemas/state",
+      "state": "pause",
+      "at": "2026-10-21T08:08:34.022625557Z",
+      "since_state_to_last_event_seconds": 60.279411
+    },
+    {
+      "test": "TestIssueAgentSchemas/context_bundle",
+      "state": "pause",
+      "at": "2026-10-21T08:08:34.022643821Z",
+      "since_state_to_last_event_seconds": 60.279393
+    },
+    {
+      "test": "TestIssueAgentSchemas/engineer_result",
+      "state": "pause",
+      "at": "2026-10-21T08:08:34.022660142Z",
+      "since_state_to_last_event_seconds": 60.279376
+    },
+    {
+      "test": "TestIssueAgentSchemas/candidate_evidence",
+      "state": "pause",
+      "at": "2026-10-21T08:08:34.022676743Z",
+      "since_state_to_last_event_seconds": 60.27936
+    }
+  ],
+  "packages": [
+    {
+      "Time": "2026-10-21T08:01:34.491846015Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts"
+    },
+    {
+      "Time": "2026-10-21T08:01:34.662681508Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper"
+    },
+    {
+      "Time": "2026-10-21T08:01:36.471086953Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper",
+      "Elapsed": 1.808
+    },
+    {
+      "Time": "2026-10-21T08:01:36.714463924Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck"
+    },
+    {
+      "Time": "2026-10-21T08:01:36.726776737Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/flowcheck",
+      "Elapsed": 0.012
+    },
+    {
+      "Time": "2026-10-21T08:01:37.15147064Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck"
+    },
+    {
+      "Time": "2026-10-21T08:01:37.22889337Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcheck",
+      "Elapsed": 0.077
+    },
+    {
+      "Time": "2026-10-21T08:01:37.69702808Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts"
+    },
+    {
+      "Time": "2026-10-21T08:01:37.704432532Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/skillcontracts",
+      "Elapsed": 0.007
+    },
+    {
+      "Time": "2026-10-21T08:01:37.983173053Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf"
+    },
+    {
+      "Time": "2026-10-21T08:01:42.820505601Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf",
+      "Elapsed": 4.837
+    },
+    {
+      "Time": "2026-10-21T08:01:43.742605266Z",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe"
+    },
+    {
+      "Time": "2026-10-21T08:01:44.154922409Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe",
+      "Elapsed": 0.412
+    }
+  ]
+}

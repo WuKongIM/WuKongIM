@@ -1,0 +1,12 @@
+{
+  "source_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "new_test_sha256": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6",
+  "failures": [
+    "No bridge return inherits original EXIT status and prevents close",
+    "No-open, already-closed or successful close inherits EXIT status and prevents local cleanup",
+    "Failure warning must not replace primary exit17/143",
+    "Baseline TERM handler exits before joined/sealed child",
+    "Observer Linux255 remains unconfirmed after20 Bash5Darwin probes; no guessed patch"
+  ],
+  "shipping_code_not_modified_before_red": true
+}

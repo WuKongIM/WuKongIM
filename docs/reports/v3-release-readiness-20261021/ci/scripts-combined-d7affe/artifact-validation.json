@@ -1,0 +1,74 @@
+{
+  "frozen_at": "2026-10-21T08:42:48.219394+00:00",
+  "head": {
+    "at": "2026-10-21T08:29:45.125743+00:00",
+    "head": "d7affe274935e78a644f901400db15ff1353a2c9",
+    "tree": "7104e17c912ce1d87030cb08b9fd0fe30b112f3c",
+    "clean": true,
+    "parent": "eda77697db42ba14f14bfad58cdd3557342b9989"
+  },
+  "tested_commit": {
+    "pr": 1017,
+    "head": "d7affe274935e78a644f901400db15ff1353a2c9",
+    "base": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "synthetic_merge_sha": "61cab03b700ff07439733171cbdcbd9072bfebc5",
+    "synthetic_merge_tree": "7104e17c912ce1d87030cb08b9fd0fe30b112f3c",
+    "head_tree": "7104e17c912ce1d87030cb08b9fd0fe30b112f3c",
+    "trees_equal": true,
+    "merge_parents": [
+      "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+      "d7affe274935e78a644f901400db15ff1353a2c9"
+    ]
+  },
+  "checks": [
+    {
+      "artifact_id": "12332546037",
+      "named_check": "go-unit",
+      "source_and_policy_and_cleanup_verified": true,
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2430,
+        "output_bytes": 22029,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2430,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 408.937
+      },
+      "version": "go version go1.25.11 linux/amd64"
+    },
+    {
+      "artifact_id": "12331991989",
+      "named_check": "scripts-integration",
+      "source_and_policy_and_cleanup_verified": true,
+      "result": {
+        "status": "failed",
+        "exit_code": 1,
+        "session_id": 2514,
+        "output_bytes": 1166765,
+        "output_truncated": false,
+        "passed": false,
+        "cleanup": {
+          "session_id": 2514,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "failed",
+        "wrapper_exit_code": 1,
+        "elapsed_seconds": 533.57
+      },
+      "version": "go version go1.25.11 linux/amd64"
+    }
+  ],
+  "overall_workflow": "pending migration E2E when this generation sealed; scripts failed already final"
+}

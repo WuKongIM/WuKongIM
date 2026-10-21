@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures$",
+    "-count=1",
+    "-timeout=9m",
+    "-parallel=2"
+  ],
+  "env": {
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2 -json"
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 3.202
+}

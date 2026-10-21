@@ -1,0 +1,209 @@
+test_environment_arguments_remain_compatible (test_sign_package_family.PackageFamilyLocalInputTest.test_environment_arguments_remain_compatible) ... ok
+test_file_and_stdin_options_reach_existing_validator_arguments (test_sign_package_family.PackageFamilyLocalInputTest.test_file_and_stdin_options_reach_existing_validator_arguments) ... usage: python3.13 -m unittest [-h] --family {apt,rpm} --input-root INPUT_ROOT
+                              --output-root OUTPUT_ROOT
+                              --public-cert PUBLIC_CERT
+                              --secret-subkey-base64-env SECRET_SUBKEY_BASE64_ENV
+                              --passphrase-env PASSPHRASE_ENV
+                              --primary-fingerprint PRIMARY_FINGERPRINT
+                              --signing-subkey-fingerprint SIGNING_SUBKEY_FINGERPRINT
+                              [--next-signing-subkey-fingerprint NEXT_SIGNING_SUBKEY_FINGERPRINT]
+                              [--historical-signing-subkey-fingerprint HISTORICAL_SIGNING_SUBKEY_FINGERPRINT]
+                              [--minimum-valid-days MINIMUM_VALID_DAYS]
+                              [--rotation-begin-days ROTATION_BEGIN_DAYS]
+                              [--maximum-lifetime-days MAXIMUM_LIFETIME_DAYS]
+                              [--apt-release APT_RELEASE]
+                              [--rpm-repository RPM_REPOSITORY]
+                              [--new-rpm-allowlist NEW_RPM_ALLOWLIST]
+                              [--signed-rpm-allowlist SIGNED_RPM_ALLOWLIST]
+                              [--active-rpm-allowlist ACTIVE_RPM_ALLOWLIST]
+python3.13 -m unittest: error: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+
+  test_file_and_stdin_options_reach_existing_validator_arguments (test_sign_package_family.PackageFamilyLocalInputTest.test_file_and_stdin_options_reach_existing_validator_arguments) (family='apt') ... ERROR
+usage: python3.13 -m unittest [-h] --family {apt,rpm} --input-root INPUT_ROOT
+                              --output-root OUTPUT_ROOT
+                              --public-cert PUBLIC_CERT
+                              --secret-subkey-base64-env SECRET_SUBKEY_BASE64_ENV
+                              --passphrase-env PASSPHRASE_ENV
+                              --primary-fingerprint PRIMARY_FINGERPRINT
+                              --signing-subkey-fingerprint SIGNING_SUBKEY_FINGERPRINT
+                              [--next-signing-subkey-fingerprint NEXT_SIGNING_SUBKEY_FINGERPRINT]
+                              [--historical-signing-subkey-fingerprint HISTORICAL_SIGNING_SUBKEY_FINGERPRINT]
+                              [--minimum-valid-days MINIMUM_VALID_DAYS]
+                              [--rotation-begin-days ROTATION_BEGIN_DAYS]
+                              [--maximum-lifetime-days MAXIMUM_LIFETIME_DAYS]
+                              [--apt-release APT_RELEASE]
+                              [--rpm-repository RPM_REPOSITORY]
+                              [--new-rpm-allowlist NEW_RPM_ALLOWLIST]
+                              [--signed-rpm-allowlist SIGNED_RPM_ALLOWLIST]
+                              [--active-rpm-allowlist ACTIVE_RPM_ALLOWLIST]
+python3.13 -m unittest: error: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+  test_file_and_stdin_options_reach_existing_validator_arguments (test_sign_package_family.PackageFamilyLocalInputTest.test_file_and_stdin_options_reach_existing_validator_arguments) (family='rpm') ... ERROR
+test_input_choices_are_required_and_mutually_exclusive (test_sign_package_family.PackageFamilyLocalInputTest.test_input_choices_are_required_and_mutually_exclusive) ... ok
+test_passphrase_file_failures_use_existing_checks_before_gpg (test_sign_package_family.PackageFamilyLocalInputTest.test_passphrase_file_failures_use_existing_checks_before_gpg) ... FAIL
+test_secret_file_failures_use_existing_checks_before_gpg (test_sign_package_family.PackageFamilyLocalInputTest.test_secret_file_failures_use_existing_checks_before_gpg) ... FAIL
+test_stdin_uses_existing_base64_and_passphrase_validation (test_sign_package_family.PackageFamilyLocalInputTest.test_stdin_uses_existing_base64_and_passphrase_validation) ... FAIL
+
+======================================================================
+ERROR: test_file_and_stdin_options_reach_existing_validator_arguments (test_sign_package_family.PackageFamilyLocalInputTest.test_file_and_stdin_options_reach_existing_validator_arguments) (family='apt')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1937, in _parse_known_args2
+    namespace, args = self._parse_known_args(args, namespace, intermixed)
+                      ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 2234, in _parse_known_args
+    raise ArgumentError(None, _('the following arguments are required: %s') %
+               ', '.join(required_actions))
+argparse.ArgumentError: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 107, in test_file_and_stdin_options_reach_existing_validator_arguments
+    args = signer.build_parser().parse_args([*self.arguments(family), *self.file_arguments()])
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1898, in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+                 ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1908, in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1939, in _parse_known_args2
+    self.error(str(err))
+    ~~~~~~~~~~^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 2658, in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 2645, in exit
+    _sys.exit(status)
+    ~~~~~~~~~^^^^^^^^
+SystemExit: 2
+
+======================================================================
+ERROR: test_file_and_stdin_options_reach_existing_validator_arguments (test_sign_package_family.PackageFamilyLocalInputTest.test_file_and_stdin_options_reach_existing_validator_arguments) (family='rpm')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1937, in _parse_known_args2
+    namespace, args = self._parse_known_args(args, namespace, intermixed)
+                      ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 2234, in _parse_known_args
+    raise ArgumentError(None, _('the following arguments are required: %s') %
+               ', '.join(required_actions))
+argparse.ArgumentError: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 107, in test_file_and_stdin_options_reach_existing_validator_arguments
+    args = signer.build_parser().parse_args([*self.arguments(family), *self.file_arguments()])
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1898, in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+                 ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1908, in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 1939, in _parse_known_args2
+    self.error(str(err))
+    ~~~~~~~~~~^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 2658, in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/argparse.py", line 2645, in exit
+    _sys.exit(status)
+    ~~~~~~~~~^^^^^^^^
+SystemExit: 2
+
+======================================================================
+FAIL: test_passphrase_file_failures_use_existing_checks_before_gpg (test_sign_package_family.PackageFamilyLocalInputTest.test_passphrase_file_failures_use_existing_checks_before_gpg)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 164, in test_passphrase_file_failures_use_existing_checks_before_gpg
+    self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "permissions")
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 95, in assert_rejected_before_native
+    self.assertEqual(result.returncode, 1, result.stderr.decode())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 1 : usage: sign-package-family.py [-h] --family {apt,rpm} --input-root INPUT_ROOT
+                              --output-root OUTPUT_ROOT
+                              --public-cert PUBLIC_CERT
+                              --secret-subkey-base64-env SECRET_SUBKEY_BASE64_ENV
+                              --passphrase-env PASSPHRASE_ENV
+                              --primary-fingerprint PRIMARY_FINGERPRINT
+                              --signing-subkey-fingerprint SIGNING_SUBKEY_FINGERPRINT
+                              [--next-signing-subkey-fingerprint NEXT_SIGNING_SUBKEY_FINGERPRINT]
+                              [--historical-signing-subkey-fingerprint HISTORICAL_SIGNING_SUBKEY_FINGERPRINT]
+                              [--minimum-valid-days MINIMUM_VALID_DAYS]
+                              [--rotation-begin-days ROTATION_BEGIN_DAYS]
+                              [--maximum-lifetime-days MAXIMUM_LIFETIME_DAYS]
+                              [--apt-release APT_RELEASE]
+                              [--rpm-repository RPM_REPOSITORY]
+                              [--new-rpm-allowlist NEW_RPM_ALLOWLIST]
+                              [--signed-rpm-allowlist SIGNED_RPM_ALLOWLIST]
+                              [--active-rpm-allowlist ACTIVE_RPM_ALLOWLIST]
+sign-package-family.py: error: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+
+
+======================================================================
+FAIL: test_secret_file_failures_use_existing_checks_before_gpg (test_sign_package_family.PackageFamilyLocalInputTest.test_secret_file_failures_use_existing_checks_before_gpg)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 148, in test_secret_file_failures_use_existing_checks_before_gpg
+    self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "permissions")
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 95, in assert_rejected_before_native
+    self.assertEqual(result.returncode, 1, result.stderr.decode())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 1 : usage: sign-package-family.py [-h] --family {apt,rpm} --input-root INPUT_ROOT
+                              --output-root OUTPUT_ROOT
+                              --public-cert PUBLIC_CERT
+                              --secret-subkey-base64-env SECRET_SUBKEY_BASE64_ENV
+                              --passphrase-env PASSPHRASE_ENV
+                              --primary-fingerprint PRIMARY_FINGERPRINT
+                              --signing-subkey-fingerprint SIGNING_SUBKEY_FINGERPRINT
+                              [--next-signing-subkey-fingerprint NEXT_SIGNING_SUBKEY_FINGERPRINT]
+                              [--historical-signing-subkey-fingerprint HISTORICAL_SIGNING_SUBKEY_FINGERPRINT]
+                              [--minimum-valid-days MINIMUM_VALID_DAYS]
+                              [--rotation-begin-days ROTATION_BEGIN_DAYS]
+                              [--maximum-lifetime-days MAXIMUM_LIFETIME_DAYS]
+                              [--apt-release APT_RELEASE]
+                              [--rpm-repository RPM_REPOSITORY]
+                              [--new-rpm-allowlist NEW_RPM_ALLOWLIST]
+                              [--signed-rpm-allowlist SIGNED_RPM_ALLOWLIST]
+                              [--active-rpm-allowlist ACTIVE_RPM_ALLOWLIST]
+sign-package-family.py: error: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+
+
+======================================================================
+FAIL: test_stdin_uses_existing_base64_and_passphrase_validation (test_sign_package_family.PackageFamilyLocalInputTest.test_stdin_uses_existing_base64_and_passphrase_validation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 173, in test_stdin_uses_existing_base64_and_passphrase_validation
+    self.assert_rejected_before_native(self.run_cli(options, stdin=b"bad-base64-TEST-ONLY"),
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                       "canonical base64")
+                                       ^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request/tests/test_sign_package_family.py", line 95, in assert_rejected_before_native
+    self.assertEqual(result.returncode, 1, result.stderr.decode())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 1 : usage: sign-package-family.py [-h] --family {apt,rpm} --input-root INPUT_ROOT
+                              --output-root OUTPUT_ROOT
+                              --public-cert PUBLIC_CERT
+                              --secret-subkey-base64-env SECRET_SUBKEY_BASE64_ENV
+                              --passphrase-env PASSPHRASE_ENV
+                              --primary-fingerprint PRIMARY_FINGERPRINT
+                              --signing-subkey-fingerprint SIGNING_SUBKEY_FINGERPRINT
+                              [--next-signing-subkey-fingerprint NEXT_SIGNING_SUBKEY_FINGERPRINT]
+                              [--historical-signing-subkey-fingerprint HISTORICAL_SIGNING_SUBKEY_FINGERPRINT]
+                              [--minimum-valid-days MINIMUM_VALID_DAYS]
+                              [--rotation-begin-days ROTATION_BEGIN_DAYS]
+                              [--maximum-lifetime-days MAXIMUM_LIFETIME_DAYS]
+                              [--apt-release APT_RELEASE]
+                              [--rpm-repository RPM_REPOSITORY]
+                              [--new-rpm-allowlist NEW_RPM_ALLOWLIST]
+                              [--signed-rpm-allowlist SIGNED_RPM_ALLOWLIST]
+                              [--active-rpm-allowlist ACTIVE_RPM_ALLOWLIST]
+sign-package-family.py: error: the following arguments are required: --secret-subkey-base64-env, --passphrase-env
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.156s
+
+FAILED (failures=3, errors=2)

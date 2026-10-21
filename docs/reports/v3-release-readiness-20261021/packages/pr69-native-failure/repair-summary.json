@@ -1,0 +1,61 @@
+{
+  "baseline": "d0490739c9473a3ce7a019937ae0c14c30e0bdf8",
+  "run_id": 39564810498,
+  "job_id": 119104436724,
+  "run_attempt": 1,
+  "run_conclusion": "failure",
+  "confirmed_defect": "native drill emits noncanonical new/signed/active RPM allowlists rejected by unchanged real signer loaders",
+  "original_ci_stderr_lost": true,
+  "fixture_loader_red": {
+    "tests": 7,
+    "errors": 3,
+    "native_executed": false
+  },
+  "fixture_loader_green": {
+    "tests": 7,
+    "result": "pass",
+    "native_executed": false
+  },
+  "diagnostic_red": {
+    "tests": 5,
+    "failures": 3,
+    "errors": 1
+  },
+  "diagnostic_green": {
+    "tests": 5,
+    "result": "pass"
+  },
+  "workflow_static": {
+    "tests": 3,
+    "result": "pass"
+  },
+  "native_recovery_verified": false,
+  "files": {
+    "tests/native_local_signing_drill.py": {
+      "sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578",
+      "size": 22961
+    },
+    "tests/test_native_local_signing_drill.py": {
+      "sha256": "eb30cc500ad7dc19207370e08cb3f893c0bc2e95a1e797e1b72b858997f9c7f0",
+      "size": 7166
+    },
+    "scripts/sign-package-family.py": {
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "size": 38244
+    },
+    "scripts/validate-signing-material.py": {
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "size": 34568
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "8d5516f746de966a868625ec552cc85b2b97a25e5bc71654b5f5d47299ade43a",
+      "size": 6985
+    }
+  },
+  "mutated_files": [
+    "tests/native_local_signing_drill.py",
+    "tests/test_native_local_signing_drill.py"
+  ],
+  "signer_validator_workflow_unchanged": true,
+  "limits": "No local native, GPG, Docker, Keychain or load run. Pure Python mocked native output only; source/fixture/real allowlist parser tested. No retry or dispatch."
+}

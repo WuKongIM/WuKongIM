@@ -1,0 +1,35 @@
+[
+  {
+    "case": "inherited_json",
+    "command": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-m",
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go"
+    ],
+    "GOFLAGS": "-p=2 -json",
+    "exit_code": 0,
+    "elapsed_seconds": 0.01091741700656712,
+    "json_object": true,
+    "has_text_build_lines": false,
+    "output_sha256": "2c846e57883f7f0f44b854f4a622be9d90c8bf2ebd08876c2d6e876cbbb6f7c9",
+    "compiled": false
+  },
+  {
+    "case": "explicit_text",
+    "command": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-json=false",
+      "-m",
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go"
+    ],
+    "GOFLAGS": "-p=2 -json",
+    "exit_code": 0,
+    "elapsed_seconds": 0.008070957963354886,
+    "json_object": false,
+    "has_text_build_lines": true,
+    "output_sha256": "f3c38ae50b258234550dbb6d9d34fb5ac6226e236d69167f1e5b84e77e8b4504",
+    "compiled": false
+  }
+]

@@ -1,0 +1,457 @@
+[
+  {
+    "at": "2026-10-21T07:20:33.106048+00:00",
+    "owned_count": 1,
+    "scripts_test": false,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.0
+  },
+  {
+    "at": "2026-10-21T07:20:43.306897+00:00",
+    "owned_count": 4,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.3
+  },
+  {
+    "at": "2026-10-21T07:20:53.489084+00:00",
+    "owned_count": 4,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 1.2
+  },
+  {
+    "at": "2026-10-21T07:21:03.708094+00:00",
+    "owned_count": 3,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.5
+  },
+  {
+    "at": "2026-10-21T07:21:13.919588+00:00",
+    "owned_count": 4,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 3.4
+  },
+  {
+    "at": "2026-10-21T07:21:24.096915+00:00",
+    "owned_count": 4,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.4
+  },
+  {
+    "at": "2026-10-21T07:21:34.268122+00:00",
+    "owned_count": 3,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.3
+  },
+  {
+    "at": "2026-10-21T07:21:44.457069+00:00",
+    "owned_count": 3,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.8
+  },
+  {
+    "at": "2026-10-21T07:21:54.644569+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.9
+  },
+  {
+    "at": "2026-10-21T07:22:04.833612+00:00",
+    "owned_count": 5,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 2.0
+  },
+  {
+    "at": "2026-10-21T07:22:15.031115+00:00",
+    "owned_count": 6,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 5.6
+  },
+  {
+    "at": "2026-10-21T07:22:25.240617+00:00",
+    "owned_count": 8,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 0.0
+  },
+  {
+    "at": "2026-10-21T07:22:35.445608+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 0.0
+  },
+  {
+    "at": "2026-10-21T07:22:45.640447+00:00",
+    "owned_count": 4,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 2.4
+  },
+  {
+    "at": "2026-10-21T07:22:55.819768+00:00",
+    "owned_count": 25,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 9,
+    "owned_pcpu": 5.9
+  },
+  {
+    "at": "2026-10-21T07:23:05.990143+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 5.3
+  },
+  {
+    "at": "2026-10-21T07:23:16.169129+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [
+      {
+        "pid": 41654,
+        "comm": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/pkg/tool/darwin_arm64/link",
+        "pcpu": 8.7
+      }
+    ],
+    "sleeps": 0,
+    "owned_pcpu": 87.3
+  },
+  {
+    "at": "2026-10-21T07:23:26.359445+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 18.4
+  },
+  {
+    "at": "2026-10-21T07:23:36.516211+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 19.1
+  },
+  {
+    "at": "2026-10-21T07:23:46.696738+00:00",
+    "owned_count": 14,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 30.4
+  },
+  {
+    "at": "2026-10-21T07:23:56.851287+00:00",
+    "owned_count": 17,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 33.4
+  },
+  {
+    "at": "2026-10-21T07:24:07.034137+00:00",
+    "owned_count": 17,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 37.4
+  },
+  {
+    "at": "2026-10-21T07:24:17.172219+00:00",
+    "owned_count": 16,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 38.8
+  },
+  {
+    "at": "2026-10-21T07:24:27.331305+00:00",
+    "owned_count": 17,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 26.9
+  },
+  {
+    "at": "2026-10-21T07:24:37.498198+00:00",
+    "owned_count": 17,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 148.6
+  },
+  {
+    "at": "2026-10-21T07:24:47.614898+00:00",
+    "owned_count": 16,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 134.5
+  },
+  {
+    "at": "2026-10-21T07:24:57.740533+00:00",
+    "owned_count": 17,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 128.4
+  },
+  {
+    "at": "2026-10-21T07:25:07.864144+00:00",
+    "owned_count": 16,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 140.2
+  },
+  {
+    "at": "2026-10-21T07:25:17.994223+00:00",
+    "owned_count": 17,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 145.8
+  },
+  {
+    "at": "2026-10-21T07:25:28.193526+00:00",
+    "owned_count": 11,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 82.8
+  },
+  {
+    "at": "2026-10-21T07:25:38.347064+00:00",
+    "owned_count": 6,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 10.1
+  },
+  {
+    "at": "2026-10-21T07:25:48.512588+00:00",
+    "owned_count": 4,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 9.6
+  },
+  {
+    "at": "2026-10-21T07:25:58.672839+00:00",
+    "owned_count": 5,
+    "scripts_test": true,
+    "builds": [
+      {
+        "pid": 50754,
+        "comm": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/pkg/tool/darwin_arm64/compile",
+        "pcpu": 41.1
+      }
+    ],
+    "sleeps": 0,
+    "owned_pcpu": 50.0
+  },
+  {
+    "at": "2026-10-21T07:26:08.862685+00:00",
+    "owned_count": 8,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.7
+  },
+  {
+    "at": "2026-10-21T07:26:19.061383+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 2.6
+  },
+  {
+    "at": "2026-10-21T07:26:29.259025+00:00",
+    "owned_count": 11,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 3,
+    "owned_pcpu": 3.1
+  },
+  {
+    "at": "2026-10-21T07:26:39.448935+00:00",
+    "owned_count": 10,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 3.2
+  },
+  {
+    "at": "2026-10-21T07:26:49.616015+00:00",
+    "owned_count": 11,
+    "scripts_test": true,
+    "builds": [
+      {
+        "pid": 67424,
+        "comm": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "pcpu": 0.0
+      },
+      {
+        "pid": 67438,
+        "comm": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/pkg/tool/darwin_arm64/link",
+        "pcpu": 97.4
+      }
+    ],
+    "sleeps": 0,
+    "owned_pcpu": 100.1
+  },
+  {
+    "at": "2026-10-21T07:26:59.778558+00:00",
+    "owned_count": 10,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 143.4
+  },
+  {
+    "at": "2026-10-21T07:27:09.958656+00:00",
+    "owned_count": 5,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 4.4
+  },
+  {
+    "at": "2026-10-21T07:27:20.150160+00:00",
+    "owned_count": 5,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 1.1
+  },
+  {
+    "at": "2026-10-21T07:27:30.245929+00:00",
+    "owned_count": 13,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 4,
+    "owned_pcpu": 2.7
+  },
+  {
+    "at": "2026-10-21T07:27:40.287626+00:00",
+    "owned_count": 5,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 1.2
+  },
+  {
+    "at": "2026-10-21T07:27:50.329979+00:00",
+    "owned_count": 9,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 3,
+    "owned_pcpu": 3.3
+  },
+  {
+    "at": "2026-10-21T07:28:00.436515+00:00",
+    "owned_count": 6,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 1.8
+  },
+  {
+    "at": "2026-10-21T07:28:10.485722+00:00",
+    "owned_count": 8,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 1,
+    "owned_pcpu": 5.6
+  },
+  {
+    "at": "2026-10-21T07:28:20.534504+00:00",
+    "owned_count": 6,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 3.5
+  },
+  {
+    "at": "2026-10-21T07:28:30.550218+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 1.6
+  },
+  {
+    "at": "2026-10-21T07:28:40.598342+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 4.9
+  },
+  {
+    "at": "2026-10-21T07:28:50.628700+00:00",
+    "owned_count": 6,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 2,
+    "owned_pcpu": 1.2
+  },
+  {
+    "at": "2026-10-21T07:29:00.680058+00:00",
+    "owned_count": 7,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 0.8
+  },
+  {
+    "at": "2026-10-21T07:29:10.733889+00:00",
+    "owned_count": 3,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 1.3
+  },
+  {
+    "at": "2026-10-21T07:29:20.796121+00:00",
+    "owned_count": 5,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 0,
+    "owned_pcpu": 4.7
+  },
+  {
+    "at": "2026-10-21T07:29:30.824966+00:00",
+    "owned_count": 12,
+    "scripts_test": true,
+    "builds": [],
+    "sleeps": 4,
+    "owned_pcpu": 2.0
+  }
+]

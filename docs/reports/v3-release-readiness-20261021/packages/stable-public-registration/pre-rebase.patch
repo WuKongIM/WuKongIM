@@ -1,0 +1,562 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 1d23df2..dad6d23 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++- Register the independent stable APT/RPM public certificates and reviewed
++  signing roles, while retaining the disabled stable channel and preview
++  publication inputs.
++
+ - Accept encrypted current-subkey and passphrase files for local family signing,
+   retaining the existing CI environment inputs and verification, with native
+   TEST ONLY signing regression coverage. Document Mac local stable-key custody;
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index 3831a44..ceb015e 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -370,6 +370,15 @@ Promoting an RPM preserves the same unsigned payload, NEVRA, and provenance,
+ but its bytes change when it is signed with the independent stable key. This
+ custody choice does not enable the stable channel or authorize publication.
+ 
++The optional `manifests/stable-public-keys.json` declaration registers only the
++two independent stable public certificates and their exact signing roles. It
++reuses public-certificate validation and the existing lifetime policy, with
++fingerprint and short-key-ID uniqueness across preview and stable. The complete
++declaration and both certificates must be present together. Older controls
++without any stable registration remain valid. Registration changes neither the
++disabled stable channel nor the preview manifest, snapshot, archive or bootstrap
++certificate inputs; it creates no GitHub secret or signing Environment.
++
+ The credential-free TEST ONLY PR drill also exercises the local file and
+ existing environment inputs with tiny data-only packages and independent
+ ephemeral APT/RPM keys, plus the stdin subkey option. After signing, it removes
+diff --git a/keys/README.md b/keys/README.md
+index 399105b..7ccd185 100644
+--- a/keys/README.md
++++ b/keys/README.md
+@@ -48,6 +48,19 @@ on the Mac or NAS, and never enter GitHub-hosted CI; see the
+ [release contract](../docs/release-contract.md). This is an online-workstation
+ model, not an offline-signing claim.
+ 
++`manifests/stable-public-keys.json` is the sole public role declaration for
++`apt-stable.asc` and `rpm-stable.asc`. It records only the certificate path and
++primary/current/next/historical fingerprints; it has no secret, Environment or
++publication-enable fields. The same public certificate checks and 30/45/180-day
++policy apply, and full fingerprints plus 16-hex and 8-hex key IDs must be unique
++across both channels and both package families. Historical control roots may
++omit this entire registration; a partial registration is rejected.
++
++This registration does not enable stable signing or publication. Preview
++snapshots, audit archives and bootstrap packages continue to contain only
++their reviewed preview certificates. Stable private material remains on the
++operator's Mac; the public role declaration is not backup-recovery evidence.
++
+ For local signing, `scripts/sign-package-family.py` accepts exactly one of
+ `--secret-subkey-base64-file`, `--secret-subkey-base64-stdin`, or the existing
+ `--secret-subkey-base64-env`, and exactly one of `--passphrase-file` or
+diff --git a/keys/apt-stable.asc b/keys/apt-stable.asc
+new file mode 100644
+index 0000000..ac83c92
+--- /dev/null
++++ b/keys/apt-stable.asc
+@@ -0,0 +1,77 @@
++-----BEGIN PGP PUBLIC KEY BLOCK-----
++
++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
++JEeBlcI71FjS
++=pVTD
++-----END PGP PUBLIC KEY BLOCK-----
+diff --git a/keys/rpm-stable.asc b/keys/rpm-stable.asc
+new file mode 100644
+index 0000000..ad8543f
+--- /dev/null
++++ b/keys/rpm-stable.asc
+@@ -0,0 +1,77 @@
++-----BEGIN PGP PUBLIC KEY BLOCK-----
++
++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
++GyFcY5eT91/u
++=fZK0
++-----END PGP PUBLIC KEY BLOCK-----
+diff --git a/manifests/stable-public-keys.json b/manifests/stable-public-keys.json
+new file mode 100644
+index 0000000..475e7ee
+--- /dev/null
++++ b/manifests/stable-public-keys.json
+@@ -0,0 +1,21 @@
++{
++  "schema": "wukongim.stable_public_keys/v1",
++  "apt": {
++    "public_key": "keys/apt-stable.asc",
++    "primary_fingerprint": "F68735072235EDC3BEBA83A55F19C486C2108B64",
++    "signing_subkeys": {
++      "current": "870709103947DCA5C19D76A817A8FB409BB05E51",
++      "next": "46F98702B783D39F2009B75B3528CA2EEEFC54DF",
++      "historical": []
++    }
++  },
++  "rpm": {
++    "public_key": "keys/rpm-stable.asc",
++    "primary_fingerprint": "4C76B7B37EBDAF05EB44976F96EC1B2D5976F45D",
++    "signing_subkeys": {
++      "current": "7C090D6807F29854C25824B0C620CF61C8256051",
++      "next": "333EB560B893835062CE28332022BAA4F4BE83D1",
++      "historical": []
++    }
++  }
++}
+diff --git a/scripts/validate-control.py b/scripts/validate-control.py
+index bb1e508..0f3a3d6 100755
+--- a/scripts/validate-control.py
++++ b/scripts/validate-control.py
+@@ -20,6 +20,7 @@ from typing import Any
+ CHANNELS_SCHEMA = "wukongim.native_package_channels/v3"
+ BOOTSTRAP_SCHEMA = "wukongim.native_package_bootstrap/v1"
+ SIGNING_SCHEMA = "wukongim.native_package_signing/v3"
++STABLE_PUBLIC_KEYS_SCHEMA = "wukongim.stable_public_keys/v1"
+ SIGNING_TOOLCHAIN_SCHEMA = "wukongim.native_package_signing_toolchain/v1"
+ TOOLCHAIN_SCHEMA = "wukongim.native_package_toolchain/v1"
+ SOURCE_READ_SCHEMA = "wukongim.native_package_source_read/v1"
+@@ -518,6 +519,53 @@ def validate_public_certificate(
+                 f"{path.name} historical signing subkey expires after the current subkey")
+ 
+ 
++def load_stable_public_certificates(root: Path) -> list[tuple[str, Path, str, dict[str, Any]]]:
++    """Read optional public-only stable roles without enabling a publisher."""
++    path = root / "manifests/stable-public-keys.json"
++    if not os.path.lexists(path):
++        return []
++    metadata = path.lstat()
++    require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
++            "stable public-key declaration must be a single-link regular file")
++    declaration = exact_fields(load_json(path), {"schema", "apt", "rpm"},
++                               "stable public-key declaration")
++    require(declaration["schema"] == STABLE_PUBLIC_KEYS_SCHEMA,
++            f"stable public-key schema must be {STABLE_PUBLIC_KEYS_SCHEMA}")
++    certificates = []
++    for family in ("apt", "rpm"):
++        label = f"stable.{family}"
++        key = exact_fields(declaration[family],
++                           {"public_key", "primary_fingerprint", "signing_subkeys"}, label)
++        expected_path = f"keys/{family}-stable.asc"
++        require(key["public_key"] == expected_path,
++                f"{label}.public_key must be {expected_path}")
++        primary = key["primary_fingerprint"]
++        require(isinstance(primary, str) and UPPER_FINGERPRINT.fullmatch(primary),
++                f"{label}.primary_fingerprint must be an uppercase 40-hex fingerprint")
++        subkeys = exact_fields(key["signing_subkeys"], SIGNING_SUBKEY_FIELDS,
++                               f"{label}.signing_subkeys")
++        for role in ("current", "next"):
++            value = subkeys[role]
++            require(isinstance(value, str) and UPPER_FINGERPRINT.fullmatch(value),
++                    f"{label}.{role} must be an uppercase 40-hex fingerprint")
++        historical = subkeys["historical"]
++        require(isinstance(historical, list), f"{label}.historical must be an array")
++        require(all(isinstance(value, str) and UPPER_FINGERPRINT.fullmatch(value)
++                    for value in historical),
++                f"{label}.historical must contain uppercase 40-hex fingerprints")
++        require(historical == sorted(set(historical)),
++                f"{label}.historical must be unique and sorted")
++        certificate = root / expected_path
++        try:
++            metadata = certificate.lstat()
++        except OSError as error:
++            raise ContractError(f"cannot read stable public key {expected_path}") from error
++        require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
++                f"{expected_path} must be a single-link regular file")
++        certificates.append((family, certificate, primary, subkeys))
++    return certificates
++
++
+ def validate_signing(root: Path) -> dict[str, Any]:
+     signing = exact_fields(load_json(root / "manifests/preview-signing.json"), SIGNING_FIELDS,
+                            "preview signing manifest")
+@@ -597,16 +645,21 @@ def validate_signing(root: Path) -> dict[str, Any]:
+                     and subkeys == {"current": None, "next": None, "historical": []},
+                     f"signing.{family} fingerprints must be empty while signing is disabled")
+ 
+-    if signing["enabled"]:
++    stable_certificates = load_stable_public_certificates(root)
++    for _, _, primary, subkeys in stable_certificates:
++        fingerprints.extend([primary, subkeys["current"], subkeys["next"], *subkeys["historical"]])
++    certificates.extend(stable_certificates)
++    if fingerprints:
+         require(len(set(fingerprints)) == len(fingerprints),
+                 "APT and RPM signing fingerprints must all be distinct")
+         require(len({value[-16:] for value in fingerprints}) == len(fingerprints),
+                 "APT and RPM signing fingerprints must have globally distinct 16-hex key IDs")
+         require(len({value[-8:] for value in fingerprints}) == len(fingerprints),
+                 "APT and RPM signing fingerprints must have globally distinct 8-hex key IDs")
+-        expected_key_files = {"README.md", "apt-preview.asc", "rpm-preview.asc"}
+-    else:
+-        expected_key_files = {"README.md"}
++    expected_key_files = {"README.md"}
++    if signing["enabled"]:
++        expected_key_files.update({"apt-preview.asc", "rpm-preview.asc"})
++    expected_key_files.update(path.name for _, path, _, _ in stable_certificates)
+     actual_key_entries = {path.name: path for path in (root / "keys").iterdir()}
+     require(set(actual_key_entries) == expected_key_files,
+             f"keys directory entries must be exactly {sorted(expected_key_files)}")
+diff --git a/tests/test_stable_public_keys.py b/tests/test_stable_public_keys.py
+new file mode 100644
+index 0000000..c5a5ca5
+--- /dev/null
++++ b/tests/test_stable_public_keys.py
+@@ -0,0 +1,190 @@
++from __future__ import annotations
++
++import copy
++from contextlib import contextmanager
++import importlib.util
++import json
++import os
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++import unittest
++
++ROOT = Path(__file__).resolve().parents[1]
++DECLARATION = 'stable-public-keys.json'
++# Independently recorded from the operator's public-only production receipt.
++STABLE = {
++    'schema': 'wukongim.stable_public_keys/v1',
++    'apt': {'public_key': 'keys/apt-stable.asc',
++            'primary_fingerprint': 'F68735072235EDC3BEBA83A55F19C486C2108B64',
++            'signing_subkeys': {'current': '870709103947DCA5C19D76A817A8FB409BB05E51',
++                               'next': '46F98702B783D39F2009B75B3528CA2EEEFC54DF',
++                               'historical': []}},
++    'rpm': {'public_key': 'keys/rpm-stable.asc',
++            'primary_fingerprint': '4C76B7B37EBDAF05EB44976F96EC1B2D5976F45D',
++            'signing_subkeys': {'current': '7C090D6807F29854C25824B0C620CF61C8256051',
++                               'next': '333EB560B893835062CE28332022BAA4F4BE83D1',
++                               'historical': []}},
++}
++
++
++def write(root, value):
++    (root / 'manifests' / DECLARATION).write_text(json.dumps(value, indent=2) + '\n')
++
++
++@contextmanager
++def control_root(*, registered=True):
++    with tempfile.TemporaryDirectory(prefix='wk-stable-public-') as temporary:
++        root = Path(temporary)
++        for directory in ('manifests', 'keys', 'site'):
++            shutil.copytree(ROOT / directory, root / directory)
++        (root / 'manifests' / DECLARATION).unlink(missing_ok=True)
++        if registered:
++            write(root, STABLE)
++        else:
++            for family in ('apt', 'rpm'):
++                (root / STABLE[family]['public_key']).unlink()
++        yield root
++
++
++class StablePublicKeysTest(unittest.TestCase):
++    def run_control(self, root):
++        return subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/validate-control.py'),
++                               '--root', str(root)], capture_output=True, text=True, timeout=30)
++
++    def reject(self, root, diagnostic):
++        result = self.run_control(root)
++        self.assertNotEqual(result.returncode, 0, result.stdout)
++        self.assertIn(diagnostic, result.stderr)
++
++    def test_accepts_complete_registration_with_public_only_certificates(self):
++        with control_root() as root:
++            before = {path: (root / path).read_bytes() for path in
++                      ('manifests/channels.json', 'manifests/preview-signing.json')}
++            result = self.run_control(root)
++            self.assertEqual(result.returncode, 0, result.stderr)
++            self.assertIn('publication control validation passed', result.stdout)
++            self.assertEqual({path: (root / path).read_bytes() for path in before}, before)
++            stable = json.loads(before['manifests/channels.json'])['channels']['stable']
++            self.assertEqual(stable, {'enabled': False, 'status': 'object_storage_required', 'releases': []})
++
++    def test_accepts_historical_control_without_any_stable_registration(self):
++        with control_root(registered=False) as root:
++            result = self.run_control(root)
++            self.assertEqual(result.returncode, 0, result.stderr)
++
++    def test_rejects_partial_registration(self):
++        for missing in ('manifests/' + DECLARATION, 'keys/apt-stable.asc', 'keys/rpm-stable.asc'):
++            with self.subTest(missing=missing), control_root() as root:
++                (root / missing).unlink()
++                self.reject(root, 'stable' if missing.startswith('keys/') else 'keys directory entries')
++        with control_root(registered=False) as root:
++            write(root, STABLE)
++            self.reject(root, 'stable')
++
++    def test_rejects_non_public_declaration_fields(self):
++        mutations = [lambda x: x.update(schema='other'), lambda x: x.update(enabled=True),
++                     lambda x: x['apt'].update(environment='native-package-stable'),
++                     lambda x: x['rpm'].update(secret_subkey_env='SECRET'),
++                     lambda x: x['rpm'].update(passphrase_env='SECRET'),
++                     lambda x: x['apt'].update(public_key='keys/apt-preview.asc')]
++        for change in mutations:
++            with self.subTest(change=change), control_root() as root:
++                value = copy.deepcopy(STABLE)
++                change(value)
++                write(root, value)
++                self.reject(root, 'stable')
++
++    def test_rejects_duplicate_json_fields(self):
++        with control_root() as root:
++            path = root / 'manifests' / DECLARATION
++            path.write_text('{"schema":"duplicate",' + path.read_text().lstrip()[1:])
++            self.reject(root, 'duplicate JSON key: schema')
++
++    def test_rejects_malformed_or_duplicate_roles(self):
++        for field, value in (('current', 'bad'), ('next', None), ('historical', 'bad'),
++                             ('historical', ['B' * 40, 'A' * 40]),
++                             ('historical', ['B' * 40, 'B' * 40])):
++            with self.subTest(field=field, value=value), control_root() as root:
++                declaration = copy.deepcopy(STABLE)
++                declaration['apt']['signing_subkeys'][field] = value
++                write(root, declaration)
++                self.reject(root, 'stable')
++
++    def test_rejects_certificate_role_mismatch(self):
++        for field in ('primary_fingerprint', 'current', 'next'):
++            with self.subTest(field=field), control_root() as root:
++                declaration = copy.deepcopy(STABLE)
++                target = declaration['apt'] if field == 'primary_fingerprint' else declaration['apt']['signing_subkeys']
++                target[field] = 'A' * 40
++                write(root, declaration)
++                self.reject(root, 'fingerprint')
++
++    def test_rejects_reversed_current_and_next(self):
++        with control_root() as root:
++            declaration = copy.deepcopy(STABLE)
++            roles = declaration['apt']['signing_subkeys']
++            roles['current'], roles['next'] = roles['next'], roles['current']
++            write(root, declaration)
++            self.reject(root, 'rotation runway')
++
++    def test_rejects_cross_channel_full_and_short_id_collisions(self):
++        for width in (40, 16, 8):
++            with self.subTest(width=width), control_root() as root:
++                preview = json.loads((root / 'manifests/preview-signing.json').read_text())
++                collision = preview['rpm']['signing_subkeys']['current']
++                declaration = copy.deepcopy(STABLE)
++                declaration['apt']['signing_subkeys']['current'] = '0' * (40 - width) + collision[-width:]
++                write(root, declaration)
++                self.reject(root, 'fingerprints must all be distinct' if width == 40 else f'globally distinct {width}-hex')
++
++    def test_rejects_cross_stable_family_collision(self):
++        with control_root() as root:
++            declaration = copy.deepcopy(STABLE)
++            declaration['rpm']['primary_fingerprint'] = declaration['apt']['primary_fingerprint']
++            write(root, declaration)
++            self.reject(root, 'fingerprints must all be distinct')
++
++    def test_rejects_linked_or_extra_registration_inputs(self):
++        for kind in ('symlink-cert', 'hardlink-cert', 'symlink-manifest', 'extra'):
++            with self.subTest(kind=kind), control_root() as root:
++                path = root / ('manifests/' + DECLARATION if kind == 'symlink-manifest' else 'keys/apt-stable.asc')
++                if kind == 'extra':
++                    (root / 'keys/unlisted.asc').write_text('extra')
++                else:
++                    original = root / 'preserved-public-input'
++                    path.rename(original)
++                    if kind.startswith('symlink'):
++                        path.symlink_to(original)
++                    else:
++                        os.link(original, path)
++                self.reject(root, 'symbolic link' if kind.startswith('symlink') else
++                            'hard-linked' if kind == 'hardlink-cert' else 'keys directory entries')
++
++    def test_rejects_private_armor_in_registered_public_file(self):
++        with control_root() as root:
++            (root / 'keys/apt-stable.asc').write_text('-----BEGIN PGP PRIVATE KEY BLOCK-----\nTEST ONLY non-key marker\n')
++            self.reject(root, 'private key material is forbidden')
++
++    def test_registration_does_not_depend_on_preview_being_enabled(self):
++        with control_root() as root:
++            signing_path = root / 'manifests/preview-signing.json'
++            signing = json.loads(signing_path.read_text())
++            signing['enabled'] = False
++            for family in ('apt', 'rpm'):
++                (root / signing[family]['public_key']).unlink()
++                signing[family]['primary_fingerprint'] = None
++                signing[family]['signing_subkeys'] = {'current': None, 'next': None, 'historical': []}
++            signing_path.write_text(json.dumps(signing))
++            # This case targets the public signing-control boundary only; the
++            # complete publisher separately rejects enabled preview without keys.
++            descriptor = importlib.util.spec_from_file_location('stable_public_control', ROOT / 'scripts/validate-control.py')
++            module = importlib.util.module_from_spec(descriptor)
++            descriptor.loader.exec_module(module)
++            self.assertEqual(module.validate_signing(root), signing)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/test_validate_control.py b/tests/test_validate_control.py
+index 547a603..683dc6d 100644
+--- a/tests/test_validate_control.py
++++ b/tests/test_validate_control.py
+@@ -457,7 +457,7 @@ class ValidateControlTest(unittest.TestCase):
+                 "signing.apt fingerprints must all be distinct",
+             )
+ 
+-    def test_rejects_extra_binary_key_file_while_signing_is_disabled(self) -> None:
++    def test_rejects_extra_binary_key_file_while_preview_signing_is_disabled(self) -> None:
+         with copied_control_root() as root:
+             signing = load_manifest(root, "preview-signing.json")
+             signing["enabled"] = False
+@@ -477,7 +477,7 @@ class ValidateControlTest(unittest.TestCase):
+ 
+             self.assert_rejected(
+                 root,
+-                "keys directory entries must be exactly ['README.md']",
++                "keys directory entries must be exactly ['README.md', 'apt-stable.asc', 'rpm-stable.asc']",
+             )
+ 
+     def test_rejects_readme_directory_hiding_binary_key_material(self) -> None:

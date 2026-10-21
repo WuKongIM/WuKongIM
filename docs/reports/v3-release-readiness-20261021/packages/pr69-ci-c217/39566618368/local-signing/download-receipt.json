@@ -1,0 +1,13 @@
+{
+  "artifact_id": 12329727100,
+  "zip_sha256": "cde0934841bef1d10ff10a60835cd5fbe2bd3e1f75b2c3336c700237b7a3bcfd",
+  "zip_size": 2808,
+  "members": [
+    {
+      "path": "native-local-signing.json",
+      "size": 12972,
+      "sha256": "22e52e9ae6d0133abc569fe238ca40d126eee4c4b092a045ac5a7892a4e3a046",
+      "crc32": 1561255833
+    }
+  ]
+}

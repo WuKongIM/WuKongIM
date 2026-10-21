@@ -1,0 +1,152 @@
+{
+  "repository": "WuKongIM/packages",
+  "source_sha": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "branch": "codex/stable-local-request",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request",
+  "packages_rules": [],
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/tdd/SKILL.md",
+      "size": 3543,
+      "sha256": "6cfc6a5920744e55861b9b6176e12597d0c09345ea077bddc44c0d60712f2a0f"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/tdd/tests.md",
+      "size": 2214,
+      "sha256": "859f9e592c188fda4fc7277dd180e4ce9c7a2e13f6efe1f6f29eccc9d28c106a"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/tdd/mocking.md",
+      "size": 1481,
+      "sha256": "3ceb807fdf4a47d6a93d4d9a891e5ba6d362a6247bd08adc451feebfc17361ef"
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "size": 7478,
+      "sha256": "faea646e576dd37b6537378cbefc5593ff1676630641baa494b1bded145abee0"
+    },
+    {
+      "path": "keys/README.md",
+      "size": 3420,
+      "sha256": "65675b17d39c760c427120971b742412bdd9aabf6421dcc6fb33e65012ef71d1"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "size": 31622,
+      "sha256": "455c97ffad7479e73ddf103523e27aecdc2e319395cf9a5a62ff18c168e44871"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "size": 701,
+      "sha256": "49e872069fde2a0f74ef37c7ee571611a3c745f04e7c7e4b9a402038fa19e4f1"
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "size": 105274,
+      "sha256": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498"
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "size": 34568,
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4"
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "size": 71062,
+      "sha256": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "size": 6183,
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "size": 7039,
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281"
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "size": 5321,
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "size": 21677,
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "size": 103240,
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "size": 5127,
+      "sha256": "38b0d7248c2eb34c86564ca81cce3079bf027eb0ff7ef046769ddc894ddb377b"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "size": 13721,
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "size": 6111,
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "size": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "size": 6270,
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "size": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "size": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "manifests/channels.json",
+      "size": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "size": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "size": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "size": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "size": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    }
+  ],
+  "custody_policy": "User explicitly authorized online Mac local custody; NAS backup allowed. Not an offline ceremony. Stable remains disabled; no private-key work authorized in this slice."
+}

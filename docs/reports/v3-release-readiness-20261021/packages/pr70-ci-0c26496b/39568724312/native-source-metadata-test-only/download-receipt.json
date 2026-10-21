@@ -1,0 +1,14 @@
+{
+  "artifact_id": 12330662817,
+  "api_zip_digest": "sha256:77eb6828a5fdf1b36c693ac68c5a2190a8a12645b37eeb7fa70b834d534257de",
+  "recomputed_zip_digest": "sha256:77eb6828a5fdf1b36c693ac68c5a2190a8a12645b37eeb7fa70b834d534257de",
+  "zip_size": 1267,
+  "members": [
+    {
+      "path": "native-source-metadata.json",
+      "size": 4464,
+      "sha256": "49116cc36547d0104be9ae3cced5b568e8dbf9d8459071911bc1b8a5e7f17f3a",
+      "crc32": 1331378735
+    }
+  ]
+}

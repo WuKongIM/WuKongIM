@@ -1,0 +1,12 @@
+{
+  "base": "9a23014ba7e38d9a57770e317cf40fc21bd288cd",
+  "rules": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "applicable_flows": [],
+  "files_before": {
+    "docs/reports/2026-10-21-v3-release-readiness.md": "1d5271511c0467816857ad2b8707c65be756eee2b2e901e403944d00ab2a5d99",
+    "docs/reports/2026-10-21-v3-stable-key-preparation.md": "dbdf0735dcebc5230fcb367e7bb5ca4724befff4d1bc29b968e124026d4b6c81"
+  },
+  "scope": "Only the two named report files; public receipts only; no credentials or private key reads"
+}

@@ -1,0 +1,9 @@
+{
+  "current": "implementation-summary.json",
+  "current_patch_sha256": "6d955627192292dadf98f8bb621bef440c60b7e688e838e1e783cc6f1cfa76ba",
+  "red": "01-local-input-red.log",
+  "green": "02-local-input-green.log",
+  "status": "adapter complete; independent static review pending; native drill deferred during fixed load",
+  "prior_scope_reduction": "scope-reduction-summary.json",
+  "superseded_protocol": "superseded-request-draft/README.md"
+}

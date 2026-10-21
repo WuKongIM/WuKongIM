@@ -1,0 +1,37 @@
+{
+  "observed_at": "2026-10-21T08:40:00Z",
+  "repository": "WuKongIM/packages",
+  "pull_request": 70,
+  "approved_head": "0c26496b624058db813aa1206a7910f0abae6b13",
+  "merge_sha": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+  "merge_observed_at": "2026-10-21T08:34:33.734634+00:00",
+  "tree": "2c4f7d3a9b24a6f67c18b114b8a5c5f1f5f6fa5e",
+  "full_tree_equal": true,
+  "postmerge": {
+    "run_id": 39570313491,
+    "attempt": 1,
+    "head_sha": "51bfedbe88c78758fa05bfb87b13541b4bca4796",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-21T08:36:26Z",
+    "python_tests": 400,
+    "python_seconds": 102.131,
+    "workflow_contract_tests": 3,
+    "configure_upload_deploy": "skipped",
+    "checkout_exact_merge_verified_from_log": true
+  },
+  "cleanup": {
+    "worktree_clean": true,
+    "original_head_is_merge_ancestor": false,
+    "action": "preserved original branch and worktree; no force deletion"
+  },
+  "bounds": {
+    "production_keys_accessed": false,
+    "nas_accessed": false,
+    "publication_performed": false,
+    "stable_enabled": false,
+    "cloud_resources_accessed": false,
+    "workflow_retry_or_dispatch": false
+  },
+  "metadata_read_note": "Two read-only PR metadata reads returned transport EOF; empty stdout and second stderr retained. Merge is confirmed by root merge response, exact fetched commit/main ref and postmerge run. No exact merged_at field asserted."
+}

@@ -1,0 +1,9 @@
+{
+  "base": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "files": {
+    "scripts/cloud-sim/analyze.sh": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8",
+    "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh": "68512d0add0a80b6b364400388720cd0acc301897ef8b4a5e6facffed16880a5",
+    "scripts/shell_trap_cleanup_integration_test.go": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6"
+  },
+  "patch_sha256": "21c51ebae7ac2c78de39699840be5206eaf710e7414c6442efd5f93261b6485c"
+}

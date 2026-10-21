@@ -1,0 +1,191 @@
+Validate complete Pages snapshot	Set up job	﻿2026-10-21T08:34:39.0253228Z Current runner version: '2.338.0'
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0278883Z ##[group]Runner Image Provisioner
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0279853Z Hosted Compute Agent
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0280514Z Version: 20261015.610
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0281258Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0282052Z Build Date: 2026-10-14T17:06:54Z
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0282794Z Worker ID: {a4604861-e34e-4410-9ffc-e89b85d14a2d}
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0283528Z Region: eastus
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0284328Z Cloud: Azure
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0284944Z ##[endgroup]
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0286437Z ##[group]Operating System
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0287087Z Ubuntu
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0287730Z 24.04.5
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0288292Z LTS
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0288853Z ##[endgroup]
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0289485Z ##[group]Runner Image
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0290062Z Image: ubuntu-24.04
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0291105Z Version: 20261018.339.1
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0292267Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0294293Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0295391Z ##[endgroup]
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0296594Z ##[group]GITHUB_TOKEN Permissions
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0298876Z Contents: read
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0299560Z Metadata: read
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0300356Z ##[endgroup]
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0302448Z Secret source: Actions
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0303502Z Cache mode: write
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0304965Z Prepare workflow directory
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0729537Z Prepare all required actions
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.0799685Z Getting action download info
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.3092772Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.4288785Z Download action repository 'actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b' (SHA:983d7736d9b0ae728b81ab479565c72886d7745b)
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.5550780Z Download action repository 'actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b' (SHA:7b1f4a764d45c48632c6b24a0339c27f5614fb0b)
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.7417322Z Getting action download info
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:39.8645194Z Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+Validate complete Pages snapshot	Set up job	2026-10-21T08:34:40.0101667Z Complete job name: Validate complete Pages snapshot
+Validate complete Pages snapshot	Check out exact publication control	﻿2026-10-21T08:34:40.1025864Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1027710Z with:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1028578Z   persist-credentials: false
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1029641Z   repository: WuKongIM/packages
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1038305Z   token: ***
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1039251Z   ssh-strict: true
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1040121Z   ssh-user: git
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1040955Z   clean: true
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1041843Z   sparse-checkout-cone-mode: true
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1042921Z   fetch-depth: 1
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1043797Z   fetch-tags: false
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1044864Z   show-progress: true
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1045778Z   lfs: false
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1046601Z   submodules: false
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1047523Z   set-safe-directory: true
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1048558Z   allow-unsafe-pr-checkout: false
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.1049892Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2106335Z Syncing repository: WuKongIM/packages
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2109145Z ##[group]Getting Git version info
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2111480Z Working directory is '/home/runner/work/packages/packages'
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2115517Z [command]/usr/bin/git version
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2207072Z git version 2.55.0
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2232297Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2244956Z Temporarily overriding HOME='/home/runner/work/_temp/39445e2a-ddd8-4f92-aa55-857be004d604' before making global git config changes
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2249872Z Adding repository directory to the temporary git global config as a safe directory
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2254258Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2315177Z Deleting the contents of '/home/runner/work/packages/packages'
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2327555Z ##[group]Determining repository object format
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2342500Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2345041Z ##[group]Initializing the repository
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2347486Z [command]/usr/bin/git init /home/runner/work/packages/packages
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2442911Z hint: Using 'master' as the name for the initial branch. This default branch name
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2446609Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2449406Z hint: to use in all of your new repositories, which will suppress this warning,
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2450999Z hint: call:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2452185Z hint:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2453838Z hint: 	git config --global init.defaultBranch <name>
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2456070Z hint:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2457931Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2461312Z hint: 'development'. The just-created branch can be renamed via this command:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2463813Z hint:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2465370Z hint: 	git branch -m <name>
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2466873Z hint:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2468841Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2470940Z Initialized empty Git repository in /home/runner/work/packages/packages/.git/
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2474615Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/packages
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2518720Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2521893Z ##[group]Disabling automatic garbage collection
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2524945Z [command]/usr/bin/git config --local gc.auto 0
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2559527Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2561695Z ##[group]Setting up auth
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2563379Z Removing SSH command configuration
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2566158Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2606764Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2988537Z Removing HTTP extra header
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.2994985Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3047739Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3319157Z Removing includeIf entries pointing to credentials config files
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3324759Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3380088Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3627801Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3678853Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git.path /home/runner/work/_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3755990Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3780171Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3827015Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3870043Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3872371Z ##[group]Fetching the repository
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.3879267Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +51bfedbe88c78758fa05bfb87b13541b4bca4796:refs/remotes/origin/main
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7352882Z From https://github.com/WuKongIM/packages
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7355757Z  * [new ref]         51bfedbe88c78758fa05bfb87b13541b4bca4796 -> origin/main
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7369160Z [command]/usr/bin/git branch --list --remote origin/main
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7416858Z   origin/main
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7426130Z [command]/usr/bin/git rev-parse refs/remotes/origin/main
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7466573Z 51bfedbe88c78758fa05bfb87b13541b4bca4796
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7477585Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7478909Z ##[group]Determining the checkout info
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7480309Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7482780Z [command]/usr/bin/git sparse-checkout disable
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7555578Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7600979Z ##[group]Checking out the ref
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7606908Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7768683Z Switched to a new branch 'main'
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7774395Z branch 'main' set up to track 'origin/main'.
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7780948Z ##[endgroup]
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7853568Z [command]/usr/bin/git log -1 --format=%H
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7891376Z 51bfedbe88c78758fa05bfb87b13541b4bca4796
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7901410Z ##[group]Removing auth
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7902105Z Removing SSH command configuration
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7905746Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.7949756Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8196013Z Removing HTTP extra header
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8200813Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8247025Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8490404Z Removing includeIf entries pointing to credentials config files
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8493023Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8536420Z includeif.gitdir:/home/runner/work/packages/packages/.git.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8537537Z includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8538489Z includeif.gitdir:/github/workspace/.git.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8539573Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8547051Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8582492Z /home/runner/work/_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8593160Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-ca5a2602\-7c01\-49eb\-a931\-e6ef052adc65\.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8647314Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8682598Z /home/runner/work/_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8691410Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-ca5a2602\-7c01\-49eb\-a931\-e6ef052adc65\.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8742488Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8779183Z /github/runner_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8788411Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-ca5a2602\-7c01\-49eb\-a931\-e6ef052adc65\.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8832674Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8867622Z /github/runner_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8877193Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-ca5a2602\-7c01\-49eb\-a931\-e6ef052adc65\.config
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.8923646Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.9165893Z Removing credentials config '/home/runner/work/_temp/git-credentials-ca5a2602-7c01-49eb-a931-e6ef052adc65.config'
+Validate complete Pages snapshot	Check out exact publication control	2026-10-21T08:34:40.9175762Z ##[endgroup]
+Validate complete Pages snapshot	Validate repository contracts	﻿2026-10-21T08:34:40.9466631Z ##[group]Run ./tests/contract.sh
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9467237Z ^[[36;1m./tests/contract.sh^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9467779Z ^[[36;1mpython3 -m unittest discover -s tests -p 'test_*.py'^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9468533Z ^[[36;1mif [[ "$(jq -r '.channels.preview.enabled' manifests/channels.json)" == "false" ]]; then^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9469242Z ^[[36;1m  echo 'deploy_bootstrap=true' >> "$GITHUB_OUTPUT"^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9469727Z ^[[36;1melse^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9470148Z ^[[36;1m  echo 'deploy_bootstrap=false' >> "$GITHUB_OUTPUT"^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9470630Z ^[[36;1mfi^[[0m
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9650229Z shell: /usr/bin/bash -e {0}
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:40.9650791Z ##[endgroup]
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.0630404Z publication control validation passed
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.1896420Z ...
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.1897300Z ----------------------------------------------------------------------
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.1898285Z Ran 3 tests in 0.001s
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.1898687Z 
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.1898950Z OK
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:34:41.7342687Z package repository contracts passed
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:36:24.2278305Z ................................................................................................................................................................................................................................................................................................................................................................................................................
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:36:24.2280445Z ----------------------------------------------------------------------
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:36:24.2281121Z Ran 400 tests in 102.131s
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:36:24.2285302Z 
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:36:24.2291755Z {"cases": [], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "2011b70299d04dd9fa468ad08a0dd974e4f5b50a0b05c797db451466b9ee06c1", "size": 9821}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "failure": {"case": "rpm-files", "exit_code": 1, "family": "rpm", "input_mode": "files", "message": "no recognized signer diagnostic"}, "passed": false, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "TEST ONLY version", "dpkg-deb": "TEST ONLY version", "gpg": "TEST ONLY version", "rpm": "TEST ONLY version"}}
+Validate complete Pages snapshot	Validate repository contracts	2026-10-21T08:36:24.2297763Z OK
+Validate complete Pages snapshot	Post Check out exact publication control	﻿2026-10-21T08:36:24.2792521Z Post job cleanup.
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3678621Z [command]/usr/bin/git version
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3727090Z git version 2.55.0
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3778994Z Temporarily overriding HOME='/home/runner/work/_temp/157a6c09-331f-4c15-8553-1b507cceb82e' before making global git config changes
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3780573Z Adding repository directory to the temporary git global config as a safe directory
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3784265Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3821185Z Removing SSH command configuration
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3828201Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.3868272Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.4128111Z Removing HTTP extra header
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.4135131Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.4177020Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.4477178Z Removing includeIf entries pointing to credentials config files
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.4484255Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Validate complete Pages snapshot	Post Check out exact publication control	2026-10-21T08:36:24.4529451Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Validate complete Pages snapshot	Complete job	﻿2026-10-21T08:36:24.5029449Z Evaluate and set job outputs
+Validate complete Pages snapshot	Complete job	2026-10-21T08:36:24.5037098Z Set output 'deploy_bootstrap'
+Validate complete Pages snapshot	Complete job	2026-10-21T08:36:24.5039226Z Cleaning up orphan processes

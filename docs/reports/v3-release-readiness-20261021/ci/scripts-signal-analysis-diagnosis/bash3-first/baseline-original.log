@@ -1,0 +1,269 @@
++ exec /bin/bash -x /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh --run-dir /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run --base-port 25000
++ set -euo pipefail
++ umask 077
++++ dirname /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh
+++ cd /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/scripts/..
+++ pwd -P
++ ROOT_DIR=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture
++ SHAKEOUT=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh
++ RUN_DIR=
++ BASE_PORT=15000
++ READY_TIMEOUT=120
++ RATES=250,500,750,1000
++ STEP_MEASURE_SECONDS=300
++ SOAK_RATE=1000
++ SOAK_MEASURE_SECONDS=600
++ WARMUP_SECONDS=60
++ DRAIN_TIMEOUT=90
++ MINIMUM_FREE_PERCENT=10
++ DRY_RUN=0
++ OBSERVED_FREE_PERCENT=0
++ [[ 4 -gt 0 ]]
++ case "$1" in
++ [[ 4 -ge 2 ]]
++ RUN_DIR=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run
++ shift 2
++ [[ 2 -gt 0 ]]
++ case "$1" in
++ [[ 2 -ge 2 ]]
++ BASE_PORT=25000
++ shift 2
++ [[ 0 -gt 0 ]]
++ [[ -n /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run ]]
+++ absolute_path /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run
+++ local value=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run parent base
+++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run == /* ]]
+++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run != / ]]
+++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run == */ ]]
++++ dirname /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run
+++ parent=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture
++++ basename /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run
+++ base=baseline-run
+++ [[ -d /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture ]]
++++ cd /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture
++++ pwd -P
+++ parent=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture
+++ printf %s/%s /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture baseline-run
++ RUN_DIR=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run
++ require_uint --base-port 25000
++ local name=--base-port value=25000
++ [[ 25000 =~ ^[0-9]+$ ]]
++ require_uint --ready-timeout 120
++ local name=--ready-timeout value=120
++ [[ 120 =~ ^[0-9]+$ ]]
++ ((  BASE_PORT >= 1024 && BASE_PORT <= 65472  ))
++ ((  READY_TIMEOUT > 0  ))
++ case "$RUN_DIR" in
+++ cd /Users/tt
+++ pwd -P
++ ((  DRY_RUN == 1  ))
++ [[ ! -e /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run ]]
++ mkdir -p /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps
++ STEPS_FILE=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps.tsv
++ RESULT_FILE=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json
++ printf 'phase\trate_per_second\tmeasured_seconds\toutcome\texit_status\tartifact\n'
+++ dirname /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run
++ df -Pk /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture
++ STEP_ARTIFACT_SEALS_COMPLETE=true
++ ALL_STEP_SOURCES_REBUILDABLE=true
++ VALIDATED_STEP_ARTIFACT_SEALS=0
++ OPERATOR_SIGNAL_STATUS=0
++ OPERATOR_SIGNAL_NAME=
++ ACTIVE_STEP_PID=
++ ACTIVE_STEP_SIGNAL_FORWARDED=0
+++ ps -axo pid=,comm=
+++ awk -v self=41601 '
+  {
+    command = $2
+    sub(/^.*\//, "", command)
+    if ($1 != self && (command == "wukongim" || command == "wkcli")) print $0
+  }
+'
++ overlap=
++ [[ -n '' ]]
++ read -r filesystem_blocks filesystem_available
+++ awk 'NR == 2 {print $2, $4}' /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/filesystem-preflight.txt
++ [[ -z 100000 ]]
++ [[ 100000 -le 0 ]]
++ free_percent=90
++ OBSERVED_FREE_PERCENT=90
++ ((  free_percent < MINIMUM_FREE_PERCENT  ))
++ [[ -n fixture-api-token ]]
++ [[ -n fixture-worker-token ]]
++ STEP_OUTCOME=
++ STEP_STATUS=0
++ trap 'handle_operator_signal INT 130' INT
++ trap 'handle_operator_signal TERM 143' TERM
++ highest_clean_rate=0
++ first_failing_rate=0
++ IFS=,
++ read -r -a reviewed_rates
++ for rate in '"${reviewed_rates[@]}"'
++ run_step step 250 300
++ local phase=step rate=250 measured=300
++ local step_dir=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250 status=0 outcome step_valid=true
++ log 'step step: 250 offered SEND/s for 300s'
++ printf '[chat-lifecycle-local-baseline] %s\n' 'step step: 250 offered SEND/s for 300s'
+[chat-lifecycle-local-baseline] step step: 250 offered SEND/s for 300s
++ ((  OPERATOR_SIGNAL_STATUS == 0  ))
++ ACTIVE_STEP_SIGNAL_FORWARDED=0
++ ACTIVE_STEP_PID=41622
++ forward_operator_signal_to_active_step
++ ((  OPERATOR_SIGNAL_STATUS != 0 && ACTIVE_STEP_SIGNAL_FORWARDED == 0  ))
++ return 0
++ wait_active_step_uninterrupted 41622
++ local pid=41622 status=0
++ true
++ wait 41622
++ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh --run-dir /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250 --base-port 25000 --ready-timeout 120 --send-rate 250 --measure-seconds 300 --warmup-seconds 60 --drain-timeout 90
+++ handle_operator_signal TERM 143
+++ local signal_name=TERM exit_status=143
+++ ((  OPERATOR_SIGNAL_STATUS == 0  ))
+++ OPERATOR_SIGNAL_NAME=TERM
+++ OPERATOR_SIGNAL_STATUS=143
+++ log 'received TERM; waiting for the active step to seal and exit'
+++ printf '[chat-lifecycle-local-baseline] %s\n' 'received TERM; waiting for the active step to seal and exit'
+[chat-lifecycle-local-baseline] received TERM; waiting for the active step to seal and exit
+++ forward_operator_signal_to_active_step
+++ ((  OPERATOR_SIGNAL_STATUS != 0 && ACTIVE_STEP_SIGNAL_FORWARDED == 0  ))
+++ [[ -n 41622 ]]
+++ kill -0 41622
+++ ACTIVE_STEP_SIGNAL_FORWARDED=1
+++ log 'forwarding one TERM to active step 41622'
+++ printf '[chat-lifecycle-local-baseline] %s\n' 'forwarding one TERM to active step 41622'
+[chat-lifecycle-local-baseline] forwarding one TERM to active step 41622
+++ kill -s TERM 41622
+++ return
++ status=143
++ kill -0 41622
++ continue
++ true
++ wait 41622
++ status=143
++ kill -0 41622
++ return 143
++ status=143
++ ACTIVE_STEP_PID=
++ ((  OPERATOR_SIGNAL_STATUS != 0  ))
++ outcome=insufficient_evidence
++ status=6
++ step_valid=false
++ case "$outcome:$status" in
++ [[ false == true ]]
++ [[ false == true ]]
++ STEP_ARTIFACT_SEALS_COMPLETE=false
++ log 'step result validation failed; preserving runtime state in /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250'
++ printf '[chat-lifecycle-local-baseline] %s\n' 'step result validation failed; preserving runtime state in /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250'
+[chat-lifecycle-local-baseline] step result validation failed; preserving runtime state in /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250
++ printf '%s\t%s\t%s\t%s\t%s\t%s\n' step 250 300 insufficient_evidence 6 steps/step-rate-250
++ STEP_OUTCOME=insufficient_evidence
++ STEP_STATUS=6
++ case "$STEP_OUTCOME" in
++ write_result insufficient_evidence step_evidence_incomplete 0 250
++ local outcome=insufficient_evidence reason=step_evidence_incomplete highest=0 first_failing=250 revision dirty rebuildable
++ ((  OPERATOR_SIGNAL_STATUS != 0  ))
++ outcome=insufficient_evidence
++ reason=operator_interrupted
+++ git -C /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture rev-parse HEAD
+++ printf unknown
++ revision=unknown
++ dirty=false
++ git -C /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture diff --quiet --ignore-submodules HEAD --
++ dirty=true
++ rebuildable=false
++ ((  VALIDATED_STEP_ARTIFACT_SEALS > 0  ))
++ [[ unknown != unknown ]]
++ printf '{\n'
++ printf '  "schema": "wukongim/chat-lifecycle-local-baseline/v1",\n'
++ printf '  "outcome": "%s",\n' insufficient_evidence
++ printf '  "reason": "%s",\n' operator_interrupted
++ printf '  "highest_clean_rate": %s,\n' 0
++ printf '  "first_failing_rate": %s,\n' 250
++ printf '  "online_connections": 2500,\n'
++ printf '  "rate_staircase": "%s",\n' 250,500,750,1000
++ printf '  "step_measured_seconds": %s,\n' 300
++ printf '  "soak_rate": %s,\n' 1000
++ printf '  "soak_measured_seconds": %s,\n' 600
++ printf '  "warmup_seconds": %s,\n' 60
++ printf '  "drain_timeout_seconds": %s,\n' 90
++ printf '  "logical_slot_groups": 12,\n'
++ printf '  "hash_slots": 256,\n'
++ printf '  "slot_replicas": 3,\n'
++ printf '  "channel_replicas": 3,\n'
++ printf '  "gateway_async_send_workers": 1000,\n'
++ printf '  "gateway_async_send_batch_max_records": 1,\n'
++ printf '  "commit_coordinator_flush_window": "500us",\n'
++ printf '  "commit_coordinator_shards": 1,\n'
++ printf '  "sync_commit": true,\n'
++ printf '  "minimum_filesystem_free_percent": %s,\n' 10
++ printf '  "observed_filesystem_free_percent": %s,\n' 90
++ printf '  "source_revision": "%s",\n' unknown
++ printf '  "source_dirty": %s,\n' true
++ printf '  "source_rebuildable_from_revision": %s,\n' false
++ ((  OPERATOR_SIGNAL_STATUS != 0  ))
++ printf '  "operator_interrupted": true,\n'
++ printf '  "step_artifact_seals_complete": %s,\n' false
++ printf '  "validated_step_artifact_seals": %s,\n' 0
++ printf '  "filesystem_preflight": "filesystem-preflight.txt",\n'
++ printf '  "steps": "steps.tsv",\n'
++ printf '  "artifact_checksums": "checksums.sha256"\n'
++ printf '}\n'
++ write_artifact_checksums
++ local output=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/checksums.sha256 path digest
++ :
++ IFS=
++ read -r path
+++ find /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run -type f -print
+++ LC_ALL=C
+++ sort
++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/checksums.sha256 == \/\p\r\i\v\a\t\e\/\t\m\p\/\w\u\k\o\n\g\i\m\-\v\3\-\r\e\a\d\i\n\e\s\s\-\2\0\2\6\1\0\2\1\/\s\c\r\i\p\t\s\-\s\i\g\n\a\l\-\a\n\a\l\y\s\i\s\-\d\i\a\g\n\o\s\i\s\/\b\a\s\h\3\-\f\i\r\s\t\/\b\a\s\e\l\i\n\e\-\f\i\x\t\u\r\e\/\b\a\s\e\l\i\n\e\-\r\u\n\/\c\h\e\c\k\s\u\m\s\.\s\h\a\2\5\6 ]]
++ continue
++ IFS=
++ read -r path
++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/filesystem-preflight.txt == \/\p\r\i\v\a\t\e\/\t\m\p\/\w\u\k\o\n\g\i\m\-\v\3\-\r\e\a\d\i\n\e\s\s\-\2\0\2\6\1\0\2\1\/\s\c\r\i\p\t\s\-\s\i\g\n\a\l\-\a\n\a\l\y\s\i\s\-\d\i\a\g\n\o\s\i\s\/\b\a\s\h\3\-\f\i\r\s\t\/\b\a\s\e\l\i\n\e\-\f\i\x\t\u\r\e\/\b\a\s\e\l\i\n\e\-\r\u\n\/\c\h\e\c\k\s\u\m\s\.\s\h\a\2\5\6 ]]
+++ sha256_file /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/filesystem-preflight.txt
+++ local path=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/filesystem-preflight.txt
+++ command -v sha256sum
+++ sha256sum /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/filesystem-preflight.txt
+++ awk '{print $1}'
++ digest=1cc41a48abb5ef51718a7a994791b6fc7db374aeb5573f0aeb3324f596fc6e25
++ printf '%s  %s\n' 1cc41a48abb5ef51718a7a994791b6fc7db374aeb5573f0aeb3324f596fc6e25 filesystem-preflight.txt
++ IFS=
++ read -r path
++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json == \/\p\r\i\v\a\t\e\/\t\m\p\/\w\u\k\o\n\g\i\m\-\v\3\-\r\e\a\d\i\n\e\s\s\-\2\0\2\6\1\0\2\1\/\s\c\r\i\p\t\s\-\s\i\g\n\a\l\-\a\n\a\l\y\s\i\s\-\d\i\a\g\n\o\s\i\s\/\b\a\s\h\3\-\f\i\r\s\t\/\b\a\s\e\l\i\n\e\-\f\i\x\t\u\r\e\/\b\a\s\e\l\i\n\e\-\r\u\n\/\c\h\e\c\k\s\u\m\s\.\s\h\a\2\5\6 ]]
+++ sha256_file /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json
+++ local path=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json
+++ command -v sha256sum
+++ sha256sum /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json
+++ awk '{print $1}'
++ digest=aa8afaae1087550a015a2a35f4570b945d0a28c8a2cf7544553a56cee31042e1
++ printf '%s  %s\n' aa8afaae1087550a015a2a35f4570b945d0a28c8a2cf7544553a56cee31042e1 local-baseline.json
++ IFS=
++ read -r path
++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps.tsv == \/\p\r\i\v\a\t\e\/\t\m\p\/\w\u\k\o\n\g\i\m\-\v\3\-\r\e\a\d\i\n\e\s\s\-\2\0\2\6\1\0\2\1\/\s\c\r\i\p\t\s\-\s\i\g\n\a\l\-\a\n\a\l\y\s\i\s\-\d\i\a\g\n\o\s\i\s\/\b\a\s\h\3\-\f\i\r\s\t\/\b\a\s\e\l\i\n\e\-\f\i\x\t\u\r\e\/\b\a\s\e\l\i\n\e\-\r\u\n\/\c\h\e\c\k\s\u\m\s\.\s\h\a\2\5\6 ]]
+++ sha256_file /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps.tsv
+++ local path=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps.tsv
+++ command -v sha256sum
+++ sha256sum /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps.tsv
+++ awk '{print $1}'
++ digest=4d2c9c883d89dc6ecd44d0ba48a2f87aa049d11687eaf82f4594505eab36640d
++ printf '%s  %s\n' 4d2c9c883d89dc6ecd44d0ba48a2f87aa049d11687eaf82f4594505eab36640d steps.tsv
++ IFS=
++ read -r path
++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250.log == \/\p\r\i\v\a\t\e\/\t\m\p\/\w\u\k\o\n\g\i\m\-\v\3\-\r\e\a\d\i\n\e\s\s\-\2\0\2\6\1\0\2\1\/\s\c\r\i\p\t\s\-\s\i\g\n\a\l\-\a\n\a\l\y\s\i\s\-\d\i\a\g\n\o\s\i\s\/\b\a\s\h\3\-\f\i\r\s\t\/\b\a\s\e\l\i\n\e\-\f\i\x\t\u\r\e\/\b\a\s\e\l\i\n\e\-\r\u\n\/\c\h\e\c\k\s\u\m\s\.\s\h\a\2\5\6 ]]
+++ sha256_file /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250.log
+++ local path=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250.log
+++ command -v sha256sum
+++ sha256sum /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/steps/step-rate-250.log
+++ awk '{print $1}'
++ digest=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
++ printf '%s  %s\n' e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 steps/step-rate-250.log
++ IFS=
++ read -r path
++ log 'result: /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json'
++ printf '[chat-lifecycle-local-baseline] %s\n' 'result: /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json'
+[chat-lifecycle-local-baseline] result: /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run/local-baseline.json
++ exit_with_operator_status 6
++ local status=6
++ ((  OPERATOR_SIGNAL_STATUS != 0  ))
++ exit 143

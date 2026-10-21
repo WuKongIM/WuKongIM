@@ -1,0 +1,33 @@
+{
+  "old_head": "d457e8569b6167a9f082ee64eda0bd5d73e9703f",
+  "head": "0c26496b624058db813aa1206a7910f0abae6b13",
+  "base": "8b3ae9a08b943e51aa614779a58baab204c584ca",
+  "tree": "2c4f7d3a9b24a6f67c18b114b8a5c5f1f5f6fa5e",
+  "tree_equal": true,
+  "patch_byte_equal": true,
+  "patch_sha256": "22faea8a0193e375721160345bad5b12c797e5d8d06b66917952fbb020c2b1ae",
+  "replayed_commit_count": 1,
+  "clean": true,
+  "protected_unchanged": {
+    ".github/workflows/native-package-audit-bind.yml": true,
+    ".github/workflows/native-package-audit-draft.yml": true,
+    ".github/workflows/native-package-cli-acceptance.yml": true,
+    ".github/workflows/native-package-immutable-public-reverify.yml": true,
+    ".github/workflows/native-package-publish.yml": true,
+    ".github/workflows/native-package-repository-drill.yml": true,
+    ".github/workflows/native-package-signing-preflight.yml": true,
+    ".github/workflows/native-package-signing-toolchain.yml": true,
+    ".github/workflows/pages.yml": true,
+    ".github/workflows/source-release-preflight.yml": true,
+    "keys/apt-preview.asc": true,
+    "keys/rpm-preview.asc": true,
+    "manifests/channels.json": true,
+    "manifests/preview-signing.json": true,
+    "scripts/archive-package-snapshot.py": true,
+    "scripts/compose-package-site.py": true,
+    "scripts/sign-package-family.py": true,
+    "scripts/validate-signing-material.py": true,
+    "scripts/verify-production-package-site.py": true
+  },
+  "pushed": false
+}

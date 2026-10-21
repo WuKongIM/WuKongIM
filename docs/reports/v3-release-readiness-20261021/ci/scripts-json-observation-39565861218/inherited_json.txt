@@ -1,0 +1,39 @@
+{
+	"GoVersion": "go1.25.11",
+	"Path": "cmd/go",
+	"Main": {},
+	"Settings": [
+		{
+			"Key": "-buildmode",
+			"Value": "exe"
+		},
+		{
+			"Key": "-compiler",
+			"Value": "gc"
+		},
+		{
+			"Key": "-gcflags",
+			"Value": "cmd/...=-dwarf=false"
+		},
+		{
+			"Key": "-trimpath",
+			"Value": "true"
+		},
+		{
+			"Key": "CGO_ENABLED",
+			"Value": "0"
+		},
+		{
+			"Key": "GOARCH",
+			"Value": "arm64"
+		},
+		{
+			"Key": "GOOS",
+			"Value": "darwin"
+		},
+		{
+			"Key": "GOARM64",
+			"Value": "v8.0"
+		}
+	]
+}

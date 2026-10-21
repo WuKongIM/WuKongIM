@@ -1,0 +1,283 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2595b96..445a2d2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++- Accept encrypted current-subkey and passphrase files for local family signing,
++  retaining the existing CI environment inputs and verification. Document Mac
++  local stable-key custody; stable publication remains disabled.
++
+ - Add an offline, preview-only object-storage transport planner with explicit
+   identity anchors and cross-generation dependency retention. It does not sign,
+   upload, activate or enable stable publication.
+diff --git a/README.md b/README.md
+index 2f63697..663411f 100644
+--- a/README.md
++++ b/README.md
+@@ -70,7 +70,10 @@ never committed to Git.
+ - Preview primary and next private keys currently use an explicitly accepted
+   single-operator online-workstation custody model. CI still receives only the
+   encrypted current sign-only subkey for the applicable package family.
+-- Stable signing keys remain outside GitHub-hosted CI.
++- Stable signing uses operator-managed local Mac keys, with encrypted backups
++  on the Mac or NAS. This accepted online-workstation custody model keeps
++  stable private keys outside GitHub-hosted CI; stable publication remains
++  disabled. This custody choice does not claim an offline ceremony.
+ - GitHub Pages will receive only complete, verified preview snapshots. Stable
+   publication requires migration to object storage and a CDN.
+ - `manifests/channels.json`, `manifests/preview-signing.json`, and
+diff --git a/docs/release-contract.md b/docs/release-contract.md
+index e663406..b640d58 100644
+--- a/docs/release-contract.md
++++ b/docs/release-contract.md
+@@ -359,10 +359,16 @@ multi-custodian trust model requires generating new primary certificates under
+ that model and distributing their public certificates; an online-generated
+ primary cannot become retroactively offline.
+ 
+-Stable private keys never enter GitHub-hosted CI. Stable publication uses an
+-offline or hardware-backed signing ceremony. Promoting an RPM preserves the
+-same unsigned payload, NEVRA, and provenance, but its bytes change when it is
+-signed with the independent stable key.
++Stable private keys never enter GitHub-hosted CI. Stable signing uses an
++operator-managed local Mac under the explicitly accepted online-workstation
++custody model. Operator-retained encrypted backups may be stored on the Mac or
++NAS. This reuses the encrypted-backup, local permissions, distinct passphrase,
++operating-system credential-store, and restore-check practices described above;
++it does not require or claim an offline or hardware-backed ceremony. Stable
++certificates remain independent of preview and of the other package family.
++Promoting an RPM preserves the same unsigned payload, NEVRA, and provenance,
++but its bytes change when it is signed with the independent stable key. This
++custody choice does not enable the stable channel or authorize publication.
+ 
+ ## Atomic publication and recovery
+ 
+diff --git a/keys/README.md b/keys/README.md
+index 87777be..399105b 100644
+--- a/keys/README.md
++++ b/keys/README.md
+@@ -38,10 +38,27 @@ production certificate must already include its next subkey. Private primary
+ keys, private subkeys, passphrases, revocation certificates, and test keys
+ remain forbidden here.
+ 
+-Production APT and RPM secret subkeys and passphrases may exist only as the
+-fixed secrets in their corresponding protected signing Environment. They must
+-not be copied to repository-level or organization-level secrets, or into the
+-other package-family Environment.
++Preview CI current signing-subkey exports and their passphrases may exist only
++as the fixed secrets in their corresponding protected signing Environment.
++They must not be copied to repository-level or organization-level secrets, or
++into the other package-family Environment. This restriction on CI exports does
++not move operator-retained primary/next keys or backups into GitHub. Stable
++private keys use the accepted local Mac custody model, with encrypted backups
++on the Mac or NAS, and never enter GitHub-hosted CI; see the
++[release contract](../docs/release-contract.md). This is an online-workstation
++model, not an offline-signing claim.
++
++For local signing, `scripts/sign-package-family.py` accepts exactly one of
++`--secret-subkey-base64-file`, `--secret-subkey-base64-stdin`, or the existing
++`--secret-subkey-base64-env`, and exactly one of `--passphrase-file` or
++`--passphrase-env`. Files pass the same validator as CI inputs: secret files
++must be ordinary single-link files with no group/other permissions (use mode
++0600), and the base64 input must contain only the encrypted current sign-only
++subkey export. A full primary/next backup is not a signing input. Keep these
++files outside the repository, public output tree, and artifact directories;
++the tool does not retrieve credentials, generate keys, or publish its output.
++The existing public-certificate, exact signer, SHA-256, and atomic-output checks
++apply to every input method.
+ 
+ The publisher copies these exact certificate bytes to the stable public paths
+ `/keys/apt-preview.asc` and `/keys/rpm-preview.asc` and records their SHA-256,
+diff --git a/scripts/sign-package-family.py b/scripts/sign-package-family.py
+index 9782069..5b567b0 100755
+--- a/scripts/sign-package-family.py
++++ b/scripts/sign-package-family.py
+@@ -875,8 +875,13 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--input-root", required=True, type=Path)
+     parser.add_argument("--output-root", required=True, type=Path)
+     parser.add_argument("--public-cert", required=True, type=Path)
+-    parser.add_argument("--secret-subkey-base64-env", required=True)
+-    parser.add_argument("--passphrase-env", required=True)
++    secret_group = parser.add_mutually_exclusive_group(required=True)
++    secret_group.add_argument("--secret-subkey-base64-file", type=Path)
++    secret_group.add_argument("--secret-subkey-base64-env")
++    secret_group.add_argument("--secret-subkey-base64-stdin", action="store_true")
++    passphrase_group = parser.add_mutually_exclusive_group(required=True)
++    passphrase_group.add_argument("--passphrase-file", type=Path)
++    passphrase_group.add_argument("--passphrase-env")
+     parser.add_argument("--primary-fingerprint", required=True)
+     parser.add_argument("--signing-subkey-fingerprint", required=True)
+     parser.add_argument("--next-signing-subkey-fingerprint")
+@@ -892,11 +897,6 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--new-rpm-allowlist", type=Path)
+     parser.add_argument("--signed-rpm-allowlist", type=Path)
+     parser.add_argument("--active-rpm-allowlist", type=Path)
+-    parser.set_defaults(
+-        secret_subkey_base64_file=None,
+-        secret_subkey_base64_stdin=False,
+-        passphrase_file=None,
+-    )
+     return parser
+ 
+ 
+diff --git a/tests/test_sign_package_family.py b/tests/test_sign_package_family.py
+index 05af54a..ff69a14 100644
+--- a/tests/test_sign_package_family.py
++++ b/tests/test_sign_package_family.py
+@@ -1,7 +1,9 @@
+ from __future__ import annotations
+ 
+ import hashlib
++import contextlib
+ import importlib.util
++import io
+ import json
+ import os
+ import shutil
+@@ -37,6 +39,144 @@ def identity(path: Path, relative: str) -> dict[str, object]:
+     return {"path": relative, "sha256": hashlib.sha256(contents).hexdigest(), "size": len(contents)}
+ 
+ 
++class PackageFamilyLocalInputTest(unittest.TestCase):
++    """Exercise local CLI inputs without generating keys or launching GPG."""
++
++    def setUp(self) -> None:
++        self.temporary = TemporaryDirectory(prefix="wk-family-local-input-TEST-ONLY-")
++        self.root = Path(self.temporary.name)
++        self.source = self.root / "input"
++        self.source.mkdir()
++        self.output = self.root / "output"
++        self.public = self.root / "public.asc"
++        self.public.write_bytes(b"TEST ONLY non-key public input\n")
++        self.secret = self.root / "selected-subkey.b64"
++        self.secret.write_bytes(b"VEVTVCBPTkxZIG5vbi1rZXkgbWF0ZXJpYWw=")
++        self.secret.chmod(0o600)
++        self.passphrase = self.root / "passphrase"
++        self.passphrase.write_bytes(b"TEST ONLY local input sentinel")
++        self.passphrase.chmod(0o600)
++        self.native_log = self.root / "native-called"
++        self.bin = self.root / "bin"
++        self.bin.mkdir()
++        for tool in ("gpg", "gpgconf"):
++            script = self.bin / tool
++            script.write_text(
++                f"#!{sys.executable}\nfrom pathlib import Path\n"
++                f"Path({str(self.native_log)!r}).write_text('unexpected native call')\n"
++                "raise SystemExit(99)\n"
++            )
++            script.chmod(0o700)
++
++    def tearDown(self) -> None:
++        self.temporary.cleanup()
++
++    def arguments(self, family: str = "apt") -> list[str]:
++        return ["--family", family, "--input-root", str(self.source),
++                "--output-root", str(self.output), "--public-cert", str(self.public),
++                "--primary-fingerprint", "A" * 40,
++                "--signing-subkey-fingerprint", "B" * 40,
++                "--apt-release", "dists/stable/Release"]
++
++    def file_arguments(self) -> list[str]:
++        return ["--secret-subkey-base64-file", str(self.secret),
++                "--passphrase-file", str(self.passphrase)]
++
++    def run_cli(self, options: list[str], *, stdin: bytes = b"") -> subprocess.CompletedProcess:
++        return subprocess.run(
++            [sys.executable, "-B", str(SCRIPT), *self.arguments(), *options],
++            input=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
++            env={"PATH": str(self.bin), "HOME": str(self.root), "LC_ALL": "C"},
++            timeout=10,
++        )
++
++    def assert_rejected_before_native(self, result: subprocess.CompletedProcess,
++                                      message: str) -> None:
++        self.assertEqual(result.returncode, 1, result.stderr.decode())
++        self.assertIn(message.encode(), result.stderr)
++        self.assertEqual(result.stdout, b"")
++        self.assertNotIn(b"TEST ONLY local input sentinel", result.stderr)
++        self.assertNotIn(b"VEVTVCBPTkxZ", result.stderr)
++        self.assertFalse(self.native_log.exists())
++        self.assertFalse(os.path.lexists(self.output))
++        self.assertFalse(list(self.root.glob(".output.*.tmp.*")))
++
++    def test_file_and_stdin_options_reach_existing_validator_arguments(self) -> None:
++        for family in ("apt", "rpm"):
++            with self.subTest(family=family):
++                args = signer.build_parser().parse_args([*self.arguments(family), *self.file_arguments()])
++                self.assertEqual(args.secret_subkey_base64_file, self.secret)
++                self.assertEqual(args.passphrase_file, self.passphrase)
++                self.assertIsNone(args.secret_subkey_base64_env)
++                self.assertIsNone(args.passphrase_env)
++                self.assertFalse(args.secret_subkey_base64_stdin)
++                stdin_args = signer.build_parser().parse_args([
++                    *self.arguments(family), "--secret-subkey-base64-stdin",
++                    "--passphrase-file", str(self.passphrase),
++                ])
++                self.assertTrue(stdin_args.secret_subkey_base64_stdin)
++                self.assertIsNone(stdin_args.secret_subkey_base64_file)
++                self.assertEqual(stdin_args.passphrase_file, self.passphrase)
++
++    def test_environment_arguments_remain_compatible(self) -> None:
++        args = signer.build_parser().parse_args([
++            *self.arguments(), "--secret-subkey-base64-env", "WK_TEST_SECRET",
++            "--passphrase-env", "WK_TEST_PASSPHRASE",
++        ])
++        self.assertEqual(args.secret_subkey_base64_env, "WK_TEST_SECRET")
++        self.assertEqual(args.passphrase_env, "WK_TEST_PASSPHRASE")
++        self.assertIsNone(args.secret_subkey_base64_file)
++        self.assertIsNone(args.passphrase_file)
++        self.assertFalse(args.secret_subkey_base64_stdin)
++
++    def test_input_choices_are_required_and_mutually_exclusive(self) -> None:
++        invalid_options = [
++            [], ["--passphrase-file", str(self.passphrase)],
++            ["--secret-subkey-base64-file", str(self.secret)],
++            [*self.file_arguments(), "--secret-subkey-base64-env", "WK_TEST_SECRET"],
++            [*self.file_arguments(), "--secret-subkey-base64-stdin"],
++            [*self.file_arguments(), "--passphrase-env", "WK_TEST_PASSPHRASE"],
++        ]
++        for options in invalid_options:
++            with self.subTest(options=options), contextlib.redirect_stderr(io.StringIO()):
++                with self.assertRaises(SystemExit) as caught:
++                    signer.build_parser().parse_args([*self.arguments(), *options])
++                self.assertEqual(caught.exception.code, 2)
++
++    def test_secret_file_failures_use_existing_checks_before_gpg(self) -> None:
++        self.secret.chmod(0o644)
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "permissions")
++        self.secret.chmod(0o600)
++        self.secret.write_bytes(b"bad base64 TEST ONLY")
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "canonical line")
++        self.secret.write_bytes(b"bad-base64-TEST-ONLY")
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "canonical base64")
++        self.secret.unlink()
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "cannot inspect")
++        self.secret.symlink_to(self.passphrase)
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "not a link")
++        self.secret.unlink()
++        os.link(self.passphrase, self.secret)
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "hard linked")
++
++    def test_passphrase_file_failures_use_existing_checks_before_gpg(self) -> None:
++        self.passphrase.chmod(0o644)
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "permissions")
++        self.passphrase.chmod(0o600)
++        self.passphrase.write_bytes(b"TEST ONLY local input sentinel\nsecond line")
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "single non-empty line")
++        self.passphrase.write_bytes(b"")
++        self.assert_rejected_before_native(self.run_cli(self.file_arguments()), "invalid size")
++
++    def test_stdin_uses_existing_base64_and_passphrase_validation(self) -> None:
++        options = ["--secret-subkey-base64-stdin", "--passphrase-file", str(self.passphrase)]
++        self.assert_rejected_before_native(self.run_cli(options, stdin=b"bad-base64-TEST-ONLY"),
++                                           "canonical base64")
++        self.passphrase.chmod(0o644)
++        self.assert_rejected_before_native(self.run_cli(options, stdin=self.secret.read_bytes()),
++                                           "permissions")
++
++
+ class PackageFamilySigningTest(unittest.TestCase):
+     @classmethod
+     def setUpClass(cls) -> None:

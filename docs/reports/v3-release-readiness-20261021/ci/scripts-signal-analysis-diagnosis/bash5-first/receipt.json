@@ -1,0 +1,74 @@
+{
+  "source_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "files_sha256": {
+    "scripts/cloud-sim/analyze.sh": "3da01b22f59ad2ea51473d9acea947039fdf2cd91be91123b9e3321a8e032f9f",
+    "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh": "e7915cac37e2b5197438a74c99d16ee60768c4dfd70cad5f3f284c87064e3c69",
+    "scripts/bench-wukongim-single-node-1000ch.sh": "2660f796d3441fe221d12b7bd570259e406595208f77f4cb99527afb845fbae5",
+    "scripts/wukongim_single_node_terminal_cut_integration_test.go": "ef5fc20a0ecef50d1efb5aee169797fa0c7c5f44507f2159e5c87ad001fc992d"
+  },
+  "bash": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+  "bash_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+  "platform": "Darwin arm64",
+  "fixtures_only": true,
+  "cloud_calls": false,
+  "hypotheses": [
+    "Empty bridge return under failing EXIT trap aborts subsequent close on Bash5; explicit return0 fixes only cleanup while preserving exit17.",
+    "Baseline signals after ready installed trap; actual source/fixture trace distinguishes parent early exit from missing readiness.",
+    "Interrupted wait/second wait status255 differs across Bash versions and can reject a joined observer."
+  ],
+  "results": [
+    {
+      "name": "analysis-original",
+      "started_at": "2026-10-21T08:19:09.223505+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/analysis-original.sh"
+      ],
+      "exit_code": 17,
+      "finished_at": "2026-10-21T08:19:09.228271+00:00",
+      "close_marker": null,
+      "expected_original_exit_preserved": true,
+      "close_attempted": false
+    },
+    {
+      "name": "analysis-return-zero",
+      "started_at": "2026-10-21T08:19:09.228580+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/analysis-return-zero.sh"
+      ],
+      "exit_code": 17,
+      "finished_at": "2026-10-21T08:19:09.232936+00:00",
+      "close_marker": "closed\n",
+      "expected_original_exit_preserved": true,
+      "close_attempted": true
+    },
+    {
+      "name": "observer-original",
+      "started_at": "2026-10-21T08:19:09.233618+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:19:09.681164+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "baseline-original",
+      "started_at": "2026-10-21T08:19:09.684455+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-original.sh"
+      ],
+      "ready_before_signal": true,
+      "exit_code": 143,
+      "finished_at": "2026-10-21T08:19:10.273623+00:00",
+      "signals": null
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+2026-10-21-v3-release-readiness.md.before
+2026-10-21-v3-stable-key-preparation.md.before
+reports-generation-2.patch
+scripts-failure-excerpt.json
+scripts-source.json
+source-before.json
+verification.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

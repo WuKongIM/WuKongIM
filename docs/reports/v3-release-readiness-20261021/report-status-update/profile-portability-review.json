@@ -1,0 +1,34 @@
+{
+  "blocking_findings": [],
+  "change": {
+    "reason": "Exact fixed-string fixture assertions require no ripgrep dependency; Linux run failed exit127 because rg was absent.",
+    "occurrences": 2,
+    "prior_failure_run": 39565861218,
+    "test": "TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures",
+    "before_sha256": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82",
+    "after_sha256": "f78e050ad34b71c5b0177629265b8428b1ee9bf30cb8c2411e356149f047007f"
+  },
+  "verified_patch_scope": "two literal matching fixture commands only; unchanged patterns, -- delimiter, thresholds and product script",
+  "receipt": {
+    "argv": [
+      "go",
+      "test",
+      "-tags=integration",
+      "./scripts",
+      "-run",
+      "^TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures$",
+      "-count=1",
+      "-timeout=9m",
+      "-parallel=2"
+    ],
+    "env": {
+      "GOWORK": "off",
+      "GOFLAGS": "-p=2 -json"
+    },
+    "exit_code": 0,
+    "elapsed_seconds": 3.202
+  },
+  "receipt_sha256": "7e326951f9a69d54c64c96cc6c062c5ec2b4f6f68589c7a578a85f3f1581129d",
+  "log_sha256": "c7290f1231a2e1c586ee6c2c8192217e0ea871a11b968d5e92498f4d109cd8dd",
+  "reviewer_reran_test": false
+}

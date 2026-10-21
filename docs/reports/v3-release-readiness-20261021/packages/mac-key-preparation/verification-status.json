@@ -1,0 +1,14 @@
+{
+  "captured_at_utc": "2026-10-21T07:53:27.377925+00:00",
+  "static_compile": "passed",
+  "written_fake_tests": 15,
+  "fake_tests_executed": false,
+  "initial_red_executed": false,
+  "gpg_executed": false,
+  "keychain_accessed": false,
+  "production_keys_generated": false,
+  "native_compatibility_verified": false,
+  "review_state": "root pre-execution account correction applied; fake/native tests still pending quiet release",
+  "script_sha256": "bbff85261d0a305c0ae5df497ff4fa2da4d807ff27e1102ae97a244f28d6e58d",
+  "test_sha256": "2f2ecc388f87b0256f14cf12658569ed7f76d5e74a53720293858488a5403111"
+}

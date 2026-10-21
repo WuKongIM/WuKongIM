@@ -1,0 +1,1 @@
+exec /bin/bash -x /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh --run-dir /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-first/baseline-fixture/baseline-run --base-port 25000

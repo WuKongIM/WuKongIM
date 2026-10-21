@@ -1,6 +1,10 @@
 # v3 正式版发布复核（2026-10-21）
 
-结论：**产品修复、包来源预检和离线发布计划器已验收并合入 main；当前仍不能发布正式 v3。** 原迁移修复候选已通过迁移重启读取和完整 Linux 性能验收；本轮完整默认测试又发现 MQTT 取消边界与复制测试夹具问题，已修复并冻结更新候选。更新候选 `7e9da7df1` 的七项 Linux CI 均首次通过，包含默认测试、迁移/消息 E2E、完整性能、SDK、Manager 和四发行版原生包。用户批准后，产品 #1016 合入 `ed705c0fb`、packages #67 合入 `782c14602`、#68 合入 `45619df14`，源码树分别与已验收 head 相同。随后 ed705 本地 30 分钟预检在约第六分钟因生成器 `offered_load_under_delivery` 提前退出，已定位为本地负载配置的启动义务供给不足；默认修复及回归已完成，新一轮实机验收待执行。剩余条件是该预检与既定 RC 长稳验收、stable 签名原生包渠道，以及最终版本的发布交付。没有创建版本 tag、采购云资源或启动正式发布。
+证据截至 **2026-10-21 08:40Z（北京时间16:40）**；后续状态须绑定新的提交和收据。
+
+结论：**NO-GO，当前仍不能发布正式 v3。** 已合并的迁移与MQTT修复候选已完成完整 Linux 性能/功能验收；产品 #1016、packages #67/#68/#69/#70 已合并。500 SEND/s 的本地有界 helper 已完整结束并生成终态，Mac 独立 stable APT/RPM 密钥也已生成、备份恢复验证；公钥登记 #70 经批准已合并，合并后精确源码的400+3项检查通过，未触发部署。完整 Linux scripts 门禁、既定云 RC 计划和 stable 公网签名包交付仍未完成，没有创建正式 tag、采购云资源或启动正式发布。
+
+本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
 ## 固定身份和已关闭事项
 
@@ -18,7 +22,7 @@
 
 ## 性能证据如何影响放行
 
-完整 Linux 矩阵通过，支持当前产品候选满足已经定义的性能底线。固定二进制 CPU 实验 [39467558163](https://github.com/WuKongIM/WuKongIM/actions/runs/39467558163) 的 18 窗、36 端点数值也全部通过，280,800 请求全部完成、无错误或丢弃。
+完整 Linux 矩阵通过，支持该次固定候选满足已经定义的性能底线；不跨提交替代后续候选的完整验收。固定二进制 CPU 实验 [39467558163](https://github.com/WuKongIM/WuKongIM/actions/runs/39467558163) 的 18 窗、36 端点数值也全部通过，280,800 请求全部完成、无错误或丢弃。
 
 但同一二进制的先前 A/A 延迟差达 31.18%–36.09%；CPU 放置实验只有 list 满足两组等待下降筛选，sync 不满足，整体因果筛选失败。不能声称历史失败已经唯一归因，或证明 beta 到候选没有性能回退。这是**诊断结论的限制，不是新增发布门禁**。无需为了让因果筛选变绿而反复换共享 runner，或修改产品性能逻辑。见[CPU 证据与限制](2026-10-21-v3-cpu-contention.md)。
 
@@ -27,8 +31,8 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 本地预检在 ed705 上提前失败；已定位默认 grant 预算不足并完成修复与聚焦回归，Linux scripts 门禁及新一轮 30m 实测待执行；云阶段尚未执行，采购前需明确累计预算授权及精确候选。不能将其描述成 RELEASING 对所有发行的通用机械门禁 |
-| stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产 stable 仍 disabled/object_storage_required；只读正式版来源/provenance/native metadata 的 [PR #67](https://github.com/WuKongIM/packages/pull/67) 已合并为 `782c14602`，52 项相关测试、独立审查及新版两项 CI 首次通过；快照检查342项测试、真实native元数据7场景和既有TEST ONLY签名仓库演练通过。合并后 main 的342项测试再次通过，部署跳过；公网生产链路仍未完成 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 原100 SEND/s预检提前失败并保留；500 SEND/s修复后的单次本地helper已完成operator-stop和清理，实际测量1,753.104秒且保留日志警告。新Linux scripts完整门禁已结束但仍有1项信号join失败、继续取证，云阶段未执行，采购前仍需精确候选和累计预算授权。不能将该RC计划描述成RELEASING对所有发行的通用机械门禁 |
+| stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。OSS/CDN发布、引导、审计与精确版本四客户端公网验收未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
 初次审计 main 的三节点 nightly 已连续五次首次通过，最近为 [39475335838](https://github.com/WuKongIM/WuKongIM/actions/runs/39475335838)。[SDK 39367425765](https://github.com/WuKongIM/WuKongIM/actions/runs/39367425765) 已于 10 月 20 日验证 Android 1.0.5、iOS 1.1.1、Flutter 1.1.0。它们绑定旧 main，不能直接认证包含恢复修复的候选。本轮新增 CI 已独立核验实际 head/tree 和执行步骤。
@@ -78,7 +82,19 @@ packages PR #67 按线性历史要求正常 rebase 合并为 `782c14602a6b243d89
 
 后续[固定时钟诊断](v3-release-readiness-20261021/cloud/local-shakeout-grant-diagnosis/findings.md)使用真实 worker factory 和 coordinator grant allocator、即时 ACK，复现了相同 under-delivery 类型：原 100 SEND/s 对 2,500 在线用户生成的启动活动供给不足，worker 2 的 16,746 项初始义务无法在既有资格窗口内完成。延长会话 TTL 仍失败，提高供给可消除该机制；不需要假设产品背压或宿主延迟。修复将本地默认调整到 500 SEND/s、burst 1,000，保留用户数、全部启动义务、五分钟资格窗口及 400ms 阈值；三 worker 的固定时钟回归覆盖至 360 秒。此机制证据不替代真实收发或持续负载验收。
 
-该修复的默认 Go 测试、vet、format、tidy 和 FLOW 检查通过；[独立复核](v3-release-readiness-20261021/cloud/local-shakeout-repair-review/implementation-review.md)未发现阻塞。完整 scripts integration 在 Mac 上首次及唯一一次隔离复验均触及原九分钟总时限，第二次结束于不同用例，不能标记通过或归因单个测试卡死；两次失败和所属 session 清理记录均保留。现转由候选 CI 的独立 Linux job 执行同一 frozen-policy 门禁，不放宽超时、过滤用例或第三次原样本机重跑。新的完整 30 分钟本地验收尚待冻结提交后执行。
+该修复的默认 Go 测试、vet、format、tidy 和 FLOW 检查通过；[独立复核](v3-release-readiness-20261021/cloud/local-shakeout-repair-review/implementation-review.md)未发现阻塞。完整 scripts integration 在 Mac 上首次及唯一一次隔离复验均触及原九分钟总时限，第二次结束于不同用例，不能标记通过或归因单个测试卡死；两次失败和所属 session 清理记录均保留。后续Linux独立job也在原600秒外层限额超时，原失败保留；没有放宽时限或第三次原样本机重跑。
+
+### 本地500 SEND/s实机结果与脚本门禁的新发现
+
+唯一一次新实测绑定干净 `0672c115950f65e6d92381aa5b3ea9f0a20fc790`、tree `ad05497c99502a4d076bacb7dee150d10e939d28`，三真实产品节点，2,500在线、500 SEND/s、burst1,000。helper于07:35:26Z启动，08:06:11Z结束；原 `--stop-after 1800` 从协调器进程启动计时，最终测量窗仅1,753.104288875秒。helper/wrapper均exit130，原生终态 `operator_stop/operator_requested`，满足本地有界helper的既定终止形式，但不是1800测量秒、正式 `pass` 或云长稳。见[完整本地收据](v3-release-readiness-20261021/cloud/local-shakeout-0672c1159-500/README.md)。
+
+最终SEND=ACK=876,529，RECV=RECVACK=1,099,924；首次发送失败、最终发送失败、ACK失败、记录到的丢失/重复/损坏/序号回退及under-delivery均为零。保留retry2和transport_rejected2，不称零重试；关联抽样10,758/10,758完成、无pending/outstanding，不扩大为每个接收者的独立完整证明。hot SENDACK共810,725样本，102个超过400ms，最大663.132291ms；直方图仅支持P99在(100,200]ms、P99.9在(200,400]ms，原生latency warning为零不等于没有慢请求。
+
+12个记录进程均退出，所属SID空、64个端口关闭，限定范围凭证扫描和panic/fatal扫描通过。另保留报告结束前93条presence route-not-ready警告及停机阶段2条同类警告，原因尚未建立，不能归为已证明无害的会话变化；停机后node1/node3共6条delivery_worker、plugin_hook、cluster停止超时。共享5秒Stop预算可使后续组件继承到期context，但现有日志不足以给出各组件耗时或完整因果。OS清理完成、benchmark cleanup_error_count=0均不能抹掉这些产品警告。见[有界日志分类](v3-release-readiness-20261021/cloud/local-shakeout-0672c1159-500/warning-classification.md)；不事后新增warning即失败的门槛。
+
+产品[PR #1017](https://github.com/WuKongIM/WuKongIM/pull/1017)新增JSON观测的[Linux运行39565861218](https://github.com/WuKongIM/WuKongIM/actions/runs/39565861218)绑定head `eda77697db42ba14f14bfad58cdd3557342b9989`，实际checkout `abd628769baf7552a8cf8abb29a7ba63e52c3326`。仍在原600秒超时，日志未截断，已结束的根测试489通过、6跳过、10失败，另15未完成。scripts启动前约120.49秒混合了下载/构建等成本；顶层串行阶段216.34秒，占已观察包时长45.1%，其中真实90秒负载用例总耗时123.64秒。另一VCS夹具的空GOCACHE构建耗时113.94秒。不能只归因cold build，更不能把未完成用例计为通过。
+
+JSON日志另揭示实际Bash5清理缺陷：成功分支的裸return在失败trap中继承状态，跳过Analysis关闭/本地清理，或提前终止子进程join。5处显式return0的窄修已通过Bash5先红后绿、Bash3兼容及9项现有聚焦回归；原退出17/143和关闭失败警告保留。测试夹具两处纯字面断言已由rg改为grep -Fq，消除runner缺少rg的依赖；定向进程测试通过。VCS夹具显式使用 `go version -json=false -m`，避免新增外层-json污染其文本读取，继承编译缓存并校验唯一链接build ID；Mac定向真实构建18.22秒通过，不能作为跨平台提速比例。原Linux observer exit255仍未定位，本地Bash5重复通过不算修复。以上变更均未放宽既有门禁，这些修复已整合推送为 `d7affe274935e78a644f901400db15ff1353a2c9`；新[候选CI 39569706125](https://github.com/WuKongIM/WuKongIM/actions/runs/39569706125)为attempt1，实际测试checkout为 `61cab03b700ff07439733171cbdcbd9072bfebc5`。08:39:12Z脚本门禁完成但失败：命令533.570秒，未触600秒外层超时；顶层600通过、6跳过、1失败、无未完成用例，进程清理完整。唯一失败为 `TestChatLifecycleShakeoutJoinSurvivesFirstSignal`（0.41秒，exit255），正在继续窄范围取证；旧observer用例本轮0.40秒通过，不证明原间歇255已经根治。既有Bash清理/rg/VCS修复对应用例均通过，VCS夹具39.38秒。默认完整go-unit 408.937秒通过，chat及三端SDK已通过；migration E2E与原生包四发行版验收仍在运行，完整Linux门禁仍不通过。
 
 凭证无关的[离线部署包准备](v3-release-readiness-20261021/cloud/bundle-ed705/README.md)已首次通过 [39555917411](https://github.com/WuKongIM/WuKongIM/actions/runs/39555917411)，source/control 均为 ed705。完整 ZIP/tar、110 个文件、manifest、9 个 ELF 与完整 DefaultIntent 已核验；bundle digest 为 `sha256:f274ffe1a3a74278d893fd16dd3a8df2e563fda375ac0295dfd8f6f5e982900a`。此项仅完成离线 payload 准备，不替代本地/云验收；artifact 有限期保留，未宣称人工构建可直接接入顶层付费编排。
 
@@ -88,15 +104,19 @@ packages PR #67 按线性历史要求正常 rebase 合并为 `782c14602a6b243d89
 
 preview 的 beta.21–24 四个 active 版本已达数量上限 4；若先发 RC，需原有两阶段退休及至少 30 分钟缓存窗口，不能直接追加第五版。当前总量低于容量警戒，公开签名子钥尚约 70 天有效；二者不是当前新增阻塞。
 
-用户已明确使用阿里云账号，Chrome 只读核对确认现有文档 CDN 正常运行；未见包域名的 CDN 配置，四个 OSS Bucket 均为备份测试/验收用途，没有已指定的包源站。服务商已落实，生产资源、权限、签名协议与安装入口仍待实施。
+用户已明确使用阿里云账号，Chrome 只读核对确认现有文档 CDN 正常运行；未见包域名的 CDN 配置，四个 OSS Bucket 均为备份测试/验收用途，没有已指定的包源站。服务商已落实，本地签名输入与保管工具已推进；生产对象存储/CDN资源、发布接入、权限及安装入口仍待实施。
 
-签名状态经用户最新澄清已更新：**目前只有 preview 备份，没有独立 stable 密钥。** 仓库两份公开证书与 preview manifest 相符，文档命名 preview 保管人为 `tangtaoit`；用户后来指定的本地目录 README 六个公开指纹也全部匹配这套 preview。早先“另有 stable 密钥”的陈述已被最新信息取代。私钥和吊销文件未读取，任何备份内容均未归档。见[公开证书核对](v3-release-readiness-20261021/packages/public-signing-observation.json)、[本地备份分类](v3-release-readiness-20261021/packages/local-backup-classification.json)及[stable 密钥准备单](2026-10-21-v3-stable-key-preparation.md)。正式签名需要新建独立身份，不能改名或复用 preview 证书；原离线/硬件保管约定按下述用户最新选择调整。
+前期核对时，用户既有目录确实只有preview备份，README六个公开指纹与preview相同；“已另有stable密钥”的早期陈述被纠正，原[公开核对](v3-release-readiness-20261021/packages/public-signing-observation.json)和[备份分类](v3-release-readiness-20261021/packages/local-backup-classification.json)保留。该事实属于当时状态，已被随后新建的独立stable身份更新，没有复用或改名preview密钥。
 
-用户随后确认只有当前 Mac 与极空间、没有外置介质，并明确要求“不需要考虑那么安全，就放 Mac 或极空间里”。据此**采用 Mac 本地保管与本地签名，NAS 可作备份；不再将离线设备或离线仪式作为阻塞**。现有包仓库的 offline/hardware 约定及相应工具须透明地同步修改，不能将在线模型标为离线完成。独立 stable 身份、APT/RPM 验签和私钥不进入 GitHub CI 的边界保留。见[最新直接用户决定](v3-release-readiness-20261021/packages/stable-local-custody-decision.json)；[早期环境核对](v3-release-readiness-20261021/packages/stable-environment-options/report.md)作为历史材料保留。没有访问 NAS、写入备份或生成生产密钥，stable 工具与渠道仍待实施。
+用户明确选择“就放Mac或极空间里”，因此采用Mac本地保管及签名，不再等待离线设备或仪式；此选择不是正式发布授权。[PR #69](https://github.com/WuKongIM/packages/pull/69)已于08:19:40Z按用户授权正常rebase合并：已验收head `c21736edcf67bac4b5c1c495d1cd18490b1d154a` → `8b3ae9a08b943e51aa614779a58baab204c584ca`，完整tree相同。保管约定和既有signer的本地文件输入已同步，CI环境变量输入继续兼容。[该head验收](v3-release-readiness-20261021/packages/pr69-ci-c217/README.md)包含387项Python、3项workflow检查、真实metadata7/7、本地签名10/10及完整TEST ONLY包仓库构建/签名/验签/安装；首轮失败仍保留。合并后[39568424562](https://github.com/WuKongIM/packages/actions/runs/39568424562)首次成功，387+3项测试，Pages配置/上传/部署均跳过。
+
+Mac生产密钥于08:09:17Z完成：APT主钥 `F68735072235EDC3BEBA83A55F19C486C2108B64`，RPM主钥 `4C76B7B37EBDAF05EB44976F96EC1B2D5976F45D`，两家族独立RSA3072 primary/current/next，有效期365/90/180天。加密完整备份恢复后，current/next各验证错误口令拒绝和正确签名的独立公钥验签，primary在恢复scratch完成认证证明，保留证书未改写；current-only validator通过。两项Mac Keychain口令记录已创建并核对。只归档公钥和公开收据，未访问或复制到NAS、未托管CI私钥、未签发正式版本包；见[生产准备收据](v3-release-readiness-20261021/packages/mac-key-preparation/README.md)和[密钥准备单](2026-10-21-v3-stable-key-preparation.md)。
+
+public-only登记[PR #70](https://github.com/WuKongIM/packages/pull/70)的head `0c26496b624058db813aa1206a7910f0abae6b13` 在08:28Z仍为draft，[08:32:32Z复核](v3-release-readiness-20261021/packages/pr70-review-state.json)为ready待批准；这些是保留的历史状态。用户随后批准，08:34:33Z观察到合并成功，merge为 `51bfedbe88c78758fa05bfb87b13541b4bca4796`。精确Git对象证明其完整tree与评审head相同（`2c4f7d3a9b24a6f67c18b114b8a5c5f1f5f6fa5e`）。[合并后检查39570313491](https://github.com/WuKongIM/packages/actions/runs/39570313491)于08:36:26Z首次成功，400项Python测试102.131秒及3项workflow检查通过，Pages配置、上传、部署均跳过。rebase后的merge不包含原branch tip的祖先关系，因此保留原干净worktree/branch，未强删。其[400+3检查](https://github.com/WuKongIM/packages/actions/runs/39568724449)及[真实原生演练](https://github.com/WuKongIM/packages/actions/runs/39568724312)均attempt1成功，metadata7/7、本地签名10/10及完整TEST ONLY仓库签验安装通过；验证前删除测试秘密后独立验签，生产私钥没有进入CI。它登记公开身份并校验跨家族/preview的完整、16位和8位指纹唯一性，不开启stable、不改变preview控制或发布生产包。stable公网交付仍未就绪。
 
 [渠道实施计划](2026-10-20-v3-stable-channel-plan.md)保留 preview 兼容及独立签名边界；PR #67（head `0ce7184bbf69472f607159f74a096e9160852843`）的两个新版 PR CI 均首次通过，且现已合并，见[证据](v3-release-readiness-20261021/packages/preflight-ci/README.md)；Pages配置、上传和部署均skipped。七个真实原生元数据场景及既有完整TEST ONLY演练不代表stable生产签名或公网发布。
 
-已形成[OSS/CDN具体设计](v3-release-readiness-20261021/packages/storage-design/design.md)：专用私有源站、不可变快照、APT跨代hash闭包及stable RPM镜像列表建议；明确OSS只有单对象原子性，CDN配置和刷新不是整站事务。其中现有 preview 的离线运输计划器 [PR #68](https://github.com/WuKongIM/packages/pull/68) 已按用户单独授权于 06:34:42Z 正常 rebase 合并为 `45619df14b931ef0da3eae7a6e3d5402307daa60`，与已审查 head `09360d07d0bffa3258be252d7730902041026ba8` 的完整 tree 相同。它只接受有外部身份锚的 preview add_release 审计，复用 canonical tar、receipt 和元数据闭包校验，生成确定性 plan_only 清单、当前入口和跨代保留集合；不访问凭证或网络，也不执行上传、切换或删除。stable、签名、云验证及原生客户端 A/B 切换验收仍未完成。
+已形成[OSS/CDN具体设计](v3-release-readiness-20261021/packages/storage-design/design.md)：专用私有源站、不可变快照、APT跨代hash闭包及stable RPM镜像列表建议；明确OSS只有单对象原子性，CDN配置和刷新不是整站事务。其中现有 preview 的离线运输计划器 [PR #68](https://github.com/WuKongIM/packages/pull/68) 已按用户单独授权于 06:34:42Z 正常 rebase 合并为 `45619df14b931ef0da3eae7a6e3d5402307daa60`，与已审查 head `09360d07d0bffa3258be252d7730902041026ba8` 的完整 tree 相同。它只接受有外部身份锚的 preview add_release 审计，复用 canonical tar、receipt 和元数据闭包校验，生成确定性 plan_only 清单、当前入口和跨代保留集合；不访问凭证或网络，也不执行上传、切换或删除。该计划器不提供stable签名或激活；云验证及原生客户端A/B切换验收仍未完成，后续本地TEST ONLY签名通过不补足这些边界。
 
 #68 的两项 [PR CI](v3-release-readiness-20261021/packages/transport-plan-ci/summary.md) 均首次通过：373 项完整 Python 测试与 TEST ONLY 原生包演练，实际 synthetic merge 与 head 树相同。[合并后 main 收据](v3-release-readiness-20261021/packages/transport-plan-merge/README.md)确认 [39556280194](https://github.com/WuKongIM/packages/actions/runs/39556280194) attempt 1 的 373 项测试通过（99.318 秒），Pages 配置、上传、部署跳过。分支保护未修改；rebase 后原 tip 不在 main 祖先链，保留干净 worktree/分支，不强删。历史 draft/pending 收据保留为当时状态。
 

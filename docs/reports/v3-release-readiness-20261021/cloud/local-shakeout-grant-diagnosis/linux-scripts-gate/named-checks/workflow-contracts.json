@@ -1,0 +1,30 @@
+{
+  "name": "workflow-contracts",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_arguments": [
+    "go",
+    "test",
+    "./scripts/...",
+    "-run",
+    "Workflow|ReviewAgent",
+    "-count=1"
+  ],
+  "executed_command": [
+    "go",
+    "test",
+    "./scripts/...",
+    "-run",
+    "Workflow|ReviewAgent",
+    "-count=1"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "environment_overrides": {
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2"
+  },
+  "started_at": "2026-10-21T07:33:20.530404+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T07:33:24.466108+00:00",
+  "log_sha256": "21780b1cbc2936d431873bafa20f6d06126bc236f7960907fac71a66ea578823"
+}

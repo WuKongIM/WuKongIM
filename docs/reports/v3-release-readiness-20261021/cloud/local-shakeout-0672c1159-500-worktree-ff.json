@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-21T08:12:08.707644+00:00",
+  "before": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "target": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "command": [
+    "git",
+    "merge",
+    "--ff-only",
+    "eda77697db42ba14f14bfad58cdd3557342b9989"
+  ],
+  "exit_code": 0,
+  "stdout": "Updating 0672c1159..eda77697d\nFast-forward\n .github/workflows/README.md                    |  9 +++++++++\n .github/workflows/v3-candidate-regression.yml  |  2 +-\n scripts/v3_candidate_workflow_contract_test.py | 10 +++++++++-\n 3 files changed, 19 insertions(+), 2 deletions(-)\n",
+  "stderr": "",
+  "after": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "source_clean_after": true,
+  "run_source_immutable": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "run_artifacts_modified": false
+}

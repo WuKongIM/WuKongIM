@@ -1,0 +1,12 @@
+{
+  "head": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "index_tree": "7104e17c912ce1d87030cb08b9fd0fe30b112f3c",
+  "changed_files": {
+    "CHANGELOG.md": "0ad830856542c91f7df7be8ed5985264715a1f497b9345a0cfe8f56689561670",
+    "scripts/cloud-sim/analyze.sh": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8",
+    "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh": "68512d0add0a80b6b364400388720cd0acc301897ef8b4a5e6facffed16880a5",
+    "scripts/shell_trap_cleanup_integration_test.go": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "f78e050ad34b71c5b0177629265b8428b1ee9bf30cb8c2411e356149f047007f",
+    "scripts/wukongim_three_nodes_build_integration_test.go": "1fbab2bd77824ce611d1e6353ce941bcdfad96c2ece70ece30e2814af30a65cb"
+  }
+}

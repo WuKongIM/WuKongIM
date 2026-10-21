@@ -1,0 +1,617 @@
+{
+  "schema": "wukongim/evidence-allowlist/v1",
+  "entries": [
+    {
+      "path": "README.md",
+      "size_bytes": 3939,
+      "sha256": "36fff90e891cfac80593ba6e2074e9c0a816649e53334249267ba5fe0d95e195"
+    },
+    {
+      "path": "Ubuntu2404-Readme.md",
+      "size_bytes": 16326,
+      "sha256": "b34e8e11c5a3a4cd034d06823c10a6b47549e6e7995de13ff208a9ad9abc83a6"
+    },
+    {
+      "path": "bash3-first/analysis-original.closed",
+      "size_bytes": 7,
+      "sha256": "55cba4bb35813b49ebc44b95a00002da823de6184c0fd3c9667a9aa06345bfe3"
+    },
+    {
+      "path": "bash3-first/analysis-original.log",
+      "size_bytes": 832,
+      "sha256": "74539d3ad24af0c7081e432e90d508fc04090e13adce744d36d623dfa056a0b5"
+    },
+    {
+      "path": "bash3-first/analysis-original.sh",
+      "size_bytes": 2278,
+      "sha256": "4cf48a488a6ec45ac578249da2cca45cd1f45dd334256dd8bb0a835798745c95"
+    },
+    {
+      "path": "bash3-first/analysis-return-zero.closed",
+      "size_bytes": 7,
+      "sha256": "55cba4bb35813b49ebc44b95a00002da823de6184c0fd3c9667a9aa06345bfe3"
+    },
+    {
+      "path": "bash3-first/analysis-return-zero.log",
+      "size_bytes": 834,
+      "sha256": "544fb33a9f9541edbcf101fe9ab0332c232f1fec92f0882f95649f1ab0b53f59"
+    },
+    {
+      "path": "bash3-first/analysis-return-zero.sh",
+      "size_bytes": 2283,
+      "sha256": "f2bf669233880e9400380dbb5bc9b98715f6ea4c2d0d1c885e04c0cb5412b3a5"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/baseline-run/checksums.sha256",
+      "size_bytes": 343,
+      "sha256": "fbab2c28c62f2764d1082d46fddedb928d8c882f70ffa93c0991b1d129d25f39"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/baseline-run/filesystem-preflight.txt",
+      "size_bytes": 88,
+      "sha256": "1cc41a48abb5ef51718a7a994791b6fc7db374aeb5573f0aeb3324f596fc6e25"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/baseline-run/local-baseline.json",
+      "size_bytes": 1100,
+      "sha256": "aa8afaae1087550a015a2a35f4570b945d0a28c8a2cf7544553a56cee31042e1"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/baseline-run/steps/step-rate-250.log",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/baseline-run/steps.tsv",
+      "size_bytes": 125,
+      "sha256": "4d2c9c883d89dc6ecd44d0ba48a2f87aa049d11687eaf82f4594505eab36640d"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/child-signals.log",
+      "size_bytes": 12,
+      "sha256": "c60b64b00bbe3315415fb7e1ea927c49e164ca699783c1f9d6c5b16417056822"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/child.pid",
+      "size_bytes": 6,
+      "sha256": "6a999977aa1466f4bab2e6eaeda4980f836970725278054dde0619a7007f36c2"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/child.ready",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh",
+      "size_bytes": 28264,
+      "sha256": "e7915cac37e2b5197438a74c99d16ee60768c4dfd70cad5f3f284c87064e3c69"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "size_bytes": 243,
+      "sha256": "2984e0c1e00cd32e9f3168fe42359e125f50b46dfda44a6085899f3b0c153e66"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/test-bin/df",
+      "size_bytes": 121,
+      "sha256": "79ccf9829c9aeaa648bf37caaa25bab30aacd24f4044c2cfafba1426deef5e14"
+    },
+    {
+      "path": "bash3-first/baseline-fixture/test-bin/ps",
+      "size_bytes": 27,
+      "sha256": "fb99eae951f1adc14d1a4a9a186c21930db2786b3208c94c7d9af382bd1048e5"
+    },
+    {
+      "path": "bash3-first/baseline-original.log",
+      "size_bytes": 17314,
+      "sha256": "f4d6c42ec010eedd8ecd8bfdba6ab3cc91cc170105debadc45d6b53032776be9"
+    },
+    {
+      "path": "bash3-first/baseline-original.sh",
+      "size_bytes": 338,
+      "sha256": "ef1c9b24497a2a13b343ae01d8425369e372c83c2efdd973e7edcb19d6587019"
+    },
+    {
+      "path": "bash3-first/observer-original.log",
+      "size_bytes": 41,
+      "sha256": "6728140f72eb59f35a76434398bafd84b57d0922a4b0d71657287e3eb384f7e7"
+    },
+    {
+      "path": "bash3-first/observer-original.sh",
+      "size_bytes": 202136,
+      "sha256": "7d8ffca4ac9f426ad4737ee5941a77e673878080a6d348be89c7b68f2fe2ed05"
+    },
+    {
+      "path": "bash3-first/observer.pid",
+      "size_bytes": 6,
+      "sha256": "b9f9ba77ae55cbe2691d02fa3738610cb57e7abd4180f3c037a6046a5a10aed8"
+    },
+    {
+      "path": "bash3-first/receipt.json",
+      "size_bytes": 3012,
+      "sha256": "df6cbbb6777aee8d1e5845ee8fe5e819066766e90fd90729388157b7c397e35c"
+    },
+    {
+      "path": "bash3-green.json",
+      "size_bytes": 717,
+      "sha256": "3015ce8ec87e46c64addfceb8a3201cc70c5da0ae154860440fbd1d19afc4eec"
+    },
+    {
+      "path": "bash3-green.log",
+      "size_bytes": 13176,
+      "sha256": "e794a7c3485411006d046c2b8a9a8a19fd92f5b6b08e0ff55ba5df831516b950"
+    },
+    {
+      "path": "bash5-build.json",
+      "size_bytes": 1189,
+      "sha256": "61c0e7becd81ea46e42c444a5a871cab8002a3e82692859d50ee498c2b130021"
+    },
+    {
+      "path": "bash5-configure.log",
+      "size_bytes": 19172,
+      "sha256": "9c5f8e7c71ba3f7ace633577d5e01b548f50b56edae25e6b9beef732e0d2dda6"
+    },
+    {
+      "path": "bash5-first/analysis-original.log",
+      "size_bytes": 609,
+      "sha256": "599c5c92d5f6dc4e04541364c4d2cdd1c03f8fe05f32ece1f9a921e0d556261f"
+    },
+    {
+      "path": "bash5-first/analysis-original.sh",
+      "size_bytes": 2278,
+      "sha256": "5beffaced0249346a194cac4f74dbe228a0260190bca3cb62c7fa6af41814aaf"
+    },
+    {
+      "path": "bash5-first/analysis-return-zero.closed",
+      "size_bytes": 7,
+      "sha256": "55cba4bb35813b49ebc44b95a00002da823de6184c0fd3c9667a9aa06345bfe3"
+    },
+    {
+      "path": "bash5-first/analysis-return-zero.log",
+      "size_bytes": 889,
+      "sha256": "60230b5ccd69354db2c5185eef3d2bf59c4bb2f9c525c73ec14c52f293daea1a"
+    },
+    {
+      "path": "bash5-first/analysis-return-zero.sh",
+      "size_bytes": 2283,
+      "sha256": "a5178d1eb62b2126701af281ff4d748ea22d4ae1194659b02c0d7ee2bb824c84"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/baseline-run/filesystem-preflight.txt",
+      "size_bytes": 88,
+      "sha256": "1cc41a48abb5ef51718a7a994791b6fc7db374aeb5573f0aeb3324f596fc6e25"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/baseline-run/steps/step-rate-250.log",
+      "size_bytes": 86,
+      "sha256": "a698d6d5b8ed90122d5031727c9b8e9b3ef3fc5a39cb7afa4a82d6efd3e0785e"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/baseline-run/steps.tsv",
+      "size_bytes": 68,
+      "sha256": "3330dbd6594385b1a209ec15e2650516510ff2ed657860f2a0aa67ddb2a70e04"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/child.pid",
+      "size_bytes": 6,
+      "sha256": "9eed679bff1757231a5a348180a5a12f69879f171d48a8f9598429eaa776b473"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/child.ready",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh",
+      "size_bytes": 28264,
+      "sha256": "e7915cac37e2b5197438a74c99d16ee60768c4dfd70cad5f3f284c87064e3c69"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "size_bytes": 243,
+      "sha256": "2984e0c1e00cd32e9f3168fe42359e125f50b46dfda44a6085899f3b0c153e66"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/test-bin/df",
+      "size_bytes": 121,
+      "sha256": "79ccf9829c9aeaa648bf37caaa25bab30aacd24f4044c2cfafba1426deef5e14"
+    },
+    {
+      "path": "bash5-first/baseline-fixture/test-bin/ps",
+      "size_bytes": 27,
+      "sha256": "fb99eae951f1adc14d1a4a9a186c21930db2786b3208c94c7d9af382bd1048e5"
+    },
+    {
+      "path": "bash5-first/baseline-original.log",
+      "size_bytes": 8343,
+      "sha256": "eb667bc20c37f4527cf23a1a82b25807b7f726153643382ee75229fa3e30e0b5"
+    },
+    {
+      "path": "bash5-first/baseline-original.sh",
+      "size_bytes": 415,
+      "sha256": "dbcea657203e918c4ffda38adb06e522a0ea6246ac21501811aba0f5dba9fa9c"
+    },
+    {
+      "path": "bash5-first/observer-original.log",
+      "size_bytes": 209,
+      "sha256": "b64abe891bf49f01461b25c65cae24d93a2e2ae9ea70f8a837a17ac3b6d6e13b"
+    },
+    {
+      "path": "bash5-first/observer-original.sh",
+      "size_bytes": 202136,
+      "sha256": "7d8ffca4ac9f426ad4737ee5941a77e673878080a6d348be89c7b68f2fe2ed05"
+    },
+    {
+      "path": "bash5-first/observer.pid",
+      "size_bytes": 6,
+      "sha256": "9b0d0fba981e812430a5ee5ef84ec780a02fd9d25cc20cb8e5dc91088c9a0c8a"
+    },
+    {
+      "path": "bash5-first/receipt.json",
+      "size_bytes": 3386,
+      "sha256": "d42c5a0e2d8ea708a4519ff08e81f998355af6d4b112b9a98cec305ee188ad4c"
+    },
+    {
+      "path": "bash5-make.log",
+      "size_bytes": 520914,
+      "sha256": "f55eca075aa69c0b719e83c2c1d0dec41fa7ed19c1c53a7e4deff2f161358e5e"
+    },
+    {
+      "path": "bash5-regression.json",
+      "size_bytes": 989,
+      "sha256": "c3b77157d8d8c9067d4b18d55757c1fb6683f37e41a6a4b49943d494314e6ab4"
+    },
+    {
+      "path": "bash5-regression.log",
+      "size_bytes": 32747,
+      "sha256": "f4e9901d64ab24deef1c812fd7d857853e6f48965c8dc70360a81a4db7dd8f37"
+    },
+    {
+      "path": "bash5-v2/analysis-all-cleanup-returns-zero.closed",
+      "size_bytes": 7,
+      "sha256": "55cba4bb35813b49ebc44b95a00002da823de6184c0fd3c9667a9aa06345bfe3"
+    },
+    {
+      "path": "bash5-v2/analysis-all-cleanup-returns-zero.done",
+      "size_bytes": 5,
+      "sha256": "d117fa006ba9208500b2930ce69cbde436c647afa917cb7396a9bc9111a46dd2"
+    },
+    {
+      "path": "bash5-v2/analysis-all-cleanup-returns-zero.log",
+      "size_bytes": 1387,
+      "sha256": "16f415c5c8c091f1daf1b7209d7c56814182e41aae3c425dda9733749688b75b"
+    },
+    {
+      "path": "bash5-v2/analysis-all-cleanup-returns-zero.sh",
+      "size_bytes": 2582,
+      "sha256": "e27696bffdf686fb7510c5688f79b6d03d054ca23224daf507deed5f28308c99"
+    },
+    {
+      "path": "bash5-v2/analysis-bridge-return-zero.closed",
+      "size_bytes": 7,
+      "sha256": "55cba4bb35813b49ebc44b95a00002da823de6184c0fd3c9667a9aa06345bfe3"
+    },
+    {
+      "path": "bash5-v2/analysis-bridge-return-zero.log",
+      "size_bytes": 857,
+      "sha256": "c97736ee865203023beaa90780ea547f951cdfe0551a47d05bb222414c9b6c56"
+    },
+    {
+      "path": "bash5-v2/analysis-bridge-return-zero.sh",
+      "size_bytes": 2558,
+      "sha256": "48de92ba18e47a0192bc25d77ee0151cac30a4e5c9a733bab27b1706bf46b31a"
+    },
+    {
+      "path": "bash5-v2/analysis-bridge-return-zero.temp/owned.txt",
+      "size_bytes": 7,
+      "sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d"
+    },
+    {
+      "path": "bash5-v2/analysis-original.log",
+      "size_bytes": 567,
+      "sha256": "da4e7cd3d637d320ec5bfc4df18008f87ab93c18ef80e6a6667e49bf1ed2149b"
+    },
+    {
+      "path": "bash5-v2/analysis-original.sh",
+      "size_bytes": 2526,
+      "sha256": "6d1d5377b0f9b02177c70794a6f35cc954d5451d6df275c8e1939bb4100f1b47"
+    },
+    {
+      "path": "bash5-v2/analysis-original.temp/owned.txt",
+      "size_bytes": 7,
+      "sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run/filesystem-preflight.txt",
+      "size_bytes": 88,
+      "sha256": "1cc41a48abb5ef51718a7a994791b6fc7db374aeb5573f0aeb3324f596fc6e25"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run/steps/step-rate-250.log",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run/steps.tsv",
+      "size_bytes": 68,
+      "sha256": "3330dbd6594385b1a209ec15e2650516510ff2ed657860f2a0aa67ddb2a70e04"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run-control/checksums.sha256",
+      "size_bytes": 343,
+      "sha256": "fbab2c28c62f2764d1082d46fddedb928d8c882f70ffa93c0991b1d129d25f39"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run-control/filesystem-preflight.txt",
+      "size_bytes": 88,
+      "sha256": "1cc41a48abb5ef51718a7a994791b6fc7db374aeb5573f0aeb3324f596fc6e25"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run-control/local-baseline.json",
+      "size_bytes": 1100,
+      "sha256": "aa8afaae1087550a015a2a35f4570b945d0a28c8a2cf7544553a56cee31042e1"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run-control/steps/step-rate-250.log",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/baseline-run-control/steps.tsv",
+      "size_bytes": 125,
+      "sha256": "4d2c9c883d89dc6ecd44d0ba48a2f87aa049d11687eaf82f4594505eab36640d"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/child-signals.log",
+      "size_bytes": 12,
+      "sha256": "c60b64b00bbe3315415fb7e1ea927c49e164ca699783c1f9d6c5b16417056822"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/child.pid",
+      "size_bytes": 6,
+      "sha256": "e4cb7c06e26c0cd858aa257e8fe1871b12ea9140671c0ae314267b88835dccb0"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/child.ready",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh",
+      "size_bytes": 28266,
+      "sha256": "b6ac06248ba1883b1e7577581b9c0433e5595a6fcc7b205e50e6047b8b2b20b3"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "size_bytes": 243,
+      "sha256": "2984e0c1e00cd32e9f3168fe42359e125f50b46dfda44a6085899f3b0c153e66"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/test-bin/df",
+      "size_bytes": 121,
+      "sha256": "79ccf9829c9aeaa648bf37caaa25bab30aacd24f4044c2cfafba1426deef5e14"
+    },
+    {
+      "path": "bash5-v2/baseline-fixture/test-bin/ps",
+      "size_bytes": 27,
+      "sha256": "fb99eae951f1adc14d1a4a9a186c21930db2786b3208c94c7d9af382bd1048e5"
+    },
+    {
+      "path": "bash5-v2/baseline-original.log",
+      "size_bytes": 7742,
+      "sha256": "feca88ffefe76c08547b9af58fd9e87591886ab1eae4a9df06ba2ae35999cc1c"
+    },
+    {
+      "path": "bash5-v2/baseline-original.sh",
+      "size_bytes": 417,
+      "sha256": "a92fe5c31cf8ed24c772114070f42baa33e5a229c3abff2999dbe8152dd4dc59"
+    },
+    {
+      "path": "bash5-v2/baseline-return-zero.log",
+      "size_bytes": 17635,
+      "sha256": "ac7b9f3fd685e3ee514210f47ccf9c575785c7412bb59b4d70eef3ad4e02c177"
+    },
+    {
+      "path": "bash5-v2/observer-original-00.log",
+      "size_bytes": 1307,
+      "sha256": "9851bbebed8c2f58a2897d37c060f6cb9124e772b4cbe888e7bc559993928341"
+    },
+    {
+      "path": "bash5-v2/observer-original-01.log",
+      "size_bytes": 1307,
+      "sha256": "d30bae76eda3c93ff6fd14a8caeca2b817c76f2dae11dccf553219d841a9dade"
+    },
+    {
+      "path": "bash5-v2/observer-original-02.log",
+      "size_bytes": 1307,
+      "sha256": "4a157f5f8bbf15c945d4c7e7434b1e70a8abf1f852752752fecc19cb4ec6a657"
+    },
+    {
+      "path": "bash5-v2/observer-original-03.log",
+      "size_bytes": 1307,
+      "sha256": "1d67d800b83500ab6d8e3c59f8630587b06eb11b72959a073696821edae35d45"
+    },
+    {
+      "path": "bash5-v2/observer-original-04.log",
+      "size_bytes": 1307,
+      "sha256": "3352aa4b1d35122ab37ffd12193c2bc944f49bae0b963efe1d42b2eeb4deea76"
+    },
+    {
+      "path": "bash5-v2/observer-original-05.log",
+      "size_bytes": 1307,
+      "sha256": "d24672a4a58c499aaaaeb4a02dab0bf6c6c4a09db373bb650954d61ca1589514"
+    },
+    {
+      "path": "bash5-v2/observer-original-06.log",
+      "size_bytes": 1307,
+      "sha256": "abcb4226b5bf3246d4e11c934c6fe25fdc67433b6ec85006fa2e20157824fa8b"
+    },
+    {
+      "path": "bash5-v2/observer-original-07.log",
+      "size_bytes": 1307,
+      "sha256": "72d428ae1addb2c9d81faaac580fed39f92740e00c6bfa3e3ea53e388f8c963a"
+    },
+    {
+      "path": "bash5-v2/observer-original-08.log",
+      "size_bytes": 1307,
+      "sha256": "9a420f634e2db9a6a5691e62fbdd39a92d7c8f2a1b396b3167dcca5c7d0d89d2"
+    },
+    {
+      "path": "bash5-v2/observer-original-09.log",
+      "size_bytes": 1307,
+      "sha256": "a95c9247bb6d9007103e67cf31a23a13dea02a204dda8e1d6a1bd65b7e7b6637"
+    },
+    {
+      "path": "bash5-v2/observer-original-10.log",
+      "size_bytes": 1307,
+      "sha256": "42ec58a47cb66a79ae2c57bf50893a8087a2197832b70ec07a23fbed8113a1ad"
+    },
+    {
+      "path": "bash5-v2/observer-original-11.log",
+      "size_bytes": 1307,
+      "sha256": "08bf51d3245e75a5eb4f8749c49990e09f95979dcec1bdffa2fe5503c63af746"
+    },
+    {
+      "path": "bash5-v2/observer-original-12.log",
+      "size_bytes": 1307,
+      "sha256": "e8fe69a17685b37aa16facef6b0552b55d840144c165c234c24122add3d69fea"
+    },
+    {
+      "path": "bash5-v2/observer-original-13.log",
+      "size_bytes": 1307,
+      "sha256": "a755a943705efeb553bbd1036c873394c1cf44b3efaa9434cc298031065e2f3f"
+    },
+    {
+      "path": "bash5-v2/observer-original-14.log",
+      "size_bytes": 1307,
+      "sha256": "57115bfd3b71663c4fd27f4a1b67c55f8608fd37db2019e4398eb4286deea210"
+    },
+    {
+      "path": "bash5-v2/observer-original-15.log",
+      "size_bytes": 1307,
+      "sha256": "d6edb4ea72d79c732e6faeb8ceac6f2b952deb9c15e2ea47a9eee57394c05458"
+    },
+    {
+      "path": "bash5-v2/observer-original-16.log",
+      "size_bytes": 1307,
+      "sha256": "31452659f7668bdfbe9d339e57374fd217ed4a07aefda3883657932081a9f13c"
+    },
+    {
+      "path": "bash5-v2/observer-original-17.log",
+      "size_bytes": 1307,
+      "sha256": "a8aaf94c5d0365de6a890ffafcd533c579a2608d3c309a9865cc25fb3ae53b4e"
+    },
+    {
+      "path": "bash5-v2/observer-original-18.log",
+      "size_bytes": 1307,
+      "sha256": "ac9eade0746e9be2e7e708fca0a4349203b2a2e1725acf3282083ca89ab6c16c"
+    },
+    {
+      "path": "bash5-v2/observer-original-19.log",
+      "size_bytes": 1307,
+      "sha256": "e2f301f66cbbfb2aa8a718b65f648cb1d32cbd0657f3a1d60875ac15ae4f9c5e"
+    },
+    {
+      "path": "bash5-v2/observer-original.sh",
+      "size_bytes": 202144,
+      "sha256": "51e82b266d98aadbbe17e29467f163a4f245e19eb347b078fc56878faea795bc"
+    },
+    {
+      "path": "bash5-v2/observer.pid",
+      "size_bytes": 6,
+      "sha256": "d3f30537e23c9e5e980a2dfaf964e7c205c528a4311012625e28dbdb2bf7dacb"
+    },
+    {
+      "path": "bash5-v2/receipt.json",
+      "size_bytes": 13874,
+      "sha256": "65e675bfa57cab60b5994123f0eb83d11cb6b29e3720fdf51c5f8baf792b0aa8"
+    },
+    {
+      "path": "failure-inventory.json",
+      "size_bytes": 604,
+      "sha256": "e9ea1ee4dfb66aa6927eaa42ee8189fce466023445bfc13b1993f09fb2aec9d2"
+    },
+    {
+      "path": "focused-green.json",
+      "size_bytes": 717,
+      "sha256": "39c020ad2a6da9afa17e212fd75757ef7dfcff2fcbd40fec3519668e004aee55"
+    },
+    {
+      "path": "focused-green.log",
+      "size_bytes": 13176,
+      "sha256": "8f957c642a064aba05fc75409ff35f41a8c24698ea832e4e57ead50bf2ca76aa"
+    },
+    {
+      "path": "focused-red.json",
+      "size_bytes": 719,
+      "sha256": "59229e324d6bbbbeb8e0cf2d3adf937a8b96656ed06dab4f5931df64dd2ccb7a"
+    },
+    {
+      "path": "focused-red.log",
+      "size_bytes": 17834,
+      "sha256": "238896e5d855020847a7626c9891af6d15158b626fb5e7feada5610b68eff32f"
+    },
+    {
+      "path": "job-119107852968-view.log",
+      "size_bytes": 159254,
+      "sha256": "d2d6f141cea6bd7c46fa42517eb7e286b5468feb99addc780f8fcb42453eaa72"
+    },
+    {
+      "path": "job-119107852968.log",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "probe-v1.py",
+      "size_bytes": 6179,
+      "sha256": "c5d757902e8f535e7cc12d83a3c2f264c65f49ea2225456f1ad261d33ef9e4a9"
+    },
+    {
+      "path": "probe-v2.py",
+      "size_bytes": 7351,
+      "sha256": "3b8875460f4ac2fea8519a86908879b8454eecca47baa4ed6d85c7da88f212cb"
+    },
+    {
+      "path": "probe.py",
+      "size_bytes": 6179,
+      "sha256": "c5d757902e8f535e7cc12d83a3c2f264c65f49ea2225456f1ad261d33ef9e4a9"
+    },
+    {
+      "path": "rules-freeze.json",
+      "size_bytes": 783,
+      "sha256": "37c820cf1f976e45b6194f0484992de6b879bfb9457ee450827e4e96b53f5191"
+    },
+    {
+      "path": "shipping-freeze.json",
+      "size_bytes": 526,
+      "sha256": "eab7ffd757432b7343e548e28ee3e5dec5fe8d104eb5401d4d8c57f024ee2166"
+    },
+    {
+      "path": "shipping.patch",
+      "size_bytes": 6053,
+      "sha256": "21c51ebae7ac2c78de39699840be5206eaf710e7414c6442efd5f93261b6485c"
+    },
+    {
+      "path": "static-validation.json",
+      "size_bytes": 1864,
+      "sha256": "3da4ed7fa0feaccae424516f19935866e917fb7d7bb962c755f5347d88bc1443"
+    },
+    {
+      "path": "summary.json",
+      "size_bytes": 5544,
+      "sha256": "6e806f5dd7bbd168b26ffcb5e75c3421f1c108516dadc834dc2415e4f8ae4a60"
+    },
+    {
+      "path": "test-first-source.go",
+      "size_bytes": 3631,
+      "sha256": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6"
+    }
+  ],
+  "total_bytes": 1657419,
+  "excluded": [
+    "bash-5.2.21.tar.gz (re-download by recorded URL/hash)",
+    "bash-5.2.21/ (rebuild from recorded source)",
+    "bash3-bin/ and bash5-bin/ symlinks"
+  ],
+  "note": "Original failed job log download is zero bytes; complete successful fallback job-119107852968-view.log is included. Fixture tokens only, no production credentials were used or printed."
+}

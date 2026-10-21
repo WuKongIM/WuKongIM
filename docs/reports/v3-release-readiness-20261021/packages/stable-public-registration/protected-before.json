@@ -1,0 +1,21 @@
+{
+  ".github/workflows/native-package-audit-bind.yml": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e",
+  ".github/workflows/native-package-audit-draft.yml": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281",
+  ".github/workflows/native-package-cli-acceptance.yml": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+  ".github/workflows/native-package-immutable-public-reverify.yml": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432",
+  ".github/workflows/native-package-publish.yml": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+  ".github/workflows/native-package-repository-drill.yml": "8d5516f746de966a868625ec552cc85b2b97a25e5bc71654b5f5d47299ade43a",
+  ".github/workflows/native-package-signing-preflight.yml": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81",
+  ".github/workflows/native-package-signing-toolchain.yml": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1",
+  ".github/workflows/pages.yml": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+  ".github/workflows/source-release-preflight.yml": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+  "keys/apt-preview.asc": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+  "keys/rpm-preview.asc": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+  "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+  "manifests/preview-signing.json": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+  "scripts/archive-package-snapshot.py": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+  "scripts/compose-package-site.py": "193d21afb73e071a6f2b10a64974c976d5b8ba8825d35c2a9cabf81fbe875498",
+  "scripts/sign-package-family.py": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+  "scripts/validate-signing-material.py": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+  "scripts/verify-production-package-site.py": "a8684618d26cc390be740b789e0410a1f4db0ffe71f55790fe5745f92220364b"
+}

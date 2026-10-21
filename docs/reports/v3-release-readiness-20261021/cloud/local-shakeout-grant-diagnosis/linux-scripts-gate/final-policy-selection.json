@@ -1,0 +1,139 @@
+{
+  "paths": [
+    ".github/workflows/README.md",
+    ".github/workflows/v3-candidate-regression.yml",
+    "CHANGELOG.md",
+    "configs/wkbench/chat-lifecycle/README.md",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+    "internal/bench/chatlifecycle/config_examples_test.go",
+    "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+    "pkg/transport/internal/buffer/retained_test.go",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+    "scripts/v3_candidate_workflow_contract_test.py",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+    "scripts/wukongim_three_node_chat_lifecycle_script_test.go"
+  ],
+  "file_sha256": {
+    ".github/workflows/README.md": "299393170cc08561d5ba99c91a48c1763bea3afae169795b9cf367436259ba0a",
+    ".github/workflows/v3-candidate-regression.yml": "3581a155baa78511cb3af3192d3df4c0be79172484dfaa04cd6ce0de9a8b111c",
+    "CHANGELOG.md": "1740408f941d2496796c70fb7fb0810dee479e17bf20fba7ed17d3a904272b2c",
+    "configs/wkbench/chat-lifecycle/README.md": "3a167780fb4f9897bd353d7555af688f6b2927b9d2c237c150e6aec3e02edc39",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml": "1a9e81e18c8afaaa62fa2b1edad6dc03ea34eda7163e501c26b341cd2dc7a2a2",
+    "docs/development/PROJECT_KNOWLEDGE.md": "69f64bc7ae7a6128dffaafc96e8676b32d5025562486db03d79e4e2879493856",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf",
+    "internal/bench/chatlifecycle/config_examples_test.go": "fc628a454b724aca86d13a9020ace81ba19ca6863978db367b65cf6802c2adff",
+    "internal/bench/chatlifecycle/local_shakeout_budget_test.go": "e89a98aa7412d2a17de36ede1301f9e1db7c4dae776436103ac7b834c37c09d1",
+    "pkg/transport/internal/buffer/retained_test.go": "732390cf710b7199b0917aef02866de87e7d940687f259c587f84b84f00b0d16",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+    "scripts/v3_candidate_workflow_contract_test.py": "5049c0c51da0e58c0dcc0bf32f5fa7d645e45a005eb8e06517789d1e5924992b",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "7fa5bf0cda5781f84c3f79e4941b137a75f71ccda7f297cfd50769c497ddfa82",
+    "scripts/wukongim_three_node_chat_lifecycle_script_test.go": "2589f7247b3fac027146b4261a721ddda552eca20893c630ebf8ec462c780e55"
+  },
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "selection_semantics_source": "internal/runtime/reviewagentverify/policy.go:50-170",
+  "matched_rules": [
+    {
+      "rule": "flow-documents",
+      "paths": [
+        "docs/development/PROJECT_KNOWLEDGE.md"
+      ],
+      "checks": [
+        "flow-doc-contracts"
+      ],
+      "exclusive": false,
+      "always": true
+    },
+    {
+      "rule": "repository-default",
+      "paths": [
+        ".github/workflows/README.md",
+        ".github/workflows/v3-candidate-regression.yml",
+        "CHANGELOG.md",
+        "configs/wkbench/chat-lifecycle/README.md",
+        "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+        "docs/development/PROJECT_KNOWLEDGE.md",
+        "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+        "internal/bench/chatlifecycle/config_examples_test.go",
+        "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+        "pkg/transport/internal/buffer/retained_test.go",
+        "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+        "scripts/v3_candidate_workflow_contract_test.py",
+        "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+        "scripts/wukongim_three_node_chat_lifecycle_script_test.go"
+      ],
+      "checks": [
+        "go-unit",
+        "go-vet",
+        "go-format",
+        "go-mod-tidy"
+      ],
+      "exclusive": false,
+      "always": false
+    },
+    {
+      "rule": "go",
+      "paths": [
+        "internal/bench/chatlifecycle/config_examples_test.go",
+        "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+        "pkg/transport/internal/buffer/retained_test.go",
+        "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+        "scripts/wukongim_three_node_chat_lifecycle_script_test.go"
+      ],
+      "checks": [
+        "go-unit",
+        "go-vet"
+      ],
+      "exclusive": false,
+      "always": false
+    },
+    {
+      "rule": "production-integration-scripts",
+      "paths": [
+        "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh"
+      ],
+      "checks": [
+        "scripts-integration"
+      ],
+      "exclusive": false,
+      "always": false
+    },
+    {
+      "rule": "workflow-control",
+      "paths": [
+        ".github/workflows/v3-candidate-regression.yml"
+      ],
+      "checks": [
+        "workflow-contracts",
+        "go-unit"
+      ],
+      "exclusive": false,
+      "always": false
+    },
+    {
+      "rule": "documentation-only",
+      "paths": [
+        "docs/development/PROJECT_KNOWLEDGE.md",
+        "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md"
+      ],
+      "checks": [
+        "docs-contracts"
+      ],
+      "exclusive": true,
+      "always": false
+    }
+  ],
+  "selected_checks": [
+    "flow-doc-contracts",
+    "go-format",
+    "go-mod-tidy",
+    "go-unit",
+    "go-vet",
+    "scripts-integration",
+    "workflow-contracts"
+  ],
+  "additional_check_since_11_files": [
+    "workflow-contracts"
+  ]
+}

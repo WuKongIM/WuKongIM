@@ -1,0 +1,45 @@
++ set -euo pipefail
++ umask 077
++ set +x
++ trap - EXIT INT TERM
++ signal_seen=0
++ trap signal_seen=1 TERM
++ TERMINAL_CUT_OBSERVER_STOP_FILE=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer.stop
++ TERMINAL_CUT_OBSERVER_PID=47711
++ observer_pid=47711
++ [[ ! -f /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer.stop ]]
++ sleep 0.02
++ signaler=47712
++ terminate_terminal_cut_observer
++ local observer_status=0
++ [[ -n 47711 ]]
++ touch /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer.stop
++ sleep 0.05
++ wait_child_uninterrupted 47711
++ local pid=47711 status
++ WAIT_CHILD_STATUS=0
++ true
++ status=0
++ wait 47711
++ [[ ! -f /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer.stop ]]
++ sleep 0.35
++ kill -TERM 47704
+++ signal_seen=1
++ status=143
++ kill -0 47711
++ true
++ status=0
++ wait 47711
++ kill -0 47711
++ WAIT_CHILD_STATUS=0
++ return 0
++ observer_status=0
++ rm -f /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer.stop
++ TERMINAL_CUT_OBSERVER_PID=
++ TERMINAL_CUT_OBSERVER_STOP_FILE=
++ return 0
++ wait 47712
++ [[ 1 -eq 1 ]]
++ [[ -z '' ]]
++ kill -0 47711
++ printf '%s\n' 47711

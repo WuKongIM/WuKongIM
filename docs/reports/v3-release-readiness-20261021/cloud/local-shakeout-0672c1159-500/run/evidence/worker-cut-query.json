@@ -1,0 +1,237 @@
+{
+  "schema": "wukongim/chat-lifecycle-worker-cut-query/v1",
+  "run_id": "local-chat-lifecycle-shakeout",
+  "cursor": 457450,
+  "next_cursor": 460231,
+  "cuts_observed": 2,
+  "partial_line": false,
+  "terminal_cut_present": true,
+  "qualification_cut_present": true,
+  "qualification_sent_boundary": 600018,
+  "offered_rate_per_second": 500,
+  "minimum_throughput_percent": 90,
+  "transition": {
+    "hot_latency": {
+      "available": true,
+      "limit_nanos": 400000000,
+      "count": 166,
+      "above_limit": 0,
+      "breached": false
+    },
+    "available": true,
+    "previous_at": "2026-10-21T08:06:03.938525Z",
+    "current_at": "2026-10-21T08:06:04.333745Z",
+    "previous_cut_kind": "terminal",
+    "current_cut_kind": "terminal",
+    "sent_delta": 151,
+    "acknowledged_delta": 170,
+    "retry_delta": 0,
+    "terminal_product_failure_delta": 0,
+    "correctness_failure_delta": 0,
+    "interval_seconds": 0.39522,
+    "expected_offered": 197.61,
+    "actual_offered_percent": 86.02803501847072,
+    "minimum_throughput_percent": 90,
+    "measurement_eligible": true
+  },
+  "transitions": [
+    {
+      "hot_latency": {
+        "available": true,
+        "limit_nanos": 400000000,
+        "count": 1348,
+        "above_limit": 0,
+        "breached": false
+      },
+      "available": true,
+      "previous_at": "2026-10-21T08:06:01.261028833Z",
+      "current_at": "2026-10-21T08:06:03.938525Z",
+      "previous_cut_kind": "periodic",
+      "current_cut_kind": "terminal",
+      "sent_delta": 1350,
+      "acknowledged_delta": 1389,
+      "retry_delta": 0,
+      "terminal_product_failure_delta": 0,
+      "correctness_failure_delta": 0,
+      "interval_seconds": 2.677496167,
+      "expected_offered": 1338.7480835000001,
+      "actual_offered_percent": 103.75364993006168,
+      "minimum_throughput_percent": 90,
+      "measurement_eligible": true
+    },
+    {
+      "hot_latency": {
+        "available": true,
+        "limit_nanos": 400000000,
+        "count": 166,
+        "above_limit": 0,
+        "breached": false
+      },
+      "available": true,
+      "previous_at": "2026-10-21T08:06:03.938525Z",
+      "current_at": "2026-10-21T08:06:04.333745Z",
+      "previous_cut_kind": "terminal",
+      "current_cut_kind": "terminal",
+      "sent_delta": 151,
+      "acknowledged_delta": 170,
+      "retry_delta": 0,
+      "terminal_product_failure_delta": 0,
+      "correctness_failure_delta": 0,
+      "interval_seconds": 0.39522,
+      "expected_offered": 197.61,
+      "actual_offered_percent": 86.02803501847072,
+      "minimum_throughput_percent": 90,
+      "measurement_eligible": true
+    }
+  ],
+  "previous_cut": {
+    "hot_latency": {
+      "limit_nanos": 400000000,
+      "count": 810559,
+      "above_limit": 102
+    },
+    "event": "wkbench.chat_lifecycle.worker_status_cut",
+    "run_id": "local-chat-lifecycle-shakeout",
+    "at": "2026-10-21T08:06:03.938525Z",
+    "cut": "terminal",
+    "totals": {
+      "target": 2500,
+      "online": 2500,
+      "starting": 0,
+      "closing": 0,
+      "traffic_ready": 2500
+    },
+    "close_reasons": {
+      "expired": 1515,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 0,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    },
+    "messages": {
+      "sent": 876378,
+      "send_attempts": 876380,
+      "first_attempts": 876378,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 876359,
+      "send_rejected": 0,
+      "received": 1099754,
+      "receive_acknowledged": 1099754,
+      "receive_ack_failures": 0,
+      "retry_attempts": 2,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "harness": {
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 0,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    }
+  },
+  "latest_cut": {
+    "hot_latency": {
+      "limit_nanos": 400000000,
+      "count": 810725,
+      "above_limit": 102
+    },
+    "event": "wkbench.chat_lifecycle.worker_status_cut",
+    "run_id": "local-chat-lifecycle-shakeout",
+    "at": "2026-10-21T08:06:04.333745Z",
+    "cut": "terminal",
+    "totals": {
+      "target": 2500,
+      "online": 0,
+      "starting": 0,
+      "closing": 0,
+      "traffic_ready": 0
+    },
+    "close_reasons": {
+      "expired": 1515,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 2500,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    },
+    "messages": {
+      "sent": 876529,
+      "send_attempts": 876531,
+      "first_attempts": 876529,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 876529,
+      "send_rejected": 0,
+      "received": 1099924,
+      "receive_acknowledged": 1099924,
+      "receive_ack_failures": 0,
+      "retry_attempts": 2,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "harness": {
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 134,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    }
+  }
+}

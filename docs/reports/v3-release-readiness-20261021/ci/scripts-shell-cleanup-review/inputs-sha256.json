@@ -1,0 +1,14 @@
+{
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/shipping.patch": "21c51ebae7ac2c78de39699840be5206eaf710e7414c6442efd5f93261b6485c",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/shipping-freeze.json": "eab7ffd757432b7343e548e28ee3e5dec5fe8d104eb5401d4d8c57f024ee2166",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/focused-red.json": "59229e324d6bbbbeb8e0cf2d3adf937a8b96656ed06dab4f5931df64dd2ccb7a",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/focused-red.log": "238896e5d855020847a7626c9891af6d15158b626fb5e7feada5610b68eff32f",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/focused-green.json": "39c020ad2a6da9afa17e212fd75757ef7dfcff2fcbd40fec3519668e004aee55",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/focused-green.log": "8f957c642a064aba05fc75409ff35f41a8c24698ea832e4e57ead50bf2ca76aa",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-green.json": "3015ce8ec87e46c64addfceb8a3201cc70c5da0ae154860440fbd1d19afc4eec",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash3-green.log": "e794a7c3485411006d046c2b8a9a8a19fd92f5b6b08e0ff55ba5df831516b950",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-regression.json": "c3b77157d8d8c9067d4b18d55757c1fb6683f37e41a6a4b49943d494314e6ab4",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-regression.log": "f4e9901d64ab24deef1c812fd7d857853e6f48965c8dc70360a81a4db7dd8f37",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/failure-inventory.json": "e9ea1ee4dfb66aa6927eaa42ee8189fce466023445bfc13b1993f09fb2aec9d2",
+  "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-build.json": "61c0e7becd81ea46e42c444a5a871cab8002a3e82692859d50ee498c2b130021"
+}

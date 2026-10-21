@@ -1,0 +1,26 @@
+{
+  "version": "go1.25.11",
+  "platform_source_copy": "darwin-arm64 toolchain, shared cmd/go implementation",
+  "files": {
+    "cmd/go/internal/test/test.go": {
+      "sha256": "2d8a59a60c9f728f4da93b22b8c7e8c382f14e2eff2541eb490282940665ad24",
+      "bytes": 79440
+    },
+    "cmd/go/internal/test/testflag.go": {
+      "sha256": "328a02ccdca36d750175bb017f13f08a5750d96ae2889b152a838cf9a62c91fc",
+      "bytes": 12771
+    },
+    "cmd/go/internal/base/goflags.go": {
+      "sha256": "cf287bd9d900d6f1c3b4b99dad154f226edb675d49c5ec0f315204ff5212239d",
+      "bytes": 4580
+    },
+    "cmd/go/internal/work/build.go": {
+      "sha256": "57f6a157df6980bf8763d0afbcafe7cfe2b56bd2d5a06c03971690bc9bc96706",
+      "bytes": 34125
+    },
+    "cmd/go/alldocs.go": {
+      "sha256": "1e70443a5c5178978fbe16f40f877fda3ec6eee68f02e16aab01743880a83047",
+      "bytes": 154504
+    }
+  }
+}

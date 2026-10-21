@@ -1,0 +1,83 @@
+{
+  "base": "c21736edcf67bac4b5c1c495d1cd18490b1d154a",
+  "branch": "codex/stable-public-keys",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "4feb08333ca236888b110b9a31362349ea72250392bad7f87eb6b5f1d0a76ac7",
+      "size": 1150
+    },
+    "docs/release-contract.md": {
+      "sha256": "9b245ce1dd0da82a17c5452971ef335d6911a281d6820c970276c7463432de92",
+      "size": 33438
+    },
+    "keys/README.md": {
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "size": 5439
+    },
+    "scripts/validate-control.py": {
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "size": 44355
+    },
+    "tests/test_validate_control.py": {
+      "sha256": "462aabcc1c08519b14e8503b9667d76f937451ad1954c01e1b792a0d8af56618",
+      "size": 36589
+    },
+    "keys/apt-stable.asc": {
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "size": 4772
+    },
+    "keys/rpm-stable.asc": {
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "size": 4772
+    },
+    "manifests/stable-public-keys.json": {
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "size": 651
+    },
+    "tests/test_stable_public_keys.py": {
+      "sha256": "2a18798d4b7af6d7876b21f9a6030238db43f59227b05d04f681a71c0245e23e",
+      "size": 9553
+    }
+  },
+  "diff_sha256": "2126607840eb43fe666f0cf9207a5b70527aa3db1087d279829c8d46c9ffc53c",
+  "public_source_receipt_sha256": "af6fafeea56e0605d9872193537e39070a74e4362d1090d6c572f49b6a6033d3",
+  "tests": {
+    "first_red": {
+      "tests": 13,
+      "failures": 24,
+      "errors": 1
+    },
+    "focused_green": {
+      "tests": 13,
+      "result": "pass"
+    },
+    "existing_control_first": {
+      "tests": 30,
+      "failures": 1,
+      "cause": "old disabled-preview fixture expected README-only; registered stable public pair now also allowed"
+    },
+    "existing_control_green": {
+      "tests": 30,
+      "result": "pass"
+    },
+    "related_green": {
+      "tests": 103,
+      "includes_focused_13": true,
+      "result": "pass"
+    },
+    "contract": {
+      "result": "pass",
+      "workflow_tests": 3
+    }
+  },
+  "protected_count": 19,
+  "protected_all_unchanged": true,
+  "private_material_accessed": false,
+  "keychain_accessed": false,
+  "production_key_generation": false,
+  "stable_channel_enabled": false,
+  "published": false,
+  "commit_created": false,
+  "pushed": false
+}

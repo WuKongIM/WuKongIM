@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "scripts/v3_candidate_workflow_contract_test.py",
+    "-v"
+  ],
+  "cwd": "/tmp/wukongim-v3-readiness-20261021/scripts-timeout-readonly/observation-patch/candidate",
+  "returncode": 0,
+  "elapsed_seconds": 0.059499750030227005,
+  "expected": "eight static contracts pass",
+  "go_or_backend_started": false
+}

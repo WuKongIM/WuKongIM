@@ -1,0 +1,55 @@
+diff --git a/scripts/wukongim_three_nodes_build_integration_test.go b/scripts/wukongim_three_nodes_build_integration_test.go
+index cfdeae0e7..1d4c85981 100644
+--- a/scripts/wukongim_three_nodes_build_integration_test.go
++++ b/scripts/wukongim_three_nodes_build_integration_test.go
+@@ -3,6 +3,8 @@
+ package scripts_test
+ 
+ import (
++	"crypto/rand"
++	"os"
+ 	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+@@ -13,9 +15,9 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 	sourceRoot := repoRoot(t)
+ 	root, revision := nestedBuildWorktree(t, sourceRoot)
+ 	outputBin := filepath.Join(t.TempDir(), "wukongim")
+-	// Keep this assertion independent from link artifacts produced by earlier
+-	// repository checks so it always exercises this checkout's VCS context.
+-	buildCache := t.TempDir()
++	// Reuse compiled dependencies while forcing a new link for this checkout.
++	// The unique build ID also makes reuse of an earlier executable observable.
++	freshBuildID := "worktree-" + rand.Text()
+ 
+ 	dryRunCommand := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
+ 		"--dry-run",
+@@ -42,8 +44,8 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 	build := exec.Command("bash", "-c", buildCommand)
+ 	build.Dir = root
+ 	build.Env = append(
+-		envWithout("GOCACHE", "GOWORK"),
+-		"GOCACHE="+buildCache,
++		envWithout("GOFLAGS", "GOWORK"),
++		"GOFLAGS="+strings.TrimSpace(os.Getenv("GOFLAGS")+" -ldflags=-buildid="+freshBuildID),
+ 		"GOWORK="+filepath.Join(t.TempDir(), "missing-go.work"),
+ 	)
+ 	buildOutput, err := build.CombinedOutput()
+@@ -51,7 +53,16 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 		t.Fatalf("build local e2e binary: %v\n%s", err, buildOutput)
+ 	}
+ 
+-	versionCommand := exec.Command("go", "version", "-m", outputBin)
++	buildIDCommand := exec.Command("go", "tool", "buildid", outputBin)
++	buildIDOutput, err := buildIDCommand.CombinedOutput()
++	if err != nil {
++		t.Fatalf("inspect fresh local e2e link: %v\n%s", err, buildIDOutput)
++	}
++	if got := strings.TrimSpace(string(buildIDOutput)); got != freshBuildID {
++		t.Fatalf("binary build ID = %q, want fresh link %q", got, freshBuildID)
++	}
++
++	versionCommand := exec.Command("go", "version", "-json=false", "-m", outputBin)
+ 	versionOutput, err := versionCommand.CombinedOutput()
+ 	if err != nil {
+ 		t.Fatalf("inspect local e2e binary: %v\n%s", err, versionOutput)

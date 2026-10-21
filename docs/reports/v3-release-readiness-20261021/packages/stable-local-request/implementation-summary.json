@@ -1,0 +1,122 @@
+{
+  "baseline": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request",
+  "stage": "local-input-adapter-frozen-for-review",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "sha256": "6815187cb7a67b83d464fffbd1483ad2e6cde5c88b27b582b312a40f2a9b9170",
+      "size": 7718
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "767addc2d4e7d3ef564cd6389567f4152da8e5fae08713a6c97cee11b435acf1",
+      "size": 32120
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "bf33629757da09ac59f8e9bbd6b7d3ec20e24e17eab382e1f7de8c6da256a428",
+      "size": 4597
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "9b2d20e25cbc810c31ded3232c3881be4416eee547e3d1b7a3d53f334f3c8f92",
+      "size": 926
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "size": 38244
+    },
+    {
+      "path": "tests/test_sign_package_family.py",
+      "sha256": "65b79602daadd672a8628b82aa50df3d0819c0c07e6f20efd3fa10f26f222cb1",
+      "size": 34997
+    }
+  ],
+  "patch_sha256": "6d955627192292dadf98f8bb621bef440c60b7e688e838e1e783cc6f1cfa76ba",
+  "checks": {
+    "red": "6 tests; 3 failures and 2 subtest errors; missing local CLI arguments",
+    "green": "6 tests PASS in 0.478s",
+    "test_command": "cd tests && python3 -B -m unittest -v test_sign_package_family.PackageFamilyLocalInputTest",
+    "native_tools_executed": false,
+    "key_generation_executed": false,
+    "docker_executed": false,
+    "native_signing_compatibility_verified": false,
+    "production_key_material_accessed": false,
+    "publication": false,
+    "quiet": true
+  },
+  "protected_files": [
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/channels.json",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/source-read.json",
+      "unchanged": true
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "unchanged": true
+    }
+  ],
+  "unchanged_signing_implementation": "Only build_parser changed; validator and family signing functions unchanged",
+  "commit_push": false
+}

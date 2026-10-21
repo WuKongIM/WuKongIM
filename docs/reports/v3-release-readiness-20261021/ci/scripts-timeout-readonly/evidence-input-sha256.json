@@ -1,0 +1,42 @@
+{
+  "shakeout-1017-ci/scripts-first/result.json": {
+    "sha256": "caa26324609d605e24f38a87eb65f7e63cce81ea132c5024230675f7f7d2a5d0",
+    "bytes": 431
+  },
+  "shakeout-1017-ci/scripts-first/command.json": {
+    "sha256": "a2f95d7f4bfc0d788278191db116cb234ceeab229ce590bbd39d00ddaf416302",
+    "bytes": 332
+  },
+  "shakeout-1017-ci/scripts-first/identity.json": {
+    "sha256": "7bd9011d1f77a0beb24b4acaefc0c017ae29211b994cb39a35bd21a611523943",
+    "bytes": 286
+  },
+  "shakeout-1017-ci/scripts-first/stdout-stderr.log": {
+    "sha256": "b1eb4fa55d96fc8853011b19f898f1733ed24789b42fd90a3a007d71c9eb34ff",
+    "bytes": 5206
+  },
+  "local-shakeout-ed705-diagnosis/named-checks-remaining/scripts-integration.log": {
+    "sha256": "76340af08f88256d96dab2d0ba643e77ac5e18bb9fb39b134e8881ff5f6e8906",
+    "bytes": 55520
+  },
+  "local-shakeout-ed705-diagnosis/named-checks-remaining/scripts-integration.json": {
+    "sha256": "3e68ef763fe933f86292ffd2c0ca945cc0bd9d77a4f7804a865ae30501552ef1",
+    "bytes": 904
+  },
+  "local-shakeout-ed705-diagnosis/named-checks-scripts-isolated/scripts-integration.log": {
+    "sha256": "80b7e45ded11814eac8c9aa26c3848073b290244997aa07afd4e2af0917120bc",
+    "bytes": 44102
+  },
+  "local-shakeout-ed705-diagnosis/named-checks-scripts-isolated/scripts-integration.json": {
+    "sha256": "f772c28e8878a2fbb040efbbd04eec826fe4d8e99dfe4260e163ae7c3d34c271",
+    "bytes": 3315
+  },
+  "local-shakeout-ed705-diagnosis/named-checks-scripts-isolated/process-cpu.jsonl": {
+    "sha256": "ce3c856fc8a0a7cd512cb781453484a942e20606f9a44ae1e9fac1a082223c77",
+    "bytes": 74853
+  },
+  "local-shakeout-ed705-diagnosis/named-checks/go-unit.log": {
+    "sha256": "cb35a20c998f963c603946d96c6f5c012bb18145c3cb286f210354ee8d842b39",
+    "bytes": 15248
+  }
+}

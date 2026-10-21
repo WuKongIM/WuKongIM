@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-10-21T08:25:42.808062+00:00",
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-tags=integration",
+    "./scripts",
+    "-run",
+    "^(TestCloudSimulationAnalyzeExitTrapCompletesCleanupAndPreservesStatus|TestChatLifecycleLocalBaselineForwardsSignalAndJoinsActiveStep)$",
+    "-count=1",
+    "-timeout=45s",
+    "-parallel=2"
+  ],
+  "shell_version": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)",
+  "source_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "gocache": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+  "stage": "post-patch actual Bash3 compatibility",
+  "exit_code": 0,
+  "finished_at": "2026-10-21T08:25:45.026487+00:00"
+}

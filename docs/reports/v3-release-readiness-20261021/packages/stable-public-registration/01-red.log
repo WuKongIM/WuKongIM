@@ -1,0 +1,308 @@
+F.EFFFFFFFF.FFFFFFFFFFFFFF.F
+======================================================================
+ERROR: test_registration_does_not_depend_on_preview_being_enabled (test_stable_public_keys.StablePublicKeysTest.test_registration_does_not_depend_on_preview_being_enabled)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 186, in test_registration_does_not_depend_on_preview_being_enabled
+    self.assertEqual(module.validate_signing(root), signing)
+                     ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/scripts/validate-control.py", line 611, in validate_signing
+    require(set(actual_key_entries) == expected_key_files,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            f"keys directory entries must be exactly {sorted(expected_key_files)}")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/scripts/validate-control.py", line 131, in require
+    raise ContractError(message)
+stable_public_control.ContractError: keys directory entries must be exactly ['README.md']
+
+======================================================================
+FAIL: test_accepts_complete_registration_with_public_only_certificates (test_stable_public_keys.StablePublicKeysTest.test_accepts_complete_registration_with_public_only_certificates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 66, in test_accepts_complete_registration_with_public_only_certificates
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']
+
+
+======================================================================
+FAIL: test_rejects_certificate_role_mismatch (test_stable_public_keys.StablePublicKeysTest.test_rejects_certificate_role_mismatch) (field='primary_fingerprint')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 122, in test_rejects_certificate_role_mismatch
+    self.reject(root, 'fingerprint')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fingerprint' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_certificate_role_mismatch (test_stable_public_keys.StablePublicKeysTest.test_rejects_certificate_role_mismatch) (field='current')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 122, in test_rejects_certificate_role_mismatch
+    self.reject(root, 'fingerprint')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fingerprint' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_certificate_role_mismatch (test_stable_public_keys.StablePublicKeysTest.test_rejects_certificate_role_mismatch) (field='next')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 122, in test_rejects_certificate_role_mismatch
+    self.reject(root, 'fingerprint')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fingerprint' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_cross_channel_full_and_short_id_collisions (test_stable_public_keys.StablePublicKeysTest.test_rejects_cross_channel_full_and_short_id_collisions) (width=40)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 140, in test_rejects_cross_channel_full_and_short_id_collisions
+    self.reject(root, 'fingerprints must all be distinct' if width == 40 else f'globally distinct {width}-hex')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fingerprints must all be distinct' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_cross_channel_full_and_short_id_collisions (test_stable_public_keys.StablePublicKeysTest.test_rejects_cross_channel_full_and_short_id_collisions) (width=16)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 140, in test_rejects_cross_channel_full_and_short_id_collisions
+    self.reject(root, 'fingerprints must all be distinct' if width == 40 else f'globally distinct {width}-hex')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'globally distinct 16-hex' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_cross_channel_full_and_short_id_collisions (test_stable_public_keys.StablePublicKeysTest.test_rejects_cross_channel_full_and_short_id_collisions) (width=8)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 140, in test_rejects_cross_channel_full_and_short_id_collisions
+    self.reject(root, 'fingerprints must all be distinct' if width == 40 else f'globally distinct {width}-hex')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'globally distinct 8-hex' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_cross_stable_family_collision (test_stable_public_keys.StablePublicKeysTest.test_rejects_cross_stable_family_collision)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 147, in test_rejects_cross_stable_family_collision
+    self.reject(root, 'fingerprints must all be distinct')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fingerprints must all be distinct' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_duplicate_json_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_duplicate_json_fields)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 103, in test_rejects_duplicate_json_fields
+    self.reject(root, 'duplicate JSON key: schema')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'duplicate JSON key: schema' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_malformed_or_duplicate_roles (test_stable_public_keys.StablePublicKeysTest.test_rejects_malformed_or_duplicate_roles) (field='current', value='bad')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 113, in test_rejects_malformed_or_duplicate_roles
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_malformed_or_duplicate_roles (test_stable_public_keys.StablePublicKeysTest.test_rejects_malformed_or_duplicate_roles) (field='next', value=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 113, in test_rejects_malformed_or_duplicate_roles
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_malformed_or_duplicate_roles (test_stable_public_keys.StablePublicKeysTest.test_rejects_malformed_or_duplicate_roles) (field='historical', value='bad')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 113, in test_rejects_malformed_or_duplicate_roles
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_malformed_or_duplicate_roles (test_stable_public_keys.StablePublicKeysTest.test_rejects_malformed_or_duplicate_roles) (field='historical', value=['BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 113, in test_rejects_malformed_or_duplicate_roles
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_malformed_or_duplicate_roles (test_stable_public_keys.StablePublicKeysTest.test_rejects_malformed_or_duplicate_roles) (field='historical', value=['BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 113, in test_rejects_malformed_or_duplicate_roles
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_non_public_declaration_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_non_public_declaration_fields) (change=<function StablePublicKeysTest.test_rejects_non_public_declaration_fields.<locals>.<lambda> at 0x1031558a0>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 97, in test_rejects_non_public_declaration_fields
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_non_public_declaration_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_non_public_declaration_fields) (change=<function StablePublicKeysTest.test_rejects_non_public_declaration_fields.<locals>.<lambda> at 0x103102b60>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 97, in test_rejects_non_public_declaration_fields
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_non_public_declaration_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_non_public_declaration_fields) (change=<function StablePublicKeysTest.test_rejects_non_public_declaration_fields.<locals>.<lambda> at 0x1028fc7c0>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 97, in test_rejects_non_public_declaration_fields
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_non_public_declaration_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_non_public_declaration_fields) (change=<function StablePublicKeysTest.test_rejects_non_public_declaration_fields.<locals>.<lambda> at 0x1028fc5e0>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 97, in test_rejects_non_public_declaration_fields
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_non_public_declaration_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_non_public_declaration_fields) (change=<function StablePublicKeysTest.test_rejects_non_public_declaration_fields.<locals>.<lambda> at 0x1028fc860>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 97, in test_rejects_non_public_declaration_fields
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_non_public_declaration_fields (test_stable_public_keys.StablePublicKeysTest.test_rejects_non_public_declaration_fields) (change=<function StablePublicKeysTest.test_rejects_non_public_declaration_fields.<locals>.<lambda> at 0x1032ddc60>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 97, in test_rejects_non_public_declaration_fields
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_partial_registration (test_stable_public_keys.StablePublicKeysTest.test_rejects_partial_registration) (missing='keys/apt-stable.asc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 81, in test_rejects_partial_registration
+    self.reject(root, 'stable' if missing.startswith('keys/') else 'keys directory entries')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_partial_registration (test_stable_public_keys.StablePublicKeysTest.test_rejects_partial_registration) (missing='keys/rpm-stable.asc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 81, in test_rejects_partial_registration
+    self.reject(root, 'stable' if missing.startswith('keys/') else 'keys directory entries')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'stable' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+======================================================================
+FAIL: test_rejects_partial_registration (test_stable_public_keys.StablePublicKeysTest.test_rejects_partial_registration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 84, in test_rejects_partial_registration
+    self.reject(root, 'stable')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 58, in reject
+    self.assertNotEqual(result.returncode, 0, result.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : publication control validation passed
+
+
+======================================================================
+FAIL: test_rejects_reversed_current_and_next (test_stable_public_keys.StablePublicKeysTest.test_rejects_reversed_current_and_next)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 130, in test_rejects_reversed_current_and_next
+    self.reject(root, 'rotation runway')
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_stable_public_keys.py", line 59, in reject
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'rotation runway' not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-preview.asc', 'rpm-preview.asc']\n"
+
+----------------------------------------------------------------------
+Ran 13 tests in 1.164s
+
+FAILED (failures=24, errors=1)

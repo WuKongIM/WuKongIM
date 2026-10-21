@@ -1,0 +1,81 @@
+{
+  "reviewed_at_utc": "2026-10-21T08:27:10.263265+00:00",
+  "scope": "five explicit success-return changes in two shipping shell files and one new integration test; independent read-only review",
+  "base": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "shipping_patch_sha256": "21c51ebae7ac2c78de39699840be5206eaf710e7414c6442efd5f93261b6485c",
+  "files": {
+    "scripts/cloud-sim/analyze.sh": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8",
+    "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh": "68512d0add0a80b6b364400388720cd0acc301897ef8b4a5e6facffed16880a5",
+    "scripts/shell_trap_cleanup_integration_test.go": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6"
+  },
+  "standards_findings": [],
+  "spec_findings": [],
+  "blocking_findings": [],
+  "reviewer_executed_tests": false,
+  "reviewer_changed_source": false,
+  "receipts_independently_read_and_hashed": {
+    "focused-red": {
+      "shell_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+      "exit_code": 1,
+      "root_statuses": {
+        "fail": 2
+      },
+      "subtest_statuses": {
+        "fail": 8
+      },
+      "receipt_sha256": "59229e324d6bbbbeb8e0cf2d3adf937a8b96656ed06dab4f5931df64dd2ccb7a",
+      "log_sha256": "238896e5d855020847a7626c9891af6d15158b626fb5e7feada5610b68eff32f"
+    },
+    "focused-green": {
+      "shell_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+      "exit_code": 0,
+      "root_statuses": {
+        "pass": 2
+      },
+      "subtest_statuses": {
+        "pass": 8
+      },
+      "receipt_sha256": "39c020ad2a6da9afa17e212fd75757ef7dfcff2fcbd40fec3519668e004aee55",
+      "log_sha256": "8f957c642a064aba05fc75409ff35f41a8c24698ea832e4e57ead50bf2ca76aa"
+    },
+    "bash3-green": {
+      "shell_version": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin24)",
+      "exit_code": 0,
+      "root_statuses": {
+        "pass": 2
+      },
+      "subtest_statuses": {
+        "pass": 8
+      },
+      "receipt_sha256": "3015ce8ec87e46c64addfceb8a3201cc70c5da0ae154860440fbd1d19afc4eec",
+      "log_sha256": "e794a7c3485411006d046c2b8a9a8a19fd92f5b6b08e0ff55ba5df831516b950"
+    },
+    "bash5-regression": {
+      "shell_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+      "exit_code": 0,
+      "root_statuses": {
+        "pass": 9
+      },
+      "subtest_statuses": {
+        "pass": 15
+      },
+      "receipt_sha256": "c3b77157d8d8c9067d4b18d55757c1fb6683f37e41a6a4b49943d494314e6ab4",
+      "log_sha256": "f4e9901d64ab24deef1c812fd7d857853e6f48965c8dc70360a81a4db7dd8f37"
+    }
+  },
+  "verified_constraints": [
+    "Original cleanup exit17/143 retained by actual shell assertions",
+    "Close success/no-op/already-attempted/failure branches preserve owned cleanup ordering",
+    "Close failure29 warning is asserted without replacing original status",
+    "Baseline TERM is forwarded then child joined and exact143/evidence sealing checked",
+    "Signal state set before forwarding and child ownership/fence unchanged",
+    "Integration-tag test uses existing bounded scheduler and existing extraction/assertion helpers",
+    "No cloud calls or secret reads in regression fixtures"
+  ],
+  "remaining_limits": [
+    "Darwin Bash5.2.21 is not Ubuntu kernel/distribution reproduction",
+    "Observer Linux exit255 remains unexplained; source unchanged and local pass does not resolve original failure",
+    "Full scripts named check remains to run on integrated new Linux head",
+    "Root must add user-facing changelog entry before delivery; root notified"
+  ]
+}

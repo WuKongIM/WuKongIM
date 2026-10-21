@@ -1,0 +1,236 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index f9612fada..b0c3680d4 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Complete Analysis close and local cleanup after failures on Bash 5, and join
++  active chat-lifecycle steps after operator signals while preserving the
++  original exit status. / 修复 Bash 5 下失败退出时跳过 Analysis 关闭和本地清理、
++  操作员发出信号后未等待聊天生命周期活动步骤结束的问题，保留原始退出码。
++
+ - Raise the local chat-lifecycle shakeout's default SEND budget to 500/s so its
+   2,500-user bootstrap can complete mandatory conversation activity before
+   expiry; retain all latency and correctness thresholds. / 本地聊天生命周期预检
+diff --git a/scripts/cloud-sim/analyze.sh b/scripts/cloud-sim/analyze.sh
+index 260cc13bb..82bb78e9f 100755
+--- a/scripts/cloud-sim/analyze.sh
++++ b/scripts/cloud-sim/analyze.sh
+@@ -180,17 +180,18 @@ reject_project_codex_overrides() {
+ 
+ dispatch_close_best_effort() {
+   local close_status=0
++  # Successful cleanup must not inherit the EXIT trap's original failure status.
+   if [[ "$session_open" != true || -z "$repository" || -z "$request_id" || -z "$run_id" ]]; then
+-    return
++    return 0
+   fi
+   if [[ "$close_attempted_request_id" == "$request_id" ]]; then
+     printf 'Warning: Analysis close for request %s was already attempted; access-window expiry remains the backstop.\n' \
+       "$request_id" >&2
+-    return
++    return 0
+   fi
+   if dispatch_close_once >/dev/null; then
+     session_open=false
+-    return
++    return 0
+   else
+     close_status=$?
+   fi
+@@ -201,7 +202,8 @@ dispatch_close_best_effort() {
+ stop_analysis_bridge() {
+   local bridge_wait
+   if [[ -z "$analysis_bridge_pid" ]]; then
+-    return
++    # A no-op cleanup is successful even when entered from a failing EXIT trap.
++    return 0
+   fi
+   kill "$analysis_bridge_pid" 2>/dev/null || true
+   for ((bridge_wait = 0; bridge_wait < 50; bridge_wait += 1)); do
+diff --git a/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh b/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh
+index 03877d540..36a479c73 100755
+--- a/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh
++++ b/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh
+@@ -468,7 +468,8 @@ handle_operator_signal() {
+     OPERATOR_SIGNAL_STATUS="$exit_status"
+     log "received $signal_name; waiting for the active step to seal and exit"
+     forward_operator_signal_to_active_step
+-    return
++    # Keep the interrupted wait's status from aborting the child join on Bash 5.
++    return 0
+   fi
+   log "received another operator signal ($signal_name); forwarding it while retaining the first status and join"
+   if [[ -n "$ACTIVE_STEP_PID" ]] && kill -0 "$ACTIVE_STEP_PID" 2>/dev/null; then
+diff --git a/scripts/shell_trap_cleanup_integration_test.go b/scripts/shell_trap_cleanup_integration_test.go
+new file mode 100644
+index 000000000..a6dd35ed5
+--- /dev/null
++++ b/scripts/shell_trap_cleanup_integration_test.go
+@@ -0,0 +1,87 @@
++//go:build integration
++
++package scripts_test
++
++import (
++	"context"
++	"fmt"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++)
++
++// Failure inventory: a no-bridge return, a no-op close, or a successful close
++// must not inherit the EXIT trap's failure and skip the remaining cleanup.
++// A failed close still needs a warning and local cleanup; the original command
++// status must survive every branch. These are real shell traps, not cloud calls.
++func TestCloudSimulationAnalyzeExitTrapCompletesCleanupAndPreservesStatus(t *testing.T) {
++	root := repoRoot(t)
++	production := readFile(t, filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"))
++	functions := ""
++	for _, name := range []string{"dispatch_close_best_effort", "stop_analysis_bridge", "cleanup"} {
++		functions += extractBashFunction(t, production, name) + "\n"
++	}
++	for _, status := range []int{17, 143} {
++		for _, tc := range []struct {
++			name, open, attempted string
++			closeStatus           int
++			wantClose             bool
++		}{
++			{name: "live_close", open: "true", wantClose: true},
++			{name: "no_open_window", open: "false"},
++			{name: "close_already_attempted", open: "true", attempted: "fixture-request"},
++			{name: "close_failed", open: "true", closeStatus: 29, wantClose: true},
++		} {
++			t.Run(fmt.Sprintf("%s/status_%d", tc.name, status), func(t *testing.T) {
++				dir := t.TempDir()
++				owned := filepath.Join(dir, "owned")
++				resultTemp := filepath.Join(dir, "result.tmp")
++				trace := filepath.Join(dir, "cleanup.trace")
++				if err := os.Mkdir(owned, 0o700); err != nil {
++					t.Fatal(err)
++				}
++				if err := os.WriteFile(resultTemp, []byte("fixture"), 0o600); err != nil {
++					t.Fatal(err)
++				}
++				harness := `set -euo pipefail
++analysis_bridge_pid=""; analysis_bridge_url=""; analysis_token="fixture"
++session_open="$TEST_SESSION_OPEN"; repository="fixture/project"; request_id="fixture-request"; run_id="fixture-run"
++close_attempted_request_id="$TEST_ATTEMPTED"
++analysis_temp="$TEST_OWNED"; result_temp="$TEST_RESULT_TEMP"
++analysis_worktree_added=true; analysis_worktree="fixture-worktree"; REPO_ROOT="fixture-root"
++dispatch_close_once() { printf 'close\n' >>"$TEST_TRACE"; return "$TEST_CLOSE_STATUS"; }
++run_git_checkout_bounded() { printf 'worktree\n' >>"$TEST_TRACE"; }
++wk_cleanup_local_cloud_tools() { printf 'tools\n' >>"$TEST_TRACE"; }
++` + functions + "\ntrap cleanup EXIT\nexit \"$TEST_ORIGINAL_STATUS\"\n"
++				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
++				defer cancel()
++				cmd := exec.CommandContext(ctx, "bash", "-c", harness)
++				cmd.Env = append(os.Environ(), "LC_ALL=C", "TEST_SESSION_OPEN="+tc.open,
++					"TEST_ATTEMPTED="+tc.attempted, fmt.Sprintf("TEST_CLOSE_STATUS=%d", tc.closeStatus),
++					fmt.Sprintf("TEST_ORIGINAL_STATUS=%d", status), "TEST_OWNED="+owned,
++					"TEST_RESULT_TEMP="+resultTemp, "TEST_TRACE="+trace)
++				output, err := cmd.CombinedOutput()
++				requireLocalBaselineExitCode(t, err, output, status)
++				wantTrace := "worktree\ntools\n"
++				if tc.wantClose {
++					wantTrace = "close\n" + wantTrace
++				}
++				got, readErr := os.ReadFile(trace)
++				if readErr != nil || string(got) != wantTrace {
++					t.Fatalf("EXIT cleanup trace = %q, read error %v, want %q; output:\n%s", got, readErr, wantTrace, output)
++				}
++				for _, path := range []string{owned, resultTemp} {
++					if _, err := os.Stat(path); !os.IsNotExist(err) {
++						t.Errorf("EXIT cleanup retained %s: %v", path, err)
++					}
++				}
++				if tc.closeStatus != 0 && !strings.Contains(string(output), "could not be confirmed (status 29)") {
++					t.Errorf("failed close warning missing: %s", output)
++				}
++			})
++		}
++	}
++}
+diff --git a/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go b/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
+index a8fb4542b..d3574b496 100644
+--- a/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
++++ b/scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go
+@@ -994,7 +994,7 @@ observe_hot_latency_trigger measurement
+ join_threshold_pprof_capture
+ test "$(wc -l <"$TEST_DIR/captures")" -eq 2
+ test "$(cat "$EVIDENCE_DIR/hot-latency-helper-exit-status")" = 0
+-rg -q -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
++grep -Fq -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
+ # Required terminal evidence preempts an optional hot capture before phase closes.
+ PPROF_TRIGGERED=0
+ PPROF_TRIGGER_KIND=''
+@@ -1009,7 +1009,7 @@ printf 'drain\n' >"$PHASE_STATE_FILE"
+ join_threshold_pprof_capture
+ test "$PPROF_EXIT_STATUS" = 0
+ test "$PPROF_TRIGGER_KIND" = terminal_product_failure
+-rg -q -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
++grep -Fq -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
+ # A trigger delayed beyond measurement remains explicitly uncollected.
+ HOT_PPROF_PENDING='pending'
+ HOT_PPROF_TRIGGERED=0
+diff --git a/scripts/wukongim_three_nodes_build_integration_test.go b/scripts/wukongim_three_nodes_build_integration_test.go
+index cfdeae0e7..1d4c85981 100644
+--- a/scripts/wukongim_three_nodes_build_integration_test.go
++++ b/scripts/wukongim_three_nodes_build_integration_test.go
+@@ -3,6 +3,8 @@
+ package scripts_test
+ 
+ import (
++	"crypto/rand"
++	"os"
+ 	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+@@ -13,9 +15,9 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 	sourceRoot := repoRoot(t)
+ 	root, revision := nestedBuildWorktree(t, sourceRoot)
+ 	outputBin := filepath.Join(t.TempDir(), "wukongim")
+-	// Keep this assertion independent from link artifacts produced by earlier
+-	// repository checks so it always exercises this checkout's VCS context.
+-	buildCache := t.TempDir()
++	// Reuse compiled dependencies while forcing a new link for this checkout.
++	// The unique build ID also makes reuse of an earlier executable observable.
++	freshBuildID := "worktree-" + rand.Text()
+ 
+ 	dryRunCommand := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
+ 		"--dry-run",
+@@ -42,8 +44,8 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 	build := exec.Command("bash", "-c", buildCommand)
+ 	build.Dir = root
+ 	build.Env = append(
+-		envWithout("GOCACHE", "GOWORK"),
+-		"GOCACHE="+buildCache,
++		envWithout("GOFLAGS", "GOWORK"),
++		"GOFLAGS="+strings.TrimSpace(os.Getenv("GOFLAGS")+" -ldflags=-buildid="+freshBuildID),
+ 		"GOWORK="+filepath.Join(t.TempDir(), "missing-go.work"),
+ 	)
+ 	buildOutput, err := build.CombinedOutput()
+@@ -51,7 +53,16 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
+ 		t.Fatalf("build local e2e binary: %v\n%s", err, buildOutput)
+ 	}
+ 
+-	versionCommand := exec.Command("go", "version", "-m", outputBin)
++	buildIDCommand := exec.Command("go", "tool", "buildid", outputBin)
++	buildIDOutput, err := buildIDCommand.CombinedOutput()
++	if err != nil {
++		t.Fatalf("inspect fresh local e2e link: %v\n%s", err, buildIDOutput)
++	}
++	if got := strings.TrimSpace(string(buildIDOutput)); got != freshBuildID {
++		t.Fatalf("binary build ID = %q, want fresh link %q", got, freshBuildID)
++	}
++
++	versionCommand := exec.Command("go", "version", "-json=false", "-m", outputBin)
+ 	versionOutput, err := versionCommand.CombinedOutput()
+ 	if err != nil {
+ 		t.Fatalf("inspect local e2e binary: %v\n%s", err, versionOutput)

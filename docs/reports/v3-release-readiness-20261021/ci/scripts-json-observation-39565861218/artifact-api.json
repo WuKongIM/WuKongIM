@@ -1,0 +1,20 @@
+{
+  "id": 12330322889,
+  "node_id": "MDg6QXJ0aWZhY3QxMjMzMDMyMjg4OQ==",
+  "name": "v3-candidate-scripts-39565861218-1",
+  "size_in_bytes": 107866,
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12330322889",
+  "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12330322889/zip",
+  "expired": false,
+  "digest": "sha256:9f58dac6c178db70aa3834b3e3590d091a92331744ed8d127e9944804d1dfe11",
+  "created_at": "2026-10-21T08:09:36Z",
+  "updated_at": "2026-10-21T08:09:36Z",
+  "expires_at": "2026-11-04T08:09:35Z",
+  "workflow_run": {
+    "id": 39565861218,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "codex/v3-shakeout-grant-repair",
+    "head_sha": "eda77697db42ba14f14bfad58cdd3557342b9989"
+  }
+}

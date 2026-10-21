@@ -1,0 +1,86 @@
+{
+  "command": [
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+    "--run-dir",
+    "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run",
+    "--stop-after",
+    "1800"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "started_at": "2026-10-21T07:35:26.451214+00:00",
+  "source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "environment": {
+    "PATH": "/usr/local/go/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "HOME": "/Users/tt",
+    "GOWORK": "off",
+    "GOENV": "off",
+    "GOTOOLCHAIN": "go1.25.11",
+    "GOFLAGS": "-p=2",
+    "GOCACHE": "/private/tmp/wukongim-v3-readiness-20261021/local-shakeout-ed705-diagnosis/go-cache",
+    "TMPDIR": "/tmp/wksoak-0672c115950f-20261021",
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "credential_keys": [
+    "WK_BENCH_API_TOKEN",
+    "WK_BENCH_WORKER_TOKEN"
+  ],
+  "credentials": "Fresh distinct local-only 256-bit tokens; environment only, never persisted in this receipt.",
+  "bound_seconds": 3000,
+  "stop_after_seconds": 1800,
+  "helper_pid": 94726,
+  "exit_code": 130,
+  "owned_session_id": 94726,
+  "finished_at": "2026-10-21T08:06:11.305220+00:00",
+  "outer_signal": null,
+  "wrapper_error": null,
+  "source_sha_after": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "source_clean_after": true,
+  "source_files_unchanged": true,
+  "wrapper_exit_code": 130,
+  "post_errors": [],
+  "helper_planned_operator_stop": true,
+  "final_report": {
+    "present": true,
+    "readable": true,
+    "sha256": "b4ae55c54ea4fa41d4cc1d2fb5874c1e55f0621e9f5336a676cd30ecdd92da76",
+    "final": true,
+    "verdict": {
+      "outcome": "operator_stop",
+      "cause": "operator_requested",
+      "terminal": true,
+      "cleanup_error_count": 0,
+      "latency_warnings": {
+        "hot": 0,
+        "cold": 0,
+        "sync": 0
+      },
+      "latency_anomaly_count": 0,
+      "retention": {
+        "minute_samples": 13,
+        "minute_capacity": 16,
+        "latency_samples": [
+          61,
+          61,
+          61
+        ],
+        "latency_capacity": 64,
+        "heap_samples": [
+          0,
+          0,
+          0
+        ],
+        "heap_capacity": 7,
+        "goroutine_samples": [
+          0,
+          0,
+          0
+        ],
+        "goroutine_capacity": 25
+      }
+    }
+  },
+  "cleanup_pass": true,
+  "observer_errors": [],
+  "credential_scan_pass": true
+}

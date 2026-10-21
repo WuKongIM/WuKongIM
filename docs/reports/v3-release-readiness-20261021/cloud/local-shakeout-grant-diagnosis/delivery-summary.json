@@ -1,0 +1,63 @@
+{
+  "at": "2026-10-21T07:40:15.063347+00:00",
+  "head": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "tree": "ad05497c99502a4d076bacb7dee150d10e939d28",
+  "source_patch": "shipping-final-source.patch",
+  "source_patch_sha256": "d9b4aa07b7b106f26e1a2c9c4b1c04e651cc7e5681d1fe7935372fb233edc0ac",
+  "changed_files": [
+    ".github/workflows/README.md",
+    ".github/workflows/v3-candidate-regression.yml",
+    "CHANGELOG.md",
+    "configs/wkbench/chat-lifecycle/README.md",
+    "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+    "internal/bench/chatlifecycle/config_examples_test.go",
+    "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+    "pkg/transport/internal/buffer/retained_test.go",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+    "scripts/v3_candidate_workflow_contract_test.py",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+    "scripts/wukongim_three_node_chat_lifecycle_script_test.go"
+  ],
+  "policy_selection": "linux-scripts-gate/final-policy-selection.json",
+  "selected_checks": [
+    "flow-doc-contracts",
+    "go-format",
+    "go-mod-tidy",
+    "go-unit",
+    "go-vet",
+    "scripts-integration",
+    "workflow-contracts"
+  ],
+  "checks_summary": {
+    "go-unit": "219 package passes; later buffer test pointer change covered by focused package test",
+    "go-vet": "pass after retained pre-existing copy-lock test failure and minimal pointer fix",
+    "go-format": "pass on final14file source",
+    "go-mod-tidy": "pass; dependencies unchanged",
+    "flow-doc-contracts": "pass",
+    "workflow-contracts": "pass after adding independent Linux scripts gate",
+    "scripts-integration": "two local9m timeouts retained; no third local attempt; independent unchanged-policy Linux job pending PR CI"
+  },
+  "focused_checks": [
+    "actual factory/ApplyGrant500 all3workers360s green, bootstrap empty at240s",
+    "historical100 negative remains red path with ActivityUnderDelivered1",
+    "real helper render default500/1000 and override400/800 green",
+    "8 Python workflow contracts green after retained red",
+    "actionlint green",
+    "buffer package vet/test green"
+  ],
+  "independent_review": "ci_audit final14file read-only review no findings; its appendix separate",
+  "local30m": {
+    "started_at": "2026-10-21T07:35:26.454501+00:00",
+    "output": "/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500",
+    "status_at_freeze": "running; not yet qualified",
+    "session_id": 94726
+  },
+  "limitations": [
+    "no formal/72h evidence",
+    "no new stable publication or production authority",
+    "local scripts gate is not passed; new Linux result pending",
+    "fake-ACK fixed-clock supply regression is not a product correctness/performance test"
+  ]
+}

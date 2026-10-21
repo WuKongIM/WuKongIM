@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-21T07:32:43.928358+00:00",
+  "command": [
+    "python3",
+    "-B",
+    "scripts/v3_candidate_workflow_contract_test.py"
+  ],
+  "exit_code": 1,
+  "tests": 8,
+  "expected_failures": 3,
+  "test_source_sha256": "a606f6acc493e2d32f78e6ef7f4a7fa616986e7fc1ab13b31de0c7318a343d60",
+  "log_sha256": "61df4f3e899abb7261b1d2242382083ce86ce46219c87ccf505a0eae88a5ff65"
+}

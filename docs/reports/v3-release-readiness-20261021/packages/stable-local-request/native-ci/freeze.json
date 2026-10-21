@@ -1,0 +1,60 @@
+{
+  "baseline": "45619df14b931ef0da3eae7a6e3d5402307daa60",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 7718,
+      "sha256": "6815187cb7a67b83d464fffbd1483ad2e6cde5c88b27b582b312a40f2a9b9170"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "size": 32817,
+      "sha256": "35ffc9710b020dd649d7bae6a835b5dd4ee0d541f67b668b4ade89f4306639e5"
+    },
+    {
+      "path": "keys/README.md",
+      "size": 4597,
+      "sha256": "bf33629757da09ac59f8e9bbd6b7d3ec20e24e17eab382e1f7de8c6da256a428"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "size": 979,
+      "sha256": "4c48d5730b01dc155472e397a739ac716965c5d50cfb37c113889c980dabddbb"
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "size": 38244,
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0"
+    },
+    {
+      "path": "tests/test_sign_package_family.py",
+      "size": 34997,
+      "sha256": "65b79602daadd672a8628b82aa50df3d0819c0c07e6f20efd3fa10f26f222cb1"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "size": 6985,
+      "sha256": "8d5516f746de966a868625ec552cc85b2b97a25e5bc71654b5f5d47299ade43a"
+    },
+    {
+      "path": "tests/test_source_preflight_workflow.py",
+      "size": 4270,
+      "sha256": "3b2e0deef34b3885ee9a3b64bf326946cd01c1f2724562d37187c4f2e9b8e866"
+    },
+    {
+      "path": "tests/native_local_signing_drill.py",
+      "size": 21691,
+      "sha256": "6a9eaded5f9e2848e5324716fb538f12d359efaa4b39ce2a93fab0483ebc5bc0"
+    }
+  ],
+  "patch_sha256": "96321c1d39ad1972179d53077528c95af2f03d9374449887ab313c5933c544d6",
+  "static_syntax_parse": "4 Python files parsed without importing/executing",
+  "new_native_tests_executed": false,
+  "new_workflow_test_executed": false,
+  "prior_thin_cli_tests": "6/6 PASS; ../../01/02 logs at parent evidence directory",
+  "native_execution_plan": "existing read-only PR TEST ONLY workflow; exact pinned Linux image, 1cpu/512MiB/8min, network none, single JSON artifact",
+  "current_quiet": true,
+  "production_material_accessed": false,
+  "owned_live_processes": false
+}

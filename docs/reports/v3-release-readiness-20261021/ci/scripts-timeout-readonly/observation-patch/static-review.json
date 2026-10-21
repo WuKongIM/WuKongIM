@@ -1,0 +1,16 @@
+{
+  "python_ast": "pass_no_import_or_execution",
+  "embedded_python_ast_blocks": [
+    87,
+    177
+  ],
+  "patch_apply_check": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "unit_contract_tests": "not_run_parent_quiet_window",
+  "go_tests_builds": "not_run",
+  "workflow_dispatch": "not_run",
+  "source_worktree_modified": false
+}

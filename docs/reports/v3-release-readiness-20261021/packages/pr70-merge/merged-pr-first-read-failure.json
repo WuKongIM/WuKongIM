@@ -1,0 +1,5 @@
+{
+  "operation": "GET repos/WuKongIM/packages/pulls/70",
+  "result": "transport EOF; original redirected merged-pr.json is empty and preserved",
+  "not_a_workflow_retry": true
+}

@@ -1,0 +1,9 @@
+{
+  "source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "scripts/cloud-deployment/FLOW.md": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80"
+  },
+  "note": "No scripts-level FLOW or AGENTS is tracked; cloud-deployment subtree FLOW read before references to its scripts. No tests or builds run."
+}

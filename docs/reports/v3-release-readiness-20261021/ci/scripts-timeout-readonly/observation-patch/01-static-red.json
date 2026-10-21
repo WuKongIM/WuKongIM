@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "scripts/v3_candidate_workflow_contract_test.py",
+    "-v"
+  ],
+  "cwd": "/tmp/wukongim-v3-readiness-20261021/scripts-timeout-readonly/observation-patch/red",
+  "returncode": 1,
+  "elapsed_seconds": 0.053952125017531216,
+  "expected": "one assertion failure: scripts GOFLAGS lacks -json; eight tests attempted",
+  "go_or_backend_started": false
+}

@@ -1,0 +1,46 @@
+{
+  "run_id": 39565861218,
+  "run_attempt": 1,
+  "job_id": 119107852968,
+  "head_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "checkout_merge_sha": "abd628769baf7552a8cf8abb29a7ba63e52c3326",
+  "checkout_tree": "773a7f5a6d6f89160ad71e7c6fdfb557eb42239e",
+  "merge_parents": [
+    "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+    "eda77697db42ba14f14bfad58cdd3557342b9989"
+  ],
+  "policy_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "result": {
+    "status": "timeout",
+    "exit_code": -15,
+    "session_id": 2532,
+    "output_bytes": 1320113,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 2532,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        2532,
+        12901,
+        107184,
+        107718,
+        107768,
+        107770,
+        107878,
+        107912,
+        107929
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "timeout",
+    "wrapper_exit_code": 124,
+    "elapsed_seconds": 600.14
+  },
+  "artifact_log_sha256": "e541284876851de061731d81a70f50ac734b74b0999f601340e5fc80fddbddf3",
+  "job_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39565861218/job/119107852968",
+  "rerun_performed": false,
+  "heavy_local_tests_performed": false
+}

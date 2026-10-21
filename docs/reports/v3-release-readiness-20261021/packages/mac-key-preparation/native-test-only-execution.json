@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "/tmp/wukongim-v3-readiness-20261021/packages/mac-key-preparation/prepare_stable_keys.py",
+    "--execute",
+    "--test-only",
+    "--output",
+    "/tmp/wukongim-stable-keyprep-TEST-ONLY-20261021"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 29.524
+}

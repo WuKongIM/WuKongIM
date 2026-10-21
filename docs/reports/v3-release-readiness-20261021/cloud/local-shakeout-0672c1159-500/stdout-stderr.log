@@ -1,0 +1,15 @@
+[chat-lifecycle-shakeout] building service and benchmark binaries
+[chat-lifecycle-shakeout] service-1 ready: http://127.0.0.1:15001/readyz
+[chat-lifecycle-shakeout] service-2 ready: http://127.0.0.1:15002/readyz
+[chat-lifecycle-shakeout] service-3 ready: http://127.0.0.1:15003/readyz
+[chat-lifecycle-shakeout] worker-1 ready: http://127.0.0.1:15051/healthz
+[chat-lifecycle-shakeout] host-metrics-1 ready: http://127.0.0.1:15061/healthz
+[chat-lifecycle-shakeout] worker-2 ready: http://127.0.0.1:15052/healthz
+[chat-lifecycle-shakeout] host-metrics-2 ready: http://127.0.0.1:15062/healthz
+[chat-lifecycle-shakeout] worker-3 ready: http://127.0.0.1:15053/healthz
+[chat-lifecycle-shakeout] host-metrics-3 ready: http://127.0.0.1:15063/healthz
+[chat-lifecycle-shakeout] host-metrics-load ready: http://127.0.0.1:15060/healthz
+[chat-lifecycle-shakeout] starting coordinator
+[chat-lifecycle-shakeout] --stop-after elapsed: forwarding one TERM to the coordinator
+[chat-lifecycle-shakeout] terminal report summary: {"outcome":"operator_stop","cause":"operator_requested","hot_sendack_p99_limit_ms":400,"hot_sendack_count":810725,"hot_sendack_mean_ms":64.85138125725862,"sent":876529,"acknowledged":876529}
+[chat-lifecycle-shakeout] bounded shakeout stopped cleanly; final report: /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/report/final.json

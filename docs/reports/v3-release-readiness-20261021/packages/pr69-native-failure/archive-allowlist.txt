@@ -1,0 +1,16 @@
+README.md
+artifact/native-local-signing.json
+artifacts.json
+canonical-fixture-green.log
+canonical-fixture-red.log
+diagnostic-green.log
+diagnostic-red.log
+failure-inventory.md
+job.json
+job.log
+native_local_signing_drill.py.txt
+repair-summary.json
+repair.patch
+run.json
+test_native_local_signing_drill.py.txt
+workflow-static-green.log

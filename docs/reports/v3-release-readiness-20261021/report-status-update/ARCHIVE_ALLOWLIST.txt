@@ -1,0 +1,9 @@
+2026-10-21-v3-release-readiness.md.before
+2026-10-21-v3-stable-key-preparation.md.before
+product-run-39569706125.json
+profile-portability-review.json
+reports.patch
+source-before.json
+verification.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

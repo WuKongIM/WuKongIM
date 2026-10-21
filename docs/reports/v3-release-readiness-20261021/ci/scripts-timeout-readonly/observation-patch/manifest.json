@@ -1,0 +1,23 @@
+{
+  "base_source_sha": "0672c115950f65e6d92381aa5b3ea9f0a20fc790",
+  "scope": "proposal_only_tmp_no_worktree_mutation",
+  "files": {
+    ".github/workflows/v3-candidate-regression.yml": {
+      "base_sha256": "3581a155baa78511cb3af3192d3df4c0be79172484dfaa04cd6ce0de9a8b111c",
+      "candidate_sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    ".github/workflows/README.md": {
+      "base_sha256": "299393170cc08561d5ba99c91a48c1763bea3afae169795b9cf367436259ba0a",
+      "candidate_sha256": "4c51e87a10d8a27b0923329bc1b0ec520502c9f1c5ef4fb2ce44c093a4e67bb1"
+    },
+    "scripts/v3_candidate_workflow_contract_test.py": {
+      "base_sha256": "5049c0c51da0e58c0dcc0bf32f5fa7d645e45a005eb8e06517789d1e5924992b",
+      "candidate_sha256": "d4c691b6dc49364c66fccb95ede050256d0980f0e83282270e3b0bb7ab2a4ed2"
+    }
+  },
+  "patch_sha256": "d39d2a9884d063b8149169bd0d9f168b754314a238f463f9971a4eecbc3162b8",
+  "tests": "8 static Python contracts green; baseline red retained; no Go execution",
+  "policy_changed": false,
+  "runner_changed": false,
+  "test_selection_changed": false
+}

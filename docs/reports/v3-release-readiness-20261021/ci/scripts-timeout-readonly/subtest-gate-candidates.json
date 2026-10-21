@@ -1,0 +1,105 @@
+{
+  "note": "Static candidates only; indirect helpers and explicit t.Parallel require individual inspection. Not elapsed-time attribution.",
+  "items": [
+    {
+      "file": "scripts/chat_lifecycle_artifact_seal_integration_test.go",
+      "line": 14,
+      "test": "TestChatLifecycleLocalBaselineRejectsIncompleteReproductionSeal"
+    },
+    {
+      "file": "scripts/chat_lifecycle_local_baseline_process_integration_test.go",
+      "line": 25,
+      "test": "TestChatLifecycleLocalBaselinePrunesOnlyAfterValidatedStepEvidence"
+    },
+    {
+      "file": "scripts/cloud_deployment_activate_integration_test.go",
+      "line": 17,
+      "test": "TestCloudDeploymentActivateHostsWithFakeSSH"
+    },
+    {
+      "file": "scripts/cloud_deployment_execution_integration_test.go",
+      "line": 21,
+      "test": "TestCloudDeploymentExecution"
+    },
+    {
+      "file": "scripts/cloud_deployment_execution_integration_test.go",
+      "line": 242,
+      "test": "TestCloudDeploymentPortableTimeoutEscalates"
+    },
+    {
+      "file": "scripts/cloud_sim_finalize_integration_test.go",
+      "line": 224,
+      "test": "TestCloudSimulationFinalizeWaitsAnalyzesCleansAndVerifiesRelease"
+    },
+    {
+      "file": "scripts/cloud_sim_finalize_integration_test.go",
+      "line": 296,
+      "test": "TestCloudSimulationFinalizeRecoversCorrelatedCleanupAfterLocalGitHubErrors"
+    },
+    {
+      "file": "scripts/cloud_sim_finalize_integration_test.go",
+      "line": 327,
+      "test": "TestCloudSimulationFinalizeDistinguishesCleanupFailureFromVerificationFailure"
+    },
+    {
+      "file": "scripts/docs_cdn_certificate_integration_test.go",
+      "line": 102,
+      "test": "TestDocsCDNCertificateInspectRejectsAmbiguousOrUnexpectedPublicDNS"
+    },
+    {
+      "file": "scripts/docs_cdn_certificate_integration_test.go",
+      "line": 189,
+      "test": "TestDocsCDNCertificateInspectRejectsMissingOrNonBooleanFields"
+    },
+    {
+      "file": "scripts/docs_cdn_certificate_integration_test.go",
+      "line": 227,
+      "test": "TestDocsCDNCertificateRotateAcceptsFalseBooleansBeforeApplyingPolicy"
+    },
+    {
+      "file": "scripts/easysdk_readiness_integration_test.go",
+      "line": 16,
+      "test": "TestEasySDKStableReadiness"
+    },
+    {
+      "file": "scripts/local_storage_overlap_script_integration_test.go",
+      "line": 19,
+      "test": "TestLocalStorageOverlapCaptureHardDeadlineLeavesNoChild"
+    },
+    {
+      "file": "scripts/migration_rehearsal_integration_test.go",
+      "line": 17,
+      "test": "TestMigrationRehearsalLifecycle"
+    },
+    {
+      "file": "scripts/native_package_bootstrap_diagnostics_integration_test.go",
+      "line": 18,
+      "test": "TestNativePackageBootstrapFailureDiagnostics"
+    },
+    {
+      "file": "scripts/send_flight_integration_test.go",
+      "line": 15,
+      "test": "Test500QPSSeamPreservesVerdictAndRetainsInterruptedFlight"
+    },
+    {
+      "file": "scripts/wukongim_local_threshold_pprof_script_integration_test.go",
+      "line": 520,
+      "test": "TestLocalThresholdPprofCapturesBoundedContext"
+    },
+    {
+      "file": "scripts/wukongim_single_node_baseline_artifact_integration_test.go",
+      "line": 300,
+      "test": "TestSingleNodeBaselineMissingOrTamperedSealedBinaryFailsClosed"
+    },
+    {
+      "file": "scripts/wukongim_single_node_threshold_phase_integration_test.go",
+      "line": 560,
+      "test": "TestSingleNodeLifecycleSamplerMapsCurrentAssignmentPhases"
+    },
+    {
+      "file": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "line": 158,
+      "test": "TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts"
+    }
+  ]
+}

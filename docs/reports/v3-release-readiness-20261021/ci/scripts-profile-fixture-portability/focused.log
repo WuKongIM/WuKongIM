@@ -1,0 +1,12 @@
+{"Time":"2026-10-21T16:26:56.102381+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts"}
+{"Time":"2026-10-21T16:26:56.440648+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures"}
+{"Time":"2026-10-21T16:26:56.440779+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures","Output":"=== RUN   TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures\n"}
+{"Time":"2026-10-21T16:26:56.440809+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures","Output":"=== PAUSE TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures\n"}
+{"Time":"2026-10-21T16:26:56.440814+08:00","Action":"pause","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures"}
+{"Time":"2026-10-21T16:26:56.440819+08:00","Action":"cont","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures"}
+{"Time":"2026-10-21T16:26:56.440822+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures","Output":"=== CONT  TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures\n"}
+{"Time":"2026-10-21T16:26:56.867448+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures","Output":"--- PASS: TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures (0.43s)\n"}
+{"Time":"2026-10-21T16:26:56.867499+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures","Elapsed":0.43}
+{"Time":"2026-10-21T16:26:56.867525+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"PASS\n"}
+{"Time":"2026-10-21T16:26:56.869613+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t0.767s\n"}
+{"Time":"2026-10-21T16:26:56.869635+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Elapsed":0.767}

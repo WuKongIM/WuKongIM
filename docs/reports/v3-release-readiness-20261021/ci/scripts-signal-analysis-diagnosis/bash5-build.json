@@ -1,0 +1,34 @@
+{
+  "url": "https://ftp.gnu.org/gnu/bash/bash-5.2.21.tar.gz",
+  "sha256": "c8e31bdc59b69aaffc5b36509905ba3e5cbb12747091d27b4b977f078560d5b8",
+  "bytes": 10952391,
+  "source_version": "5.2.21",
+  "job_image": "ubuntu-24.04 20261018.339.1",
+  "image_readme": "https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md",
+  "image_declared_bash": "5.2.21(1)-release",
+  "actual_job_bash_version_command_not_recorded": true,
+  "platform": "Darwin arm64; not Linux kernel/distribution reproduction",
+  "started_at": "2026-10-21T08:17:44.757405+00:00",
+  "commands": [
+    {
+      "command": [
+        "/bin/bash",
+        "configure",
+        "--prefix=/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-prefix",
+        "--without-bash-malloc",
+        "--disable-nls"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "make",
+        "-j2"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+  "binary_sha256": "f12fc5f1a3c9a0d1869154024b24a54f9f8297d64724df07a8d410683e0fd821",
+  "finished_at": "2026-10-21T08:18:47.401820+00:00"
+}

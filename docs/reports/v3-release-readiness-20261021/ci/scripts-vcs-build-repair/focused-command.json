@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "go",
+    "test",
+    "-tags=integration",
+    "./scripts/...",
+    "-run=^TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision$",
+    "-count=1",
+    "-timeout=9m",
+    "-parallel=2"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair",
+  "environment_overrides": {
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2 -json"
+  },
+  "outer_timeout_seconds": 600,
+  "performance_comparison": false,
+  "known_possible_concurrency": "rc temporary GNU Bash build -j2"
+}

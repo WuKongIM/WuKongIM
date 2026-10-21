@@ -1,0 +1,32 @@
+F....F.F
+======================================================================
+FAIL: test_authority_and_trigger_scope (__main__.CandidateWorkflowContract.test_authority_and_trigger_scope)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair/scripts/v3_candidate_workflow_contract_test.py", line 33, in test_authority_and_trigger_scope
+    self.assertEqual(len(actions), 9)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: 6 != 9
+
+======================================================================
+FAIL: test_scripts_gate_is_independent_and_consumes_frozen_base_policy (__main__.CandidateWorkflowContract.test_scripts_gate_is_independent_and_consumes_frozen_base_policy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair/scripts/v3_candidate_workflow_contract_test.py", line 56, in test_scripts_gate_is_independent_and_consumes_frozen_base_policy
+    self.assertIsNotNone(match, 'missing independent Linux scripts-integration job')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : missing independent Linux scripts-integration job
+
+======================================================================
+FAIL: test_source_failure_and_upload_evidence (__main__.CandidateWorkflowContract.test_source_failure_and_upload_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-shakeout-grant-repair/scripts/v3_candidate_workflow_contract_test.py", line 120, in test_source_failure_and_upload_evidence
+    self.assertEqual(text.count('ref: ${{ github.sha }}'), 3)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 3
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.002s
+
+FAILED (failures=3)

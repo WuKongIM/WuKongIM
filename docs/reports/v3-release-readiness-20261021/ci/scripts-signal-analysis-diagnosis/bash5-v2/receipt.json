@@ -1,0 +1,335 @@
+{
+  "source_sha": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "files_sha256": {
+    "scripts/cloud-sim/analyze.sh": "3da01b22f59ad2ea51473d9acea947039fdf2cd91be91123b9e3321a8e032f9f",
+    "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh": "e7915cac37e2b5197438a74c99d16ee60768c4dfd70cad5f3f284c87064e3c69",
+    "scripts/bench-wukongim-single-node-1000ch.sh": "2660f796d3441fe221d12b7bd570259e406595208f77f4cb99527afb845fbae5",
+    "scripts/wukongim_single_node_terminal_cut_integration_test.go": "ef5fc20a0ecef50d1efb5aee169797fa0c7c5f44507f2159e5c87ad001fc992d"
+  },
+  "bash": "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+  "bash_version": "GNU bash, version 5.2.21(1)-release (aarch64-apple-darwin24.1.0)",
+  "platform": "Darwin arm64",
+  "fixtures_only": true,
+  "cloud_calls": false,
+  "hypotheses": [
+    "Empty bridge return under failing EXIT trap aborts subsequent close on Bash5; explicit return0 fixes only cleanup while preserving exit17.",
+    "Baseline signals after ready installed trap; actual source/fixture trace distinguishes parent early exit from missing readiness.",
+    "Interrupted wait/second wait status255 differs across Bash versions and can reject a joined observer."
+  ],
+  "results": [
+    {
+      "name": "analysis-original",
+      "started_at": "2026-10-21T08:20:11.013379+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/analysis-original.sh"
+      ],
+      "exit_code": 17,
+      "finished_at": "2026-10-21T08:20:11.018329+00:00",
+      "close_marker": null,
+      "expected_original_exit_preserved": true,
+      "close_attempted": false,
+      "owned_temp_removed": false,
+      "cleanup_completed": false
+    },
+    {
+      "name": "analysis-bridge-return-zero",
+      "started_at": "2026-10-21T08:20:11.018724+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/analysis-bridge-return-zero.sh"
+      ],
+      "exit_code": 17,
+      "finished_at": "2026-10-21T08:20:11.023202+00:00",
+      "close_marker": "closed\n",
+      "expected_original_exit_preserved": true,
+      "close_attempted": true,
+      "owned_temp_removed": false,
+      "cleanup_completed": false
+    },
+    {
+      "name": "analysis-all-cleanup-returns-zero",
+      "started_at": "2026-10-21T08:20:11.023613+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/analysis-all-cleanup-returns-zero.sh"
+      ],
+      "exit_code": 17,
+      "finished_at": "2026-10-21T08:20:11.033241+00:00",
+      "close_marker": "closed\n",
+      "expected_original_exit_preserved": true,
+      "close_attempted": true,
+      "owned_temp_removed": true,
+      "cleanup_completed": true
+    },
+    {
+      "name": "observer-original-00",
+      "started_at": "2026-10-21T08:20:11.033895+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:11.492586+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-01",
+      "started_at": "2026-10-21T08:20:11.493338+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:11.943160+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-02",
+      "started_at": "2026-10-21T08:20:11.943509+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:12.400990+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-03",
+      "started_at": "2026-10-21T08:20:12.401474+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:12.852325+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-04",
+      "started_at": "2026-10-21T08:20:12.852896+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:13.307015+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-05",
+      "started_at": "2026-10-21T08:20:13.307412+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:13.761010+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-06",
+      "started_at": "2026-10-21T08:20:13.761634+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:14.219888+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-07",
+      "started_at": "2026-10-21T08:20:14.220179+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:14.671418+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-08",
+      "started_at": "2026-10-21T08:20:14.672027+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:15.132183+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-09",
+      "started_at": "2026-10-21T08:20:15.132410+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:15.589698+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-10",
+      "started_at": "2026-10-21T08:20:15.589949+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:16.045185+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-11",
+      "started_at": "2026-10-21T08:20:16.045725+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:16.504887+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-12",
+      "started_at": "2026-10-21T08:20:16.505202+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:16.955465+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-13",
+      "started_at": "2026-10-21T08:20:16.955984+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:17.409330+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-14",
+      "started_at": "2026-10-21T08:20:17.409849+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:17.863855+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-15",
+      "started_at": "2026-10-21T08:20:17.864442+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:18.309832+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-16",
+      "started_at": "2026-10-21T08:20:18.310005+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:18.763895+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-17",
+      "started_at": "2026-10-21T08:20:18.764847+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:19.222108+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-18",
+      "started_at": "2026-10-21T08:20:19.222637+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:19.680922+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "observer-original-19",
+      "started_at": "2026-10-21T08:20:19.681570+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/observer-original.sh"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-21T08:20:20.137786+00:00",
+      "observer_receipt_present": true
+    },
+    {
+      "name": "baseline-original",
+      "started_at": "2026-10-21T08:20:20.141304+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/baseline-original.sh"
+      ],
+      "ready_before_signal": true,
+      "exit_code": 143,
+      "finished_at": "2026-10-21T08:20:21.116965+00:00",
+      "signals": null
+    },
+    {
+      "name": "baseline-return-zero",
+      "started_at": "2026-10-21T08:20:21.117449+00:00",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash",
+        "-x",
+        "/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-v2/baseline-original.sh"
+      ],
+      "ready_before_signal": true,
+      "exit_code": 143,
+      "finished_at": "2026-10-21T08:20:21.566576+00:00",
+      "signals": "term\njoined\n"
+    }
+  ]
+}

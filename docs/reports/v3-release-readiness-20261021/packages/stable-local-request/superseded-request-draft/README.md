@@ -1,0 +1,1 @@
+Superseded before implementation or execution. Root narrowed scope to reuse the existing local family signer after the user authorized Mac local custody. No local-signing-exchange implementation exists; no draft test was run. Files are retained only as history, not pending requirements.

@@ -1,0 +1,35 @@
+{
+  "head": "c21736edcf67bac4b5c1c495d1cd18490b1d154a",
+  "checkout": "14bf24c9df5e8a0f8e18db8f333fc149d3653bfa",
+  "tree": "651ed9cad773ea6368b38d9b77634541d10f1780",
+  "same_tree": true,
+  "runs": [
+    {
+      "id": 39566618368,
+      "attempt": 1,
+      "conclusion": "success",
+      "completed_at": "2026-10-21T08:10:18Z",
+      "job": 119110317562
+    },
+    {
+      "id": 39566618393,
+      "attempt": 1,
+      "conclusion": "success",
+      "completed_at": "2026-10-21T08:07:08Z",
+      "job": 119110317717
+    }
+  ],
+  "local_signing_cases": 10,
+  "local_signing_passed": true,
+  "secret_removed_before_verification": true,
+  "source_metadata_cases": 7,
+  "source_metadata_passed": true,
+  "python_suite_count": 387,
+  "separate_workflow_contract_count": 3,
+  "full_native_repository_drill": "passed; native-package signed repository container validation passed at08:09:47Z",
+  "pages_deploy": "skipped",
+  "production_keys_used": false,
+  "publication": false,
+  "prior_failures_preserved": "../pr69-native-failure/ and prior parent-held first generation",
+  "archive_zip_sha_recomputed": true
+}

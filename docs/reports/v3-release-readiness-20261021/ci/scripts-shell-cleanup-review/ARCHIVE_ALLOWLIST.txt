@@ -1,0 +1,5 @@
+review.json
+review.zh-CN.md
+inputs-sha256.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

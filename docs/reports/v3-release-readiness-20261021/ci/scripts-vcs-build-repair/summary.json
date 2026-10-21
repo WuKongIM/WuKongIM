@@ -1,0 +1,32 @@
+{
+  "status": "focused_pass_full_linux_gate_still_failed",
+  "source_head": "eda77697db42ba14f14bfad58cdd3557342b9989",
+  "changed_files": [
+    "scripts/wukongim_three_nodes_build_integration_test.go"
+  ],
+  "source_file_sha256": "1fbab2bd77824ce611d1e6353ce941bcdfad96c2ece70ece30e2814af30a65cb",
+  "patch_sha256": "e9e1cce2ed79537392e9f90fafdc7d072f9ed0ef48c9927443ed61e7b286c6d5",
+  "focused_test_elapsed_seconds": 18.22,
+  "focused_command_elapsed_seconds": 31.099040624976624,
+  "focused_exit_code": 0,
+  "focused_runs": 1,
+  "assertion_only_intermediate_executed": false,
+  "red_evidence": [
+    "../json-observation-run-39565861218/assertion-failures.json",
+    "../json-observation-run-39565861218/version-format-probe.json"
+  ],
+  "assertions_first_patch": "assertions-first.patch",
+  "preserved": [
+    "nested linked-worktree with unrelated primary HEAD",
+    "real launcher dry-run build command",
+    "e2e tag and buildvcs=true",
+    "deliberately missing ambient GOWORK",
+    "exact selected vcs.revision assertion",
+    "base named-check limits and scheduler"
+  ],
+  "new_assertion": "exact unique per-invocation linked build ID",
+  "performance_comparison": false,
+  "committed": false,
+  "pushed": false,
+  "source_unchanged_after_validation": true
+}

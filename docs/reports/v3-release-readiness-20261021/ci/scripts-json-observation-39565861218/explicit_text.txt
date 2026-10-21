@@ -1,0 +1,10 @@
+/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go: go1.25.11
+	path	cmd/go
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-gcflags=cmd/...=-dwarf=false
+	build	-trimpath=true
+	build	CGO_ENABLED=0
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0

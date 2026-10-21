@@ -1,0 +1,23 @@
+..........F...................
+======================================================================
+FAIL: test_rejects_extra_binary_key_file_while_signing_is_disabled (test_validate_control.ValidateControlTest.test_rejects_extra_binary_key_file_while_signing_is_disabled)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_validate_control.py", line 478, in test_rejects_extra_binary_key_file_while_signing_is_disabled
+    self.assert_rejected(
+    ~~~~~~~~~~~~~~~~~~~~^
+        root,
+        ^^^^^
+        "keys directory entries must be exactly ['README.md']",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys/tests/test_validate_control.py", line 274, in assert_rejected
+    self.assertIn(diagnostic, result.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "keys directory entries must be exactly ['README.md']" not found in "publication control validation failed: keys directory entries must be exactly ['README.md', 'apt-stable.asc', 'rpm-stable.asc']\n"
+
+----------------------------------------------------------------------
+Ran 30 tests in 8.442s
+
+FAILED (failures=1)

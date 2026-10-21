@@ -1,0 +1,140 @@
+/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor
++ exec /tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash -x /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh --run-dir /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run --base-port 25000
+/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash-5.2.21/bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor
++ set -euo pipefail
++ umask 077
++++ dirname /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh
+++ cd /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/scripts/..
+++ pwd -P
++ ROOT_DIR=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture
++ SHAKEOUT=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh
++ RUN_DIR=
++ BASE_PORT=15000
++ READY_TIMEOUT=120
++ RATES=250,500,750,1000
++ STEP_MEASURE_SECONDS=300
++ SOAK_RATE=1000
++ SOAK_MEASURE_SECONDS=600
++ WARMUP_SECONDS=60
++ DRAIN_TIMEOUT=90
++ MINIMUM_FREE_PERCENT=10
++ DRY_RUN=0
++ OBSERVED_FREE_PERCENT=0
++ [[ 4 -gt 0 ]]
++ case "$1" in
++ [[ 4 -ge 2 ]]
++ RUN_DIR=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run
++ shift 2
++ [[ 2 -gt 0 ]]
++ case "$1" in
++ [[ 2 -ge 2 ]]
++ BASE_PORT=25000
++ shift 2
++ [[ 0 -gt 0 ]]
++ [[ -n /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run ]]
+++ absolute_path /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run
+++ local value=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run parent base
+++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run == /* ]]
+++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run != / ]]
+++ [[ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run == */ ]]
++++ dirname /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run
+++ parent=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture
++++ basename /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run
+++ base=baseline-run
+++ [[ -d /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture ]]
++++ cd /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture
++++ pwd -P
+++ parent=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture
+++ printf %s/%s /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture baseline-run
++ RUN_DIR=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run
++ require_uint --base-port 25000
++ local name=--base-port value=25000
++ [[ 25000 =~ ^[0-9]+$ ]]
++ require_uint --ready-timeout 120
++ local name=--ready-timeout value=120
++ [[ 120 =~ ^[0-9]+$ ]]
++ ((  BASE_PORT >= 1024 && BASE_PORT <= 65472  ))
++ ((  READY_TIMEOUT > 0  ))
++ case "$RUN_DIR" in
+++ cd /Users/tt
+++ pwd -P
++ ((  DRY_RUN == 1  ))
++ [[ ! -e /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run ]]
++ mkdir -p /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run/steps
++ STEPS_FILE=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run/steps.tsv
++ RESULT_FILE=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run/local-baseline.json
++ printf 'phase\trate_per_second\tmeasured_seconds\toutcome\texit_status\tartifact\n'
+++ dirname /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run
++ df -Pk /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture
+bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor
++ STEP_ARTIFACT_SEALS_COMPLETE=true
++ ALL_STEP_SOURCES_REBUILDABLE=true
++ VALIDATED_STEP_ARTIFACT_SEALS=0
++ OPERATOR_SIGNAL_STATUS=0
++ OPERATOR_SIGNAL_NAME=
++ ACTIVE_STEP_PID=
++ ACTIVE_STEP_SIGNAL_FORWARDED=0
+++ ps -axo pid=,comm=
+++ awk -v self=47525 '
+  {
+    command = $2
+    sub(/^.*\//, "", command)
+    if ($1 != self && (command == "wukongim" || command == "wkcli")) print $0
+  }
+'
+bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): Bad file descriptor
++ overlap=
++ [[ -n '' ]]
++ read -r filesystem_blocks filesystem_available
+++ awk 'NR == 2 {print $2, $4}' /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run/filesystem-preflight.txt
++ [[ -z 100000 ]]
++ [[ 100000 -le 0 ]]
++ free_percent=90
++ OBSERVED_FREE_PERCENT=90
++ ((  free_percent < MINIMUM_FREE_PERCENT  ))
++ [[ -n fixture-api-token ]]
++ [[ -n fixture-worker-token ]]
++ STEP_OUTCOME=
++ STEP_STATUS=0
++ trap 'handle_operator_signal INT 130' INT
++ trap 'handle_operator_signal TERM 143' TERM
++ highest_clean_rate=0
++ first_failing_rate=0
++ IFS=,
++ read -r -a reviewed_rates
++ for rate in "${reviewed_rates[@]}"
++ run_step step 250 300
++ local phase=step rate=250 measured=300
++ local step_dir=/private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run/steps/step-rate-250 status=0 outcome step_valid=true
++ log 'step step: 250 offered SEND/s for 300s'
++ printf '[chat-lifecycle-local-baseline] %s\n' 'step step: 250 offered SEND/s for 300s'
+[chat-lifecycle-local-baseline] step step: 250 offered SEND/s for 300s
++ ((  OPERATOR_SIGNAL_STATUS == 0  ))
++ ACTIVE_STEP_SIGNAL_FORWARDED=0
++ ACTIVE_STEP_PID=47540
++ forward_operator_signal_to_active_step
++ ((  OPERATOR_SIGNAL_STATUS != 0 && ACTIVE_STEP_SIGNAL_FORWARDED == 0  ))
++ return 0
++ wait_active_step_uninterrupted 47540
++ local pid=47540 status=0
++ true
++ wait 47540
++ /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh --run-dir /private/tmp/wukongim-v3-readiness-20261021/scripts-signal-analysis-diagnosis/bash5-first/baseline-fixture/baseline-run/steps/step-rate-250 --base-port 25000 --ready-timeout 120 --send-rate 250 --measure-seconds 300 --warmup-seconds 60 --drain-timeout 90
+++ handle_operator_signal TERM 143
+++ local signal_name=TERM exit_status=143
+++ ((  OPERATOR_SIGNAL_STATUS == 0  ))
+++ OPERATOR_SIGNAL_NAME=TERM
+++ OPERATOR_SIGNAL_STATUS=143
+++ log 'received TERM; waiting for the active step to seal and exit'
+++ printf '[chat-lifecycle-local-baseline] %s\n' 'received TERM; waiting for the active step to seal and exit'
+[chat-lifecycle-local-baseline] received TERM; waiting for the active step to seal and exit
+++ forward_operator_signal_to_active_step
+++ ((  OPERATOR_SIGNAL_STATUS != 0 && ACTIVE_STEP_SIGNAL_FORWARDED == 0  ))
+++ [[ -n 47540 ]]
+++ kill -0 47540
+++ ACTIVE_STEP_SIGNAL_FORWARDED=1
+++ log 'forwarding one TERM to active step 47540'
+++ printf '[chat-lifecycle-local-baseline] %s\n' 'forwarding one TERM to active step 47540'
+[chat-lifecycle-local-baseline] forwarding one TERM to active step 47540
+++ kill -s TERM 47540
+++ return

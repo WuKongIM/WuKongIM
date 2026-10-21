@@ -1,0 +1,74 @@
+{
+  "94850": {
+    "name": "service-1",
+    "pid": 94850,
+    "first_seen": "2026-10-21T07:35:36.631255+00:00",
+    "ps_identity": "94850 Wed Oct 21 15:35:36 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wukongim"
+  },
+  "94856": {
+    "name": "service-2",
+    "pid": 94856,
+    "first_seen": "2026-10-21T07:35:36.639088+00:00",
+    "ps_identity": "94856 Wed Oct 21 15:35:36 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wukongim"
+  },
+  "94863": {
+    "name": "service-3",
+    "pid": 94863,
+    "first_seen": "2026-10-21T07:35:36.644458+00:00",
+    "ps_identity": "94863 Wed Oct 21 15:35:36 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wukongim"
+  },
+  "95038": {
+    "name": "host-metrics-1",
+    "pid": 95038,
+    "first_seen": "2026-10-21T07:36:01.963335+00:00",
+    "ps_identity": "95038 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95068": {
+    "name": "host-metrics-2",
+    "pid": 95068,
+    "first_seen": "2026-10-21T07:36:01.967039+00:00",
+    "ps_identity": "95068 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95098": {
+    "name": "host-metrics-3",
+    "pid": 95098,
+    "first_seen": "2026-10-21T07:36:01.970278+00:00",
+    "ps_identity": "95098 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95141": {
+    "name": "host-metrics-load",
+    "pid": 95141,
+    "first_seen": "2026-10-21T07:36:01.973400+00:00",
+    "ps_identity": "95141 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95025": {
+    "name": "worker-1",
+    "pid": 95025,
+    "first_seen": "2026-10-21T07:36:01.976875+00:00",
+    "ps_identity": "95025 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95056": {
+    "name": "worker-2",
+    "pid": 95056,
+    "first_seen": "2026-10-21T07:36:01.979986+00:00",
+    "ps_identity": "95056 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95086": {
+    "name": "worker-3",
+    "pid": 95086,
+    "first_seen": "2026-10-21T07:36:01.983104+00:00",
+    "ps_identity": "95086 Wed Oct 21 15:36:01 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95307": {
+    "name": "coordinator",
+    "pid": 95307,
+    "first_seen": "2026-10-21T07:36:07.056454+00:00",
+    "ps_identity": "95307 Wed Oct 21 15:36:03 2026     /private/tmp/wukongim-v3-readiness-20261021/local-shakeout-0672c1159-500/run/bin/wkcli"
+  },
+  "95394": {
+    "name": "process-metrics-collector",
+    "pid": 95394,
+    "first_seen": "2026-10-21T07:36:07.067573+00:00",
+    "ps_identity": "95394 Wed Oct 21 15:36:03 2026     bash"
+  }
+}
