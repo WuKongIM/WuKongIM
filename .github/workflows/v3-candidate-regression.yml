@@ -133,7 +133,7 @@ jobs:
     timeout-minutes: 20
     env:
       GOWORK: "off"
-      GOFLAGS: "-p=2"
+      GOFLAGS: "-p=2 -json"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:

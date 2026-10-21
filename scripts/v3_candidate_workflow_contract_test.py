@@ -70,7 +70,7 @@ class CandidateWorkflowContract(unittest.TestCase):
         self.assertIn('runner.run_command(arguments, cwd, evidence, timeout_seconds, max_output_bytes,', job)
         self.assertIn('metadata={"named_check": "scripts-integration"', job)
         self.assertIn('raise SystemExit(result["wrapper_exit_code"])', job)
-        self.assertIn('GOFLAGS: "-p=2"', job)
+        self.assertIn('GOFLAGS: "-p=2 -json"', job)
         self.assertIn('v3-candidate-scripts-${{ github.run_id }}-${{ github.run_attempt }}', job)
         self.assertIn('source_sha', job)
         self.assertIn('policy_sha256', job)
@@ -81,6 +81,14 @@ class CandidateWorkflowContract(unittest.TestCase):
         # The existing default suite still exclusively controls the E2E dependency.
         self.assertEqual(self.source.count('needs: default-suite'), 1)
         self.assertNotIn('needs: scripts-integration', self.source)
+        # Observation is scoped to this job; concurrency and other jobs stay fixed.
+        default = re.search(r'^  default-suite:\n(.*?)(?=^  [a-z0-9-]+:|\Z)',
+                            self.source, re.MULTILINE | re.DOTALL).group(1)
+        e2e = re.search(r'^  process-e2e:\n(.*?)(?=^  [a-z0-9-]+:|\Z)',
+                        self.source, re.MULTILINE | re.DOTALL).group(1)
+        self.assertIn('GOFLAGS: "-p=2"', default)
+        self.assertNotIn('GOFLAGS: "-p=2 -json"', default)
+        self.assertNotIn('GOFLAGS:', e2e)
 
     def test_cleanup_covers_only_owned_session_and_fails_closed(self):
         text = self.runner

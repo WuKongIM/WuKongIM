@@ -265,6 +265,15 @@ The scripts job runs the complete policy command once on Linux with its original
 test, parallelism and outer limits; it adds no retry, test filter or deadline
 override. A local timeout remains retained evidence even if this Linux check passes.
 
+Only the scripts job adds `-json` through `GOFLAGS=-p=2 -json` to retain
+streamed Go test events, including test names, scheduling actions and elapsed
+times, before an outer timeout. With multiple packages and `-p=2`, `-v` alone
+can remain buffered inside Go until a package finishes. The exact GOFLAGS value
+is recorded in `command.json`; the frozen policy arguments and all policy limits
+remain unchanged. Combined stdout/stderr can also contain build diagnostics;
+Go build JSON events do not provide per-compiler timings. This observation
+change adds no prewarming, retry or passing evidence by itself.
+
 The process E2E job builds one `e2e`-tagged server from the same exact source SHA.
 Every scenario uses that frozen `WK_E2E_BINARY`, with its SHA256 checked before
 each scenario and after the last. It runs the complete default package tests
