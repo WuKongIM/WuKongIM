@@ -93,20 +93,25 @@ if [[ -s "$output/metrics/prometheus-targets.json" ]]; then
     '.status == "success" and (.data.activeTargets | type == "array")' || true
 fi
 
-end_epoch="$(date -u +%s)"
-start_epoch=$((end_epoch - 900))
-metric_query='{__name__=~"up|wukongim_(runtime_.*|channel_worker_.*|process_.*|metadata_create_total|activation_rejected_total|go_.*)"}'
-capture_remote wukong-load metrics range "$output/metrics/prometheus-range.json" \
-  "curl --get --fail --silent --show-error --max-time 30 --data-urlencode 'query=${metric_query}' --data-urlencode 'start=${start_epoch}' --data-urlencode 'end=${end_epoch}' --data-urlencode 'step=15' 'http://127.0.0.1:9090/api/v1/query_range'" || true
-if [[ -s "$output/metrics/prometheus-range.json" ]]; then
-  validate_prometheus_capture range "$output/metrics/prometheus-range.json" \
-    '.status == "success" and (.data.result | type == "array")' || true
+# The helper retains already-redacted workload evidence and shares fixed metric
+# request, byte and time budgets. Its typed rows preserve partial failures.
+supplemental_status="$(mktemp)"
+trap 'rm -f "$status_rows" "$supplemental_status"' EXIT
+if python3 scripts/chat-lifecycle/terminal-evidence.py "$stage" "$output" "$timeout_seconds" >"$supplemental_status"; then
+  jq -c '.captures[]' "$supplemental_status" >>"$status_rows"
+  supplemental_failures="$(jq '[.captures[] | select(.state != "collected" and .state != "not_applicable")] | length' "$supplemental_status")"
+  capture_failures=$((capture_failures + supplemental_failures))
+else
+  record_status workload terminal-collector unavailable 0
+  capture_failures=$((capture_failures + 1))
+  printf '{"metrics_budget":null}\n' >"$supplemental_status"
 fi
 
 jq -s --arg schema 'wukongim.chat_lifecycle.terminal_evidence/v1' --arg stage "$stage" \
   --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson failures "$capture_failures" \
+  --slurpfile supplemental "$supplemental_status" \
   '{schema:$schema,stage:$stage,observed_at:$observed_at,max_file_bytes:4194304,
-    capture_failures:$failures,complete:($failures == 0),captures:.,
+    capture_failures:$failures,complete:($failures == 0),captures:.,metrics_budget:$supplemental[0].metrics_budget,
     diagnosis_references:{window:"../diagnosis-window.json",result:"../diagnosis-result.json",optional:true}}' \
   "$status_rows" >"$output/manifest.json"
 

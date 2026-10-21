@@ -1900,3 +1900,19 @@ specification, runbook, report, or module documentation; link to them when neede
   not certify final-tag publication, the agreed long-run plan, or the disabled
   stable native-package channel; unresolved historical CPU attribution is not an
   additional gate. See [candidate integration](../reports/2026-10-21-v3-release-recovery.md).
+
+- Cloud chat-lifecycle terminal collection retains the existing worker-evidence
+  and diagnostic-status documents only after binding their run, worker generations,
+  snapshot sequences and cut time to the final report. Aggregate loss counts alone
+  cannot reconstruct an expired sample after Lease release. Metric collection uses
+  the terminal report window rather than finalizer wall time: eight fixed queries
+  preserve the previous selector plus exact presence-endpoint and delivery-worker,
+  authority-resolution and push-RPC families, with a shared 24 MiB transfer budget
+  and 60-second deadline. Valid partitions survive sibling failures; empty families
+  have explicit zero coverage. Missing, malformed or oversized required evidence
+  stays incomplete and never replaces an earlier product failure. Query boundaries
+  use Prometheus millisecond precision while retaining the report's nanosecond cut;
+  only a legal terminal failure in formal soak with canonical not-attempted capacity
+  evidence can exempt absent capacity documents. Passing outcomes still require
+  capacity evidence. Fixture artifact paths use a non-`WK_` environment variable
+  so product child processes do not treat test metadata as runtime configuration.
