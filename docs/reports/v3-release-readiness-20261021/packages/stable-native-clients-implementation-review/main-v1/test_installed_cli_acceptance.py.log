@@ -1,0 +1,17 @@
+test_a_failed_distribution_prevents_success_receipt (test_installed_cli_acceptance.InstalledCLIContractTest.test_a_failed_distribution_prevents_success_receipt) ... ok
+test_false_success_and_timeout_are_not_accepted (test_installed_cli_acceptance.InstalledCLIContractTest.test_false_success_and_timeout_are_not_accepted) ... ok
+test_fixture_extraction_rejects_escape_and_links (test_installed_cli_acceptance.InstalledCLIContractTest.test_fixture_extraction_rejects_escape_and_links) ... ok
+test_four_installed_clients_follow_verified_public_downloads (test_installed_cli_acceptance.InstalledCLIContractTest.test_four_installed_clients_follow_verified_public_downloads) ... ok
+test_installed_gate_rejects_local_or_unbound_inputs_before_running (test_installed_cli_acceptance.InstalledCLIContractTest.test_installed_gate_rejects_local_or_unbound_inputs_before_running) ... ok
+test_installed_identity_is_checked_before_functional_commands (test_installed_cli_acceptance.InstalledCLIContractTest.test_installed_identity_is_checked_before_functional_commands) ... ok
+test_native_fixture_is_a_registered_format_2_generation (test_installed_cli_acceptance.InstalledCLIContractTest.test_native_fixture_is_a_registered_format_2_generation) ... ok
+test_publication_and_repeat_workflows_keep_the_gate_and_read_only_boundary (test_installed_cli_acceptance.InstalledCLIContractTest.test_publication_and_repeat_workflows_keep_the_gate_and_read_only_boundary) ... ok
+test_root_mounted_script_accepts_explicit_fixture_path (test_installed_cli_acceptance.InstalledCLIContractTest.test_root_mounted_script_accepts_explicit_fixture_path) ... ok
+test_unregistered_native_fixture_preserves_original_database_bytes (test_installed_cli_acceptance.InstalledCLIContractTest.test_unregistered_native_fixture_preserves_original_database_bytes) ... ok
+test_unverified_download_never_reaches_installation (test_installed_cli_acceptance.InstalledCLIContractTest.test_unverified_download_never_reaches_installation) ... ok
+test_wrong_commit_missing_check_or_wrong_fixture_fails_closed (test_installed_cli_acceptance.InstalledCLIContractTest.test_wrong_commit_missing_check_or_wrong_fixture_fails_closed) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.044s
+
+OK

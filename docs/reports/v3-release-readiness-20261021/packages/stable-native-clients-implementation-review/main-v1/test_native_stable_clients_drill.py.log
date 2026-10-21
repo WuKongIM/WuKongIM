@@ -1,0 +1,15 @@
+test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors (test_native_stable_clients_drill.NativeStableClientsTests.test_cleanup_only_uses_recorded_ids_and_reports_inspection_errors) ... ok
+test_command_deadline_output_bound_and_original_exit (test_native_stable_clients_drill.NativeStableClientsTests.test_command_deadline_output_bound_and_original_exit) ... ok
+test_help_and_wrong_product_identity_do_not_launch_tools (test_native_stable_clients_drill.NativeStableClientsTests.test_help_and_wrong_product_identity_do_not_launch_tools) ... ok
+test_http_routes_preserve_a_bytes_at_request_barriers (test_native_stable_clients_drill.NativeStableClientsTests.test_http_routes_preserve_a_bytes_at_request_barriers) ... ok
+test_native_ci_keeps_independent_fixed_source_read_only_job (test_native_stable_clients_drill.NativeStableClientsTests.test_native_ci_keeps_independent_fixed_source_read_only_job) ... ok
+test_export_rejects_missing_generation_before_native_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_export_rejects_missing_generation_before_native_commands) ... ok
+test_export_rejects_unusable_output_without_native_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_export_rejects_unusable_output_without_native_commands) ... ok
+test_export_rejects_wrong_source_before_commands_or_output (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_export_rejects_wrong_source_before_commands_or_output) ... ok
+test_invalid_payloads_fail_before_native_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_invalid_payloads_fail_before_native_commands) ... ok
+test_real_payloads_are_inputs_to_both_native_package_commands (test_native_stable_clients_drill.PublicFixtureBoundaryTests.test_real_payloads_are_inputs_to_both_native_package_commands) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.164s
+
+OK
