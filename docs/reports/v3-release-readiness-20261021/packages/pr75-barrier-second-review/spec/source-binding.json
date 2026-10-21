@@ -1,0 +1,166 @@
+{
+  "axis": "Spec only",
+  "reviewed_at": "2026-10-21T17:05:52.344121+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-barrier-second-diagnosis",
+  "base": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "branch_commits": [],
+  "candidate_tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "candidate_tree_verified_from_existing_git_tree_and_four_current_blob_ids": true,
+  "diff_command": "git diff HEAD -- CHANGELOG.md docs/stable-audit-transport.md tests/native_stable_clients_drill.py tests/test_native_stable_clients_drill.py",
+  "patch_sha256": "ae81b89b062d474aeb51f56933f0773db536d171524fa75cab8026f56f8960e0",
+  "changed_files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "0346dc5634de234ef67d09a24cd88e9c920a04b7b3b06401d3bfe8d0b0cf9abc",
+      "size": 3279,
+      "candidate_blob": "ea9b36d6d8e0fdac7d4362b0d775d9b5ee616530",
+      "actual_blob": "ea9b36d6d8e0fdac7d4362b0d775d9b5ee616530",
+      "matches": true
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "size": 13654,
+      "candidate_blob": "e20a08338b60461b513b96f9cf75c6b6c1eca282",
+      "actual_blob": "e20a08338b60461b513b96f9cf75c6b6c1eca282",
+      "matches": true
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "8d7a8a003e6ff0df51f75834a89ea2e9d19c76237102360f9cca35acc2bff314",
+      "size": 70172,
+      "candidate_blob": "77876f70ad078e58c480b1c124ca6e7c2604f3f6",
+      "actual_blob": "77876f70ad078e58c480b1c124ca6e7c2604f3f6",
+      "matches": true
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+      "size": 79919,
+      "candidate_blob": "8ea7d6b5379b0c0677c76cc3e52dc1153a0e79ec",
+      "actual_blob": "8ea7d6b5379b0c0677c76cc3e52dc1153a0e79ec",
+      "matches": true
+    }
+  ],
+  "untracked_files": [],
+  "package_local_AGENTS_FLOW_CONTRIBUTING_found": [],
+  "governing_sources": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "size": 7201,
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-review/scope.md",
+      "size": 2067,
+      "sha256": "fd49905ec0481e6e5b5351e28718fd5d4650d2868748b4447a6b221d094ae9b4"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-barrier-second-diagnosis/docs/stable-audit-transport.md",
+      "size": 13654,
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb"
+    }
+  ],
+  "evidence_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/native-probe-summary.json",
+      "size": 36517,
+      "sha256": "447dc8dd2af55f5f7bdbcd0316f5c208378a49397a5c313189b0005ea058192a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/FAILURE-INVENTORY.md",
+      "size": 3402,
+      "sha256": "7728091bb9aadda68f264d20607b9ad4e4e1647f40768030aab43d68ca7da131"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/shipping-tests-before-code.json",
+      "size": 254,
+      "sha256": "4b4c97cda0c1f6d49fcff1769bd5eadb4a148a6c10feb1d912738aa4d7eac62f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/shipping-tests-before-code.py",
+      "size": 79919,
+      "sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/shipping-tests.red.stderr",
+      "size": 1336,
+      "sha256": "fdc466f890537084f97bd7bbc947ed81b32bc9469ffcad803df3f2436d080710"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/shipping-tests.green.stderr",
+      "size": 143,
+      "sha256": "642b2d69e2beb08a63259ae4b7a5741f5f42bc15e1c804eaa5deb17a52eebac5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/full-python.stderr",
+      "size": 671,
+      "sha256": "1d1e16ee58906939ccbb5dd32b9d4cac1129e337c27be56fe81d72dfed83d925"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/validation.json",
+      "size": 687,
+      "sha256": "d3f98e937a5773f7905d080cc741104249496f1065546e90c35dfbf4fcba8cc0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/unchanged-source-receipt.json",
+      "size": 19729,
+      "sha256": "5537ee52b1df2f059ed65fbfab74497d34aad06cea53b84716fcd99f38e440ff"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/final-source-freeze.json",
+      "size": 1746,
+      "sha256": "de2460d6071efd7e277eed75f8f8a66d900cdbac3d51576c201e361c90362e5c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-second-diagnosis/final.patch",
+      "size": 6765,
+      "sha256": "ae81b89b062d474aeb51f56933f0773db536d171524fa75cab8026f56f8960e0"
+    }
+  ],
+  "native_receipt_summary": [
+    {
+      "distribution": "Rocky",
+      "versions": [
+        "dnf-4.14.0-34.el9_8.rocky.0.1.noarch",
+        "libdnf-0.69.0-18.el9.rocky.0.1.x86_64",
+        "python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch"
+      ],
+      "old_selected": "B",
+      "candidate_selected": "A",
+      "fresh_B_selected": "B",
+      "candidate_body_sha256": "109be5dbb5dc224f3e6674a32c24c68262b58402244870187176d89d4814ee9c",
+      "new_shipping_body_binding_recorded": true,
+      "cleanup_verified_in_existing_receipt": true
+    },
+    {
+      "distribution": "Alma",
+      "versions": [
+        "dnf-4.14.0-34.el9_8.alma.1.noarch",
+        "libdnf-0.69.0-18.el9.alma.1.x86_64",
+        "python3-dnf-4.14.0-34.el9_8.alma.1.noarch"
+      ],
+      "old_selected": "B",
+      "candidate_selected": "A",
+      "fresh_B_selected": "B",
+      "candidate_body_sha256": "109be5dbb5dc224f3e6674a32c24c68262b58402244870187176d89d4814ee9c",
+      "new_shipping_body_binding_recorded": true,
+      "cleanup_verified_in_existing_receipt": true
+    }
+  ],
+  "test_execution_by_reviewer": false,
+  "outside_network_cloud_or_private_key_access": false,
+  "other_axis_report_read": false,
+  "findings": [],
+  "limitations": [
+    "Existing evidence inspected, not re-executed. Native diagnostic delay and data-only TEST ONLY payloads do not establish product provenance or full49 acceptance.",
+    "Historical CI persistence/mtime was not recorded; controlled reproduction is not unique retrospective causation.",
+    "New exact-head complete Linux49 remains required."
+  ]
+}

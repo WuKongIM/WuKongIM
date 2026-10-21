@@ -1,0 +1,52 @@
+{
+  "tests_written_before_implementation": true,
+  "implementation_files_exist": [
+    false,
+    false
+  ],
+  "tests": [
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "47c4a6b1407c67edfef8db192a289805d3982d18bfa4d52713af10a19ff76510"
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "6b7d3b6602318ee7c7aaebdb9d0159872068df7418fbed3b470940ac4214d386"
+    }
+  ],
+  "runs": [
+    {
+      "name": "sdk-first-red",
+      "command": [
+        "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/sdk-venv/bin/python",
+        "-B",
+        "tests/provider_sdk/test_aliyun_object_storage_provider.py"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+      "timeout_seconds": 90,
+      "exit_code": 1,
+      "elapsed_seconds": 3.27,
+      "terminal": true
+    },
+    {
+      "name": "inputs-first-red",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_object_storage_delivery_inputs.py",
+        "-v"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+      "timeout_seconds": 90,
+      "exit_code": 1,
+      "elapsed_seconds": 0.28,
+      "terminal": true
+    }
+  ]
+}

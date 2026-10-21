@@ -1,0 +1,1695 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d098e28..d4a72d0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,9 @@
+ 
+ ## Unreleased
+ 
++- Add optional offline contracts for explicit-credential OSS/CDN SDK operations
++  and fresh delivery-input authentication. Production activation remains unsupported.
++
+ - Make TEST ONLY DNF generation-switch acceptance independent of metadata cache
+   age, with explicit A metadata reuse and verified exact-A delivery through the
+   planned B mirrorlist and payload prefix. Production client policy is unchanged.
+diff --git a/docs/object-storage-delivery.md b/docs/object-storage-delivery.md
+index 7dee447..aaa86e3 100644
+--- a/docs/object-storage-delivery.md
++++ b/docs/object-storage-delivery.md
+@@ -148,3 +148,75 @@ equivalent CDN wire configuration/readback, public origin checks and execution
+ of the existing four clients. Those operations still require their actual
+ resource and publication authorization. No production enablement can be inferred
+ from local plans, fixture successes or JSON fields.
++
++
++## Optional official SDK library contracts
++
++`aliyun-object-storage-provider.py` and `verify-object-storage-delivery-inputs.py`
++are importable libraries, with no production command or publisher integration.
++The original planner, materializer, simulation, signed producers and four-client
++validator remain unchanged. SDK operation receipts always retain
++`production_enabled=false`, `publication_verified=false`, `cloud_verified=false`
++and `wire_equivalence_verified=false`. `activate()` unconditionally rejects.
++No local JSON flag or saved journal supplies publication authority.
++
++The optional lock pins OSS V2 1.4.1, official SDK Core 2.16.1, CDN 3.8.8 and STS
++3.1.3, plus every transitive dependency and published artifact SHA-256. Install
++with `python3 -m pip install --only-binary=:all: --require-hashes -r
++requirements-object-storage-provider.lock`. The independent PR/main CI installs
++this lock and requires a nonempty SDK suite with zero skips. Ordinary stdlib
++tests do not import these dependencies. The SDK contracts mount an in-memory
++HTTP adapter on an instance session, exercise real SDK signing/serialization and
++response handling, and forbid provider sockets. They are not live acceptance.
++
++The Core client's instance session avoids the newer Tea/Darabonba client's
++global session state. SDK signing is unchanged. Credentials are explicit
++temporary inputs, never discovered from environment, files or instance metadata.
++Sessions ignore proxies and netrc, forbid redirects and content encoding, verify
++TLS, bound control responses, and disable retries. SDK debug logging is rejected.
++The adapter does not mutate process environment or global SDK HTTP state.
++
++Each create-only PUT first verifies the exact caller, private bucket owner and
++never-enabled versioning. A bounded frozen copy prevents local file replacement
++between hashing and upload. PUT uses the exact length, Cache-Control and
++`x-oss-forbid-overwrite=true`; only `FileAlreadyExists` is an accepted conflict.
++An unknown transport result triggers complete GET verification, never another
++PUT. GET requires EOF, exact length, SHA-256 and cache metadata; it closes the
++stream on every outcome. No raw SDK exception, authorization or token is a
++public receipt. No resource creation, deletion or permission change API exists.
++
++Literal rewrite compilation is a **static review candidate** only. It uses the
++official `back_to_origin_url_rewrite` arguments `source_url`, `target_url`,
++`flag=break`, and explicit `sequence`, with an absolute PCRE end anchor. It keeps
++exact source alias targets, rejects unsafe paths/collisions, caps the entire
++domain at 50 rules, and caps a request at 20 functions. A 1,024-byte local
++capability bound is conservative, not a provider limit claim. Live PCRE behavior,
++encoded URI/query normalization and actual parameter limits remain unverified,
++so this compiler cannot authorize activation. The SDK configuration primitive
++records attempted batches and before/after digests, including partial or unknown
++outcomes. It refuses unmanaged rewrites, deletion, unknown functions/groups or
++observed drift; it neither implements a transaction nor guarantees atomic POP
++changes. The complete raw configuration observation is available to its caller.
++
++Refresh primitives accept exact canonical file URLs and query only returned task
++IDs (at most ten per query); exact URL/type/ID and Complete status are required.
++They do not prove public origin/cache/TLS readiness. RefreshTaskById requires
++read permission on Resource `*`; do not misdescribe it as domain scoped.
++
++Fresh input authentication recomputes the original v1/v2 plan, authenticates
++historical controls, reads exact immutable audit/tag/assets, and runs the
++existing source resolver plus actual attestation/metadata helpers. Historical
++candidate control, historical seal control, executor control and product source
++SHA remain distinct. V2 compares historical sealed asset IDs; v1 first anchors
++IDs from fresh resolution because its descriptor contains only byte identities.
++Call again with the previous observation before the next write phase; any
++source/audit/current-control/input/plan drift rejects. A future reviewed writer
++must bind this fence to its exact preparation/resource and must invoke the
++unchanged four-client verifier. This slice does not supply that writer, channel
++authority, production resources, origin/TLS checks or public acceptance.
++
++Official references: [OSS V2](https://pypi.org/project/alibabacloud-oss-v2/1.4.1/),
++[SDK Core](https://pypi.org/project/aliyun-python-sdk-core/2.16.1/),
++[CDN SDK](https://pypi.org/project/aliyun-python-sdk-cdn/3.8.8/),
++[STS SDK](https://pypi.org/project/aliyun-python-sdk-sts/3.1.3/), and
++[CDN function contract](https://www.alibabacloud.com/help/en/cdn/developer-reference/parameters-for-configuring-features-for-domain-names).
+diff --git a/.github/workflows/object-storage-provider-contract.yml b/.github/workflows/object-storage-provider-contract.yml
+new file mode 100644
+index 0000000..a32aad3
+--- /dev/null
++++ b/.github/workflows/object-storage-provider-contract.yml
+@@ -0,0 +1,44 @@
++name: Safety Automation - Verify Object Storage SDK Contracts
++
++on:
++  pull_request:
++    paths:
++      - '.github/workflows/object-storage-provider-contract.yml'
++      - 'requirements-object-storage-provider.lock'
++      - 'scripts/**'
++      - 'tests/**'
++  push:
++    branches: [main]
++    paths:
++      - '.github/workflows/object-storage-provider-contract.yml'
++      - 'requirements-object-storage-provider.lock'
++      - 'scripts/**'
++      - 'tests/**'
++
++permissions:
++  contents: read
++
++jobs:
++  provider-contract:
++    runs-on: ubuntu-24.04
++    timeout-minutes: 10
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
++        with:
++          persist-credentials: false
++      - name: Install exact optional SDK dependencies
++        run: |
++          python3 -m venv /tmp/provider-contract-venv
++          timeout 240 /tmp/provider-contract-venv/bin/python -m pip install --only-binary=:all: --require-hashes -r requirements-object-storage-provider.lock
++      - name: Run mandatory offline SDK contracts
++        run: |
++          timeout 120 /tmp/provider-contract-venv/bin/python -B tests/provider_sdk/test_aliyun_object_storage_provider.py --receipt /tmp/provider-contract-receipt.json
++          timeout 120 python3 -B -m unittest discover -s tests -p test_object_storage_delivery_inputs.py -v
++      - name: Retain bounded no-credential contract receipt
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: object-storage-sdk-contract
++          path: /tmp/provider-contract-receipt.json
++          if-no-files-found: error
++          retention-days: 7
+diff --git a/requirements-object-storage-provider.lock b/requirements-object-storage-provider.lock
+new file mode 100644
+index 0000000..f847eaa
+--- /dev/null
++++ b/requirements-object-storage-provider.lock
+@@ -0,0 +1,458 @@
++# Official SDK transport contracts; complete transitive pins, all published platform hashes.
++# Python 3.13; install with pip --require-hashes. No provider credentials.
++
++alibabacloud-oss-v2==1.4.1 \
++    --hash=sha256:7d13702de8e5ffdcedbbe5a646e879570e392d04daba307b0d37422629a0425d
++
++aliyun-python-sdk-cdn==3.8.8 \
++    --hash=sha256:2cc08dbe357ce53bdd48cd0e5de6a7e1d3f302257c6a955d44b4ef50848e29e7 \
++    --hash=sha256:bd3e77dd1bd1e165a9179fd2d650354e7a971a2fdafb5b9f391718fd17353bc1
++
++aliyun-python-sdk-core==2.16.1 \
++    --hash=sha256:0f25a6e8ec1ea29c76610278cff81cbff85149a6e692bf2398a6f9b77e5e7424
++
++aliyun-python-sdk-sts==3.1.3 \
++    --hash=sha256:22fedb8bad13f966e711a1f4662eed7b9db33441bc05aa4b0f918aa01e09b967 \
++    --hash=sha256:c3e0f2ba08bbef729e4d32d9fbc75ae11fac3ca9fec44622bb9eda1e236749a4
++
++certifi==2026.10.19 \
++    --hash=sha256:035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae \
++    --hash=sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b
++
++cffi==2.1.1 \
++    --hash=sha256:046bfc24911b37851ee1b51aab8bffe713d89c68c6a057b09484ce9fd5f69b4e \
++    --hash=sha256:06c72bb76605a4b0cd0aad6930b69d4baf7dd5d806cfc409b824191099700e66 \
++    --hash=sha256:0beceaabe56af686895136a2de78db54ecd8e4046b236b8fd6d6cb61389e9bf2 \
++    --hash=sha256:154852545011f779917b11c78db2358d095da62a9a172b78ad0a583ee5adc0d0 \
++    --hash=sha256:194cffa889098ced9976c3fc6340305e43f6303657d298da55366907c05c22d6 \
++    --hash=sha256:19ee6127ee34de7d83ce3d371ebc5ed91addbdcc39f9ab15ce4eb35a4e534971 \
++    --hash=sha256:1a18a57b58cfb21fc28d72e876acf10eaed67a1ed96226f92af4df681d571c4c \
++    --hash=sha256:1aa5645c30469b09530c4ebca77ebf8f17618293c58f8549cb1a543a50236e7d \
++    --hash=sha256:1dea0e4d7d4f11f619fe8c1d76caf49e24405b4b5743c0e3be16a500ecd930c9 \
++    --hash=sha256:208f941bb9d18e768138677f0a6d2ce01f590df56043dda1df1535ac57c88517 \
++    --hash=sha256:210019b6c7cf07f081b4c54635c8cf744377001350e29cc0f81c4377b4797735 \
++    --hash=sha256:246fa40ce8645a614ff682e0b70f37134e460eaf93a775e0cbe3cca585a67a80 \
++    --hash=sha256:25792eac27877609e7bb06d42ff88278a6624fff2ba9bbb523c09616b117e80f \
++    --hash=sha256:27350daa11d4f10c540e6e89dada4c54feb7256ad03e9a4dc075ebad7ba360d1 \
++    --hash=sha256:28907ab9bfb6aa13184cfc17c6b8e1023c5ab6fd7076d8c20a35e59fe04f8f29 \
++    --hash=sha256:2ae64be792b8966f2c69538199728b290e34726562896df1e5dc8ffd8d8188e8 \
++    --hash=sha256:31348097ff5bbe827ccc41795d4dd099d9f0625e7def00ee653c137a490c2a6c \
++    --hash=sha256:3143d81e29e1e20a9ce10901ec369012947876596f75a222235965f2b7ae832e \
++    --hash=sha256:3222ba5d678f80a030e6afbcc33dc1ae5cb45facabb61cee2c7016b8432fde48 \
++    --hash=sha256:3311ed60d36f83378794e1009ac6258bafbf81f7888b4caa7b35a521e3f95813 \
++    --hash=sha256:334644fbac4eff73d985a17a91226df55d0f394160c4cfb880e084c8f7161cac \
++    --hash=sha256:34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632 \
++    --hash=sha256:363e05fa78e15116c3c32c210ee36884fd6b9afa6d440e47112c3bd511d64cb6 \
++    --hash=sha256:398aff33cee2767e3e781d2554c54bd0dff386bb437581e0d8011fde1a942ec1 \
++    --hash=sha256:3d22a20b1fb1632cc72c22f95f7b0d2961c3e1c235f245ba4c606c4771035659 \
++    --hash=sha256:42a494cee34437f05546455144f2b5d9ac09b1face62bcfce597d2e521066688 \
++    --hash=sha256:42e2f76b9455f5a9a844f770bf3e200ed3da0e15f5df3db9c31fe80b04b3d004 \
++    --hash=sha256:42f6930c31dc7f50732c9ae793c2786c7b6b044195967bbdde40bb9be81c4cc0 \
++    --hash=sha256:456a61fa52d579ebf9df2e9552ead5129855dbaff6c1e5a9b1bc408809bdc062 \
++    --hash=sha256:471cee653ae88de62096552e6d24ccb4a5adb8c8c9f10b5054d0122c15bf2779 \
++    --hash=sha256:49cbc70e6542d4ccccb936558d1064a8012541e78f821f955cff24e357776c94 \
++    --hash=sha256:4a7c934f7360e8cd64fe9efadcbd10c7c6364f531e432b9a4bf5ccbc9e0e8b50 \
++    --hash=sha256:4be96343e422f2dfcd12ab5c9f5aebe03f82f737c6bffeca6830b3875cb44aab \
++    --hash=sha256:4f42141fc14250de6dde5ee7ea4432be017252d91f19c5ad043c084cea629cac \
++    --hash=sha256:507a24c282e0f42f8ed737cf048572cbf580468da5555764a8331735e9c736b6 \
++    --hash=sha256:51b31d1c98274844cfd7838ce00bfc27c7423a4dc00fc0772fc3331c2cc90676 \
++    --hash=sha256:58acb8ab8e295e6c5ea12f888cbb13cf21511ef2a3303a23f4325c29d17fe5c1 \
++    --hash=sha256:5a59cc1c4442bc3d5c703bf720b51138d0bfc173618807c9ee2490a7541dd3d9 \
++    --hash=sha256:5bb4e7ea95dcd6a014a6fef62e62467d67d8e582326443f3d68e71d6320a9fcf \
++    --hash=sha256:5c58fe613dc5e5336357eff555824a314d8e43282600435c8d1cb6a7a2fedd13 \
++    --hash=sha256:5e7cecbaadb83884793e05828cee59b210b24583b9c7425d0ba6a754fe22eb4e \
++    --hash=sha256:616f097f2fe415bc92a247f02e11f634e1f9e9a83d327e3c915c15089c87869e \
++    --hash=sha256:63bbfd5ded17c4840ac07cd8f1c21ba9d9708141f840b324f422f41b207e3973 \
++    --hash=sha256:64faea20f4e2613363a1a9b9c7dd73058f3ecd00133a511e72ad7c511658f527 \
++    --hash=sha256:661c298b4821edebead0c91edd2b00374d67ad7c5a1f7a91d4442633b79d6a72 \
++    --hash=sha256:68e62fe11f30d5ca8289242866f0a5291402d8529ca2178ab8afc5c9694ae890 \
++    --hash=sha256:6a8dddef476fab96d066d578fc88526767b836ab5ab21754e1d5bf3879c31c7c \
++    --hash=sha256:6e192623c49c94421616a5778fba35cf0d5a8d000650c1967ef4448ee5cdd990 \
++    --hash=sha256:7225e4514edb64eb6740324353e0da0711954fd8d7da4576755b1c6e09b697cd \
++    --hash=sha256:75f80557d1389eddbd0de2681f6a390a0c5338c31ddaa821381c203fc3fd50d9 \
++    --hash=sha256:770de9db11e84213beec501cfcaa013b019820ca881e03344dea5844f7876d94 \
++    --hash=sha256:7750c6449dff7864bb9bb27ddfb0267756189201a3afc911d82b3caacd70dfc3 \
++    --hash=sha256:7bde5e4cc5c10140859842b9d383af292b22639a4dffb725314baf45968cef80 \
++    --hash=sha256:7ce713ace7c0e4520535b42b77eaa742c16dab813978064913e5a3cf82973b41 \
++    --hash=sha256:7da0c5eff80f0197f3b3d1232ec5a682a9325f4ae9016a78f5f5ca35f9ced1f5 \
++    --hash=sha256:7dbb61fe3a7699468030f71bbe5f8a0e326a151daa91beb11a6fc1f980c55e1c \
++    --hash=sha256:811bd1e21d32de12efca32393a0ab3f5133b54fce9bd44b8bd77ab07da14bf6a \
++    --hash=sha256:8ef53b2de9bcb9197d31854256575d59dbac0cba72ac627bb291ef5eceb74be4 \
++    --hash=sha256:937c0052c05a31ca1daf18de3158eed4dbfcb9cc107adbea227728d647be701e \
++    --hash=sha256:9d2055050ea716bd38b7f7f1579c275386646b4894c155a3e2f3cd62ed41b7c6 \
++    --hash=sha256:9f8d177621de5cb38ee3e731eda45d421db093ec0739f46a5594babda7987a98 \
++    --hash=sha256:a2d7755bef5a12ed488f4ef1f1b69ee9191d7396083b755a5d2295f6edb4768b \
++    --hash=sha256:a48d62ab9d6f4f98c983223a547af44be6ca3691074c31cecced6facd3ba2dc1 \
++    --hash=sha256:a4f00aa42f75d6e4595e8866e748cc1705adc0cddfeb2ca86d0d03993d63ba03 \
++    --hash=sha256:a6e721d4b0e45d5b65e87534470e67b18dcd092c83f68fba09f152b9cbc061af \
++    --hash=sha256:a730a083190634c65cca36ba5f489531576ebd79bcd5c8e172130f6453127231 \
++    --hash=sha256:a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2 \
++    --hash=sha256:aa9511c62d14da7aacc9b4bf51f3f697a621e83b2d6919008243c3aad168eea3 \
++    --hash=sha256:ab36d55f9ed2d067327667c2fea18dda018eb628dd6347aa01dda6cf1f5d3836 \
++    --hash=sha256:ad2c86c495b899d862ea0f4b42891b8713a3bd45dd4105c7fd51c2a72f39f3a5 \
++    --hash=sha256:aeae0e330c9f6acd681f647d46cefd30c29f93e3392882e792e82080c9691399 \
++    --hash=sha256:b0431303acaea1089ad4b3e9ce4e6518193def1118d4073ca848635ee4ea2e96 \
++    --hash=sha256:b5bdfd1c873d4e093aabc0ca84c4ca6dbc4f752afb5c86f146d9742580c9da2e \
++    --hash=sha256:baed1e86cc735622097354b9d1281406caf42ff42a886d29faa8e8d1630333be \
++    --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf \
++    --hash=sha256:c26608d2222fb1e94487e4a387d85f13eb55d5ed725cb25a0c589ac4ee60e7bc \
++    --hash=sha256:c7659f22557c5a0bc4855cd635f55edec690cc008a40768527762cb9fb263455 \
++    --hash=sha256:c8c69575568085ba0b1b10c0249d779a214aea6f6522e949a0fc9fb0fcb449d0 \
++    --hash=sha256:c8d2c9fd1f2d16f780d15127abb050d13d1a76c03a4bd87d7e4980e45e511e12 \
++    --hash=sha256:ca82be1a1d406ecfe1d25dc16cb33488e5a16bf4438c9fb590484ea29d92478b \
++    --hash=sha256:cc572dace3f60ef98d7b12ff411d20f5362feb31a0439eab0085bbfd349982d7 \
++    --hash=sha256:d18e5ac0f2f03f4f518d3e23db0f0cad7faa1da8620e9c09461d443bbf6e6692 \
++    --hash=sha256:d28630f5854ab07ab1fd4aba756de52326c82e6be15d414b12793f1975048b54 \
++    --hash=sha256:d9c275eaacd24aa73f94ffd6de08fc3f932424d8b6c376f4bed7cde376fe7bc3 \
++    --hash=sha256:da0e573f9f97159390c89d9f1a9e41908b66d408cc5b58d08cf3847d844c531b \
++    --hash=sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be \
++    --hash=sha256:dddad92b554513a31f272570678ba307fb9f618f05e3d4a5eacafff9eae03e1d \
++    --hash=sha256:df423d40ee8654634421812bc3b196da3f9bd7d32929da813f8394c4348a5358 \
++    --hash=sha256:df913725b79db7bcf03448f36b7bf8815363417d5b58deecf9305e3e30f0f21a \
++    --hash=sha256:e0bcb7e0f677f543555d2adff3bf19c05f66cdb4796e5ff602442ab2fe3c4ef7 \
++    --hash=sha256:e2d65b31f36619cda3999b78b2aa9632e76b78448e7a56fc4240824200e7c4fc \
++    --hash=sha256:e6e8cff14d6fb0be70a09c0bdc58096f501952d04624ebf867e0e56da2df8960 \
++    --hash=sha256:f16c709686a78c727bbbf059f92b0bf41c6fc60deec706d2dc19f529175a6125 \
++    --hash=sha256:f24fb43132a4c6b4cb4eb029492919b2db645be6808d738f244fd146c03c32cb \
++    --hash=sha256:f53e442b08449d42821fa4a4fba000095af9f62742a500f978a9f557ec44339a \
++    --hash=sha256:f5cfbc5fe74540d335175b656c725d74d90e3730c626d92575eea35029d9afaa \
++    --hash=sha256:f81b3b8f3d4e343550fa4baa0e479bba9f2d29ce9c2e9b51d1ce1718d7442fcf \
++    --hash=sha256:f8ec5e643a9a937f64e1999eb9f75d072263751912dc5cd06d3c85f8f44be7c3 \
++    --hash=sha256:fb92203a88b3d3053034db775110081c49d28be6551923805e039924093761e4 \
++    --hash=sha256:fcd22650c908d7b7da162bbfaab594a1227a15d1643a98c68b122ac642fa2264
++
++charset-normalizer==3.5.2 \
++    --hash=sha256:01077390b03f7988f11d700a2194e69b119741a86b1a638b1db88891e3eced8e \
++    --hash=sha256:01b0c0d2262a9e28e8484a278c7e1b5d650e3ac8cf2683d2967e25899f208bdf \
++    --hash=sha256:04851f73ae72b8413dddadb16a49dfee95263553741fd42d546f7d66907e6be5 \
++    --hash=sha256:0521c5665880b33d603717defa76c094048900010897909952397feb3039da56 \
++    --hash=sha256:0774bf9bf620249fee3e0b8b9fd3065de213be30f3aa94ce2494b3b638949e26 \
++    --hash=sha256:0891b9d3903c5571c03771ca669a4b0ec5618ca722a5c957d3d29cd4e5062848 \
++    --hash=sha256:0c951d5e6dd9c2ff60609476752bee49da4206adde960ebc247766937f72e718 \
++    --hash=sha256:0fed1d06615f022ee3b13caf5e8b180cfea32bb2c5aded8a9d44277afc040f93 \
++    --hash=sha256:114e4d0c92d618409ed82a99e22b5c5e768fe995f2973f78265f4524f49d4640 \
++    --hash=sha256:11912e4bb14baae7c5d8791aa55ba0a3a03ec6729073307b0f57270abaa713d3 \
++    --hash=sha256:11a4d68a6ecda3292cb1e50239e111543ba5d709bb62a6b4ea1afcfa729d8875 \
++    --hash=sha256:124fbf1a8ff966d87ae05bb8bd45a71f966055ed8bba320d0c7cf450bc5f4d0e \
++    --hash=sha256:1461ac396c4fdb983a675f20aa555624f0ee18ac83d832b9244ffff3d8055275 \
++    --hash=sha256:1503bccbeb36d5527790c3930327704c39af22de3112f1b1666a9f3ce15ee204 \
++    --hash=sha256:15bb4005af6320d259dc7593ca84a38d7fe06a421dbcf7b910ae23979101e787 \
++    --hash=sha256:15c44f7edfd477b06f517a5cc317fc1707edb9de2c865f43d4b6513907473234 \
++    --hash=sha256:16fa0eccf81304b79c5cd87f9271c3b85dd9dd99245e4422ae9c0dd45e0f99d3 \
++    --hash=sha256:183b88127acdb4fabe59d951ab424faf1af7b63cdbb5f776186c1ea2ffcaed98 \
++    --hash=sha256:195c26fb65950f8fce54e26349852b7bdd7c5f120aeefbcc440b8a20faaed4a3 \
++    --hash=sha256:1afb975bd5d68d5ce9f6b6d44fdf2f7e34b895a35e95708a7a91b20a3b51d187 \
++    --hash=sha256:1b4cbc7c3491ccb4aa17fcd8165649d01cf39f76de1696da8631b5f71b85401d \
++    --hash=sha256:1bc0baf5ef96b6ede57d47f4b8fe4d9d84019c3bfcbeb20a41edc6a6ee341f1f \
++    --hash=sha256:1c50fe28bbc2ced33386f298650d91218076c05420e6cbd790b913adc41659e7 \
++    --hash=sha256:1db38f4c5496827c1a501846d64d14c3b80c7e6714e406cd7dc36a9899fa1011 \
++    --hash=sha256:211d5a3eb6af8f513b8d4ca19a8c1b7accab1b5f0d3175f9826b03c1a920dc1f \
++    --hash=sha256:23851fb4e1b85ed3f6c2a27b777cdfe2e19fb5b38429a8faf38c7542b7665869 \
++    --hash=sha256:254eb48b9fa5ee9898a3c445825a1f340fe53712a098904b39b0bddba8ea3cb1 \
++    --hash=sha256:2625388c6c754520c37abaf3b41eb34d1cc4a373f457898f08606c8e362b891d \
++    --hash=sha256:281cb91036248400f4cc957495cccd44c275c2e0c5854f7e45ac5cf7dc193847 \
++    --hash=sha256:28a15fdad492a99b6eccfaaed66ef3f74050680545ea61ec8b2f4c538f1f1320 \
++    --hash=sha256:28b4f0d66fb834ff90f28209ac7bce77868c45d8c93e26f906709d9b7c2e1af9 \
++    --hash=sha256:2a925889534b3748302dae5dead07cc13480de1dac3aea80a941b729b471ef93 \
++    --hash=sha256:2b7b3bbfb4fe8ef40600792d762fbaa9057559f9d3fad209525b7a22b99e91fd \
++    --hash=sha256:2c9ad19a6cfcd5ea5c0d41161d22f9df1dcc277e9bef2751391334546a314c00 \
++    --hash=sha256:2cc961b171b3f3440f410489ab3573e86aea8736134ebbb40ea1338b7f0831bc \
++    --hash=sha256:2ce45c6627b22c47e390bc91a41c3d13032192e699fa0bea96e9671b373d69b0 \
++    --hash=sha256:2e06a3a98f916dd41d27f3105e02e7a40181c98c94b9158733d03a6f80506c09 \
++    --hash=sha256:304d5463e65a35d7bb0850550e0780395395f6fcf452f04db7d5ca7cecc425ac \
++    --hash=sha256:304d8e4d493af723536393eee0c689eb7813f4a474c8b479dee63f1fdd98f621 \
++    --hash=sha256:30fcd120b732aa79317f08dee04d7de0847822e4cf7ee0e9f445bb958832252c \
++    --hash=sha256:31f3930700408d211f13378ccbe1c40845d8da54bd0681fac3a9b5aae81c7aa8 \
++    --hash=sha256:34276fd796040bf0993ab33a369aa572e6979c7aab225a88893667ad8eac8f7a \
++    --hash=sha256:355ad8011081dec5412240c087a9a0c9d4d5039f3ed11a3f13e18c2b29b56c51 \
++    --hash=sha256:38a873987f3be698494da8b2e3085e29da02da7b633dce73e79c699a113d7bf0 \
++    --hash=sha256:39de2a259fc954455c57274dc94c79d5842774e1247a016aff30bc0efed0f4ef \
++    --hash=sha256:3d14b50de6bf4d0edf857a9386836846f982b8f524e188e2e68b96d702bcf4aa \
++    --hash=sha256:3d21b8b13c7592db2ac5e544a6d83187b995257472b0c9e8351b6d507ae37ed6 \
++    --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649 \
++    --hash=sha256:3ddacd27458c45bdacd6bd6db644bfb730efbf9e830310186e3045c9c5be8fb2 \
++    --hash=sha256:3df041de8887954562c9b261cba85ca0e9ded74048daf125f45edcfaa4832229 \
++    --hash=sha256:40ab6bffa02ae10a0581e6c198be7d2d8ca5c2a0c64e4ed3465d766df457573e \
++    --hash=sha256:4275811936e2f06feff5e598fb42a1b7ae852da8e39605211892b56b81a34efd \
++    --hash=sha256:443eae2bf318abeaf6f15d785138f71fd6de770e99a92158b8b814265e079115 \
++    --hash=sha256:447441e76ec720b15e64418d32e092297340387053047c7c694f579efb0ee1d9 \
++    --hash=sha256:4495c5002a7b28557e7e222e77e0b661183e432b7d6d2e788101e3f240e05b8c \
++    --hash=sha256:44bd4fbb29dfbeba60e7d2bd000c59e4b21ddb3cc53912b14048d37092706d7c \
++    --hash=sha256:4685902cf26edf013ed7a3da0f426ebba7a00ebb9541386d835afbf002c11cab \
++    --hash=sha256:498dc3188ca05a68231ac3fdbfc7f57eb67e1343c30e0fea17f8218c1599b253 \
++    --hash=sha256:4c2b5031f63e331e3839b40aed2dd6f191e9c07edbde303e7876846ea1946995 \
++    --hash=sha256:4d48f2d08b9de5864e2c8744d4461b862fb149a18274abc8b698c45975573438 \
++    --hash=sha256:4f87960d57feabfb618e4e0af6e7371645fa26a277860739d6e5d6e0012c92f0 \
++    --hash=sha256:50e3adfb96fc189eb27b1cf62d3b598b89b4bb0420d93a3d3e42e137409011be \
++    --hash=sha256:51cf45226a9b588d0d2b4880c62d686934b63ab0bd79ca23ab0e9762eb27441b \
++    --hash=sha256:52aa6992700996af31f375de0c6bacd402b0097fe40b53c426b9f51a90ebabc7 \
++    --hash=sha256:55ea99acb17b9325618de155a0cd6a2e8f5d10be008113e1d433bbb58db543b2 \
++    --hash=sha256:56bc200a365efb37383b7852e4cc5898d3b2da5987289b543956cf8cad71018a \
++    --hash=sha256:588461c2e8384d309bd63e5826019b6977bc66d629b99ac8737bb795d7b2cb5a \
++    --hash=sha256:58ca3755ee7ff7f59b57789ec9833c9de9ea275405cdd240eda1f193112e398a \
++    --hash=sha256:58f361dcbab699cf8f42db3f47c8e7fd1036f138c23a5d08de9fde5f425a730c \
++    --hash=sha256:598a11a2c7ebaa5334bf698bf29568c9c390abac6a154d8170fedecd1cea38c5 \
++    --hash=sha256:59f63901b0031c3136cf64704dcb21de0bbae62ce2c9529bc39d27665463de37 \
++    --hash=sha256:5cde776b7cc66e4f6c99612cea4aa7269aa65863f7a15841b2c264f103822f4e \
++    --hash=sha256:5e2b6b57e9733d39f0c9fd3185efa6b8e29652c4cd8fe94180272cf6ed9a78c4 \
++    --hash=sha256:5fb29fb8cd1a46c27a1bf9613ad5ec2599310d46b4025d9556404a6b6a292800 \
++    --hash=sha256:6045373d5a89a5ec71afde535db987ca28e76dfa276c2d4c818265b375d4b055 \
++    --hash=sha256:619799369eeef6366ed3e8755a5670f4f2f0fb6b30a0fd7264dc0fdc2357058e \
++    --hash=sha256:62588a277bfb59def052abd940703fa35107152bf479781a878617d60faf8fb5 \
++    --hash=sha256:62603db9a7caa0802eaa28c1c46fecd7b3a263a774069c24c3c28c302448721c \
++    --hash=sha256:65cd72beeeca9d3aaea1201e5923859f308f952f9c71de93f06063c79f0f7a3b \
++    --hash=sha256:68eb192d85ab8e5f6ec69c2bc6ac0179fbf04a5ac1569d12fbef74883fe102d0 \
++    --hash=sha256:6bd128f206a7752ae1f2ab6c61bf8a24ba28913a10df8b14c2637b973ff97a80 \
++    --hash=sha256:6be488a102b8cf28d0391d8c4ba7748938ae28b78ad901f8585520fca33ead1a \
++    --hash=sha256:7218e8f32b0956cfcd048fd42d9d5779809745ca1d86113ca56f66e7ae1549c4 \
++    --hash=sha256:7441d755b7ab94f8d4eb3e43ec05482d760842fd263d003a99102d742cd835e2 \
++    --hash=sha256:749e97e1b32313717a565abbe321bc2190bc8b35f1a67e4cdbc7c56c8d8ffe58 \
++    --hash=sha256:75a3ceed0724d625d64b86ca20aba182e4df462e04c2414fc941c0f523f06aac \
++    --hash=sha256:780fbe7cab297b81dad9fb8dc5eb003c0468ffb0d9e5f65068c53a34661a96bc \
++    --hash=sha256:78456a747de8dc58360ffa581f30a002baf5aa28cb262536545e91f113ed7639 \
++    --hash=sha256:7967d08cf06dee78443b874f98c98036f624f3a4e73e11f9f64f5be4d25393cf \
++    --hash=sha256:7a881931aa470808df94a8c380eed2bbbc76cd9dc622310f99665658c821eb6d \
++    --hash=sha256:7dcd882da75ef9adf94903b1e3b9419e8aa8fb4c7396822b834b9ef7fb96954f \
++    --hash=sha256:7e841fb9010836c992c9f12fcbd43a831de93a5f726fc1ccd8ca1d0268c5014c \
++    --hash=sha256:7fdde2c9fd9e3eca40631e024664cf2584272cc8f96308cbe5fdfc930f51d8bc \
++    --hash=sha256:8024d00c3faf3fc0c16e07a69f4405e8eac7cc0ab15f65fe6cf43827c4cf72b4 \
++    --hash=sha256:80d02b6f04e92601a081dd97b23d3128033098bff5d35d392ddcc0476ea11253 \
++    --hash=sha256:838dcc90063569a0448120554591a1d6c4a4ffe11babf048908793154ab86ade \
++    --hash=sha256:849df64e889b2e17230d58410a03dba311a65b163508fd33679b2b737d4b7858 \
++    --hash=sha256:87475fabc8d9996fd9c27debb395e642e8c838d78a00b6e932227a0e06b81e26 \
++    --hash=sha256:87e50a3e7cb90af586b6c5faf23e302a970415ac73bd7bd90a515a04b427ef96 \
++    --hash=sha256:89b53f3cda69831909888e0494f4fa0bcd3537e3e138dabeb620bd6ad946bae8 \
++    --hash=sha256:8a893cc101149f80a653f82062ebc95b34525a2614382e1da5458fe7c6997249 \
++    --hash=sha256:8b2bfab86aa71ae13aa41a6a26aab338e0db2b8bc75434b05aea89e011ff35a4 \
++    --hash=sha256:8d86d6fc60743dc916eb79e2eb1ec4818e21e427731543af40a3021851174a13 \
++    --hash=sha256:915563965d418f986e7e145accc592eae9e1a1be3566ff98a05d7a9ec42a76e1 \
++    --hash=sha256:92888bb3187c5ba50500b00b3b310c9f2c651709d28036077680cb5255450a03 \
++    --hash=sha256:93223adc95033dd47133a46ccfc316a0139176fd79085762e27202ec56018f03 \
++    --hash=sha256:9373ad13ef0d2c0fb761e04e55bfdee5a08b52cef2c882c8fbe9935b1517152e \
++    --hash=sha256:9409a8bf35cf78353942504b24a57de3d75b708997a1e4bd8db71ac8633ce364 \
++    --hash=sha256:9b7f416ff0978e2f2249330527f0ad6fa02f4932e6199692d3b52da2048c19e4 \
++    --hash=sha256:9bde855991b7e362c146535e3136a50bfaffc0487d38b33ca7e5edefc6e23849 \
++    --hash=sha256:9cae88599c7219005d879f98e5ed53341e9a122af585e1091200358a3003d2a0 \
++    --hash=sha256:9cf9b1a857e25c4baceeb3624e92a56df3668f398c4acba74e174d81fb4d1d3a \
++    --hash=sha256:9f56f72050826f63dcee7a7f55b0a77168cb3bfc553fd405e7f8f9ece75a4036 \
++    --hash=sha256:a090bb2c68df85450502e3e20d665e3a5af9c65a84d6508ed477badd49166fd3 \
++    --hash=sha256:a192e2c40070d92c3ccf777e3a5c4ff515573cd2bb7ed0c537fdadbbec5bbf21 \
++    --hash=sha256:a19a731138fc27d5682277d3b9df22855cea1239bce7fcec5f78f42ef2d1f3c3 \
++    --hash=sha256:a66c3bc5ab1f0ff2164fc9965ddd611ff0802173f4b9d24554c563f6ab7e1d6e \
++    --hash=sha256:a815775b6c38d4e0ff7bcffbeba67feded90202bb6a226b8dd35f1c855217413 \
++    --hash=sha256:a89012d6d5476ee112d20d998570ed58df2260a852afb1758809cd6900411d21 \
++    --hash=sha256:ae4f5fea5b8b8ccff88238cc8569303e5ee95efae67fa62922a311397a71f346 \
++    --hash=sha256:b6856554c4f44d79fc2307d5768854310a8f0096e501c75637542c82292b0429 \
++    --hash=sha256:b6b751274acb69d77b3323d6b7dbaa3c7fdfc1eb829b7eb61d262f32e1af9685 \
++    --hash=sha256:b736353c0a625bbd5fcec108576e2385db3496f4f771f785ff32e108d3c3bc45 \
++    --hash=sha256:b7fd005a73d9e657273b7a10dc71a9e03c8fb9ee6999798d6918ce095b81ac7f \
++    --hash=sha256:b91363207bd9dc966a691e959bb47f64b30f7ac4b072be9968b366982f7db77c \
++    --hash=sha256:ba0b1d2620edf869789c3879223f52bf2afc5d31b3cb47cc57b3a12c05e2aa9d \
++    --hash=sha256:bbbfc8e28816f19d7c0f1816664980c0a9875d01b27cdf8eedddb639d9e108ad \
++    --hash=sha256:bd16aabe4a02a297c23417aa17ac6299dbd8c49f673bcd645b4929b11f5a4400 \
++    --hash=sha256:c0afc6800ba57ccc350374c5bd6150419915d95ce93cdbab2d783d75eaf30ecb \
++    --hash=sha256:c6708715abcf3c73b99508253e961a9967f02fe536532834149574eda6de0d1c \
++    --hash=sha256:c7c9ab723cde841fefb34efbad91e87f00a674b1fe1cd0784fde742bf2c154dc \
++    --hash=sha256:c8f3d67aeaf55f017982b73683f0e7342ba2f6635a78f69ce89ebb26aa411e5c \
++    --hash=sha256:c9790464842f85f437dbbb54417eda1e0e6bfc52dd8d22d6fd1c994b73b2dc74 \
++    --hash=sha256:ca403d7e4798f525fdfc78e258820419cbbd0f0ecbab9de7840e3c017cf6b8cf \
++    --hash=sha256:d008d90a7f2471519aef0c90dfbe73b3e6e4d5e66ac48e19154c17e89e98b604 \
++    --hash=sha256:d19fbd981a488e22cd04883659ca6b08f50b5974f9fd7c95655ef6a043e5893f \
++    --hash=sha256:d1befeed746d247c81127bb14de9dc3d30edb6e5976d34f83f86ed262b1d9105 \
++    --hash=sha256:d2374b62878abb00cd8309b32af6c0b715cd02dec0ca74ef12e5069bdc64144a \
++    --hash=sha256:d376bbd28b3a8999db1a103b3b388aee6f1ddeb3e51bc2172993efdcd86e064d \
++    --hash=sha256:d4a7319f304a774bed22115bc891618e45f85065ab44ea6acd07d274e750519a \
++    --hash=sha256:d6734d2ef8a50fbf8445c139477da401f50d62a0606bf00e20ec6d87773fefb1 \
++    --hash=sha256:d760fe2a4d7c3b226cb9026d6a842868d52a7901bd98420e1baf14e80da85cf5 \
++    --hash=sha256:d913de495d90407cd859d263bee2e5d1a4ed3eb6573c04e70d9ec619a7cbed7f \
++    --hash=sha256:db19d07e2e0129e974a0e65d0064fc222a446cd5122c2fd4184d2af9fc734a9e \
++    --hash=sha256:dca9ab98072a5a54ebacebdc45f53e645336b320c667410b061be1ca588ae709 \
++    --hash=sha256:ddc7dacc8ece3a182e7f15cb862d1fd616b46d076cb1ae9dd232b2c38b655874 \
++    --hash=sha256:ddf19c062bea7a0cc80f519243d2c01dd091be0cf952a0750d4ad576709559f5 \
++    --hash=sha256:def79fa35ef0cef8d2accec024f4fdc7ead3012ff02f5215c783f39f03ef8cfc \
++    --hash=sha256:df29a0a7107f7011e77f4eebdddec4c7331e24d787a0b21a46d63bdf7445da95 \
++    --hash=sha256:e09a3942ecbdee5cce73ea9d42da82b81b72ac1bf031ce069b93b5adf4eac8cd \
++    --hash=sha256:e242bb1c5e76e97dfa9e7f209a71e93a01d7f19ffdd5cfbb2e2d55b4f08f8ab0 \
++    --hash=sha256:e243bd13217235fc7290c621941c3f5cc8b66e4872495be821d7436ba2fb838d \
++    --hash=sha256:e2af3aad578aa6bd1384bcf4750fc285e5a9de53f40b7d41e5a0bf748edeb2b3 \
++    --hash=sha256:e4e81e09c1578b8df602e3db08b0b3ea0a6947ad612f52bf8dc5ea8d47691f0c \
++    --hash=sha256:e54da4baf05720032d527874d40b65fa4d7e5c6c6a43d0c3adbeffcaf275a2b3 \
++    --hash=sha256:e80e6c2f55656b4824d72065abb4ddd6a525c74bd78a0aab5d9fc2cf4fb5af50 \
++    --hash=sha256:ed2a239c0ea213acc1908150a3037257083c7c083128f1a4cec2ec4b97dca491 \
++    --hash=sha256:ed905975ab14056a2e5eb1c376cb2e1ebc5396baf84163939c518556fccde9f5 \
++    --hash=sha256:ee21e28f0430bd6dc9086c6e525d5e818a44a5ad19720c8a0ef766792f3eb5e5 \
++    --hash=sha256:ee43c17b173d46a3212baa6ead3ae258eeabdae48c263a01ccf0218c366dd655 \
++    --hash=sha256:ef4fcbf3327382cd4c9f540babd61248208af7b93eec4de397b4d5f58a09e288 \
++    --hash=sha256:eff0ac9dbe711a4aee69bf04a83896aa9b85f19641264053a9f6d48573abb7dd \
++    --hash=sha256:f0aa869112ef88429ae17820d99c3dd9504c9e9c671d3c246f3d7442cb051084 \
++    --hash=sha256:f3c96f633825733f735c5a9cf21d21a257d8e1edf0b1cee0a064b9c424ca0f7d \
++    --hash=sha256:f5833ad231be5eb6553de524a70f48d71b2c8563101750531e0b80184e175cd4 \
++    --hash=sha256:f5ec61164adcec446f8969a3358ec3f9b26bbda3b9213e5586d219afa8df2915 \
++    --hash=sha256:f7d486c83842422badd511868fd8a9a20e9407ace71564b6af47ce7e60a336c1 \
++    --hash=sha256:fb9e68df06293761f9fe66ade60a9bc6d0f5e42b8acf2939a9158af86ab0e5bd \
++    --hash=sha256:fc14a032f813bf5fe624d991960ea83e9715adc27e4c1830a2361eb1d02ac341 \
++    --hash=sha256:fcff63213e8e6e47770541a4607175404f47cbb3ebea7b6058cc82d524a0e424 \
++    --hash=sha256:fd1fbe0f116b6e55da77aca2c6ddcddcfac2186cbf78bdebf40fc156efca389d \
++    --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
++
++crcmod-plus==2.3.6 \
++    --hash=sha256:00257496f5eb5bca89ae3e24690bde883fd4da4698d1083ab29f1e89743574cd \
++    --hash=sha256:0031a330a07e1960aa777dd55a7c7845207a3b33902cced7ac46b30e61c88ce7 \
++    --hash=sha256:0fa63621363bd0b9ea8434b87afd285f8699243df7f39cfde23bcd884285aab6 \
++    --hash=sha256:11212f417458f00ff87e1fd91a8e440da1f619b253d48449d13c0da540983cfa \
++    --hash=sha256:16ef72590190d03287ed1d84f4e6653aa4bca0ca232110302f01bdae66b60d51 \
++    --hash=sha256:17a645125cb9e55fb26733197bb0e0539c8824d742536b97d9c2744cfe0111ea \
++    --hash=sha256:1fd0f399f3b4b0f5d2686e1dbf3b79ad79f2c76fe2e6009afe747173bd3debfd \
++    --hash=sha256:23a427879dede8cf56bd3e96a20a68f0d5d6bab3e7c76d323f259e2cc7a70e55 \
++    --hash=sha256:28f05639ae8fac3afa3233bdd470f02fd9999cd4fd9d47fe8e94085510ad4a94 \
++    --hash=sha256:2f06347c9b1eeb7ed40262cec5c658fcaf189b5f213a446aacf1d3da545522da \
++    --hash=sha256:3050d2b16031a9f1087e5ad6044d7eb33b9dac3bfd5961e418fba12cc3c68829 \
++    --hash=sha256:3607c745e0f23c416e551b8ff6bc0f96caba40d5665c9172310ea529b8bdb403 \
++    --hash=sha256:36fd967f865e4e0ff06896a97e8823cc0daea1e0fd4ff924d0cebeb95334839c \
++    --hash=sha256:3c6a0a21d76c389360f8e58566701e877958f6a6675ff93ad77d300a248780ae \
++    --hash=sha256:40ff79c88b2553ff3b8f43ffe5f5f48963abc9e1dd16378f6a20d6612275bb9c \
++    --hash=sha256:47d8428267f31c90a756e3f65d02020e70365a09a321eced4f7506ad32abd203 \
++    --hash=sha256:4faa2d4bb4df6434a4e8450707eecc33f7379aed4346e632216a697986e97446 \
++    --hash=sha256:50e48616626e997b3f120412d74d8d05d2437f40d3a3d75a55cd4a2125a516b2 \
++    --hash=sha256:5b235fb777555af40a8a7dc91b79508af4c822b6620a275e0167ed5f3262442a \
++    --hash=sha256:5f5cd092f0dd57d3fa5b25c87381113282119fa4d1ff2143f98c15fa5bec0de9 \
++    --hash=sha256:6adf56ee5061f38658655271629e0145260f64beab90edeba2e699c1a099ca15 \
++    --hash=sha256:6b3e1a666417cb1ae709740e3503c67f443348db382b39caa8d03fb4bd2f6430 \
++    --hash=sha256:7649a011f48a25dc1a54f01aaa4d989fcdf17ded67f3e7c55b05dd08bc361ce7 \
++    --hash=sha256:77d97854059fb36f69ec4cfb0894992ff610a31b88ea94371008d1264faa0d94 \
++    --hash=sha256:7ad245cbce8f6b3462ceaffa03b7a6a3bb09cc9c8fffdffcf8025b4c9c7603d1 \
++    --hash=sha256:8b68f6d5f70fe42d352fc6faa254bd95539f277370fa50ae7bff7cd05036a5a8 \
++    --hash=sha256:8b6933a8b23282740300e075ec0fef5a3227840a99ab7d840caf92f5f1a96148 \
++    --hash=sha256:8b937a09cd5db063f2aac3c3bd9f82ef8fcc938a1a39055ad3be52c752629b5e \
++    --hash=sha256:8c2ec254cdfdbae6d34e312fd8eda4ebaf57febe2d14752fd2603758ffb85bd7 \
++    --hash=sha256:946cdeb604cd726dec80b7be9de1e976a41b47b9340e86b0c869a08f8d24e184 \
++    --hash=sha256:a626a42cbc7e4e13059a8fccfc71257b4e0ce57acbe940ecf3c73b12c64e8311 \
++    --hash=sha256:a7dcf519227914e18a05d71c88c315b1f9a013b1de3130e54dc6a84cf48e2192 \
++    --hash=sha256:a98c775ede8dbeb054aa692ab0935d0d71e8b62a8bad130004fc09eac9e54759 \
++    --hash=sha256:b23dc4af36ed402aa78018ad48088309fd14f82d6696f4c74da5275e3b950700 \
++    --hash=sha256:b342f02a9b3bfda9f376926523e4689275b7dc60780b9a2a8dad18ac67504d81 \
++    --hash=sha256:be650fdecae3349755bfb85263025e3641a2813e090a153019ac46467c90ec75 \
++    --hash=sha256:c5a898312acbaf77fa43bf8c22908c45bab49b808be588c973e9e67d48e81e76 \
++    --hash=sha256:d18de4d8f00a1db9747a104daa13b1164ef82e5bd684dedd9d03ecbca52c5af0 \
++    --hash=sha256:d276a6ea4c022a6c000846eeab7e5be8eae7f763bbc42fd33d6a86708cf22d06 \
++    --hash=sha256:d54b423f27149e9380321382ab1bbf8d520da36041676cc7cbaac117a875afc8 \
++    --hash=sha256:d69d9d67135efe155e2c644f582a3cd1f2339fdbf0ea06d3659c8f2b58622ed0 \
++    --hash=sha256:db1ec2a3f718c9947c6300b02256cb159f6785a7090dbb650b7e8be846f63be9 \
++    --hash=sha256:de7ca8a5a135621895b11d922b902d5e59d12ce4be28fca3a43eb104a97bcd14 \
++    --hash=sha256:e12192ebc05301ef9cebc4db935e521480cf454cca4ce4eec81bec4d670f3ca7 \
++    --hash=sha256:e3d98d0f57796cdfa4c18470d3d3926d56b478532ee91be4723272ca89ece1f9 \
++    --hash=sha256:e9736ef4192e2c43af3e61856182ed7c432364ce9e2ed949a61dbf2e63ff780a \
++    --hash=sha256:f64f804817db879604917ac80c1593ee1026189587f38246bff34fdabe8f48c9 \
++    --hash=sha256:f7fad5c9a33b24c4a7a36e0b929a81dc0e0c68c786d70e2cd01fb496682a19ac \
++    --hash=sha256:f8806b8d0023b25bff8aced62a1f3212e77c7551d5a48009353488baf4d140cc \
++    --hash=sha256:f93e479f09a8d524a83287a5db889b7abadfec45251b0fac3812b03919385daa
++
++cryptography==50.0.2 \
++    --hash=sha256:0ddc924c04591c2811ca024d62ecad4f7f6f08af8939c211438f48a16bd23602 \
++    --hash=sha256:0ec5f09541743261e66e291b4a0cbf0fb2997aeaab6d9e9c740b9dba1b58d1c2 \
++    --hash=sha256:0ecbc5652bdb6fc9eaf89a7d196e20941adfe812f43bc4ca05d9150496821047 \
++    --hash=sha256:1981f1db4630889b9ef7803fadef12b056f428cb6b85c27ba57b774793b6093c \
++    --hash=sha256:1ba34f04897fcdaa73f74145c25f3ec146fbd56593853e88adc2e811303c5f42 \
++    --hash=sha256:241449bf940a5d27309bd317e6f9a2af6932113818bb2b8f5c59ddc7ef16da18 \
++    --hash=sha256:25784ce8b9621c90c643efb9e1e2162ab3b0224cae446ad5e70e7fcb1ce18b51 \
++    --hash=sha256:3dc4fd8058cea1644971207d530e1a03a184a805ffc8ebdddf0599d78a331b81 \
++    --hash=sha256:4061c0079120205fb760c58acab6443e217307dcf05e3702cf970e0689972856 \
++    --hash=sha256:4a20ce1e5cb4284a86692fdcba7cb8754185c6b2e5c56fcef3751cf451d3cdc2 \
++    --hash=sha256:4e81d95e5bafc2d6e34e4bed780e53e4d5b9a2f928573428aa4d35fbec1eb0de \
++    --hash=sha256:58a0c478eeca76fe5e07993c5a0703def34a6dc6a0cda4f5564639b33112ffe7 \
++    --hash=sha256:58ddb5a8e3179d12f19e4ea34d2d32e9d63a4baa142c875c1eb59f41b7243acd \
++    --hash=sha256:630ebfea3bf689d075f82316324ff7433dc447fe6bc1bfc76524b74b4a9567d2 \
++    --hash=sha256:6f8700550aa1474a91e5dc07049c46f98b423b5b1ddd0483e0b51362eeeaf5be \
++    --hash=sha256:78198641e5be9521beea5aa782bb551a58068d10e6eb04c9c680c1b69f2e7d45 \
++    --hash=sha256:79def8d059362e7831389ed3be0ecdf58a89386e1271e35dd9f5af84e81bffd0 \
++    --hash=sha256:7a8701d6b584d76e909e3d305b7d126b41439876a5aaf76cddc67fc230eafa2e \
++    --hash=sha256:7afa5a6602a9f29af1f3a2965f831bae7c9d5d597b7cbb716d41ab3b7d89879c \
++    --hash=sha256:7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5 \
++    --hash=sha256:7b75de3c8b3be1cdb1052747c929440c3eea46c1bc2cb8a6e3a48388e9b7b452 \
++    --hash=sha256:7c6d0330c472d96f6a6afe24d80dfdf15176c33096f0a4397ae4c60f3dd3be48 \
++    --hash=sha256:828d49b0ff5a0e3975865571c5d91dbbdd0d38d8289b249a163e9425413a5e05 \
++    --hash=sha256:84f964e537f916e2cc85199e5a88742e964939b575ac8598b3f9d6cc416cdaf1 \
++    --hash=sha256:85d0d9a31b9098e98534226d5686b47264b95e62ce459dc2e62fdfc809f9fe93 \
++    --hash=sha256:87e9ce85beb6b328ba370cc6e6aea483c92617b4c95b1d33a49297eb662bfb04 \
++    --hash=sha256:8c71ba2cd31fc93748c38e1b613200ff1c2665cbfd5341fe3a61cfde35a1430e \
++    --hash=sha256:92e665960f25fcdc73725b9cec7a3824f279ba97a98653afe9ffac2e43668f67 \
++    --hash=sha256:94e5e9f108ee10471288214d3d233fbfbb492840a8457eb85178d643ddeb32c7 \
++    --hash=sha256:9c8402a82ea0dc4ceeab793db05f0fafa8ca139ca34fcde5df0f596103c74107 \
++    --hash=sha256:9dab55f57c74c3cad24c323bacbbd04be4705ba6eb0d92e920b1fc4837ed5079 \
++    --hash=sha256:a582ab2ae1d34f67112cadc86702774c9ea4374df6bca6afe672817203c99134 \
++    --hash=sha256:a6557e5f38e065ca9fbdaf7cfc7435ecb1d113aa81a022d1b51921ee7432e227 \
++    --hash=sha256:a9f7355e6fab51f6c369b86fb7571cffa05edee2c2121e0380a37fb9ac1cd5c1 \
++    --hash=sha256:ab50ee449bf968271e820086f10a33d101dd060370abc10bcd22279be2656539 \
++    --hash=sha256:ac9ed99d81760c62fe89d5f0815cdfa1ba9a35141cf30f1c2d044f04b4803d2e \
++    --hash=sha256:b13478603dcd0a2479ff8e87e2c19a7d525734686fe3c49542472293a204212d \
++    --hash=sha256:c423ab384a46c4dff7217b2ea5ba2e11cffdeab6441acd04cf65a369caf0366c \
++    --hash=sha256:c5e67125c7dca78d199ec4e116aa93dbb83494808ecbb8211a2cb09b1bf41dbd \
++    --hash=sha256:c71be1cbfa5cd9a41ee452acf1eccd82b2c05950358b106ec8ceb83411d1a020 \
++    --hash=sha256:cbc8738fd8526d80f35cb3a40d41f41a2e7030bb3b18b09a6778ef63d291c2fd \
++    --hash=sha256:ce47f66801c20ec6c6632453bb5960fe38939e9306970b48b3a5a26de7745d94 \
++    --hash=sha256:d370b8d1dfcdf7130178137f6fbee6140774a1acc6cacefc4b42643ec11d0a3a \
++    --hash=sha256:d38cdff612d06fa6a32840d5e1b1f7a27cee4a349aa9085d94a67789d6bfd408 \
++    --hash=sha256:d8947001be83df1394050758ce0e745dd74fb134eef0a4b5124208dfc3a68c37 \
++    --hash=sha256:deb9fde5c60e437ee4821bc9bc39ff31b42135c27e1dc61ef0a629389c1de62e \
++    --hash=sha256:dfe9763530994147d9af1def057a5b9658b00e8f8fe8743d144d1e0911c2e454 \
++    --hash=sha256:e105ab60406787da31fccc883fc0f733af1efd78f0136a4599692c4083a73d0c \
++    --hash=sha256:e275096ea1e60cc595cda2836fd4a6c725d1125108b868be17f53684d164e2cc \
++    --hash=sha256:edc3342adf8f697fc5f59c887a304356f147b397809440ed64e2fa6af2f50f37 \
++    --hash=sha256:ee247f5c245c9a2fe7c8e2214e295918838e44e00a45a6718451e4004219e767 \
++    --hash=sha256:eef4c2f3423810b3070ab391f85436d2f8bbfcb286ac15cbc73190b3563b1f1a \
++    --hash=sha256:f21e8a22c8605750c7af886bab299a363721264061b4ac0a30efb73cfd58efc5 \
++    --hash=sha256:f265528741e048bce55c3463ed721fb0aa45a5888d8add8cfeccb3035451bbdc \
++    --hash=sha256:f2f9bd7f90c64fe89253f0a2c05e3c4856072660429ce8831b4235bf29403a67 \
++    --hash=sha256:f785f6161f202ab04d8ca194158968798e480ca058943907972da5f12e2881e8 \
++    --hash=sha256:f9f6143a8c75945eb960d9eb98905a441394abfa24afaae239d514ffb2586480 \
++    --hash=sha256:fa8f5efb344d6908a1ce62f4a24e2e5780f825d6f53f5f50ec5ffacac72936cb \
++    --hash=sha256:fdd28f912fccfec1846a94e2e1e8f9b0012f557f0c46fe4f3eb0d7a87afcf90b
++
++idna==3.20 \
++    --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44 \
++    --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
++
++jmespath==1.1.0 \
++    --hash=sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d \
++    --hash=sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64
++
++pycparser==3.11 \
++    --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80 \
++    --hash=sha256:d875f09c3507d00e1aba0eecc6dcadc1352f30fff09dc6bff2f1c2935e97c2bc
++
++pycryptodome==4.1.0 \
++    --hash=sha256:174fd47875450f632788d6356f10e5ca71bb7b1f4fded9753e62ab2b930d37e5 \
++    --hash=sha256:1c3a054ab2552f25a941d6cd6380d9c0618ad0274f48773407b6bf5cd37bc90f \
++    --hash=sha256:2c02ad4d122562b8484f662f89e74d58b6c7a99675e12e897f8d6f67cfb8f041 \
++    --hash=sha256:2dfe554292bea9f41c16b39d9caf4f6b829b632ea7b86f90eaf39cbdfd7018a1 \
++    --hash=sha256:2fa7d2e03b8baaf96cc36222ee7c10a89ebc7e8232f11bee96f09c1744c2d576 \
++    --hash=sha256:35efabc8dd1e3d05b8eb032490cc73d3dbd5e32f2bc07d2c838eff42f0ab377c \
++    --hash=sha256:3cf054a62f149b691bc67d1ef42c7498009ace2eb5b29c324c1386fc4d69b6b0 \
++    --hash=sha256:3fff8aab4d99b0295729f011d0f7226b3de59d70a5fb9232b61d3b950c6c8da6 \
++    --hash=sha256:40e6d46f8bc5e1fcb206d5a7d405e28f82391e558954b57c8d0ea1fc021e79da \
++    --hash=sha256:4f37f7c2a388f285ab997b38447a53fcabf682be816cfdcd04e0a3690f2bd576 \
++    --hash=sha256:5edb1dd5b399b7e434e97a0e6d39062991e8a6dc798548e2f54fe0e26f930e3f \
++    --hash=sha256:67909f504b3dea838fa61a8ce414f838d579048642cbefc5b8b606d417cdd4ab \
++    --hash=sha256:70b8315911cb7c277d810e6773ce8c587ee0c5fea8d0203b5ae7b8e31da86d4a \
++    --hash=sha256:8efd280698622042bb1cbd8bcdbd38567214660c00033f723b4d8309e63be2e6 \
++    --hash=sha256:993bedeb0b375f2a2668cfe1670497f97dded0c057fb389e6a991db3ff954207 \
++    --hash=sha256:ab6c80513531a50a6baf07bfc3fa7efb30bf9bd3329f2ea1b4604e92cfedf812 \
++    --hash=sha256:ace5e54dd422a99cd03df3e90b3e36000a651760a9f58aa6c3784dee0e6fc57f \
++    --hash=sha256:b25bf1c78c5a4a2e1edcb9f7feda486bcffc67ebb5504b00818a89b31e7884d8 \
++    --hash=sha256:b89a12d61f8ecc3b411be5d71beb963e4f1f456db50d8f12a04a9b4ee607ac8a \
++    --hash=sha256:b8ee074e666599e5fffd33b82987ad6ba0d08cb14cf42b9d2bd8e61421cf678f \
++    --hash=sha256:d39f03a77f670aaa04e72d54255721a4c8571a1881c924f49a7c5b415c5e463c \
++    --hash=sha256:d7b02ff739f1ef57d8f7e7b1601c6c64f7b4ba207d6f66f7034b9561d09773f4 \
++    --hash=sha256:decfb51d1d34d886cb78d01fd2284147c0b2a97327e9147418caaeb61b22e7cb \
++    --hash=sha256:e563c135588b8b241be728d135818f9e7c88a47cc964115bf5c800243a71a0d0 \
++    --hash=sha256:f282f3f30725e4889a70543efeaa1ad67f8ca52329aa3b5fa1cd2575dc8c3cfc \
++    --hash=sha256:f7bb8fcbfd72c840a17b67543b984018ead3247f7054bb729e24a8dda436eb35 \
++    --hash=sha256:f7c39bbb1c0907a36e1baea1ee14ef5cc1eaadaea936017c3a125037581aa086
++
++requests==2.34.2 \
++    --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
++    --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
++
++urllib3==2.8.0 \
++    --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
++    --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
+diff --git a/scripts/aliyun-object-storage-provider.py b/scripts/aliyun-object-storage-provider.py
+new file mode 100644
+index 0000000..a80ea40
+--- /dev/null
++++ b/scripts/aliyun-object-storage-provider.py
+@@ -0,0 +1,358 @@
++"""Thin, explicit-credential SDK operations; no production publication entrypoint.
++
++SDK readback is evidence about one operation, not routing equivalence, approval,
++public availability or publication. Literal rewrites are review candidates only.
++"""
++from __future__ import annotations
++
++import copy
++import hashlib
++import io
++import json
++import logging
++import os
++from pathlib import Path
++import re
++import stat
++import tempfile
++import time
++from urllib.parse import urlsplit, parse_qs
++import xml.etree.ElementTree as ET
++
++import requests
++import alibabacloud_oss_v2 as oss
++from alibabacloud_oss_v2.transport import RequestsHttpClient
++from aliyunsdkcore.client import AcsClient
++from aliyunsdkcore.auth.credentials import StsTokenCredential
++from aliyunsdkcdn.request.v20180510.BatchSetCdnDomainConfigRequest import BatchSetCdnDomainConfigRequest
++from aliyunsdkcdn.request.v20180510.DescribeCdnDomainConfigsRequest import DescribeCdnDomainConfigsRequest
++from aliyunsdkcdn.request.v20180510.DescribeCdnDomainDetailRequest import DescribeCdnDomainDetailRequest
++from aliyunsdkcdn.request.v20180510.RefreshObjectCachesRequest import RefreshObjectCachesRequest
++from aliyunsdkcdn.request.v20180510.DescribeRefreshTaskByIdRequest import DescribeRefreshTaskByIdRequest
++from aliyunsdksts.request.v20150401.GetCallerIdentityRequest import GetCallerIdentityRequest
++
++MAX_OBJECT = 2 * 1024**3
++MAX_RESPONSE = 2 * 1024**2
++CHUNK = 64 * 1024
++FUNCTION = 'back_to_origin_url_rewrite'
++FALSE_FIELDS = dict(production_enabled=False, publication_verified=False, cloud_verified=False,
++                    wire_equivalence_verified=False)
++
++
++class ProviderError(ValueError):
++    """A bounded operation failed; raw SDK errors and credentials stay private."""
++
++
++def require(condition, message):
++    if not condition:
++        raise ProviderError(message)
++
++
++def digest(value):
++    return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
++
++
++def safe_path(value, absolute=False):
++    require(isinstance(value,str) and len(value)<=1024 and re.fullmatch(r'[A-Za-z0-9_./+~-]+',value),
++            'unsupported literal path')
++    path=value[1:] if absolute and value.startswith('/') else value
++    require((not absolute or value.startswith('/')) and not path.startswith('/')
++            and (not path or all(p not in ('','.', '..') for p in path.split('/'))), 'unsafe path')
++
++
++def compile_rewrites(routes):
++    """Compile a bounded literal candidate; never attest live PCRE/query semantics."""
++    require(isinstance(routes,list) and routes, 'routes required')
++    seen={}; result=[]
++    for row in routes:
++        uri=row['public_uri'];key=row['object_key'];safe_path(uri,True);safe_path(key)
++        require(key.startswith(('snapshots/','public/','generated/')), 'object namespace differs')
++        facts={k:row[k] for k in ('object_key','size','sha256','cache_control')}
++        if uri in seen:
++            require(seen[uri]==facts, 'conflicting literal route');continue
++        seen[uri]=facts
++        # PCRE \z is an absolute end anchor; $ also admits a final newline.
++        expression='^'+re.escape(uri)+r'\z'
++        require(len(expression.encode())<=1024, 'literal expression exceeds local capability bound')
++        result.append({'functionName':FUNCTION,'functionArgs':[
++            {'argName':'source_url','argValue':expression}, {'argName':'target_url','argValue':'/'+key},
++            {'argName':'flag','argValue':'break'}, {'argName':'sequence','argValue':str(len(result)+1)}]})
++    require(len(result)<=50, 'domain rewrite limit exceeded')
++    return result
++
++
++class _Session(requests.Session):
++    """Per-instance, nonredirecting HTTP boundary shared by official SDK clients."""
++    def __init__(self, hosts, adapter=None):
++        super().__init__();self.trust_env=False;self.hosts=frozenset(hosts)
++        if adapter is not None:
++            self.mount('https://',adapter)
++
++    def send(self, request, **kwargs):
++        u=urlsplit(request.url)
++        require(u.scheme=='https' and u.hostname in self.hosts and u.port in (None,443)
++                and u.username is None and u.password is None, 'SDK endpoint outside bound resource')
++        require(os.environ.get('DEBUG','').lower()!='sdk' and not logging.getLogger('aliyunsdkcore.client').isEnabledFor(logging.DEBUG),
++                'SDK debug logging must be disabled')
++        kwargs.update(proxies={'http':None,'https':None},allow_redirects=False,verify=True,timeout=(5,10))
++        query=parse_qs(u.query,keep_blank_values=True)
++        streaming=kwargs.get('stream',False)
++        kwargs['stream']=True
++        response=None;started=time.monotonic()
++        try:
++            response=super().send(request,**kwargs)
++            require(not 300<=response.status_code<400, 'redirect refused')
++            require(not response.headers.get('Content-Encoding'), 'encoded provider response refused')
++            if not streaming or bool({'versioning','bucketInfo'} & set(query)) or response.status_code>=400:
++                raw=bytearray()
++                for chunk in response.iter_content(CHUNK):
++                    raw.extend(chunk);require(len(raw)<=MAX_RESPONSE and time.monotonic()-started<=30,'provider response exceeds bound')
++                response.close();raw=bytes(raw)
++                if 'versioning' in query and response.status_code==200:
++                    require(b'<!' not in raw, 'versioning XML declarations refused')
++                    node=ET.fromstring(raw)
++                    require(node.tag=='VersioningConfiguration' and not node.attrib
++                            and not list(node) and not (node.text or '').strip(), 'bucket was versioned or versioning response is ambiguous')
++                if response.status_code>=400:
++                    # Preserve only an allowlisted service code; errors can echo secrets.
++                    try:
++                        code=(ET.fromstring(raw).findtext('Code') if u.hostname not in ('cdn.aliyuncs.com','sts.aliyuncs.com')
++                              else json.loads(raw).get('Code'))
++                    except (ValueError,ET.ParseError):code=None
++                    code=code if code in ('FileAlreadyExists','NoSuchKey','AccessDenied','BucketNotEmpty','Throttling') else 'ProviderError'
++                    raw=(('<Error><Code>'+code+'</Code><Message>provider operation failed</Message></Error>').encode()
++                         if u.hostname not in ('cdn.aliyuncs.com','sts.aliyuncs.com')
++                         else json.dumps({'Code':code,'Message':'provider operation failed','RequestId':'redacted'}).encode())
++                response._content=raw;response._content_consumed=True
++            return response
++        except Exception:
++            # Do not let either SDK log an exception containing a signed URL/token.
++            if response is not None:response.close()
++            raise requests.RequestException('bounded provider transport failed') from None
++
++
++class Provider:
++    """Explicit resource/credential binding for SDK primitives, with no credential discovery."""
++    def __init__(self, *, resource, access_key_id, access_key_secret, security_token, http_adapter=None):
++        fields={'account_id','principal_arn','identity_type','bucket','region','endpoint','domain','cname'}
++        require(isinstance(resource,dict) and set(resource)==fields, 'exact resource binding required')
++        self.resource=copy.deepcopy(resource);r=self.resource
++        require(all(isinstance(v,str) and v for v in r.values()),'resource fields required')
++        require(re.fullmatch(r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]',r['bucket'])
++                and re.fullmatch(r'[a-z]+-[a-z]+(?:-[0-9]+)?',r['region']), 'invalid bucket/region')
++        require(r['endpoint']=='https://oss-'+r['region']+'.aliyuncs.com'
++                and r['domain']=='packages.githubim.com' and r['cname'].endswith('.kunlunaq.com'),
++                'canonical endpoint/domain required')
++        require(all(isinstance(v,str) and v for v in (access_key_id,access_key_secret,security_token)),
++                'explicit temporary credentials required')
++        self.origin=r['bucket']+'.oss-'+r['region']+'.aliyuncs.com'
++        self.session=_Session((self.origin,'cdn.aliyuncs.com','sts.aliyuncs.com'),http_adapter)
++        transport=RequestsHttpClient(session=self.session,enabled_redirect=False,connect_timeout=5,readwrite_timeout=10)
++        self.oss=oss.Client(oss.Config(region=r['region'],endpoint=r['endpoint'],signature_version='v4',
++            credentials_provider=oss.credentials.StaticCredentialsProvider(access_key_id,access_key_secret,security_token),
++            http_client=transport,retry_max_attempts=1,enabled_redirect=False,insecure_skip_verify=False,
++            connect_timeout=5,readwrite_timeout=10))
++        self.rpc=AcsClient(region_id=r['region'],credential=StsTokenCredential(access_key_id,access_key_secret,security_token),
++            auto_retry=False,max_retry_time=0,connect_timeout=5,timeout=10,verify=True,proxy={'http':None,'https':None})
++        self.rpc.session.close();self.rpc.session=self.session
++
++    def close(self):
++        self.session.close()
++
++    def _call(self, cls, **values):
++        request=cls();request.set_protocol_type('https');request.set_method('POST')
++        request.set_endpoint('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
++        for key,value in values.items():getattr(request,'set_'+key)(value)
++        try:
++            result=json.loads(self.rpc.do_action_with_exception(request))
++            require(isinstance(result,dict),'provider response must be an object');return result
++        except Exception:
++            raise ProviderError('provider RPC failed') from None
++
++    def observe_resource(self):
++        """Re-read caller, private owner-bound bucket and explicit never-versioned XML."""
++        r=self.resource
++        identity=self._call(GetCallerIdentityRequest)
++        require((identity.get('AccountId'),identity.get('Arn'),identity.get('IdentityType'))==
++                (r['account_id'],r['principal_arn'],r['identity_type']), 'caller identity differs')
++        try:
++            info=self.oss.get_bucket_info(oss.GetBucketInfoRequest(bucket=r['bucket'])).bucket_info
++            require(info.name==r['bucket'] and info.location=='oss-'+r['region']
++                    and info.extranet_endpoint==r['endpoint'][8:] and info.owner.id==r['account_id']
++                    and info.acl=='private', 'bucket identity or private ACL differs')
++            value=self.oss.get_bucket_versioning(oss.GetBucketVersioningRequest(bucket=r['bucket']))
++            require(value.version_status is None,'bucket was versioned')
++        except Exception:
++            raise ProviderError('bucket identity/versioning verification failed') from None
++        return {'resource_sha256':digest(r),'versioning':'never_enabled',**FALSE_FIELDS}
++
++    def read_object(self, key, facts):
++        """Read through EOF with byte/hash/cache checks and an elapsed-time bound."""
++        safe_path(key);require(key.startswith(('snapshots/','public/','generated/')),'object namespace differs')
++        require(type(facts['size']) is int and 0<facts['size']<=MAX_OBJECT,'object size exceeds bound')
++        body=None;start=time.monotonic();total=0;sha=hashlib.sha256()
++        try:
++            result=self.oss.get_object(oss.GetObjectRequest(bucket=self.resource['bucket'],key=key))
++            body=result.body
++            require(result.content_length==facts['size'] and result.cache_control==facts['cache_control'], 'object metadata differs')
++            for chunk in body.iter_bytes(block_size=CHUNK):
++                total+=len(chunk);require(total<=facts['size'] and time.monotonic()-start<=120,'object stream exceeds bound')
++                sha.update(chunk)
++            require(total==facts['size'] and sha.hexdigest()==facts['sha256'],'full object bytes differ')
++            return dict(size=total,sha256=sha.hexdigest(),cache_control=result.cache_control,
++                        status=200,request_id=(result.request_id if isinstance(result.request_id,str) and re.fullmatch(r'[A-Za-z0-9-]{1,128}',result.request_id) else None),elapsed_ms=round((time.monotonic()-start)*1000),**FALSE_FIELDS)
++        except Exception:
++            raise ProviderError('complete object readback failed') from None
++        finally:
++            if body is not None:body.close()
++
++    def put_create_only(self, key, path, facts):
++        """Upload one frozen local file once; unknown outcomes only trigger a GET."""
++        safe_path(key);require(key.startswith(('snapshots/','public/','generated/')),'object namespace differs')
++        require(type(facts['size']) is int and 0<facts['size']<=MAX_OBJECT,'object size exceeds bound')
++        require(re.fullmatch('[0-9a-f]{64}',facts['sha256']) is not None and facts['cache_control'] in
++                ('no-store','public, max-age=31536000, immutable'),'invalid object facts')
++        with tempfile.TemporaryFile() as frozen:
++            try:
++                fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
++                with os.fdopen(fd,'rb') as source:
++                    metadata=os.fstat(source.fileno())
++                    require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink==1 and metadata.st_size==facts['size'],'unsafe local object')
++                    count=0;sha=hashlib.sha256()
++                    for chunk in iter(lambda:source.read(CHUNK),b''):
++                        count+=len(chunk);require(count<=facts['size'],'local object changed');sha.update(chunk);frozen.write(chunk)
++                require(count==facts['size'] and sha.hexdigest()==facts['sha256'],'local object differs')
++            except OSError:raise ProviderError('local object cannot be frozen') from None
++            self.observe_resource();frozen.seek(0);outcome='created'
++            try:
++                self.oss.put_object(oss.PutObjectRequest(bucket=self.resource['bucket'],key=key,body=frozen,
++                    content_length=facts['size'],cache_control=facts['cache_control'],forbid_overwrite=True))
++            except Exception as error:
++                if isinstance(error,oss.exceptions.OperationError):error=error.unwrap()
++                if isinstance(error,oss.exceptions.ServiceError):
++                    require(error.status_code==409 and error.code=='FileAlreadyExists','create-only upload rejected')
++                    outcome='already_exists'
++                elif isinstance(error,(oss.exceptions.RequestError,oss.exceptions.ResponseError)):
++                    outcome='unknown_readback_verified'
++                else:
++                    raise ProviderError('create-only upload failed') from None
++        return {'outcome':outcome,'write_attempted':True,'readback':self.read_object(key,facts),**FALSE_FIELDS}
++
++    def read_configuration(self):
++        """Observe all returned functions, IDs, arguments and order without normalizing them away."""
++        domain=self.resource['domain']
++        detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
++        configs=self._call(DescribeCdnDomainConfigsRequest,DomainName=domain).get('DomainConfigs',{}).get('DomainConfig')
++        require(isinstance(detail,dict) and isinstance(configs,list),'incomplete CDN configuration')
++        value={'domain':domain,'detail':detail,'configs':configs}
++        return {**value,'sha256':digest(value)}
++
++    def _configuration_ready(self, before):
++        detail=before['detail'];r=self.resource
++        require(detail.get('DomainName')==r['domain'] and detail.get('Cname')==r['cname']
++                and detail.get('DomainStatus')=='online', 'CDN domain binding differs')
++        sources=detail.get('SourceModels',{}).get('SourceModel')
++        require(isinstance(sources,list) and len(sources)==1 and sources[0].get('Type')=='oss'
++                and sources[0].get('Content')==self.origin and sources[0].get('Port')==443
++                and sources[0].get('Enabled')=='online', 'CDN origin differs')
++        rows={};ids=set()
++        expected={'forward_scheme':{'enable':'on','scheme_origin':'https'},
++                  'set_req_host_header':{'domain_name':self.origin},
++                  'https_origin_sni':{'enabled':'on','https_origin_sni':self.origin},
++                  'set_hashkey_args':{'hashkey_args':'','disable':'off','keep_oss_args':'on'}}
++        for row in before['configs']:
++            cid=str(row.get('ConfigId',''));name=row.get('FunctionName')
++            require(cid.isdecimal() and int(cid)>0 and cid not in ids and row.get('ParentId') in ('0',0,None)
++                    and row.get('Status')=='success', 'ambiguous configuration ID/group/status')
++            ids.add(cid)
++            require(name in (*expected,FUNCTION), 'unsupported existing CDN function')
++            args=row.get('FunctionArgs',{}).get('FunctionArg',[])
++            require(all(set(x)=={'ArgName','ArgValue'} for x in args) and len({x['ArgName'] for x in args})==len(args),'ambiguous function arguments')
++            if name!=FUNCTION:
++                require(name not in rows and {x['ArgName']:x['ArgValue'] for x in args}==expected[name],'origin/cache configuration differs')
++                rows[name]=row
++        require(set(rows)==set(expected),'origin/cache configuration incomplete')
++
++    def apply_rewrites(self, routes, *, before, managed_ids):
++        """Apply SDK configuration primitives only, retaining partial/unknown outcomes.
++
++        This is not activation: query normalization, PCRE and provider length
++        capabilities remain unverified. There is intentionally no delivery CLI.
++        """
++        functions=compile_rewrites(routes);self._configuration_ready(before)
++        require(len(set(map(str,managed_ids)))==len(managed_ids),'duplicate managed IDs')
++        old=[x for x in before['configs'] if x['FunctionName']==FUNCTION]
++        require({str(x['ConfigId']) for x in old}==set(map(str,managed_ids)),'unmanaged rewrite or unknown managed ID')
++        by_source={}
++        for row in old:
++            args={x['ArgName']:x['ArgValue'] for x in row['FunctionArgs']['FunctionArg']}
++            require(set(args)=={'source_url','target_url','flag','sequence'} and args['flag']=='break'
++                    and args['source_url'] not in by_source,'unknown/duplicate rewrite')
++            by_source[args['source_url']]=row
++        wanted={f['functionArgs'][0]['argValue'] for f in functions}
++        require(set(by_source)<=wanted,'configuration requires unapproved deletion')
++        for f in functions:
++            row=by_source.get(f['functionArgs'][0]['argValue'])
++            if row:f['configId']=str(row['ConfigId'])
++        self.observe_resource()
++        require(self.read_configuration()['sha256']==before['sha256'],'CDN configuration drifted')
++        receipt={'state':'incomplete','write_attempted':False,'before_sha256':before['sha256'],
++                 'after_sha256':None,'batches_attempted':0,**FALSE_FIELDS}
++        returned_ids=[]
++        try:
++            for start in range(0,len(functions),20):
++                batch=functions[start:start+20];receipt['write_attempted']=True;receipt['batches_attempted']+=1
++                response=self._call(BatchSetCdnDomainConfigRequest,DomainNames=self.resource['domain'],Functions=json.dumps(batch,separators=(',',':')))
++                rows=response.get('DomainConfigList',{}).get('DomainConfigModel',[])
++                require(len(rows)==len(batch) and len({str(x.get('ConfigId')) for x in rows})==len(batch)
++                        and all(str(x.get('ConfigId','')).isdecimal() and int(x['ConfigId'])>0
++                                and x.get('DomainName')==self.resource['domain'] and x.get('FunctionName')==FUNCTION for x in rows),
++                        'CDN returned missing/duplicate/failed configuration IDs')
++                returned_ids.extend(str(x['ConfigId']) for x in rows)
++            after=self.read_configuration();receipt['after_sha256']=after['sha256']
++            actual=[x for x in after['configs'] if x['FunctionName']==FUNCTION]
++            require(len(set(returned_ids))==len(functions) and set(returned_ids)=={str(x['ConfigId']) for x in actual},
++                    'returned configuration IDs differ from readback')
++            expected=[{x['argName']:x['argValue'] for x in f['functionArgs']} for f in functions]
++            got=[{a['ArgName']:a['ArgValue'] for a in x['FunctionArgs']['FunctionArg']} for x in actual]
++            require(sorted(got,key=lambda x:int(x['sequence']))==expected,'CDN configuration readback differs')
++            require([x for x in after['configs'] if x['FunctionName']!=FUNCTION]==[x for x in before['configs'] if x['FunctionName']!=FUNCTION]
++                    and after['detail']==before['detail'],'unrelated CDN configuration changed')
++            self._configuration_ready(after);receipt['state']='readback_verified'
++        except Exception:
++            receipt['error']='configuration operation incomplete'
++            try:receipt['after_sha256']=self.read_configuration()['sha256']
++            except Exception:pass
++        return receipt
++
++    def refresh(self, urls, *, max_polls=3, poll_interval=1):
++        """Refresh exact file URLs and accept only this request's exact complete tasks."""
++        require(isinstance(urls,list) and 0<len(urls)<=50 and len(set(urls))==len(urls),'bounded unique URLs required')
++        require(type(max_polls) is int and 1<=max_polls<=10 and 0<=poll_interval<=5,'bounded polling required')
++        for url in urls:
++            parsed=urlsplit(url)
++            require(url.startswith('https://'+self.resource['domain']+'/') and parsed.netloc==self.resource['domain']
++                    and not parsed.query and not parsed.fragment and parsed.path!='/' and not parsed.path.endswith('/'),'exact canonical file URL required')
++            safe_path(parsed.path,True)
++        self.observe_resource()
++        raw=self._call(RefreshObjectCachesRequest,ObjectPath='\n'.join(urls),ObjectType='File').get('RefreshTaskId','')
++        ids=raw.split(',');require(len(ids)==len(urls) and len(set(ids))==len(ids) and all(x.isdecimal() and int(x)>0 for x in ids),'refresh task IDs incomplete')
++        bindings=None
++        for attempt in range(max_polls):
++            rows=[]
++            for start in range(0,len(ids),10):
++                group=ids[start:start+10]
++                response=self._call(DescribeRefreshTaskByIdRequest,TaskId=','.join(group));batch=response.get('Tasks',[])
++                require(len(batch)==len(group) and {str(x.get('TaskId')) for x in batch}==set(group),'foreign/missing refresh task')
++                rows.extend(batch)
++            mapping={str(x['TaskId']):x.get('ObjectPath') for x in rows}
++            require(len(rows)==len(ids) and set(mapping.values())==set(urls) and (bindings is None or mapping==bindings),'refresh URL identity differs')
++            bindings=mapping
++            require(all(x.get('ObjectType')=='file' and x.get('Status') in ('Complete','Refreshing') for x in rows),'refresh failed or ambiguous')
++            if all(x['Status']=='Complete' for x in rows):return {'state':'tasks_complete','task_ids':ids,**FALSE_FIELDS}
++            if attempt+1<max_polls:time.sleep(poll_interval)
++        raise ProviderError('refresh deadline exhausted')
++
++    def activate(self, *args, **kwargs):
++        """Refuse publication until independently reviewed authority and live wire proof exist."""
++        raise ProviderError('production authority and live routing equivalence are not implemented')
+diff --git a/scripts/verify-object-storage-delivery-inputs.py b/scripts/verify-object-storage-delivery-inputs.py
+new file mode 100644
+index 0000000..1a18dec
+--- /dev/null
++++ b/scripts/verify-object-storage-delivery-inputs.py
+@@ -0,0 +1,180 @@
++"""Read-only fresh input binding for the SDK library; no writer or executable CLI.
++
++Historical inputs remain data. Only helpers in this executing checkout run.
++A successful observation is not publication authority and must be fenced again.
++"""
++from __future__ import annotations
++
++import base64
++import copy
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++import re
++import subprocess
++import tempfile
++
++ROOT=Path(__file__).resolve().parent
++
++
++def module(name):
++    spec=importlib.util.spec_from_file_location('fresh_'+name.replace('-','_'),ROOT/name)
++    value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
++
++
++D=module('prepare-object-storage-delivery.py')
++S=module('verify-stable-seal-inputs.py')
++A=module('resolve-audit-release.py')
++C=D.C
++
++
++class InputError(ValueError):
++    """Fresh remote facts or independently anchored local inputs differ."""
++
++
++def require(condition, message):
++    if not condition:raise InputError(message)
++
++
++def verify_stable_control(*, reader, plan_path, control_root, executor_sha, seal_control_sha):
++    """Keep historical seal identity separate from the legacy helper's current SHA."""
++    value=S.verify_control(reader=reader,plan_path=plan_path,control_root=control_root,
++                           expected_control_sha=executor_sha,test_only=False)
++    S.require_ancestor(reader,seal_control_sha,executor_sha)
++    return {**value,'executor_sha':executor_sha,'seal_control_sha':seal_control_sha}
++
++
++def audit_identity(value):
++    require(value.get('classification')=='immutable_complete' and value.get('draft') is False
++            and value.get('immutable') is True and value.get('tag_commit_verified') is True
++            and value.get('id_bound_downloads') is True and value.get('release_revalidated') is True,
++            'fresh immutable audit verification incomplete')
++    assets=value.get('assets')
++    require(isinstance(assets,list) and len(assets)==2 and len({x['id'] for x in assets})==2
++            and len({x['name'] for x in assets})==2,'audit asset identity incomplete')
++    return {**{k:value[k] for k in ('repository','release_id','tag_name','control_sha','published_at')},
++            'assets':sorted(({k:x[k] for k in ('id','name','size','sha256')} for x in assets),key=lambda x:x['name'])}
++
++
++def require_same_anchors(previous, current):
++    """Recomputed immutable facts, not observation timestamps, fence each new write phase."""
++    fields=('executor_sha','inputs_sha256','plan_sha256','audits','sources')
++    require(all(previous[k]==current[k] for k in fields),'fresh delivery anchors drifted')
++
++
++def _preview_control(reader, item, base, current):
++    """Authenticate the six existing preview control files as historical Git data."""
++    historical=item['control_sha'];S.require_ancestor(reader,historical,current)
++    commit=reader.api_json(S.PACKAGE_API+'git/commits/'+historical)
++    tree_sha=commit.get('tree',{}).get('sha')
++    require(commit.get('sha')==historical and isinstance(tree_sha,str) and re.fullmatch('[0-9a-f]{40}',tree_sha),'historical preview commit differs')
++    tree=reader.api_json(S.PACKAGE_API+'git/trees/'+tree_sha+'?recursive=1')
++    require(tree.get('sha')==tree_sha and tree.get('truncated') is False and isinstance(tree.get('tree'),list),'historical preview tree incomplete')
++    rows=tree['tree'];require(len({x['path'] for x in rows})==len(rows),'duplicate Git tree path')
++    entries={x['path']:x for x in rows}
++    for name,expected in item['control_files_sha256'].items():
++        local=D.P.local_path(item['control_dir'],base,'preview controls')/name
++        raw=C.read_checked(local,'preview control',maximum_bytes=1024*1024)
++        require(hashlib.sha256(raw).hexdigest()==expected,'preview control changed')
++        blob_sha=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
++        entry=entries.get(name,{})
++        require(entry.get('type')=='blob' and entry.get('mode') in ('100644','100755')
++                and entry.get('sha')==blob_sha and entry.get('size')==len(raw),'historical preview control blob differs')
++        blob=reader.api_json(S.PACKAGE_API+'git/blobs/'+blob_sha)
++        require(blob.get('sha')==blob_sha and blob.get('size')==len(raw) and blob.get('encoding')=='base64'
++                and len(blob.get('content',''))<=2*1024*1024,'historical preview blob response differs')
++        require(base64.b64decode(blob['content'].replace('\n',''),validate=True)==raw,'historical preview control bytes differ')
++
++
++def _preview_source(item, base, source_token, scratch):
++    """Use the original preview resolver and both real preflight commands on seven assets."""
++    archive=D.P.local_path(item['archive'],base,'preview archive')
++    extracted=scratch/'snapshot'
++    summary=D.P.R.snapshot_archive.extract_snapshot(archive_path=archive,output_dir=extracted,
++        max_members=D.P.R.snapshot_archive.DEFAULT_MAX_MEMBERS,max_total_size=D.P.R.ARCHIVE_MAX_TOTAL_BYTES)
++    require(summary['sha256']==item['archive_sha256'] and summary['size']==item['archive_size'],'preview archive drifted')
++    original=C.load_json(extracted/'audit/source-attestations/source-attestations.json','source attestation summary',canonical=True)
++    fresh=S.SOURCE.resolve_source_release(release_id=item['source']['release_id'],output_dir=scratch/'assets',
++        api_base_url='https://api.github.com',download_base_url='https://api.github.com',token=source_token,channel='preview')
++    require({k:fresh[k] for k in ('repository','version','release_id','source_sha')}==item['source'], 'fresh preview source differs')
++    require({x['name']:x['sha256'] for x in fresh['assets']}=={x['asset']:x['asset_sha256'] for x in original['assets']},
++            'fresh seven-asset source closure differs from archived attestations')
++    receipt=scratch/'resolution.json';receipt.write_bytes(C.canonical_json(fresh))
++    S.run_checked_helper('verify-source-attestations.py',['--channel', 'preview','--receipt',str(receipt),
++        '--asset-dir',str(scratch/'assets'),'--evidence-dir',str(scratch/'attestations')],home=scratch,source_token=source_token)
++    S.run_checked_helper('verify-source-package-metadata.py',['--channel', 'preview','--receipt',str(receipt),
++        '--asset-dir',str(scratch/'assets')],home=scratch)
++    return S.source_identity(fresh)
++
++
++def _executor_clean(executor_sha):
++    """An unchanged HEAD alone does not bind the executing helper bytes."""
++    result=subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT.parent,capture_output=True,text=True,check=False,timeout=10)
++    require(result.returncode==0 and result.stdout.strip()==executor_sha,'executing checkout differs from reviewed control')
++    status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT.parent,
++                          capture_output=True,text=True,check=False,timeout=10)
++    require(status.returncode==0 and not status.stdout,'executing checkout has unreviewed changes')
++
++
++def verify_delivery_inputs(*, inputs, expected_plan_sha256, executor_sha, source_token=None, package_token=None,
++                           previous=None):
++    """Run original local, fresh GitHub and source checks; re-run to fence before CDN.
++
++    The first v1 observation anchors asset IDs absent from the original descriptor.
++    v2 additionally compares IDs to its historical seal resolution. Neither path
++    changes the original input or plan, nor upgrades original false receipt fields.
++    """
++    try:
++        inputs=Path(inputs)
++        value=json.loads(D._read(inputs,'delivery inputs'),object_pairs_hook=C.reject_duplicate_pairs)
++        require(value.get('test_only',False) is False,'TEST ONLY inputs cannot enter fresh production authentication')
++        composite=value.get('schema')=='wukongim.object_storage_plan_inputs/v2'
++        plan,raw,value=D._load_plan(inputs,expected_plan_sha256,composite,False)
++        require(isinstance(executor_sha,str) and re.fullmatch('[0-9a-f]{40}',executor_sha),'executor SHA invalid')
++        _executor_clean(executor_sha)
++        reader=A.GitHubReader('https://api.github.com','https://api.github.com',package_token)
++        S.current_control(reader,executor_sha)
++        audits=[];sources=[];controls=[]
++        for channel,item in D._descriptors(value,composite):
++            path=lambda field:D.P.local_path(item[field],inputs.parent,field)
++            seal=item['seal_control_sha'] if channel=='stable' else item['control_sha']
++            with tempfile.TemporaryDirectory(prefix='wk-provider-inputs-') as tmp:
++                scratch=Path(tmp)
++                if channel=='stable':
++                    controls.append(verify_stable_control(reader=reader,plan_path=path('plan'),control_root=path('control_dir'),
++                        executor_sha=executor_sha,seal_control_sha=seal))
++                    fresh=S.verify_seal_inputs(reader=reader,expected_control_sha=executor_sha,archive_path=path('archive'),
++                        receipt_path=path('receipt'),plan_path=path('plan'),control_root=path('control_dir'),source_root=path('source_dir'),
++                        apt_receipt=path('apt_receipt'),rpm_receipt=path('rpm_receipt'),source_token=source_token,test_only=False)
++                    source=fresh['source']
++                else:
++                    _preview_control(reader,item,inputs.parent,executor_sha)
++                    source=_preview_source(item,inputs.parent,source_token,scratch)
++                require(source['source_sha']!=D.V.TEST_PRODUCT_SHA,'TEST ONLY source identity refused')
++                sources.append({'channel':channel,'audit_release_id':item['audit_release_id'],'identity':source})
++                fresh=A.resolve_audit_release(release_id=item['audit_release_id'],expected_control_sha=seal,
++                    output_dir=scratch/'audit',api_base_url='https://api.github.com',download_base_url='https://api.github.com',
++                    token=package_token,expected_tag_state='exact',channel=channel,test_only=False,
++                    candidate_plan=path('plan') if channel=='stable' else None,candidate_receipt=path('receipt') if channel=='stable' else None)
++                identity=audit_identity(fresh)
++                if channel=='stable':
++                    original=C.load_json(path('resolution'),'historical seal resolution',canonical=True)
++                    require(identity==audit_identity(original),'fresh seal immutable identity differs')
++                else:
++                    expected={path('archive').name:{'size':item['archive_size'],'sha256':item['archive_sha256']},
++                              path('receipt').name:C.hash_file(path('receipt'),'preview receipt',maximum_bytes=D.MAX_JSON_BYTES)}
++                    require({x['name']:{k:x[k] for k in ('size','sha256')} for x in identity['assets']}==expected,
++                            'fresh preview audit bytes differ')
++                audits.append({'channel':channel,**identity})
++        _,final_raw,_=D._load_plan(inputs,expected_plan_sha256,composite,False)
++        require(final_raw==raw,'local input bytes changed during fresh verification')
++        S.current_control(reader,executor_sha)
++        _executor_clean(executor_sha)
++        result={'executor_sha':executor_sha,'inputs_sha256':hashlib.sha256(raw).hexdigest(),'plan_sha256':expected_plan_sha256,
++                'audits':audits,'sources':sources,'controls':controls,'production_enabled':False,'publication_verified':False,
++                'cloud_verified':False,'original_verification':copy.deepcopy(plan['verification'])}
++        if previous is not None:require_same_anchors(previous,result)
++        return result
++    except Exception:
++        raise InputError('fresh delivery input authentication failed') from None
+diff --git a/tests/provider_sdk/test_aliyun_object_storage_provider.py b/tests/provider_sdk/test_aliyun_object_storage_provider.py
+new file mode 100644
+index 0000000..6f14c98
+--- /dev/null
++++ b/tests/provider_sdk/test_aliyun_object_storage_provider.py
+@@ -0,0 +1,308 @@
++"""Official SDK HTTP contracts; no live sockets, cloud credentials or production claim."""
++import copy
++import hashlib
++import importlib.util
++import io
++import json
++import os
++from pathlib import Path
++import re
++import socket
++import tempfile
++import unittest
++from unittest import mock
++from urllib.parse import parse_qs, urlsplit
++
++import requests
++from requests.adapters import BaseAdapter
++
++ROOT = Path(__file__).resolve().parents[2]
++SECRET = 'FIXTURE-SECRET-NEVER-REAL'
++TOKEN = 'FIXTURE-TOKEN-NEVER-REAL'
++RESOURCE = dict(account_id='1234567890123456', principal_arn='acs:ram::1234567890123456:role/fixture',
++                identity_type='AssumedRoleUser', bucket='fixture-package-bucket', region='cn-hangzhou',
++                endpoint='https://oss-cn-hangzhou.aliyuncs.com', domain='packages.githubim.com',
++                cname='packages.githubim.com.w.kunlunaq.com')
++DATA = b'exact package bytes\x00\xff'
++FACTS = dict(size=len(DATA), sha256=hashlib.sha256(DATA).hexdigest(), cache_control='public, max-age=31536000, immutable')
++KEY = 'public/rpm/stable/Packages/A.rpm'
++
++
++def route(uri='/repo', key='snapshots/preview/r10-abc/site/repo'):
++    return dict(public_uri=uri, object_key=key, size=FACTS['size'], sha256=FACTS['sha256'],
++                cache_control='no-store', kind='entrypoint')
++
++
++def config(name, args, config_id):
++    return dict(ConfigId=str(config_id), FunctionName=name, Status='success', ParentId='0',
++                FunctionArgs={'FunctionArg':[{'ArgName':k,'ArgValue':v} for k,v in args.items()]})
++
++
++class Wire(BaseAdapter):
++    """Return provider XML/JSON at requests' transport boundary after SDK signing."""
++    def __init__(self):
++        self.requests=[]; self.objects={}; self.put_fault=None; self.get_fault=None
++        self.versioning=b'<VersioningConfiguration/>'; self.owner=RESOURCE['account_id']
++        self.principal=RESOURCE['principal_arn']; self.domain=RESOURCE['domain']
++        origin=RESOURCE['bucket']+'.oss-cn-hangzhou.aliyuncs.com'
++        self.detail=dict(DomainName=self.domain,Cname=RESOURCE['cname'],DomainStatus='online',
++            SourceModels={'SourceModel':[dict(Type='oss',Content=origin,Port=443,Priority='20',Weight='10',Enabled='online')]})
++        self.configs=[config('forward_scheme',{'enable':'on','scheme_origin':'https'},1),
++            config('set_hashkey_args',{'hashkey_args':'','disable':'off','keep_oss_args':'on'},2),
++            config('set_req_host_header',{'domain_name':origin},3),
++            config('https_origin_sni',{'enabled':'on','https_origin_sni':origin},4)]
++        self.batch_fault=None; self.refresh_fault=None; self.tasks={}; self.polls=0
++
++    def close(self): pass
++
++    def send(self, request, **kwargs):
++        u=urlsplit(request.url); q=parse_qs(u.query,keep_blank_values=True)
++        if request.body and u.hostname in ('cdn.aliyuncs.com','sts.aliyuncs.com'):
++            q.update(parse_qs(request.body.decode() if isinstance(request.body,bytes) else request.body))
++        action=q.get('Action',[''])[0]
++        self.requests.append((request,kwargs,action,q))
++        status=200; body=b''; headers={'x-oss-request-id':'fixture-request-id','Content-Type':'application/xml','Date':'Wed, 21 Oct 2026 00:00:00 GMT'}
++        if action:
++            headers={'Content-Type':'application/json'}
++            result={'RequestId':'fixture-request-id'}
++            if action=='GetCallerIdentity':result.update(AccountId=self.owner,Arn=self.principal,IdentityType='AssumedRoleUser')
++            elif action=='DescribeCdnDomainDetail':result['GetDomainDetailModel']=self.detail
++            elif action=='DescribeCdnDomainConfigs':result['DomainConfigs']={'DomainConfig':self.configs}
++            elif action=='BatchSetCdnDomainConfig':
++                values=json.loads(q['Functions'][0]); rows=[]
++                for i,v in enumerate(values):
++                    cid=v.get('configId',str(max(100,max(int(x['ConfigId']) for x in self.configs))+1))
++                    item=config(v['functionName'],{x['argName']:x['argValue'] for x in v['functionArgs']},cid)
++                    self.configs=[x for x in self.configs if x['ConfigId']!=str(cid)]+[item]
++                    rows.append(dict(ConfigId=0 if self.batch_fault=='zero' else 99999+int(cid) if self.batch_fault=='wrongid' else int(cid),DomainName=self.domain,FunctionName=v['functionName']))
++                    if self.batch_fault=='partial':break
++                if self.batch_fault=='timeout':raise requests.ReadTimeout(SECRET+' '+TOKEN)
++                if self.batch_fault=='missing':rows=[]
++                if self.batch_fault=='duplicate':rows=rows+rows
++                result['DomainConfigList']={'DomainConfigModel':rows}
++            elif action=='RefreshObjectCaches':
++                for i,url in enumerate(q['ObjectPath'][0].split('\n')):
++                    self.tasks[str(501+i)]={'TaskId':str(501+i),'ObjectPath':url,'ObjectType':'file','Status':'Complete','Process':'100%'}
++                result['RefreshTaskId']=','.join(self.tasks)
++            elif action=='DescribeRefreshTaskById':
++                self.polls+=1
++                rows=[copy.deepcopy(self.tasks[k]) for k in q['TaskId'][0].split(',')]
++                if self.refresh_fault in ('Failed','Canceled','Timeout','Refreshing'): rows[0]['Status']=self.refresh_fault
++                elif self.refresh_fault=='progress' and self.polls==1:rows[0]['Status']='Refreshing'
++                elif self.refresh_fault=='foreign':rows[0]['TaskId']='999'
++                elif self.refresh_fault=='url':rows[0]['ObjectPath']='https://packages.githubim.com/other'
++                elif self.refresh_fault=='type':rows[0]['ObjectType']='directory'
++                elif self.refresh_fault=='missing':rows=[]
++                elif self.refresh_fault=='duplicate':rows=rows+rows
++                result.update(Tasks=rows,TotalCount=len(rows))
++            else:raise AssertionError('unapproved API '+action)
++            body=json.dumps(result).encode()
++        elif 'bucketInfo' in q or u.query=='bucketInfo':
++            body=('<BucketInfo><Bucket><Name>'+RESOURCE['bucket']+'</Name><Location>oss-cn-hangzhou</Location>'
++                  '<ExtranetEndpoint>oss-cn-hangzhou.aliyuncs.com</ExtranetEndpoint><Owner><ID>'+self.owner+
++                  '</ID></Owner><AccessControlList><Grant>private</Grant></AccessControlList></Bucket></BucketInfo>').encode()
++        elif 'versioning' in q or u.query=='versioning':body=self.versioning
++        elif request.method=='PUT':
++            key=u.path[1:]
++            if self.put_fault=='denied':status=403;body=b'<Error><Code>AccessDenied</Code><Message>FIXTURE-SECRET-NEVER-REAL</Message></Error>'
++            elif self.put_fault=='other409':status=409;body=b'<Error><Code>BucketNotEmpty</Code></Error>'
++            elif key in self.objects:status=409;body=b'<Error><Code>FileAlreadyExists</Code></Error>'
++            else:
++                if self.put_fault=='timeout_before':raise requests.ReadTimeout(SECRET)
++                raw=request.body.read() if hasattr(request.body,'read') else request.body
++                if not isinstance(raw,bytes):raw=b''.join(raw)
++                self.objects[key]=(raw,request.headers['Cache-Control'])
++                if self.put_fault=='timeout_after':raise requests.ReadTimeout(TOKEN)
++        elif request.method=='GET':
++            if u.path[1:] not in self.objects:status=404;body=b'<Error><Code>NoSuchKey</Code></Error>'
++            else:
++                body,cache=self.objects[u.path[1:]]
++                if self.get_fault=='truncated':body=body[:-1]
++                if self.get_fault=='overlong':body+=b'extra'
++                if self.get_fault=='digest':body=b'x'*len(body)
++                headers.update({'Cache-Control':'wrong' if self.get_fault=='cache' else cache,'Content-Length':str(len(self.objects[u.path[1:]][0]))})
++                if self.get_fault=='encoding':headers['Content-Encoding']='gzip'
++        else:raise AssertionError('unexpected request '+request.method)
++        response=requests.Response();response.status_code=status;response.headers.update(headers)
++        response.request=request;response.url=request.url;response.reason='fixture'
++        response.raw=io.BytesIO(body);response._content=False
++        if self.get_fault=='interrupted' and not action and request.method=='GET' and not u.query:
++            class Broken(io.BytesIO):
++                def read(self,*args,**kwargs):raise requests.ReadTimeout(SECRET)
++            response.raw=Broken(body)
++        return response
++
++
++class ProviderContract(unittest.TestCase):
++    def setUp(self):
++        self.socket_guard=mock.patch.object(socket.socket,'connect',side_effect=AssertionError('provider network forbidden'))
++        self.socket_guard.start();self.addCleanup(self.socket_guard.stop)
++        spec=importlib.util.spec_from_file_location('provider_contract',ROOT/'scripts/aliyun-object-storage-provider.py')
++        self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
++        self.w=Wire();self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
++        self.path=Path(self.temp.name)/'object';self.path.write_bytes(DATA)
++        self.client=self.p.Provider(resource=RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=SECRET,security_token=TOKEN,http_adapter=self.w)
++        self.addCleanup(self.client.close)
++
++    def writes(self):return [r for r in self.w.requests if r[0].method=='PUT' or r[2] in ('BatchSetCdnDomainConfig','RefreshObjectCaches')]
++
++    def test_identity_versioning_and_sdk_wire_are_bound(self):
++        result=self.client.observe_resource()
++        self.assertEqual(result['versioning'],'never_enabled');self.assertFalse(result['production_enabled'])
++        self.assertTrue(any(r[2]=='GetCallerIdentity' for r in self.w.requests))
++        for req,kw,_,_ in self.w.requests:
++            self.assertEqual(urlsplit(req.url).scheme,'https');self.assertFalse(kw.get('allow_redirects',False))
++            self.assertTrue(kw['verify']);self.assertTrue(all(v is None for v in kw.get('proxies',{}).values()))
++        self.assertFalse(self.writes())
++
++    def test_versioning_ambiguous_inputs_all_rejected(self):
++        for raw in [b'',b'<Other/>',b'<VersioningConfiguration xmlns="wrong"/>',b'<VersioningConfiguration><Status/></VersioningConfiguration>',b'<VersioningConfiguration><Status>Enabled</Status></VersioningConfiguration>',b'<VersioningConfiguration><Status>Suspended</Status></VersioningConfiguration>',b'<VersioningConfiguration><Status>unknown</Status></VersioningConfiguration>',b'<VersioningConfiguration><Unknown/></VersioningConfiguration>',b'<!DOCTYPE a><VersioningConfiguration/>']:
++            with self.subTest(raw=raw):
++                self.w.versioning=raw
++                with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
++        self.assertFalse(self.writes())
++
++    def test_resource_drift_and_arbitrary_endpoints_are_rejected(self):
++        for field,value in [('owner','9'),('principal','acs:ram::other:role/no')]:
++            with self.subTest(field=field):
++                old=getattr(self.w,field);setattr(self.w,field,value)
++                with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
++                setattr(self.w,field,old)
++        for changed in ({'endpoint':'http://localhost:9999'},{'domain':'attacker.invalid'},{'region':'x/../y'},{'production_enabled':True}):
++            with self.assertRaises(self.p.ProviderError):self.p.Provider(resource={**RESOURCE,**changed},access_key_id='FIXTURE',access_key_secret=SECRET,security_token=TOKEN,http_adapter=self.w)
++        self.assertFalse(self.writes())
++
++    def test_create_only_then_complete_get_and_exact_conflict(self):
++        result=self.client.put_create_only(KEY,self.path,FACTS)
++        self.assertEqual(result['outcome'],'created');self.assertEqual(result['readback']['sha256'],FACTS['sha256'])
++        put=next(r[0] for r in self.w.requests if r[0].method=='PUT')
++        self.assertEqual(put.headers['x-oss-forbid-overwrite'],'true');self.assertEqual(put.headers['Content-Length'],str(len(DATA)))
++        self.assertEqual(put.headers['Cache-Control'],FACTS['cache_control']);self.assertEqual(urlsplit(put.url).path,'/'+KEY)
++        self.assertIn('Authorization',put.headers)
++        self.assertEqual(self.client.put_create_only(KEY,self.path,FACTS)['outcome'],'already_exists')
++        self.assertFalse(result['publication_verified'])
++
++    def test_unknown_put_never_retries_write(self):
++        for fault in ('timeout_before','timeout_after','denied','other409'):
++            with self.subTest(fault=fault):
++                self.w.requests=[];self.w.objects={};self.w.put_fault=fault
++                try:result=self.client.put_create_only(KEY,self.path,FACTS)
++                except self.p.ProviderError as e:
++                    self.assertNotIn(SECRET,str(e));self.assertNotIn(TOKEN,str(e));self.assertNotEqual(fault,'timeout_after')
++                else:self.assertEqual(result['outcome'],'unknown_readback_verified');self.assertEqual(fault,'timeout_after')
++                self.assertEqual(sum(r[0].method=='PUT' for r in self.w.requests),1)
++
++    def test_readback_needs_full_eof_size_hash_cache_without_compression(self):
++        self.w.objects[KEY]=(DATA,FACTS['cache_control'])
++        for fault in ('truncated','overlong','digest','cache','encoding','interrupted'):
++            with self.subTest(fault=fault):
++                self.w.get_fault=fault
++                with self.assertRaises(self.p.ProviderError):self.client.read_object(KEY,FACTS)
++
++    def test_object_local_drift_and_key_escape_prevent_writes(self):
++        for key,facts in [(KEY,{**FACTS,'sha256':'0'*64}),('../bad',FACTS),('public/a%2fb',FACTS),('public/a?b',FACTS),(KEY,{**FACTS,'size':5*1024**3+1})]:
++            with self.assertRaises(self.p.ProviderError):self.client.put_create_only(key,self.path,facts)
++        self.assertFalse(self.writes())
++
++    def test_explicit_transport_does_not_consume_proxy_or_debug_environment(self):
++        with mock.patch.dict(os.environ,{'HTTPS_PROXY':'http://credential-exfil.invalid','DEBUG':'sdk'}):
++            with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
++        self.assertFalse(self.w.requests)
++
++    def test_exact_rewrite_preserves_alias_target_and_priority(self):
++        values=[route('/'),route(),route('/snapshots/stable/B/Packages/A.rpm',KEY),route('/apt/by-hash/SHA512/'+'a'*128,'public/apt/by-hash/SHA512/'+'a'*128)]
++        functions=self.p.compile_rewrites(values)
++        self.assertEqual(len(functions),4)
++        for number,(original,item) in enumerate(zip(values,functions),1):
++            self.assertEqual(item['functionName'],'back_to_origin_url_rewrite')
++            args={x['argName']:x['argValue'] for x in item['functionArgs']}
++            self.assertEqual(args['target_url'],'/'+original['object_key']);self.assertEqual(args['flag'],'break');self.assertEqual(args['sequence'],str(number))
++            self.assertIsNotNone(re.fullmatch(args['source_url'].replace(r'\z',r'\Z'),original['public_uri']))
++            for neighbour in (original['public_uri']+'x',original['public_uri']+'/',original['public_uri']+'?x=1',original['public_uri']+'\n'):
++                self.assertIsNone(re.fullmatch(args['source_url'].replace(r'\z',r'\Z'),neighbour))
++
++    def test_wire_limits_and_ambiguous_route_inputs_are_rejected(self):
++        for rows in ([route('/p'+str(i)) for i in range(51)],[route('/a%2fb')],[route('/a/../b')],[route('//x')],[route('/x?z=1')],[route('/a'*1500)],[route(),route(key='public/other')]):
++            with self.assertRaises(self.p.ProviderError):self.p.compile_rewrites(rows)
++        self.assertEqual(len(self.p.compile_rewrites([route(),route()])),1)
++
++    def test_config_snapshot_includes_unrelated_rules_and_rewrite_order(self):
++        first=self.client.read_configuration()
++        self.w.configs.append(config('gzip',{'enable':'on'},99))
++        second=self.client.read_configuration();self.assertNotEqual(first['sha256'],second['sha256'])
++        self.w.configs[-1]['FunctionArgs']['FunctionArg'][0]['ArgValue']='off'
++        self.assertNotEqual(second['sha256'],self.client.read_configuration()['sha256'])
++
++    def test_config_exact_batches_and_readback(self):
++        rows=[route('/p'+str(i)) for i in range(21)]
++        before=self.client.read_configuration()
++        result=self.client.apply_rewrites(rows,before=before,managed_ids=[])
++        self.assertEqual(result['state'],'readback_verified');self.assertFalse(result['publication_verified'])
++        batches=[json.loads(r[3]['Functions'][0]) for r in self.w.requests if r[2]=='BatchSetCdnDomainConfig']
++        self.assertEqual(list(map(len,batches)),[20,1]);self.assertEqual(len(self.w.configs),25)
++        self.assertEqual(result['before_sha256'],before['sha256']);self.assertIsNotNone(result['after_sha256'])
++
++    def test_bad_configid_partial_and_timeout_keep_truth(self):
++        for fault in ('zero','missing','duplicate','partial','timeout','wrongid'):
++            with self.subTest(fault=fault):
++                self.w.configs=self.w.configs[:4];self.w.batch_fault=fault
++                before=self.client.read_configuration()
++                result=self.client.apply_rewrites([route('/a'),route('/b')],before=before,managed_ids=[])
++                self.assertEqual(result['state'],'incomplete');self.assertTrue(result['write_attempted'])
++                self.assertIsNotNone(result['after_sha256']);self.assertFalse(result['publication_verified'])
++                self.assertNotIn(SECRET,json.dumps(result));self.assertNotIn(TOKEN,json.dumps(result))
++
++    def test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply(self):
++        for mutation in ('unmanaged','delete','group','drift'):
++            with self.subTest(mutation=mutation):
++                self.w.configs=self.w.configs[:4]
++                if mutation in ('unmanaged','delete'):
++                    self.w.configs.append(config('back_to_origin_url_rewrite',{'source_url':'^/old$','target_url':'/public/old','flag':'break','sequence':'1'},90))
++                if mutation=='group':self.w.configs[0]['ParentId']='9'
++                before=self.client.read_configuration()
++                if mutation=='drift':self.w.configs[0]['FunctionArgs']['FunctionArg'][0]['ArgValue']='http'
++                self.w.requests=[]
++                with self.assertRaises(self.p.ProviderError):self.client.apply_rewrites([route()],before=before,managed_ids=[90] if mutation=='delete' else [])
++                self.assertFalse(self.writes())
++
++    def test_refresh_only_exact_task_ids_in_bounded_batches(self):
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(11)]
++        result=self.client.refresh(urls,max_polls=2,poll_interval=0)
++        self.assertEqual(result['state'],'tasks_complete');self.assertEqual(len(result['task_ids']),11)
++        polls=[r for r in self.w.requests if r[2]=='DescribeRefreshTaskById']
++        self.assertEqual([len(r[3]['TaskId'][0].split(',')) for r in polls],[10,1])
++        self.assertEqual(set(result['task_ids']),set(self.w.tasks))
++
++    def test_refresh_rejects_other_tasks_and_noncomplete_states(self):
++        for fault in ('Failed','Canceled','Timeout','Refreshing','foreign','url','type','missing','duplicate'):
++            with self.subTest(fault=fault):
++                self.w.refresh_fault=fault;self.w.requests=[];self.w.polls=0
++                with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
++                self.assertLessEqual(self.w.polls,2)
++        self.w.refresh_fault='progress';self.w.polls=0
++        self.assertEqual(self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)['state'],'tasks_complete')
++
++    def test_refresh_foreign_or_directory_urls_rejected_without_write(self):
++        for urls in (['https://other.invalid/repo'],['https://packages.githubim.com/'],['https://packages.githubim.com/repo?x=1'],['https://packages.githubim.com/repo']*2):
++            with self.assertRaises(self.p.ProviderError):self.client.refresh(urls,max_polls=1,poll_interval=0)
++        self.assertFalse(self.writes())
++
++
++if __name__=='__main__':
++    import sys
++    import importlib.metadata
++    import platform
++    import subprocess
++    names=[name for name in unittest.defaultTestLoader.getTestCaseNames(ProviderContract)]
++    result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]))
++    receipt={'schema':'wukongim.provider_sdk_contract/v1','tests':result.testsRun,'failures':len(result.failures),
++             'errors':len(result.errors),'skips':len(result.skipped),'provider_network_allowed':False}
++    receipt.update(python=platform.python_version(),test_names=names,
++        sdk_versions={name:importlib.metadata.version(name) for name in ('alibabacloud-oss-v2','aliyun-python-sdk-core','aliyun-python-sdk-cdn','aliyun-python-sdk-sts')},
++        checkout_sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
++        checkout_tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=ROOT,text=True).strip(),
++        lock_sha256=hashlib.sha256((ROOT/'requirements-object-storage-provider.lock').read_bytes()).hexdigest())
++    if '--receipt' in sys.argv:
++        Path(sys.argv[sys.argv.index('--receipt')+1]).write_text(json.dumps(receipt,sort_keys=True)+'\n')
++    print(json.dumps(receipt,sort_keys=True))
++    sys.exit(0 if result.testsRun>0 and result.wasSuccessful() and not result.skipped else 1)
+diff --git a/tests/test_object_storage_delivery_inputs.py b/tests/test_object_storage_delivery_inputs.py
+new file mode 100644
+index 0000000..ee35339
+--- /dev/null
++++ b/tests/test_object_storage_delivery_inputs.py
+@@ -0,0 +1,217 @@
++"""Read-only fresh identity wiring and independent SDK CI contracts."""
++import copy
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++import socket
++import tempfile
++import unittest
++from unittest import mock
++
++from test_stable_seal_inputs import GitObjects, HEAD, HISTORY, TREE
++from test_stable_offline_candidate import CandidateFixture, canonical
++from tests.test_plan_object_storage_publication import InputSnapshot
++
++ROOT=Path(__file__).resolve().parents[1]
++
++
++def load():
++    spec=importlib.util.spec_from_file_location('fresh_delivery_inputs',ROOT/'scripts/verify-object-storage-delivery-inputs.py')
++    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
++
++
++class FreshInputContract(unittest.TestCase):
++    def setUp(self):
++        self.p=load();self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
++        self.root=Path(self.temp.name).resolve()
++        guard=mock.patch.object(socket.socket,'connect',side_effect=AssertionError('network forbidden'))
++        guard.start();self.addCleanup(guard.stop)
++
++    def test_current_historical_candidate_and_seal_controls_remain_distinct(self):
++        f=CandidateFixture(self.root);plan=f.plan();plan['control_sha']=HISTORY
++        plan['candidate']['test_only']=False;plan['candidate']['source_kind']='stable_preflight'
++        plan['release'].update(source_release_id=12,source_sha='d'*40)
++        path=self.root/'plan.json';path.write_bytes(canonical(plan))
++        reader=GitObjects(f,plan);seal='e'*40;original=reader.api_json
++        def read(p):
++            if p==f'repos/WuKongIM/packages/compare/{seal}...{HEAD}':
++                return dict(status='ahead',base_commit={'sha':seal},merge_base_commit={'sha':seal})
++            return original(p)
++        reader.api_json=read
++        value=self.p.verify_stable_control(reader=reader,plan_path=path,control_root=f.control,
++                                          executor_sha=HEAD,seal_control_sha=seal)
++        self.assertEqual(value['candidate_control_sha'],HISTORY)
++        self.assertEqual(value['seal_control_sha'],seal)
++        self.assertEqual(value['executor_sha'],HEAD)
++        self.assertTrue(value['github_control_verified'])
++
++    def test_nonancestor_seal_current_main_and_historical_blob_fail_closed(self):
++        for fault in ('seal','main','blob'):
++            with self.subTest(fault=fault),tempfile.TemporaryDirectory(dir=self.root) as root:
++                f=CandidateFixture(Path(root));plan=f.plan();plan['control_sha']=HISTORY
++                plan['candidate']['test_only']=False;plan['candidate']['source_kind']='stable_preflight'
++                plan['release'].update(source_release_id=12,source_sha='d'*40)
++                path=f.root/'plan.json';path.write_bytes(canonical(plan));reader=GitObjects(f,plan)
++                if fault=='seal':reader.status='diverged'
++                elif fault=='main':reader.main='f'*40
++                else:next(iter(reader.blobs.values()))['content']='QQ=='
++                with self.assertRaises(ValueError):self.p.verify_stable_control(reader=reader,plan_path=path,
++                    control_root=f.control,executor_sha=HEAD,seal_control_sha=HISTORY)
++
++    def test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time(self):
++        original={'repository':'WuKongIM/packages','release_id':91,'tag_name':'native-package-preview-r91',
++            'control_sha':HISTORY,'classification':'immutable_complete','draft':False,'immutable':True,
++            'published_at':'2026-10-21T00:00:00Z','tag_commit_verified':True,'id_bound_downloads':True,
++            'release_revalidated':True,'assets':[{'id':1,'name':'a','size':1,'sha256':'a'*64},
++                                                {'id':2,'name':'b','size':2,'sha256':'b'*64}]}
++        changed=copy.deepcopy(original);changed['observed_at']='later'
++        self.assertEqual(self.p.audit_identity(original),self.p.audit_identity(changed))
++        for field,value in [('id',3),('size',9),('sha256','c'*64)]:
++            changed=copy.deepcopy(original);changed['assets'][0][field]=value
++            self.assertNotEqual(self.p.audit_identity(original),self.p.audit_identity(changed))
++        for field,value in [('immutable',False),('draft',True),('classification','complete_draft'),('tag_commit_verified',False)]:
++            changed=copy.deepcopy(original);changed[field]=value
++            with self.assertRaises(ValueError):self.p.audit_identity(changed)
++
++    def test_original_plan_digest_is_checked_before_github_or_any_writer(self):
++        fixture=InputSnapshot(self.root/'preview');path=self.root/'inputs.json'
++        path.write_bytes(canonical(dict(schema='wukongim.object_storage_plan_inputs/v1',channel='preview',
++                                       current=fixture.descriptor(),retain=[])))
++        with self.assertRaises(ValueError):self.p.verify_delivery_inputs(inputs=path,expected_plan_sha256='0'*64,executor_sha=HEAD)
++
++    def test_test_only_composite_and_arbitrary_authority_are_rejected(self):
++        path=self.root/'inputs.json'
++        for value in ({'schema':'wukongim.object_storage_plan_inputs/v2','channel':'composite','test_only':True},
++                      {'production_enabled':True,'verified':True}):
++            path.write_bytes(canonical(value))
++            with self.assertRaises(ValueError):self.p.verify_delivery_inputs(inputs=path,expected_plan_sha256='0'*64,executor_sha=HEAD)
++
++    def test_fence_rechecks_exact_fresh_anchors_and_local_digests(self):
++        old=dict(executor_sha=HEAD,inputs_sha256='1'*64,plan_sha256='2'*64,
++                 audits=[{'release_id':3}],sources=[{'source_sha':'3'*40}],production_enabled=False)
++        self.p.require_same_anchors(old,copy.deepcopy(old))
++        for field,value in [('executor_sha','e'*40),('inputs_sha256','e'*64),('plan_sha256','f'*64),
++                            ('audits',[{'release_id':4}]),('sources',[{'source_sha':'f'*40}])]:
++            changed=copy.deepcopy(old);changed[field]=value
++            with self.assertRaises(ValueError):self.p.require_same_anchors(old,changed)
++
++    def test_library_has_no_production_entrypoint_or_history_execution(self):
++        text=(ROOT/'scripts/verify-object-storage-delivery-inputs.py').read_text()
++        self.assertNotIn('if __name__',text)
++        self.assertNotIn('production_enabled\': True',text)
++        self.assertIn('verify_seal_inputs',text)
++        self.assertIn('resolve_audit_release',text)
++        self.assertIn("'--channel', 'preview'",text)
++
++
++class ProviderWorkflowContract(unittest.TestCase):
++    def test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions(self):
++        lock=ROOT/'requirements-object-storage-provider.lock';self.assertTrue(lock.is_file())
++        rows=lock.read_text();self.assertIn('alibabacloud-oss-v2==1.4.1',rows)
++        self.assertIn('aliyun-python-sdk-core==2.16.1',rows)
++        for chunk in rows.split('\n\n'):
++            if chunk.strip() and not chunk.lstrip().startswith('#'):
++                self.assertRegex(chunk,r'^[a-zA-Z0-9_-]+==[0-9][^\s]*');self.assertRegex(chunk,r'--hash=sha256:[0-9a-f]{64}')
++        path=ROOT/'.github/workflows/object-storage-provider-contract.yml';self.assertTrue(path.is_file())
++        text=path.read_text();self.assertIn('pull_request:',text);self.assertIn('push:',text)
++        self.assertIn('contents: read',text);self.assertIn('persist-credentials: false',text)
++        self.assertIn('--require-hashes',text);self.assertIn('tests/provider_sdk/test_aliyun_object_storage_provider.py',text)
++        self.assertIn('timeout-minutes:',text)
++        for forbidden in ('workflow_dispatch','id-token:','secrets.','environment:','continue-on-error:'):
++            self.assertNotIn(forbidden,text)
++        self.assertFalse((ROOT/'tests/provider_sdk/__init__.py').exists())
++        runner=(ROOT/'tests/provider_sdk/test_aliyun_object_storage_provider.py').read_text()
++        self.assertIn('result.testsRun>0',runner);self.assertIn('not result.skipped',runner)
++
++
++
++
++class FreshPreviewWire(unittest.TestCase):
++    """Real planner/resolvers over HTTP-shaped fixtures; subprocess is the native-tool boundary."""
++    def setUp(self):
++        import base64
++        import io
++        import shutil
++        import urllib.request
++        from tests.test_plan_object_storage_publication import C
++        self.p=load();self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
++        self.root=Path(self.temp.name).resolve();self.f=InputSnapshot(self.root/'preview',audit_id=11)
++        names=self.p.S.SOURCE.expected_asset_names(self.f.version)
++        self.assets={name:(b'deb-v1' if name.endswith('.deb') else b'unsigned-deb-v1' if name.endswith('.rpm') else name.encode()) for name in names[0]}
++        self.assets[names[1]]=(''.join(hashlib.sha256(raw).hexdigest()+'  '+name+'\n' for name,raw in sorted(self.assets.items()))).encode()
++        summary_path=self.f.f.source_attestations/'source-attestations.json'
++        summary=json.loads(summary_path.read_text())
++        for asset in summary['assets']:asset['asset_sha256']=hashlib.sha256(self.assets[asset['asset']]).hexdigest()
++        summary_path.write_bytes(canonical(summary));shutil.rmtree(self.f.f.output);C.compose(self.f.f.args());self.f.seal()
++        self.inputs=self.root/'inputs.json';self.inputs.write_bytes(canonical(dict(schema='wukongim.object_storage_plan_inputs/v1',channel='preview',current=self.f.descriptor(),retain=[])))
++        self.plan=self.p.D.P.make_plan(self.inputs);self.plan_sha=hashlib.sha256(canonical(self.plan)).hexdigest()
++        self.main=HEAD;self.bad_ancestry=False;self.bad_helper=False;self.dirty_checkout=False;self.asset_id_offset=0;self.events=[]
++        self.blobs={};self.entries=[]
++        for name in self.f.descriptor()['control_files_sha256']:
++            raw=(self.f.control/name).read_bytes();sha=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
++            self.blobs[sha]={'sha':sha,'size':len(raw),'encoding':'base64','content':base64.b64encode(raw).decode()}
++            self.entries.append(dict(path=name,mode='100644',type='blob',sha=sha,size=len(raw)))
++        self.downloads={1000+i:raw for i,(name,raw) in enumerate(sorted(self.assets.items()),1)}
++        self.source_assets=[dict(id=1000+i,name=name,size=len(raw),digest='sha256:'+hashlib.sha256(raw).hexdigest()) for i,(name,raw) in enumerate(sorted(self.assets.items()),1)]
++        self.audit_assets=[]
++        for i,path in enumerate((self.f.archive,self.f.receipt),6001):
++            raw=path.read_bytes();self.downloads[i]=raw;self.audit_assets.append(dict(id=i,name=path.name,size=len(raw),state='uploaded',digest='sha256:'+hashlib.sha256(raw).hexdigest()))
++        def open_http(request,timeout):
++            from urllib.parse import urlsplit
++            self.assertEqual(urlsplit(request.full_url).netloc,'api.github.com')
++            path=urlsplit(request.full_url).path;self.events.append(path)
++            packages='/repos/WuKongIM/packages';source='/repos/WuKongIM/WuKongIM';history=self.f.descriptor()['control_sha'];sha=self.f.descriptor()['source']['source_sha']
++            if '/releases/assets/' in path:
++                number=int(path.rsplit('/',1)[1]);return io.BytesIO(self.downloads[number-self.asset_id_offset] if number>6000 else self.downloads[number])
++            if path==packages+'/git/ref/heads/main':value={'ref':'refs/heads/main','object':{'type':'commit','sha':self.main}}
++            elif path==packages+'/git/commits/'+history:value={'sha':history,'tree':{'sha':TREE}}
++            elif path==packages+'/git/trees/'+TREE:value={'sha':TREE,'truncated':False,'tree':self.entries}
++            elif path.startswith(packages+'/git/blobs/'):value=self.blobs[path.rsplit('/',1)[1]]
++            elif path.startswith(packages+'/compare/'):
++                value={'status':'diverged' if self.bad_ancestry else 'ahead','base_commit':{'sha':history},'merge_base_commit':{'sha':history}}
++            elif path==packages+'/releases/11':
++                assets=copy.deepcopy(self.audit_assets)
++                for a in assets:a['id']+=self.asset_id_offset
++                value=dict(id=11,tag_name='native-package-preview-r11',name='WuKongIM preview package snapshot r11',prerelease=True,
++                           target_commitish=history,draft=False,immutable=True,published_at='2026-10-21T00:00:00Z',assets=assets)
++            elif path==packages+'/git/ref/tags/native-package-preview-r11':value={'ref':'refs/tags/native-package-preview-r11','object':{'type':'commit','sha':history}}
++            elif path==source+'/releases/111':value=dict(id=111,tag_name='v'+self.f.version,prerelease=True,draft=False,immutable=True,published_at='2026-10-21T00:00:00Z',assets=self.source_assets)
++            elif path==source+'/git/ref/tags/v'+self.f.version:value={'ref':'refs/tags/v'+self.f.version,'object':{'type':'commit','sha':sha}}
++            elif path==source+'/branches/main':value={'commit':{'sha':'2'*40}}
++            elif path.startswith(source+'/compare/'):value={'status':'ahead','merge_base_commit':{'sha':sha}}
++            else:raise AssertionError('unexpected GitHub URL '+path)
++            return io.BytesIO(canonical(value))
++        def execute(args,**kwargs):
++            from types import SimpleNamespace
++            if args[0]=='git':return SimpleNamespace(returncode=0,stdout=(' M scripts/unreviewed.py\n' if self.dirty_checkout else '') if args[1]=='status' else HEAD+'\n')
++            self.events.append(Path(args[2]).name)
++            self.assertIn('--channel',args);self.assertEqual(args[args.index('--channel')+1],'preview')
++            self.assertEqual(kwargs['env']['GH_HOST'],'github.com')
++            kwargs['stdout'].write(b'{}')
++            return SimpleNamespace(returncode=9 if self.bad_helper else 0)
++        for patcher in (mock.patch.object(urllib.request.OpenerDirector,'open',side_effect=open_http),mock.patch.object(self.p.subprocess,'run',side_effect=execute),mock.patch.object(socket.socket,'connect',side_effect=AssertionError('network forbidden'))):
++            patcher.start();self.addCleanup(patcher.stop)
++
++    def verify(self,**kwargs):
++        return self.p.verify_delivery_inputs(inputs=self.inputs,expected_plan_sha256=self.plan_sha,executor_sha=HEAD,**kwargs)
++
++    def test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair(self):
++        result=self.verify();self.assertFalse(result['production_enabled']);self.assertFalse(result['publication_verified'])
++        self.assertEqual(result['plan_sha256'],self.plan_sha)
++        self.assertEqual(result['original_verification'],self.plan['verification'])
++        self.assertEqual(len([x for x in self.events if '/WuKongIM/releases/assets/' in x]),7)
++        self.assertIn('verify-source-attestations.py',self.events);self.assertIn('verify-source-package-metadata.py',self.events)
++        self.assertEqual(len(result['audits'][0]['assets']),2)
++        self.assertEqual(self.verify(previous=result)['audits'],result['audits'])
++
++    def test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified(self):
++        first=self.verify()
++        for fault in ('helper','main','ancestry','audit_id','dirty_checkout'):
++            with self.subTest(fault=fault):
++                self.dirty_checkout=fault=='dirty_checkout';self.bad_helper=fault=='helper';self.main='e'*40 if fault=='main' else HEAD
++                self.bad_ancestry=fault=='ancestry';self.asset_id_offset=100 if fault=='audit_id' else 0
++                with self.assertRaises(ValueError):self.verify(previous=first)
++
++
++if __name__=='__main__':unittest.main()

@@ -1,0 +1,117 @@
+Collecting alibabacloud-oss-v2==1.4.1
+  Downloading alibabacloud_oss_v2-1.4.1-py3-none-any.whl.metadata (5.3 kB)
+Collecting alibabacloud-cdn20180510==9.2.0
+  Downloading alibabacloud_cdn20180510-9.2.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting alibabacloud-sts20150401==1.2.0
+  Downloading alibabacloud_sts20150401-1.2.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting crcmod-plus>=2.1.0 (from alibabacloud-oss-v2==1.4.1)
+  Downloading crcmod_plus-2.3.6-cp311-abi3-macosx_10_9_universal2.whl.metadata (5.4 kB)
+Collecting pycryptodome>=3.4.7 (from alibabacloud-oss-v2==1.4.1)
+  Downloading pycryptodome-4.1.0-cp39-abi3-macosx_10_9_universal2.whl.metadata (5.9 kB)
+Collecting requests>=2.18.4 (from alibabacloud-oss-v2==1.4.1)
+  Downloading requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)
+Collecting alibabacloud-tea-openapi<1.0.0,>=0.4.3 (from alibabacloud-cdn20180510==9.2.0)
+  Downloading alibabacloud_tea_openapi-0.4.6-py3-none-any.whl.metadata (2.3 kB)
+Collecting darabonba-core<2.0.0,>=1.0.0 (from alibabacloud-cdn20180510==9.2.0)
+  Downloading darabonba_core-1.0.9-py3-none-any.whl.metadata (2.6 kB)
+Collecting alibabacloud-credentials<2.0.0,>=1.0.2 (from alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading alibabacloud_credentials-1.0.12-py3-none-any.whl.metadata (29 kB)
+Collecting alibabacloud-gateway-spi<1.0.0,>=0.0.2 (from alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading alibabacloud_gateway_spi-0.0.4-py3-none-any.whl.metadata (924 bytes)
+Collecting alibabacloud-tea-util<1.0.0,>=0.3.13 (from alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading alibabacloud_tea_util-0.3.15-py3-none-any.whl.metadata (2.0 kB)
+Collecting cryptography<51.0.0,>=3.0.0 (from alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl.metadata (4.4 kB)
+Collecting APScheduler<4.0.0,>=3.10.0 (from alibabacloud-credentials<2.0.0,>=1.0.2->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading apscheduler-3.11.3-py3-none-any.whl.metadata (6.5 kB)
+Collecting aiofiles<25.0.0,>=22.1.0 (from alibabacloud-credentials<2.0.0,>=1.0.2->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading aiofiles-24.1.0-py3-none-any.whl.metadata (10 kB)
+Collecting alibabacloud-tea>=0.4.0 (from alibabacloud-credentials<2.0.0,>=1.0.2->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading alibabacloud-tea-0.4.3.tar.gz (8.8 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting alibabacloud-credentials-api<2.0.0,>=1.0.0 (from alibabacloud-credentials<2.0.0,>=1.0.2->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading alibabacloud_credentials_api-1.0.1-py3-none-any.whl.metadata (985 bytes)
+Collecting tzlocal>=3.0 (from APScheduler<4.0.0,>=3.10.0->alibabacloud-credentials<2.0.0,>=1.0.2->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading tzlocal-5.4.4-py3-none-any.whl.metadata (7.7 kB)
+Collecting cffi>=2.0.0 (from cryptography<51.0.0,>=3.0.0->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading cffi-2.1.1-cp313-cp313-macosx_11_0_arm64.whl.metadata (2.5 kB)
+Collecting aiohttp<4.0.0,>=3.7.0 (from darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading aiohttp-3.14.5-cp313-cp313-macosx_11_0_arm64.whl.metadata (8.3 kB)
+Collecting websocket-client<2.0.0,>=1.6.0 (from darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading websocket_client-1.9.2-py3-none-any.whl.metadata (8.3 kB)
+Collecting aiohappyeyeballs>=2.5.0 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading aiohappyeyeballs-2.7.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting aiosignal>=1.4.0 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+Collecting attrs>=17.3.0 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading attrs-26.1.0-py3-none-any.whl.metadata (8.8 kB)
+Collecting frozenlist>=1.1.1 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading frozenlist-1.8.0-cp313-cp313-macosx_11_0_arm64.whl.metadata (20 kB)
+Collecting multidict<8.0,>=4.5 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading multidict-7.1.0-cp313-cp313-macosx_11_0_arm64.whl.metadata (6.2 kB)
+Collecting propcache>=0.2.0 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading propcache-0.5.4-cp313-cp313-macosx_11_0_arm64.whl.metadata (25 kB)
+Collecting yarl<2.0,>=1.25.1 (from aiohttp<4.0.0,>=3.7.0->darabonba-core<2.0.0,>=1.0.0->alibabacloud-cdn20180510==9.2.0)
+  Downloading yarl-1.25.1-cp313-cp313-macosx_11_0_arm64.whl.metadata (111 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Downloading charset_normalizer-3.5.2-cp313-cp313-macosx_10_13_universal2.whl.metadata (46 kB)
+Collecting idna<4,>=2.5 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+Collecting urllib3<3,>=1.26 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Downloading urllib3-2.8.0-py3-none-any.whl.metadata (7.4 kB)
+Collecting certifi>=2023.5.7 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Downloading certifi-2026.10.19-py3-none-any.whl.metadata (2.5 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography<51.0.0,>=3.0.0->alibabacloud-tea-openapi<1.0.0,>=0.4.3->alibabacloud-cdn20180510==9.2.0)
+  Downloading pycparser-3.11-py3-none-any.whl.metadata (8.2 kB)
+Downloading alibabacloud_oss_v2-1.4.1-py3-none-any.whl (377 kB)
+Downloading alibabacloud_cdn20180510-9.2.0-py3-none-any.whl (525 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 525.0/525.0 kB 1.6 MB/s eta 0:00:00
+Downloading alibabacloud_sts20150401-1.2.0-py3-none-any.whl (19 kB)
+Downloading alibabacloud_tea_openapi-0.4.6-py3-none-any.whl (33 kB)
+Downloading alibabacloud_credentials-1.0.12-py3-none-any.whl (52 kB)
+Downloading aiofiles-24.1.0-py3-none-any.whl (15 kB)
+Downloading alibabacloud_credentials_api-1.0.1-py3-none-any.whl (2.2 kB)
+Downloading alibabacloud_gateway_spi-0.0.4-py3-none-any.whl (4.3 kB)
+Downloading alibabacloud_tea_util-0.3.15-py3-none-any.whl (6.7 kB)
+Downloading apscheduler-3.11.3-py3-none-any.whl (66 kB)
+Downloading cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl (3.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.9/3.9 MB 954.6 kB/s eta 0:00:00
+Downloading darabonba_core-1.0.9-py3-none-any.whl (31 kB)
+Downloading aiohttp-3.14.5-cp313-cp313-macosx_11_0_arm64.whl (545 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 545.8/545.8 kB 2.1 MB/s eta 0:00:00
+Downloading multidict-7.1.0-cp313-cp313-macosx_11_0_arm64.whl (97 kB)
+Downloading requests-2.34.2-py3-none-any.whl (73 kB)
+Downloading charset_normalizer-3.5.2-cp313-cp313-macosx_10_13_universal2.whl (366 kB)
+Downloading idna-3.20-py3-none-any.whl (69 kB)
+Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+Downloading websocket_client-1.9.2-py3-none-any.whl (95 kB)
+Downloading yarl-1.25.1-cp313-cp313-macosx_11_0_arm64.whl (103 kB)
+Downloading aiohappyeyeballs-2.7.1-py3-none-any.whl (15 kB)
+Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+Downloading certifi-2026.10.19-py3-none-any.whl (136 kB)
+Downloading cffi-2.1.1-cp313-cp313-macosx_11_0_arm64.whl (184 kB)
+Downloading crcmod_plus-2.3.6-cp311-abi3-macosx_10_9_universal2.whl (22 kB)
+Downloading frozenlist-1.8.0-cp313-cp313-macosx_11_0_arm64.whl (49 kB)
+Downloading propcache-0.5.4-cp313-cp313-macosx_11_0_arm64.whl (51 kB)
+Downloading pycryptodome-4.1.0-cp39-abi3-macosx_10_9_universal2.whl (1.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 1.4 MB/s eta 0:00:00
+Downloading tzlocal-5.4.4-py3-none-any.whl (18 kB)
+Downloading pycparser-3.11-py3-none-any.whl (51 kB)
+Building wheels for collected packages: alibabacloud-tea
+  Building wheel for alibabacloud-tea (pyproject.toml): started
+  Building wheel for alibabacloud-tea (pyproject.toml): finished with status 'done'
+  Created wheel for alibabacloud-tea: filename=alibabacloud_tea-0.4.3-py3-none-any.whl size=8445 sha256=be3d52bf24a6b13da722971e5cf650d895ede079a29a2a710926e04aee9ad03f
+  Stored in directory: /Users/tt/Library/Caches/pip/wheels/2d/67/7f/07a8033add9b953ac43f5b288076bc328a4314d6ba5005180e
+Successfully built alibabacloud-tea
+Installing collected packages: websocket-client, urllib3, tzlocal, pycryptodome, pycparser, propcache, multidict, idna, frozenlist, crcmod-plus, charset_normalizer, certifi, attrs, alibabacloud-credentials-api, aiohappyeyeballs, aiofiles, yarl, requests, cffi, APScheduler, aiosignal, cryptography, alibabacloud-oss-v2, aiohttp, alibabacloud-tea, darabonba-core, alibabacloud-tea-util, alibabacloud-credentials, alibabacloud-gateway-spi, alibabacloud-tea-openapi, alibabacloud-sts20150401, alibabacloud-cdn20180510
+
+Successfully installed APScheduler-3.11.3 aiofiles-24.1.0 aiohappyeyeballs-2.7.1 aiohttp-3.14.5 aiosignal-1.4.0 alibabacloud-cdn20180510-9.2.0 alibabacloud-credentials-1.0.12 alibabacloud-credentials-api-1.0.1 alibabacloud-gateway-spi-0.0.4 alibabacloud-oss-v2-1.4.1 alibabacloud-sts20150401-1.2.0 alibabacloud-tea-0.4.3 alibabacloud-tea-openapi-0.4.6 alibabacloud-tea-util-0.3.15 attrs-26.1.0 certifi-2026.10.19 cffi-2.1.1 charset_normalizer-3.5.2 crcmod-plus-2.3.6 cryptography-50.0.2 darabonba-core-1.0.9 frozenlist-1.8.0 idna-3.20 multidict-7.1.0 propcache-0.5.4 pycparser-3.11 pycryptodome-4.1.0 requests-2.34.2 tzlocal-5.4.4 urllib3-2.8.0 websocket-client-1.9.2 yarl-1.25.1
+
+[notice] A new release of pip is available: 25.1.1 -> 26.2.2
+[notice] To update, run: /private/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/venv/bin/python -m pip install --upgrade pip

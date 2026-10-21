@@ -1,0 +1,29 @@
+{
+  "network_allowed": false,
+  "source_sha256": "f41d6980b1c0a02a2f9e0d58e7329d293d349c6605a9a8c4b5a7fe6ddcdf5200",
+  "tampered_before": {
+    "control_rejected": true,
+    "control_writes": 0,
+    "before_digest_still_fresh": true,
+    "tampered_body_digest_differs": true,
+    "actual_write_calls": 1,
+    "receipt": {
+      "state": "incomplete",
+      "write_attempted": true,
+      "before_sha256": "14c92876d7d9b4717e6634dd2b361d7567af8f5f6c4addbbef255aa0ac6873d9",
+      "after_sha256": "5a5db0562839ed58b989e078bb202ebd09decae08a355bfbaa856bfea347e430",
+      "batches_attempted": 1,
+      "production_enabled": false,
+      "publication_verified": false,
+      "cloud_verified": false,
+      "wire_equivalence_verified": false,
+      "error": "configuration operation incomplete"
+    }
+  },
+  "debug_guard": {
+    "rejected": true,
+    "network_adapter_calls": 0,
+    "fake_sts_token_logged": true,
+    "log_sha256": "a696f3c53c447f074db1c2312699c00a8b089fc4472ef70b4103b331c7f4b676"
+  }
+}

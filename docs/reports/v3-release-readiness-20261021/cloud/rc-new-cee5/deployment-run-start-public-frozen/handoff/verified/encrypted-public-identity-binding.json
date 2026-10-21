@@ -1,0 +1,38 @@
+{
+  "envelopes": [
+    {
+      "name": "encrypted-deployment-identity.json",
+      "bytes": 2316,
+      "sha256": "88d37784bf8f1ff92f2e70f59066a1b610239a853b30f3f9e3c6cba77b99ee1e",
+      "public_identity": {
+        "schema": "wukongim.chat_lifecycle.encrypted_deployment_identity/v1",
+        "algorithm": "x25519-xsalsa20-poly1305-sealed-box",
+        "request_id": "chat-20261021T163850Z-4ccd7506",
+        "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+        "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+        "plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c",
+        "recipient_fingerprint": "SHA256:6b7vRnc8rpraVMG2sbpSf5I0+jTFCr6gnD/gBe28E1g",
+        "deployment_fingerprint": "SHA256:488qAZjnbaj/cHSSSL6lwUsKw0yQad7loHnkYqV61To",
+        "expires_at": "2026-10-22T04:47:07Z"
+      }
+    },
+    {
+      "name": "encrypted-access.json",
+      "bytes": 1312,
+      "sha256": "22d3153dd10486af0a8ec61d68e7b65834edb6b819ca85ea40882ac83f90019b",
+      "public_identity": {
+        "schema": "wukongim.chat_lifecycle.encrypted_access/v1",
+        "algorithm": "x25519-xsalsa20-poly1305-sealed-box",
+        "request_id": "chat-20261021T163850Z-4ccd7506",
+        "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+        "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+        "deployment_plan_digest": "sha256:d814647bd7b9fcc0bdbcb08da7f2ca53c9ca9ce17350a3d12837e7fe31d90bfe",
+        "recipient_fingerprint": "SHA256:616KYRkhhNGRpYQEEUQLp0bqrgZUtZGkIgb/AV/QMMc"
+      }
+    }
+  ],
+  "public_identity_bound": true,
+  "ciphertext_decrypted": false,
+  "private_keys_read": false,
+  "wrapping_secret_match_independently_proved": false
+}

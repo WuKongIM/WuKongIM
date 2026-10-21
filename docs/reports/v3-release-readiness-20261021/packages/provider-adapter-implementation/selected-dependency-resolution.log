@@ -1,0 +1,51 @@
+Collecting alibabacloud-oss-v2==1.4.1
+  Using cached alibabacloud_oss_v2-1.4.1-py3-none-any.whl.metadata (5.3 kB)
+Collecting aliyun-python-sdk-core==2.16.1
+  Downloading aliyun_python_sdk_core-2.16.1-py3-none-any.whl.metadata (1.5 kB)
+Collecting aliyun-python-sdk-cdn==3.8.8
+  Downloading aliyun_python_sdk_cdn-3.8.8-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting aliyun-python-sdk-sts==3.1.3
+  Downloading aliyun_python_sdk_sts-3.1.3-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting crcmod-plus>=2.1.0 (from alibabacloud-oss-v2==1.4.1)
+  Using cached crcmod_plus-2.3.6-cp311-abi3-macosx_10_9_universal2.whl.metadata (5.4 kB)
+Collecting pycryptodome>=3.4.7 (from alibabacloud-oss-v2==1.4.1)
+  Using cached pycryptodome-4.1.0-cp39-abi3-macosx_10_9_universal2.whl.metadata (5.9 kB)
+Collecting requests>=2.18.4 (from alibabacloud-oss-v2==1.4.1)
+  Using cached requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)
+Collecting cryptography>=3.0.0 (from aliyun-python-sdk-core==2.16.1)
+  Using cached cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl.metadata (4.4 kB)
+Collecting jmespath<2.0.0,>=0.9.3 (from aliyun-python-sdk-core==2.16.1)
+  Downloading jmespath-1.1.0-py3-none-any.whl.metadata (7.6 kB)
+Collecting cffi>=2.0.0 (from cryptography>=3.0.0->aliyun-python-sdk-core==2.16.1)
+  Using cached cffi-2.1.1-cp313-cp313-macosx_11_0_arm64.whl.metadata (2.5 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography>=3.0.0->aliyun-python-sdk-core==2.16.1)
+  Using cached pycparser-3.11-py3-none-any.whl.metadata (8.2 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Using cached charset_normalizer-3.5.2-cp313-cp313-macosx_10_13_universal2.whl.metadata (46 kB)
+Collecting idna<4,>=2.5 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Using cached idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+Collecting urllib3<3,>=1.26 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Using cached urllib3-2.8.0-py3-none-any.whl.metadata (7.4 kB)
+Collecting certifi>=2023.5.7 (from requests>=2.18.4->alibabacloud-oss-v2==1.4.1)
+  Using cached certifi-2026.10.19-py3-none-any.whl.metadata (2.5 kB)
+Using cached alibabacloud_oss_v2-1.4.1-py3-none-any.whl (377 kB)
+Downloading aliyun_python_sdk_core-2.16.1-py3-none-any.whl (521 kB)
+Downloading aliyun_python_sdk_cdn-3.8.8-py2.py3-none-any.whl (162 kB)
+Downloading aliyun_python_sdk_sts-3.1.3-py2.py3-none-any.whl (8.0 kB)
+Downloading jmespath-1.1.0-py3-none-any.whl (20 kB)
+Using cached crcmod_plus-2.3.6-cp311-abi3-macosx_10_9_universal2.whl (22 kB)
+Using cached cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl (3.9 MB)
+Using cached cffi-2.1.1-cp313-cp313-macosx_11_0_arm64.whl (184 kB)
+Using cached pycryptodome-4.1.0-cp39-abi3-macosx_10_9_universal2.whl (1.5 MB)
+Using cached requests-2.34.2-py3-none-any.whl (73 kB)
+Using cached charset_normalizer-3.5.2-cp313-cp313-macosx_10_13_universal2.whl (366 kB)
+Using cached idna-3.20-py3-none-any.whl (69 kB)
+Using cached urllib3-2.8.0-py3-none-any.whl (135 kB)
+Using cached certifi-2026.10.19-py3-none-any.whl (136 kB)
+Using cached pycparser-3.11-py3-none-any.whl (51 kB)
+Installing collected packages: urllib3, pycryptodome, pycparser, jmespath, idna, crcmod-plus, charset_normalizer, certifi, requests, cffi, cryptography, alibabacloud-oss-v2, aliyun-python-sdk-core, aliyun-python-sdk-sts, aliyun-python-sdk-cdn
+
+Successfully installed alibabacloud-oss-v2-1.4.1 aliyun-python-sdk-cdn-3.8.8 aliyun-python-sdk-core-2.16.1 aliyun-python-sdk-sts-3.1.3 certifi-2026.10.19 cffi-2.1.1 charset_normalizer-3.5.2 crcmod-plus-2.3.6 cryptography-50.0.2 idna-3.20 jmespath-1.1.0 pycparser-3.11 pycryptodome-4.1.0 requests-2.34.2 urllib3-2.8.0
+
+[notice] A new release of pip is available: 25.1.1 -> 26.2.2
+[notice] To update, run: /private/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/sdk-venv/bin/python -m pip install --upgrade pip

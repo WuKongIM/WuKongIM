@@ -1,0 +1,14 @@
+[
+  {
+    "file": "dnf-cli.py",
+    "url": "https://raw.githubusercontent.com/rpm-software-management/dnf/4.14.0/dnf/cli/cli.py",
+    "sha256": "f176db39f21d04d62515456f95c7f85443a26c71fc76c1cd8f37dcc0348d4816",
+    "size": 44404
+  },
+  {
+    "file": "dnf-persistor.py",
+    "url": "https://raw.githubusercontent.com/rpm-software-management/dnf/4.14.0/dnf/persistor.py",
+    "sha256": "6ff1e1d2ef04d66712275addf1f9bc8f40719fe1cfe59c46751ab191b557eeab",
+    "size": 4694
+  }
+]

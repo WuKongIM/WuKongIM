@@ -1,0 +1,36 @@
+Collecting alibabacloud-oss-v2==1.4.1 (from -r requirements-object-storage-provider.lock (line 4))
+  Using cached alibabacloud_oss_v2-1.4.1-py3-none-any.whl (377 kB)
+Collecting aliyun-python-sdk-cdn==3.8.8 (from -r requirements-object-storage-provider.lock (line 7))
+  Using cached aliyun_python_sdk_cdn-3.8.8-py2.py3-none-any.whl (162 kB)
+Collecting aliyun-python-sdk-core==2.16.1 (from -r requirements-object-storage-provider.lock (line 11))
+  Using cached aliyun_python_sdk_core-2.16.1-py3-none-any.whl (521 kB)
+Collecting aliyun-python-sdk-sts==3.1.3 (from -r requirements-object-storage-provider.lock (line 14))
+  Using cached aliyun_python_sdk_sts-3.1.3-py2.py3-none-any.whl (8.0 kB)
+Collecting certifi==2026.10.19 (from -r requirements-object-storage-provider.lock (line 18))
+  Using cached certifi-2026.10.19-py3-none-any.whl (136 kB)
+Collecting cffi==2.1.1 (from -r requirements-object-storage-provider.lock (line 22))
+  Using cached cffi-2.1.1-cp313-cp313-macosx_11_0_arm64.whl (184 kB)
+Collecting charset-normalizer==3.5.2 (from -r requirements-object-storage-provider.lock (line 124))
+  Using cached charset_normalizer-3.5.2-cp313-cp313-macosx_10_13_universal2.whl (366 kB)
+Collecting crcmod-plus==2.3.6 (from -r requirements-object-storage-provider.lock (line 298))
+  Using cached crcmod_plus-2.3.6-cp311-abi3-macosx_10_9_universal2.whl (22 kB)
+Collecting cryptography==50.0.2 (from -r requirements-object-storage-provider.lock (line 350))
+  Using cached cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl (3.9 MB)
+Collecting idna==3.20 (from -r requirements-object-storage-provider.lock (line 411))
+  Using cached idna-3.20-py3-none-any.whl (69 kB)
+Collecting jmespath==1.1.0 (from -r requirements-object-storage-provider.lock (line 415))
+  Using cached jmespath-1.1.0-py3-none-any.whl (20 kB)
+Collecting pycparser==3.11 (from -r requirements-object-storage-provider.lock (line 419))
+  Using cached pycparser-3.11-py3-none-any.whl (51 kB)
+Collecting pycryptodome==4.1.0 (from -r requirements-object-storage-provider.lock (line 423))
+  Using cached pycryptodome-4.1.0-cp39-abi3-macosx_10_9_universal2.whl (1.5 MB)
+Collecting requests==2.34.2 (from -r requirements-object-storage-provider.lock (line 452))
+  Using cached requests-2.34.2-py3-none-any.whl (73 kB)
+Collecting urllib3==2.8.0 (from -r requirements-object-storage-provider.lock (line 456))
+  Using cached urllib3-2.8.0-py3-none-any.whl (135 kB)
+Installing collected packages: urllib3, pycryptodome, pycparser, jmespath, idna, crcmod-plus, charset-normalizer, certifi, requests, cffi, cryptography, alibabacloud-oss-v2, aliyun-python-sdk-core, aliyun-python-sdk-sts, aliyun-python-sdk-cdn
+
+Successfully installed alibabacloud-oss-v2-1.4.1 aliyun-python-sdk-cdn-3.8.8 aliyun-python-sdk-core-2.16.1 aliyun-python-sdk-sts-3.1.3 certifi-2026.10.19 cffi-2.1.1 charset-normalizer-3.5.2 crcmod-plus-2.3.6 cryptography-50.0.2 idna-3.20 jmespath-1.1.0 pycparser-3.11 pycryptodome-4.1.0 requests-2.34.2 urllib3-2.8.0
+
+[notice] A new release of pip is available: 25.1.1 -> 26.2.2
+[notice] To update, run: /private/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python -m pip install --upgrade pip

@@ -1,0 +1,259 @@
+{
+  "copied_at": "2026-10-21T17:13:55.565189+00:00",
+  "all_copied_bytes_rechecked": true,
+  "raw_secret_and_signed_url_scan": "no matching private-key header or signed-URL query pattern",
+  "files": [
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/artifact-metadata.json",
+      "destination": "deployment/artifact-metadata.json",
+      "bytes": 769,
+      "sha256": "ef609472c50058318225ed585df6c8e76f8e8db1f1c81511f008096079f7f07b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/download.json",
+      "destination": "deployment/download.json",
+      "bytes": 402,
+      "sha256": "84d82616454a0158b9e05e0c71d6be979cb677048a80865cc57847cc93016b87"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/verified/analysis-endpoint.json",
+      "destination": "deployment/verified/analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "1aa665f014b1c36261e7f922506719afa5e6d6e93bd8e2a25f061bbaea0bb585"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/verified/archive-verification.json",
+      "destination": "deployment/verified/archive-verification.json",
+      "bytes": 1668,
+      "sha256": "6311812d8279a39cc2bfa924cc5138411c78581932e67deb3123d3b0afe12e36"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/verified/deployment-outcome.json",
+      "destination": "deployment/verified/deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "ae586cfe0b0229e6156b339e46afa7a54a3fd52e88183c3b015058d8dde7ae8b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/verified/deployment-plan.json",
+      "destination": "deployment/verified/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "2815ec2f3999bf54b725b986faf4b91e08f646793f83bb59634cb3d14d3c0543"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/deployment/verified/readiness-snapshot.json",
+      "destination": "deployment/verified/readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "c9d4a69c656ed110c302947d3dc6bd2efeaea268d0d2327db68131ca8c3e29f8"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/continuation-admission-metadata.json",
+      "destination": "handoff/continuation-admission-metadata.json",
+      "bytes": 818,
+      "sha256": "ffd943301a61294ecb6d005965de9ad83e68508692a97f80fe23794d0bd24879"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/handoff-download.json",
+      "destination": "handoff/handoff-download.json",
+      "bytes": 403,
+      "sha256": "397cee2ea6fee85775abea091747bc14e3fef728306a27b5c45aae4f6847b3e5"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/handoff-metadata.json",
+      "destination": "handoff/handoff-metadata.json",
+      "bytes": 805,
+      "sha256": "686806c276f18304853eb15a0c7552cdeab5fd5a6b5bfeb86eaa5e93c52f1178"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/issue-after-handoff.json",
+      "destination": "handoff/issue-after-handoff.json",
+      "bytes": 540,
+      "sha256": "c4bc673902315687f532a9c6021cf7eefc646d5ab285101bfe0dc8d5a3293495"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/observer-correction.json",
+      "destination": "handoff/observer-correction.json",
+      "bytes": 961,
+      "sha256": "f6eef4e844556ab91084c9e49fd0cdb3c0839306736e70e967896af3f57bbb02"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/preflight-metadata.json",
+      "destination": "handoff/preflight-metadata.json",
+      "bytes": 805,
+      "sha256": "63d4e127968c78c451e4b59a86410d700509d8ef818e9205b83131c62121b90c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/source-binding.json",
+      "destination": "handoff/source-binding.json",
+      "bytes": 2742,
+      "sha256": "fb0fb7addd77ac5804a7735eda9efa53681bcc924d15829726fc8a99453b5a1e"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/source-excerpts.json",
+      "destination": "handoff/source-excerpts.json",
+      "bytes": 24801,
+      "sha256": "98e357082efe07fcd48de19232857d25d2e97e0128b074c5771e0d895885ab60"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/analysis-endpoint.json",
+      "destination": "handoff/verified/analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "1aa665f014b1c36261e7f922506719afa5e6d6e93bd8e2a25f061bbaea0bb585"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/archive-verification.json",
+      "destination": "handoff/verified/archive-verification.json",
+      "bytes": 8817,
+      "sha256": "76fd66811d60eaf276d5429b29def9398a22d4a780cea0252e9ae45d75ca8065"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stderr.json",
+      "destination": "handoff/verified/attempt-1/pre-clock-generation-1/start-stderr.json",
+      "bytes": 106,
+      "sha256": "e2918c432271e0bf4802e8e02418c0efa889467a98a88ba67c76559bcb3659de"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stdout.json",
+      "destination": "handoff/verified/attempt-1/pre-clock-generation-1/start-stdout.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stderr.json",
+      "destination": "handoff/verified/attempt-1/pre-clock-generation-1/state-stderr.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stdout.json",
+      "destination": "handoff/verified/attempt-1/pre-clock-generation-1/state-stdout.json",
+      "bytes": 106,
+      "sha256": "24e6ee75e942e5c09248d5515e9ef27ef83c1d7be5568a2c68226640e56659ee"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/unit.json",
+      "destination": "handoff/verified/attempt-1/pre-clock-generation-1/unit.json",
+      "bytes": 966,
+      "sha256": "51eb2d5392a7293f209d90237d7564ca0c7ac45cfdee18a3d876454a8ab846ff"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/continuation-authentication.json",
+      "destination": "handoff/verified/continuation-authentication.json",
+      "bytes": 129,
+      "sha256": "cc086d72e9d9ca01e23de2fb738693d8d8a4da9a520909898910446db77c8d3c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/deployment-outcome.json",
+      "destination": "handoff/verified/deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "ae586cfe0b0229e6156b339e46afa7a54a3fd52e88183c3b015058d8dde7ae8b"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/deployment-plan.json",
+      "destination": "handoff/verified/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "2815ec2f3999bf54b725b986faf4b91e08f646793f83bb59634cb3d14d3c0543"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/encrypted-public-identity-binding.json",
+      "destination": "handoff/verified/encrypted-public-identity-binding.json",
+      "bytes": 1717,
+      "sha256": "8d912147ee8f8fb3166d18edc22c65bb8c4ae360a80e5387d1d1752341c4fbe0"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/handoff.json",
+      "destination": "handoff/verified/handoff.json",
+      "bytes": 499,
+      "sha256": "d5ec0a4eaeafef3276c57dec0fda6aa43a1d95dccb97cc0952a757641bbaff9f"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/identity-verification.json",
+      "destination": "handoff/verified/identity-verification.json",
+      "bytes": 6738,
+      "sha256": "c7a62757f14a2566cae5ab78bd2e8955d91ad6710990af608137e8dc6f88f014"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/issue-preflight.json",
+      "destination": "handoff/verified/issue-preflight.json",
+      "bytes": 258,
+      "sha256": "8f7c6b3ae8cf6e2226937f1969b43ddc01db22dbd75f91ee1e9373a9788c0285"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/release-selector.json",
+      "destination": "handoff/verified/release-selector.json",
+      "bytes": 319,
+      "sha256": "347f4ace5e207350a900a95cde537e59d1111ae1a16ce859633df3845991c733"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/request-budget.json",
+      "destination": "handoff/verified/request-budget.json",
+      "bytes": 68,
+      "sha256": "29a6a879a13554b139c45b3bdfc4e8379f8ca837b64d9eda87661178f462223f"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/run-plan.json",
+      "destination": "handoff/verified/run-plan.json",
+      "bytes": 2361,
+      "sha256": "769d8819a7e29a61a6ce9828b1a34672f48b28fca3e27e03814c89eff5e7302c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/handoff/verified/run-start.json",
+      "destination": "handoff/verified/run-start.json",
+      "bytes": 398,
+      "sha256": "dadfba49cf6e0bff7cd5ac704ad9e2b0c6eb7b29b4e2e848861f927e97c02570"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/job-checkouts/119351667323.json",
+      "destination": "job-checkouts/119351667323.json",
+      "bytes": 744,
+      "sha256": "b3ce9c7d4aef5de609b18ba17f8560a14eb0bad507d1279c1b46abe2293d01e5"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/job-checkouts/119358256132.json",
+      "destination": "job-checkouts/119358256132.json",
+      "bytes": 744,
+      "sha256": "80d6c2b296d8fba05ba7af3a9e74426c462c2fec30fa0299cb7d100bed779d3c"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/poll-12/39639281581-artifacts.json",
+      "destination": "poll-12/39639281581-artifacts.json",
+      "bytes": 894,
+      "sha256": "2a08f7fcbe1e56f75e8d1cc9e0961ecb588a03c90b2399184ffaf721b52941ab"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/poll-12/39639281581-jobs.json",
+      "destination": "poll-12/39639281581-jobs.json",
+      "bytes": 5632,
+      "sha256": "d39b3a152f9dc6fc6c58e0a0dfbd2a9a75c614f18f86a4c63ab87c2c05773965"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/poll-12/request-runs.json",
+      "destination": "poll-12/request-runs.json",
+      "bytes": 3260,
+      "sha256": "10fb12eb6df5b7eeeb8fc7d636d1bb3f4d3a70f10b4f4931d2cd7605eaf6e548"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/poll-12/top-artifacts.json",
+      "destination": "poll-12/top-artifacts.json",
+      "bytes": 2715,
+      "sha256": "2341dee8abac9a780c8c7e8545937278853517ee3e0420d26135d26314b40fcb"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/poll-12/top-jobs.json",
+      "destination": "poll-12/top-jobs.json",
+      "bytes": 7369,
+      "sha256": "7c94919885930bbeb3ea3e671110d7d2a3510baa9246ec512a52d9c55a6bd38e"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/poll-12/top.json",
+      "destination": "poll-12/top.json",
+      "bytes": 556,
+      "sha256": "614f515ac62a4678c6d18d14ee36a6ac03df854e132d6bbaaab890853f4dc3c3"
+    },
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/live-observation/verify-deployment-handoff.py",
+      "destination": "verify-deployment-handoff.py",
+      "bytes": 12485,
+      "sha256": "e42a28ade203c4fa29a90651ace893f3d377d4cfad0fc7cd3752af824efdadf5"
+    }
+  ]
+}

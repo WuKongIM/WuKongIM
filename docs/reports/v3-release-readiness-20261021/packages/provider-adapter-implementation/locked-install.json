@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--only-binary=:all:",
+    "--require-hashes",
+    "-r",
+    "requirements-object-storage-provider.lock"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+  "timeout_seconds": 240,
+  "exit_code": 0,
+  "elapsed_seconds": 7.1,
+  "terminal": true
+}

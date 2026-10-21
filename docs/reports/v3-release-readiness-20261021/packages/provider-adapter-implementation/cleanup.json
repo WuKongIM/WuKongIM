@@ -1,0 +1,12 @@
+{
+  "recorded_at": "2026-10-21T17:04:59.180597+00:00",
+  "all_test_commands_terminal": true,
+  "matching_background_processes": [],
+  "exploration_venvs_removed": [
+    "venv",
+    "sdk-venv"
+  ],
+  "retained_nonpublic_reproduction_environment": "locked-venv",
+  "source_still_matches_freeze": true,
+  "worktree_retained_uncommitted_for_review": true
+}

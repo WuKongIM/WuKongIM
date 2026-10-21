@@ -1,0 +1,19 @@
+{
+  "job_id": 119357423160,
+  "started_at": "2026-10-21T16:57:04.324310+00:00",
+  "observed_at": "2026-10-21T16:57:06.937653+00:00",
+  "exit_code": 0,
+  "raw_log_bytes": 60565,
+  "raw_log_sha256": "0e3d930e5779014360756c984c49ca5621b226fc60d8e9744e1516b2ac5081a1",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_files_private": true,
+  "actual_checkout_commits": [
+    {
+      "line": 128,
+      "commit": "cee5d51f325fb84033060f546337d326110adae5"
+    }
+  ],
+  "all_observed_checkouts_exact": true,
+  "limits": "Only bounded commit output after git log -1 --format=%H is copied publicly. Full raw log retained privately; no arbitrary command/environment contents copied."
+}

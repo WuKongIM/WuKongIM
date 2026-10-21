@@ -1,0 +1,169 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 119352215352,
+      "run_id": 39637578380,
+      "workflow_name": "Cloud Deployment Bundle cee5d51f325fb84033060f546337d326110adae5 chat-20261021T163850Z-4ccd7506",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39637578380",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbyfJHOA",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119352215352",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39637578380/job/119352215352",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-21T16:45:09Z",
+      "started_at": "2026-10-21T16:45:12Z",
+      "completed_at": null,
+      "name": "Build and seal offline four-host payload",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T16:45:13Z",
+          "completed_at": "2026-10-21T16:45:15Z"
+        },
+        {
+          "name": "Checkout trusted control revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T16:45:15Z",
+          "completed_at": "2026-10-21T16:45:21Z"
+        },
+        {
+          "name": "Checkout immutable product source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T16:45:21Z",
+          "completed_at": "2026-10-21T16:45:31Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T16:45:31Z",
+          "completed_at": "2026-10-21T16:45:43Z"
+        },
+        {
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T16:45:43Z",
+          "completed_at": "2026-10-21T16:45:45Z"
+        },
+        {
+          "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T16:45:45Z",
+          "completed_at": "2026-10-21T16:45:50Z"
+        },
+        {
+          "name": "Prove source and control identities",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T16:45:50Z",
+          "completed_at": "2026-10-21T16:45:50Z"
+        },
+        {
+          "name": "Build Manager and Demo assets on the runner",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 8,
+          "started_at": "2026-10-21T16:45:50Z",
+          "completed_at": null
+        },
+        {
+          "name": "Build Linux AMD64 product and control binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Add checksum-pinned native dependencies",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Seal and independently verify content address",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload content-addressed offline bundle",
+          "status": "pending",
+          "conclusion": null,
+          "number": 12,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+          "status": "pending",
+          "conclusion": null,
+          "number": 20,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "status": "pending",
+          "conclusion": null,
+          "number": 21,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "pending",
+          "conclusion": null,
+          "number": 22,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout immutable product source",
+          "status": "pending",
+          "conclusion": null,
+          "number": 23,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout trusted control revision",
+          "status": "pending",
+          "conclusion": null,
+          "number": 24,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119352215352",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024433,
+      "runner_name": "GitHub Actions 1000024433",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

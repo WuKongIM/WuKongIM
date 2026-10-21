@@ -1,0 +1,37 @@
+[
+  {
+    "name": "sdk-final",
+    "command": [
+      "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+      "-B",
+      "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "--receipt",
+      "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/sdk-contract-receipt.json"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+    "timeout_seconds": 120,
+    "exit_code": 0,
+    "elapsed_seconds": 2.32,
+    "terminal": true
+  },
+  {
+    "name": "all-default",
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+    "timeout_seconds": 360,
+    "exit_code": 0,
+    "elapsed_seconds": 133.52,
+    "terminal": true
+  }
+]

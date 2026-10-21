@@ -1,0 +1,53 @@
+{
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+  "base": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "files": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md",
+      "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/tdd/SKILL.md",
+      "sha256": "6cfc6a5920744e55861b9b6176e12597d0c09345ea077bddc44c0d60712f2a0f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/README.md",
+      "sha256": "dc7c8ed7b43c70192af988e4c6435e0d6aee0502e6bb61f0abf1f6c7f50247f9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/official-sources.md",
+      "sha256": "aae482c7516ac05d3cc157fa4c05fd5e7e108b116cbd639693cebf5621779daa"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/failure-matrix.md",
+      "sha256": "453767ea5bf0b10c3e12ef57bf0fcb44375e4d467e22f7ddf8822f5840ec1eb2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/source-binding.json",
+      "sha256": "5a91ce9fa1dfdbb384cdc8ff1a9fdab7acfb1a313f3cc51342e3a59119613329"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/wire-followup/README.md",
+      "sha256": "ecc1dafb6d2c5038ac63b31be83227e4969e0e5f92a77196f7d72b1c069dacdb"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/wire-followup/receipt.json",
+      "sha256": "f719c313a2a363a134120c1db2697e735003fd7a3326e5c5fa91a9698eeb1306"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-next-slice/wire-followup/wire-example.json",
+      "sha256": "6a96c29b70504c14b70fae36e6e1f0814393a9d417a63415809ebc9163502977"
+    }
+  ],
+  "applicable_package_FLOW": [],
+  "test_seams": [
+    "official SDK serialized HTTP via injected transport",
+    "fresh original GitHub/source helpers with fixture HTTP and subprocess boundary"
+  ],
+  "test_order": "All failure tests before implementation per explicit parent task; this overrides TDD skill vertical-slice preference."
+}

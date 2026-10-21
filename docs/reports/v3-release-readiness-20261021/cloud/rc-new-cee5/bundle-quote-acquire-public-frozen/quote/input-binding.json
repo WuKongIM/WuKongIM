@@ -1,0 +1,47 @@
+{
+  "origin": "exact completed Quote job119353337163 environment PLAN_JSON, parsed independently; not log-signature attestation",
+  "log_sha256": "a661b5ac6f59a2839b8b97c8a3febf0d249f8c6a537a4e6d7e4dcd7ff849ccb0",
+  "locations": [
+    {
+      "line": 56,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    {
+      "line": 167,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    {
+      "line": 294,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    {
+      "line": 307,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    {
+      "line": 322,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    {
+      "line": 337,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    },
+    {
+      "line": 366,
+      "raw_input_sha256": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c"
+    }
+  ],
+  "distinct_plans": 1,
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1351044800,
+    "committed_micros": 0,
+    "operational_stop_micros": 1201044800
+  },
+  "quote_plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c",
+  "prior_old_request_reserve_is_not_in_new_committed": true
+}

@@ -1,0 +1,204 @@
+{
+  "observed_at": "2026-10-21T16:56:26.622746+00:00",
+  "top": {
+    "id": 39637426411,
+    "run_number": 34,
+    "workflow_id": 329938003,
+    "run_attempt": 1,
+    "status": "in_progress",
+    "conclusion": null,
+    "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "head_branch": "main",
+    "display_title": "Chat Lifecycle Rehearsal chat-20261021T163850Z-4ccd7506",
+    "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "created_at": "2026-10-21T16:44:07Z",
+    "updated_at": "2026-10-21T16:44:13Z",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39637426411",
+    "event": "workflow_dispatch"
+  },
+  "top_steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Validate fixed operator inputs, optional continuation, and trusted source",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build trusted Run Plan control tool",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Refuse a second paid scenario while any prior Lease lacks zero proof",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Enable rehearsal finalizer safety schedule before paid orchestration",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Orchestrate until remote systemd owns the measured run",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Upload read-only Issue preflight receipt",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Retain read-only continuation admission receipt",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Detect publishable handoff or cleanup continuation",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload non-secret remote handoff or cleanup evidence",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Detect immediate zero-inventory proof",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload immediate zero-inventory proof",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Release handed-off Lease if handoff publication failed",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload fallback zero-inventory proof",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Retry publication of cleanup-pending continuation evidence",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Advance the exact tracking Issue",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Remove plaintext runner identities",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "pending",
+      "conclusion": null
+    }
+  ],
+  "children": [
+    {
+      "id": 39639010616,
+      "run_number": 83,
+      "workflow_id": 329938009,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "head_branch": "main",
+      "display_title": "Cloud Lease Provision chat-20261021T163850Z-4ccd7506",
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "created_at": "2026-10-21T16:54:40Z",
+      "updated_at": "2026-10-21T16:56:14Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39639010616",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12363512751,
+          "name": "cloud-lease-provision-chat-20261021T163850Z-4ccd7506",
+          "size_in_bytes": 3616,
+          "digest": "sha256:2208d67db1ccdf030b5a8a2b10dc7a170a1e62fbf2f5a8d36cfdfdb62b65b2cd"
+        }
+      ]
+    },
+    {
+      "id": 39637891019,
+      "run_number": 82,
+      "workflow_id": 329938009,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "head_branch": "main",
+      "display_title": "Cloud Lease Provision chat-20261021T163850Z-4ccd7506",
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "created_at": "2026-10-21T16:47:11Z",
+      "updated_at": "2026-10-21T16:54:26Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39637891019",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12364180898,
+          "name": "cloud-lease-provision-chat-20261021T163850Z-4ccd7506",
+          "size_in_bytes": 975,
+          "digest": "sha256:8e8d37e3ecedf9363d0c77737ec9103b14951e5d58c6cca764146bb5112d24dc"
+        }
+      ]
+    },
+    {
+      "id": 39637578380,
+      "run_number": 39,
+      "workflow_id": 329938006,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "head_branch": "main",
+      "display_title": "Cloud Deployment Bundle cee5d51f325fb84033060f546337d326110adae5 chat-20261021T163850Z-4ccd7506",
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "created_at": "2026-10-21T16:45:08Z",
+      "updated_at": "2026-10-21T16:46:51Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39637578380",
+      "event": "workflow_dispatch",
+      "current_steps": [],
+      "artifacts": [
+        {
+          "id": 12362600779,
+          "name": "cloud-deployment-bundle-cdd10689b4765e1804ef0632eb598f06c22dd1f0208bbf40b3055506fb8f4686",
+          "size_in_bytes": 141108162,
+          "digest": "sha256:cc54903e0aea04ef797a78158540e3193971d29ab72435a32c6d3dc357b032b7"
+        }
+      ]
+    }
+  ],
+  "artifacts": []
+}

@@ -365,3 +365,9 @@ immutable publication and signed native-package public-client acceptance.
 - [真实provider下一切片](packages/provider-adapter-next-slice/README.md)及[官方wire/CI补查](packages/provider-adapter-next-slice/wire-followup/README.md)：只读设计已完成，开始独立测试先行实现；未配置真实资源或启用stable。
 
 - [#75第二代首次CI](packages/pr75-ci-generation-2/README.md)与[诊断覆盖边界](packages/pr75-ci-generation-2-coverage/README.md)：557零skip+4及旧native通过；Rocky第23项仍获取B而被精确A拒绝，22通过/26未执行，资源清零；不合并、不重跑旧head。
+
+- [新云RC已验Bundle/Quote/Acquire](cloud/rc-new-cee5/bundle-quote-acquire-public-frozen/README.md)：四机八盘一EIP、降额预算/28资源身份闭合，¥223.4328为累计报价预留而非账单；该阶段未见run-start。
+- [#75第二次修复](packages/pr75-barrier-second-diagnosis/README.md)、[独审](packages/pr75-barrier-second-review/combined-review.md)及`packages/pr75-delivery-generation-3/`：2368c874固定两阶段DNF政策，首次完整Linux待终态。
+- [D2初稿](packages/provider-adapter-implementation/README.md)与[首审](packages/provider-adapter-review/combined-review-v1.md)：1项历史tests-first过程偏离、2项具体实现P2保留；SDK修复中，未启用生产。
+
+- [新RC部署与真实run-start](cloud/rc-new-cee5/deployment-run-start-public-frozen/README.md)：北京时间01:05:48→03:05:48预演，身份/预算/父链/selector闭合；尚无2h/72h或零库存结论。

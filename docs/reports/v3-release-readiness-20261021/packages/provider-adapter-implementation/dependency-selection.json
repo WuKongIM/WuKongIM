@@ -1,0 +1,17 @@
+[
+  {
+    "name": "alibabacloud-oss-v2",
+    "version": "1.4.1",
+    "url": "https://pypi.org/pypi/alibabacloud-oss-v2/1.4.1/json"
+  },
+  {
+    "name": "alibabacloud-cdn20180510",
+    "version": "9.2.0",
+    "url": "https://pypi.org/pypi/alibabacloud-cdn20180510/9.2.0/json"
+  },
+  {
+    "name": "alibabacloud-sts20150401",
+    "version": "1.2.0",
+    "url": "https://pypi.org/pypi/alibabacloud-sts20150401/1.2.0/json"
+  }
+]

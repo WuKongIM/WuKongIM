@@ -1,0 +1,29 @@
+{
+  "all_regular_tar_files_hashed": 110,
+  "artifact_id": 12362600779,
+  "binary_elf_checks": {
+    "bin/caddy": true,
+    "bin/node_exporter": true,
+    "bin/prometheus": true,
+    "bin/wkanalysis": true,
+    "bin/wkcli": true,
+    "bin/wkcloudbundle": true,
+    "bin/wkcloudgate": true,
+    "bin/wkcloudhost": true,
+    "bin/wukongim": true
+  },
+  "bundle_digest": "sha256:cdd10689b4765e1804ef0632eb598f06c22dd1f0208bbf40b3055506fb8f4686",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "intent_sha256": "sha256:6bf147e0b037e45257de445ef136264c2d17571bfdc7239ac2f761a0cabe9c64",
+  "limits": "Independent byte/inventory/content-address and selected intent checks; full static semantics additionally rely on successful trusted runner seal-offline and verify-offline steps. No host, cloud, soak or publication validation.",
+  "manifest_inventory_files": 109,
+  "manifest_sha256": "df18b54c1147a1107d347cd194a08e6b06a79d68b630fb6e8352eb925657ccab",
+  "no_tar_extraction_or_payload_execution": true,
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "status": "independent_artifact_bytes_verified",
+  "tar_sha256": "db7ad6f243ba6e8d77d694e5cddc50fa924894a27c051cb243e7319230f7bc8c",
+  "tar_size": 141450995,
+  "uncompressed_bytes": 363671087,
+  "zip_sha256": "cc54903e0aea04ef797a78158540e3193971d29ab72435a32c6d3dc357b032b7",
+  "zip_size": 141108162
+}

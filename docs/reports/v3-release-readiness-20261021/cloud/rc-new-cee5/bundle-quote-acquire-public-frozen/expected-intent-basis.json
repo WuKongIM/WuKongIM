@@ -1,0 +1,10 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "basis": "Exact DefaultIntent source file unchanged from previously independently reviewed e302 basis; only source/control arguments replaced. No binary executed.",
+  "file": "internal/usecase/clouddeploy/bundle.go",
+  "sha256": "aa07d36f6c99a69885ac8daf02e63c3da8960f3ea188594349c59bc1c12567d9",
+  "old_commit": "e30299fa59ea6669ea71024eabe209840f241f19",
+  "entire_source_file_equal": true,
+  "old_expected_intent_sha256": "e19976ef7735382ea7d6d3eb3ff98218bb8b0249128fa1426be40fd3c92c877d"
+}

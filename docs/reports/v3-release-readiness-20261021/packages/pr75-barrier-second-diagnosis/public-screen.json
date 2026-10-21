@@ -1,0 +1,17 @@
+{
+  "private_inputs": false,
+  "scanned_public_source_members": 118,
+  "known_test_marker_exceptions": [
+    {
+      "archive": "source-d824.tar.gz",
+      "member": "tests/test_stable_public_keys.py",
+      "reason": "Exact tracked public negative-test literal only; payload is TEST ONLY non-key marker or forbidden, not key material."
+    },
+    {
+      "archive": "source-d824.tar.gz",
+      "member": "tests/test_validate_control.py",
+      "reason": "Exact tracked public negative-test literal only; payload is TEST ONLY non-key marker or forbidden, not key material."
+    }
+  ],
+  "screening": "Pattern checks plus original TEST ONLY fixture scope; exported public material only."
+}

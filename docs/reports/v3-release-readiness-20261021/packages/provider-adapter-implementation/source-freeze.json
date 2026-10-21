@@ -1,0 +1,80 @@
+{
+  "schema": "wukongim.d2-source-freeze/v1",
+  "frozen_at": "2026-10-21T17:04:19.852950+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+  "branch": "codex/stable-object-provider",
+  "base": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "base_tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "commits_created": false,
+  "files": [
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "tracked": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "5d627c032394bfbca8dab99d79201a7f9ce08bfd5269371938d566ecb85799fc",
+      "bytes": 3464,
+      "tracked": true
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "906069c85b290dd399d8db283d844958a7a2429b360d7816f32cfa07069b9626",
+      "bytes": 13744,
+      "tracked": true
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+      "bytes": 36702,
+      "tracked": false
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "f41d6980b1c0a02a2f9e0d58e7329d293d349c6605a9a8c4b5a7fe6ddcdf5200",
+      "bytes": 23486,
+      "tracked": false
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "bytes": 11718,
+      "tracked": false
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "a81912db19e7ad948a3f3d911bad2f8da080ca4caeebd3f0b9e547ed281e2fb9",
+      "bytes": 21561,
+      "tracked": false
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "bytes": 15586,
+      "tracked": false
+    }
+  ],
+  "patch": {
+    "path": "implementation.patch",
+    "sha256": "b0d72c451e879897e4761e630b3615b33b2fbf7e8165daaff535efa9359087a0",
+    "bytes": 119697
+  },
+  "tracked_diff": [
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md"
+  ],
+  "untracked_source": [
+    ".github/workflows/object-storage-provider-contract.yml",
+    "requirements-object-storage-provider.lock",
+    "scripts/aliyun-object-storage-provider.py",
+    "scripts/verify-object-storage-delivery-inputs.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/test_object_storage_delivery_inputs.py"
+  ],
+  "authority": "library primitives and read-only fresh input wiring only; production activation unsupported",
+  "rule_and_plan_binding": "initial-binding.json",
+  "unchanged_out_of_scope": "unchanged-tracked-files.json"
+}

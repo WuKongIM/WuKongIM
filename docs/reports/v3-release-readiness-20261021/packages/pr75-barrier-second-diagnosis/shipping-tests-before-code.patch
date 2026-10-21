@@ -1,0 +1,31 @@
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 565622e..8ea7d6b 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -181,7 +181,7 @@ class NativeStableClientsTests(unittest.TestCase):
+                          lambda *args: (_ for _ in ()).throw(RuntimeError('interrupted')))
+         self.assertFalse(owned.cleanup()['verified'])
+ 
+-    def test_switch_download_command_preserves_everything_except_second_rpm_phase(self):
++    def test_switch_download_command_holds_both_rpm_phases_with_initial_refresh(self):
+         drill = load()
+         validator = drill.module('scripts/validate-production-package-clients.py')
+         with tempfile.TemporaryDirectory() as tmp:
+@@ -199,9 +199,17 @@ class NativeStableClientsTests(unittest.TestCase):
+                             expected = list(original)
+                             if family == 'rpm' and mode == 'rpm-switch':
+                                 expected[-1] = expected[-1].replace(
++                                    'dnf "${dnf_options[@]}" makecache --refresh',
++                                    'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 makecache --refresh').replace(
+                                     'dnf "${dnf_options[@]}" install --downloadonly',
+                                     'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 install --downloadonly')
+                             self.assertEqual(value, expected)
++                            if family == 'rpm' and mode == 'rpm-switch':
++                                phases = [line for line in value[-1].splitlines() if line.startswith('dnf "${dnf_options[@]}"')]
++                                self.assertEqual(len(phases), 2)
++                                self.assertTrue(phases[0].endswith(' makecache --refresh'))
++                                self.assertIn(' install --downloadonly', phases[1])
++                                self.assertTrue(all(line.count('--setopt=wukongim-stable.metadata_expire=-1') == 1 for line in phases))
+                     self.assertEqual(validator.stable_client_command('fixed-image', root, cert, family, bootstrap), original)
+ 
+     def test_switch_download_command_rejects_ambiguous_phase_boundaries(self):

@@ -1,0 +1,515 @@
+{
+  "schema": "wukongim/public-diagnostic-archive/v1",
+  "test_only": true,
+  "source_head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "candidate_tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "files": [
+    {
+      "path": "ARCHIVE_ALLOWLIST",
+      "size": 3103,
+      "sha256": "ad84e11cd50387a57d7e98f9b14d0cb08632e905e90952ca4a70d99cb9ad93e1",
+      "crc32": "a5363a44"
+    },
+    {
+      "path": "FAILURE-INVENTORY.md",
+      "size": 3402,
+      "sha256": "7728091bb9aadda68f264d20607b9ad4e4e1647f40768030aab43d68ca7da131",
+      "crc32": "c90b6006"
+    },
+    {
+      "path": "HYPOTHESES.md",
+      "size": 2470,
+      "sha256": "2a945ead3304f54de805a8bbed9b80237b82aaf8d8ccca69d32aa4a872350bfc",
+      "crc32": "9b83218e"
+    },
+    {
+      "path": "README.md",
+      "size": 6295,
+      "sha256": "5b513438e76ba229030bf1da8177e24c70c2d4056bd8878d1f224d9f1a965115",
+      "crc32": "3abf2055"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size": 8550,
+      "sha256": "506b1e1d11605fbd5cb08edc70bf412478ba9e499f957b8cc0fd169b60a9e80d",
+      "crc32": "5b8d223f"
+    },
+    {
+      "path": "alma/instrumentation/sitecustomize.py",
+      "size": 2377,
+      "sha256": "546ea552d63142f54338816ecbd303e35adf5939c9a1d3485d4ff8c82fa7592c",
+      "crc32": "11348b92"
+    },
+    {
+      "path": "alma/run-signed-probe-owned.py",
+      "size": 3000,
+      "sha256": "fe051c3bcf1d753282854e1be025995c2d0cab479c59c3e19b5ab45bc49509fe",
+      "crc32": "74f45117"
+    },
+    {
+      "path": "alma/signed-barrier-probe.py",
+      "size": 6970,
+      "sha256": "52efd6a598c23516acd806859b717f4ee61627dfaacfe2fb3cd7d12e1563a750",
+      "crc32": "b654ca37"
+    },
+    {
+      "path": "alma/signed-client.receipt.json",
+      "size": 89874,
+      "sha256": "6d58d906d99d6c697237348c82544e30049f1a38aa6f22678e774b939d9c568e",
+      "crc32": "4bd1e627"
+    },
+    {
+      "path": "alma/signed-client.stderr",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "crc32": "00000000"
+    },
+    {
+      "path": "alma/signed-client.stdout",
+      "size": 80215,
+      "sha256": "eb6eb35ab40c3adb24e54959291f64861368d96866ae6730a25005eb70a4401c",
+      "crc32": "8c94a027"
+    },
+    {
+      "path": "alma/signed-public/public/A/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "size": 7530,
+      "sha256": "3d0ce4abd0e1338b99beb1ee1608d022f8b7e3b7089865312175a6ea76ef3655",
+      "crc32": "1416ce17"
+    },
+    {
+      "path": "alma/signed-public/public/A/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "size": 6211,
+      "sha256": "fe4e897b824faa1412ac14393fa6dd977d2519fbabe44f35c35b921a3abd5ca2",
+      "crc32": "af367eb6"
+    },
+    {
+      "path": "alma/signed-public/public/A/repodata/filelists.xml.gz",
+      "size": 391,
+      "sha256": "73ba8ae8b2acba98a0f9b1bd67fcc0d74ac84e8fe0b268e74996f816e7b1a7fe",
+      "crc32": "47794ed1"
+    },
+    {
+      "path": "alma/signed-public/public/A/repodata/other.xml.gz",
+      "size": 305,
+      "sha256": "adeeda2b9a5cad120e53af9edad94e849d414a92015e26fecc27462b0adcdbb6",
+      "crc32": "9a1e39f7"
+    },
+    {
+      "path": "alma/signed-public/public/A/repodata/primary.xml.gz",
+      "size": 951,
+      "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+      "crc32": "d30b7e1e"
+    },
+    {
+      "path": "alma/signed-public/public/A/repodata/repomd.xml",
+      "size": 1351,
+      "sha256": "65c00676b596d1e3c6af9ab13995313ab23a457fa2dfe5ef1c5b72408d7b5144",
+      "crc32": "ea628b1c"
+    },
+    {
+      "path": "alma/signed-public/public/A/repodata/repomd.xml.asc",
+      "size": 488,
+      "sha256": "9e262c1b5625af0dcd96624decad2d3bfffb4a6da6edf24a8ffab91b21a29047",
+      "crc32": "9cacdcb0"
+    },
+    {
+      "path": "alma/signed-public/public/B/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "size": 7530,
+      "sha256": "0409da6702811a5a1e8a804e2d002fffef97832e0b706fb1b3f75a290575824b",
+      "crc32": "b7eec70d"
+    },
+    {
+      "path": "alma/signed-public/public/B/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "size": 6211,
+      "sha256": "fe4e897b824faa1412ac14393fa6dd977d2519fbabe44f35c35b921a3abd5ca2",
+      "crc32": "af367eb6"
+    },
+    {
+      "path": "alma/signed-public/public/B/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "size": 6211,
+      "sha256": "ec9e616318dc20dd9fb84adba1d416861dfa35cc306309c6ae5a347033057234",
+      "crc32": "c40ad6fc"
+    },
+    {
+      "path": "alma/signed-public/public/B/repodata/filelists.xml.gz",
+      "size": 388,
+      "sha256": "69e116fbf435224ada0da04bb797927802069b09a778de2a76075f4381e88ec2",
+      "crc32": "896b616a"
+    },
+    {
+      "path": "alma/signed-public/public/B/repodata/other.xml.gz",
+      "size": 305,
+      "sha256": "cafd117a899d0e730e6305223f14e161430cb2bc89b82f90669f4acc2ca32d78",
+      "crc32": "867f5397"
+    },
+    {
+      "path": "alma/signed-public/public/B/repodata/primary.xml.gz",
+      "size": 953,
+      "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+      "crc32": "cf3b2649"
+    },
+    {
+      "path": "alma/signed-public/public/B/repodata/repomd.xml",
+      "size": 1351,
+      "sha256": "68204d9d3c9291f403a76805ffd8472f4e47cac51063db4a71fed29f691b5ce7",
+      "crc32": "54d5022b"
+    },
+    {
+      "path": "alma/signed-public/public/B/repodata/repomd.xml.asc",
+      "size": 488,
+      "sha256": "d4ff6d7e2cd4e82b765a6ac8f90d059258433fce2f4335c78efae853eadce2b1",
+      "crc32": "bfef665c"
+    },
+    {
+      "path": "alma/signed-public/public/facts.json",
+      "size": 521,
+      "sha256": "52b80f312f59ee1dd609f48d310627b2adf0a1f1d01309954914a2bada376020",
+      "crc32": "9556129a"
+    },
+    {
+      "path": "alma/signed-public/public/rpm-test.asc",
+      "size": 965,
+      "sha256": "86871144f24a292448b17527d3ae8447be93aad67e0761133b6a6f2ee718121b",
+      "crc32": "0b7a2cb2"
+    },
+    {
+      "path": "build-signed-probe.py",
+      "size": 3194,
+      "sha256": "91b52686f9d079737ed1f8acb91148dac8d9ae0d1e8b653cb2e1a64c3b65b57f",
+      "crc32": "4d647647"
+    },
+    {
+      "path": "contracts.stderr",
+      "size": 102,
+      "sha256": "feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6",
+      "crc32": "4efa48f1"
+    },
+    {
+      "path": "contracts.stdout",
+      "size": 74,
+      "sha256": "56958563c8a7a1584ae9e15c05232adc100e273a0cb711725a8ce9ac52637cd2",
+      "crc32": "6bf88b88"
+    },
+    {
+      "path": "final-source/CHANGELOG.md",
+      "size": 3279,
+      "sha256": "0346dc5634de234ef67d09a24cd88e9c920a04b7b3b06401d3bfe8d0b0cf9abc",
+      "crc32": "e745fa8f"
+    },
+    {
+      "path": "final-source/docs/stable-audit-transport.md",
+      "size": 13654,
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "crc32": "f088df0c"
+    },
+    {
+      "path": "final-source/tests/native_stable_clients_drill.py",
+      "size": 70172,
+      "sha256": "8d7a8a003e6ff0df51f75834a89ea2e9d19c76237102360f9cca35acc2bff314",
+      "crc32": "59ba1613"
+    },
+    {
+      "path": "final-source/tests/test_native_stable_clients_drill.py",
+      "size": 79919,
+      "sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+      "crc32": "7d487d72"
+    },
+    {
+      "path": "final-source-freeze.json",
+      "size": 1746,
+      "sha256": "de2460d6071efd7e277eed75f8f8a66d900cdbac3d51576c201e361c90362e5c",
+      "crc32": "4e5dff55"
+    },
+    {
+      "path": "final.patch",
+      "size": 6765,
+      "sha256": "ae81b89b062d474aeb51f56933f0773db536d171524fa75cab8026f56f8960e0",
+      "crc32": "ada7706e"
+    },
+    {
+      "path": "full-python.stderr",
+      "size": 671,
+      "sha256": "1d1e16ee58906939ccbb5dd32b9d4cac1129e337c27be56fe81d72dfed83d925",
+      "crc32": "03105e6b"
+    },
+    {
+      "path": "full-python.stdout",
+      "size": 1608,
+      "sha256": "fa9f452f2cf9c95fa41bb7e7cb6f271a93f66fd7daa0669ae31530088deb700a",
+      "crc32": "dfa65eac"
+    },
+    {
+      "path": "instrumentation/sitecustomize.py",
+      "size": 2377,
+      "sha256": "546ea552d63142f54338816ecbd303e35adf5939c9a1d3485d4ff8c82fa7592c",
+      "crc32": "11348b92"
+    },
+    {
+      "path": "native-probe-summary.json",
+      "size": 36517,
+      "sha256": "447dc8dd2af55f5f7bdbcd0316f5c208378a49397a5c313189b0005ea058192a",
+      "crc32": "defda942"
+    },
+    {
+      "path": "original-README.md",
+      "size": 3430,
+      "sha256": "1ecdb303b3cacab5e9a7168ba061f83aab106666f72c46217ca69ce69e3cfffc",
+      "crc32": "f4dc2ecb"
+    },
+    {
+      "path": "original-first-failure.json",
+      "size": 18227,
+      "sha256": "6550536c75e099242235d47ab80a45645d2cd2e32ad680a11962d672d75b93f9",
+      "crc32": "57bb7c1f"
+    },
+    {
+      "path": "public-screen.json",
+      "size": 689,
+      "sha256": "1c762e18ca505390a20556cbc75c32af4246910d63e4e70fffc70fd84a81d78f",
+      "crc32": "166c3206"
+    },
+    {
+      "path": "run-signed-probe-owned.py",
+      "size": 3018,
+      "sha256": "d6d60ab6995c1224f6c8c1cfd469321a19cf0069bc25f0756e90d59de3fa1392",
+      "crc32": "8909b232"
+    },
+    {
+      "path": "shipping-tests-before-code.json",
+      "size": 254,
+      "sha256": "4b4c97cda0c1f6d49fcff1769bd5eadb4a148a6c10feb1d912738aa4d7eac62f",
+      "crc32": "7d512fe9"
+    },
+    {
+      "path": "shipping-tests-before-code.patch",
+      "size": 2350,
+      "sha256": "60a9a22547c20d73cdc3d244da38839ced03d3f501b419b5aa3c18d1e34f5b70",
+      "crc32": "c2c1a5d9"
+    },
+    {
+      "path": "shipping-tests-before-code.py",
+      "size": 79919,
+      "sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+      "crc32": "7d487d72"
+    },
+    {
+      "path": "shipping-tests.green.stderr",
+      "size": 143,
+      "sha256": "642b2d69e2beb08a63259ae4b7a5741f5f42bc15e1c804eaa5deb17a52eebac5",
+      "crc32": "8ff99a0e"
+    },
+    {
+      "path": "shipping-tests.green.stdout",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "crc32": "00000000"
+    },
+    {
+      "path": "shipping-tests.red.stderr",
+      "size": 1336,
+      "sha256": "fdc466f890537084f97bd7bbc947ed81b32bc9469ffcad803df3f2436d080710",
+      "crc32": "455e5cc7"
+    },
+    {
+      "path": "shipping-tests.red.stdout",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "crc32": "00000000"
+    },
+    {
+      "path": "signed-barrier-probe.py",
+      "size": 6970,
+      "sha256": "52efd6a598c23516acd806859b717f4ee61627dfaacfe2fb3cd7d12e1563a750",
+      "crc32": "b654ca37"
+    },
+    {
+      "path": "signed-build.receipt.json",
+      "size": 3803,
+      "sha256": "0ba75352943250e65901c3df5c9fb04cd67279e1ee9f3cdcffde7f369d240641",
+      "crc32": "28832dfa"
+    },
+    {
+      "path": "signed-build.stderr",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "crc32": "00000000"
+    },
+    {
+      "path": "signed-build.stdout",
+      "size": 630,
+      "sha256": "110956dc8e69277913db38f715f77912b6d88c1bc584e4c16d9bc233fdae0ecf",
+      "crc32": "e351c238"
+    },
+    {
+      "path": "signed-client.receipt.json",
+      "size": 91546,
+      "sha256": "839f9ccc33954b464ab645b69c96de1fefc2e127ee892a3d692e1013352daa68",
+      "crc32": "d2a388bf"
+    },
+    {
+      "path": "signed-client.stderr",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "crc32": "00000000"
+    },
+    {
+      "path": "signed-client.stdout",
+      "size": 81879,
+      "sha256": "e057e51d4c78141487b87afed7ede4d5bc575cbe1b87548637abb14dd4fc2e9a",
+      "crc32": "328209cb"
+    },
+    {
+      "path": "signed-public/public/A/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "size": 7530,
+      "sha256": "3d0ce4abd0e1338b99beb1ee1608d022f8b7e3b7089865312175a6ea76ef3655",
+      "crc32": "1416ce17"
+    },
+    {
+      "path": "signed-public/public/A/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "size": 6211,
+      "sha256": "fe4e897b824faa1412ac14393fa6dd977d2519fbabe44f35c35b921a3abd5ca2",
+      "crc32": "af367eb6"
+    },
+    {
+      "path": "signed-public/public/A/repodata/filelists.xml.gz",
+      "size": 391,
+      "sha256": "73ba8ae8b2acba98a0f9b1bd67fcc0d74ac84e8fe0b268e74996f816e7b1a7fe",
+      "crc32": "47794ed1"
+    },
+    {
+      "path": "signed-public/public/A/repodata/other.xml.gz",
+      "size": 305,
+      "sha256": "adeeda2b9a5cad120e53af9edad94e849d414a92015e26fecc27462b0adcdbb6",
+      "crc32": "9a1e39f7"
+    },
+    {
+      "path": "signed-public/public/A/repodata/primary.xml.gz",
+      "size": 951,
+      "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+      "crc32": "d30b7e1e"
+    },
+    {
+      "path": "signed-public/public/A/repodata/repomd.xml",
+      "size": 1351,
+      "sha256": "65c00676b596d1e3c6af9ab13995313ab23a457fa2dfe5ef1c5b72408d7b5144",
+      "crc32": "ea628b1c"
+    },
+    {
+      "path": "signed-public/public/A/repodata/repomd.xml.asc",
+      "size": 488,
+      "sha256": "9e262c1b5625af0dcd96624decad2d3bfffb4a6da6edf24a8ffab91b21a29047",
+      "crc32": "9cacdcb0"
+    },
+    {
+      "path": "signed-public/public/B/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "size": 7530,
+      "sha256": "0409da6702811a5a1e8a804e2d002fffef97832e0b706fb1b3f75a290575824b",
+      "crc32": "b7eec70d"
+    },
+    {
+      "path": "signed-public/public/B/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "size": 6211,
+      "sha256": "fe4e897b824faa1412ac14393fa6dd977d2519fbabe44f35c35b921a3abd5ca2",
+      "crc32": "af367eb6"
+    },
+    {
+      "path": "signed-public/public/B/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "size": 6211,
+      "sha256": "ec9e616318dc20dd9fb84adba1d416861dfa35cc306309c6ae5a347033057234",
+      "crc32": "c40ad6fc"
+    },
+    {
+      "path": "signed-public/public/B/repodata/filelists.xml.gz",
+      "size": 388,
+      "sha256": "69e116fbf435224ada0da04bb797927802069b09a778de2a76075f4381e88ec2",
+      "crc32": "896b616a"
+    },
+    {
+      "path": "signed-public/public/B/repodata/other.xml.gz",
+      "size": 305,
+      "sha256": "cafd117a899d0e730e6305223f14e161430cb2bc89b82f90669f4acc2ca32d78",
+      "crc32": "867f5397"
+    },
+    {
+      "path": "signed-public/public/B/repodata/primary.xml.gz",
+      "size": 953,
+      "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+      "crc32": "cf3b2649"
+    },
+    {
+      "path": "signed-public/public/B/repodata/repomd.xml",
+      "size": 1351,
+      "sha256": "68204d9d3c9291f403a76805ffd8472f4e47cac51063db4a71fed29f691b5ce7",
+      "crc32": "54d5022b"
+    },
+    {
+      "path": "signed-public/public/B/repodata/repomd.xml.asc",
+      "size": 488,
+      "sha256": "d4ff6d7e2cd4e82b765a6ac8f90d059258433fce2f4335c78efae853eadce2b1",
+      "crc32": "bfef665c"
+    },
+    {
+      "path": "signed-public/public/facts.json",
+      "size": 521,
+      "sha256": "52b80f312f59ee1dd609f48d310627b2adf0a1f1d01309954914a2bada376020",
+      "crc32": "9556129a"
+    },
+    {
+      "path": "signed-public/public/rpm-test.asc",
+      "size": 965,
+      "sha256": "86871144f24a292448b17527d3ae8447be93aad67e0761133b6a6f2ee718121b",
+      "crc32": "0b7a2cb2"
+    },
+    {
+      "path": "source-and-rule-freeze.json",
+      "size": 552,
+      "sha256": "8da427979b1cb892c2b8427e9e858aea7d4e7be8d2c2f46dc5c06e161ea05650",
+      "crc32": "6879f580"
+    },
+    {
+      "path": "source-archive.json",
+      "size": 338,
+      "sha256": "9cb9d84db5b20bcfa9597adcb3305043127fdf93cce5d5908c429ca503f97dff",
+      "crc32": "5d3df07c"
+    },
+    {
+      "path": "source-d824.tar.gz",
+      "size": 488437,
+      "sha256": "599bf5f8d6f809e7a8b381a040d34eba7820c078c33a5bc9ae577c40937ea582",
+      "crc32": "0ac0ba35"
+    },
+    {
+      "path": "unchanged-source-receipt.json",
+      "size": 19729,
+      "sha256": "5537ee52b1df2f059ed65fbfab74497d34aad06cea53b84716fcd99f38e440ff",
+      "crc32": "6ff923fd"
+    },
+    {
+      "path": "upstream/dnf-cli.py",
+      "size": 44404,
+      "sha256": "f176db39f21d04d62515456f95c7f85443a26c71fc76c1cd8f37dcc0348d4816",
+      "crc32": "467f723e"
+    },
+    {
+      "path": "upstream/dnf-persistor.py",
+      "size": 4694,
+      "sha256": "6ff1e1d2ef04d66712275addf1f9bc8f40719fe1cfe59c46751ab191b557eeab",
+      "crc32": "256f5c36"
+    },
+    {
+      "path": "upstream-source-receipts.json",
+      "size": 476,
+      "sha256": "f9cb33286b919b13243e876f199ad340d4f5f967b2151717818bb420b71f89e9",
+      "crc32": "a13d30ea"
+    },
+    {
+      "path": "validation.json",
+      "size": 687,
+      "sha256": "d3f98e937a5773f7905d080cc741104249496f1065546e90c35dfbf4fcba8cc0",
+      "crc32": "c246a11d"
+    }
+  ],
+  "total_size": 1364145,
+  "self_excluded": "archive-sha256.json",
+  "secret_inputs": "none; only exported TEST ONLY public artifacts"
+}

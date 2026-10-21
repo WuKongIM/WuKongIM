@@ -1,0 +1,869 @@
+{
+  "scope": "Real signed bootstrap/full actual native shell with data-only product RPMs; diagnostic delay before native persistence; not full 49/product provenance or unique attribution of original CI state.",
+  "distributions": [
+    {
+      "distribution": "Rocky",
+      "versions": [
+        "dnf-4.14.0-34.el9_8.rocky.0.1.noarch",
+        "libdnf-0.69.0-18.el9.rocky.0.1.x86_64",
+        "python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch"
+      ],
+      "probe_sha256": "e057e51d4c78141487b87afed7ede4d5bc575cbe1b87548637abb14dd4fc2e9a",
+      "cleanup_verified": true,
+      "results": [
+        {
+          "case": "current-explicit-expiry",
+          "selected": "B",
+          "exact_A_passes": false,
+          "shipped_body_sha256": "1cba6dddb55981e8c4dd0e60f54e108eb10923d06b33008906275c5895c3cb1d",
+          "executed_body_sha256": "1cba6dddb55981e8c4dd0e60f54e108eb10923d06b33008906275c5895c3cb1d",
+          "stage_facts": [
+            {
+              "event": "configured",
+              "operation": "makecache",
+              "now": 1792601701.4779274,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "makecache",
+              "now": 1792601704.3724923,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601702194509010,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "makecache",
+              "now": 1792601704.3752446,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601702194509010,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "configured",
+              "operation": "install",
+              "now": 1792601704.6007957,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": -1,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "install",
+              "now": 1792601705.701945,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601705233509012,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "install",
+              "now": 1792601705.7023692,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601705233509012,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            }
+          ],
+          "mirror_and_payload_responses": [
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "2c26fa81ca3fc3978e33fb7a1d46ffa2d0add3acf884039207c319556b3c6ea0",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+              "status": 200,
+              "size": 6211,
+              "sha256": "ec9e616318dc20dd9fb84adba1d416861dfa35cc306309c6ae5a347033057234",
+              "completed": true
+            }
+          ],
+          "metadata_generations": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "case": "candidate-both-stage-policy",
+          "selected": "A",
+          "exact_A_passes": true,
+          "shipped_body_sha256": "1cba6dddb55981e8c4dd0e60f54e108eb10923d06b33008906275c5895c3cb1d",
+          "executed_body_sha256": "109be5dbb5dc224f3e6674a32c24c68262b58402244870187176d89d4814ee9c",
+          "stage_facts": [
+            {
+              "event": "configured",
+              "operation": "makecache",
+              "now": 1792601706.9923635,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "makecache",
+              "now": 1792601709.8724816,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601707704509013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "makecache",
+              "now": 1792601709.875639,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601707704509013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "configured",
+              "operation": "install",
+              "now": 1792601710.099013,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "install",
+              "now": 1792601710.6442375,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601707704509013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "install",
+              "now": 1792601710.644635,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601707704509013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            }
+          ],
+          "mirror_and_payload_responses": [
+            {
+              "case": "candidate-both-stage-policy",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "2c26fa81ca3fc3978e33fb7a1d46ffa2d0add3acf884039207c319556b3c6ea0",
+              "completed": true
+            },
+            {
+              "case": "candidate-both-stage-policy",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "candidate-both-stage-policy",
+              "phase": "actual-native-shell",
+              "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+              "status": 200,
+              "size": 6211,
+              "sha256": "fe4e897b824faa1412ac14393fa6dd977d2519fbabe44f35c35b921a3abd5ca2",
+              "completed": true
+            }
+          ],
+          "metadata_generations": [
+            "A"
+          ]
+        },
+        {
+          "case": "fresh-B",
+          "selected": "B",
+          "exact_A_passes": false,
+          "shipped_body_sha256": "2e2c99b3d8caf3e28d5b9877d4b58ebe35e3bf4dd72d929034f3a2bc38f68ab3",
+          "executed_body_sha256": "2e2c99b3d8caf3e28d5b9877d4b58ebe35e3bf4dd72d929034f3a2bc38f68ab3",
+          "stage_facts": [
+            {
+              "event": "configured",
+              "operation": "makecache",
+              "now": 1792601711.79416,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "makecache",
+              "now": 1792601712.557271,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601712492115001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "makecache",
+              "now": 1792601712.5574965,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601712492115001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "configured",
+              "operation": "install",
+              "now": 1792601712.744892,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "install",
+              "now": 1792601713.2952425,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601712492115001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "install",
+              "now": 1792601713.295627,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601712492115001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            }
+          ],
+          "mirror_and_payload_responses": [
+            {
+              "case": "fresh-B",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "fresh-B",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "fresh-B",
+              "phase": "actual-native-shell",
+              "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+              "status": 200,
+              "size": 6211,
+              "sha256": "ec9e616318dc20dd9fb84adba1d416861dfa35cc306309c6ae5a347033057234",
+              "completed": true
+            }
+          ],
+          "metadata_generations": [
+            "B"
+          ]
+        }
+      ]
+    },
+    {
+      "distribution": "Alma",
+      "versions": [
+        "dnf-4.14.0-34.el9_8.alma.1.noarch",
+        "libdnf-0.69.0-18.el9.alma.1.x86_64",
+        "python3-dnf-4.14.0-34.el9_8.alma.1.noarch"
+      ],
+      "probe_sha256": "eb6eb35ab40c3adb24e54959291f64861368d96866ae6730a25005eb70a4401c",
+      "cleanup_verified": true,
+      "results": [
+        {
+          "case": "current-explicit-expiry",
+          "selected": "B",
+          "exact_A_passes": false,
+          "shipped_body_sha256": "1cba6dddb55981e8c4dd0e60f54e108eb10923d06b33008906275c5895c3cb1d",
+          "executed_body_sha256": "1cba6dddb55981e8c4dd0e60f54e108eb10923d06b33008906275c5895c3cb1d",
+          "stage_facts": [
+            {
+              "event": "configured",
+              "operation": "makecache",
+              "now": 1792601821.3281915,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "makecache",
+              "now": 1792601824.223013,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601822039503010,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "makecache",
+              "now": 1792601824.225249,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601822039503010,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "configured",
+              "operation": "install",
+              "now": 1792601824.4845243,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": -1,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "install",
+              "now": 1792601825.5767286,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601825137503012,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "install",
+              "now": 1792601825.5770426,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601825137503012,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            }
+          ],
+          "mirror_and_payload_responses": [
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "2c26fa81ca3fc3978e33fb7a1d46ffa2d0add3acf884039207c319556b3c6ea0",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "current-explicit-expiry",
+              "phase": "actual-native-shell",
+              "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+              "status": 200,
+              "size": 6211,
+              "sha256": "ec9e616318dc20dd9fb84adba1d416861dfa35cc306309c6ae5a347033057234",
+              "completed": true
+            }
+          ],
+          "metadata_generations": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "case": "candidate-both-stage-policy",
+          "selected": "A",
+          "exact_A_passes": true,
+          "shipped_body_sha256": "1cba6dddb55981e8c4dd0e60f54e108eb10923d06b33008906275c5895c3cb1d",
+          "executed_body_sha256": "109be5dbb5dc224f3e6674a32c24c68262b58402244870187176d89d4814ee9c",
+          "stage_facts": [
+            {
+              "event": "configured",
+              "operation": "makecache",
+              "now": 1792601826.7987144,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "makecache",
+              "now": 1792601829.682449,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601827490503013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "makecache",
+              "now": 1792601829.6847327,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601827490503013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "configured",
+              "operation": "install",
+              "now": 1792601829.9226577,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "install",
+              "now": 1792601830.4796665,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601827490503013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "install",
+              "now": 1792601830.4799929,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": -1,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601827490503013,
+                  "sha256": "35f8d535e5bcbf4aac831b482238ffff4a8dbd6f20cfd89af905b3a2a13a1ace",
+                  "size": 951
+                }
+              }
+            }
+          ],
+          "mirror_and_payload_responses": [
+            {
+              "case": "candidate-both-stage-policy",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "2c26fa81ca3fc3978e33fb7a1d46ffa2d0add3acf884039207c319556b3c6ea0",
+              "completed": true
+            },
+            {
+              "case": "candidate-both-stage-policy",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "candidate-both-stage-policy",
+              "phase": "actual-native-shell",
+              "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+              "status": 200,
+              "size": 6211,
+              "sha256": "fe4e897b824faa1412ac14393fa6dd977d2519fbabe44f35c35b921a3abd5ca2",
+              "completed": true
+            }
+          ],
+          "metadata_generations": [
+            "A"
+          ]
+        },
+        {
+          "case": "fresh-B",
+          "selected": "B",
+          "exact_A_passes": false,
+          "shipped_body_sha256": "2e2c99b3d8caf3e28d5b9877d4b58ebe35e3bf4dd72d929034f3a2bc38f68ab3",
+          "executed_body_sha256": "2e2c99b3d8caf3e28d5b9877d4b58ebe35e3bf4dd72d929034f3a2bc38f68ab3",
+          "stage_facts": [
+            {
+              "event": "configured",
+              "operation": "makecache",
+              "now": 1792601831.7011437,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "makecache",
+              "now": 1792601832.4864318,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601832406440001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "makecache",
+              "now": 1792601832.4866788,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": false,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601832406440001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "configured",
+              "operation": "install",
+              "now": 1792601832.6902714,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/client-root/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {}
+            },
+            {
+              "event": "before-native-store",
+              "operation": "install",
+              "now": 1792601833.2417943,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601832406440001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            },
+            {
+              "event": "after-native-store",
+              "operation": "install",
+              "now": 1792601833.2420833,
+              "persistor_path": "/tmp/client-root/tmp/dnf-cache/expired_repos.json",
+              "persisted_expired": [
+                "wukongim-stable"
+              ],
+              "effective_expire": 0,
+              "native_expired": true,
+              "cache": "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885",
+              "primary_files": {
+                "/tmp/dnf-cache/wukongim-stable-5702a8a51b8fa885/repodata/primary.xml.gz": {
+                  "mtime_ns": 1792601832406440001,
+                  "sha256": "87f7c4b5bb23d6ac957218539094ed18c2bc9d8a807cf3edfbb4d5468073906c",
+                  "size": 953
+                }
+              }
+            }
+          ],
+          "mirror_and_payload_responses": [
+            {
+              "case": "fresh-B",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "fresh-B",
+              "phase": "actual-native-shell",
+              "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+              "status": 200,
+              "size": 71,
+              "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+              "completed": true
+            },
+            {
+              "case": "fresh-B",
+              "phase": "actual-native-shell",
+              "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+              "status": 200,
+              "size": 6211,
+              "sha256": "ec9e616318dc20dd9fb84adba1d416861dfa35cc306309c6ae5a347033057234",
+              "completed": true
+            }
+          ],
+          "metadata_generations": [
+            "B"
+          ]
+        }
+      ]
+    }
+  ]
+}

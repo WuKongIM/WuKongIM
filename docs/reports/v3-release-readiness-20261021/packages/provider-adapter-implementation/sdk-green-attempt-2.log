@@ -1,0 +1,662 @@
+test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) ... 
+  test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='zero') ... ERROR
+  test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='missing') ... ERROR
+  test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='duplicate') ... ERROR
+  test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='partial') ... ERROR
+  test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='timeout') ... ERROR
+test_config_exact_batches_and_readback (__main__.ProviderContract.test_config_exact_batches_and_readback) ... ERROR
+test_config_snapshot_includes_unrelated_rules_and_rewrite_order (__main__.ProviderContract.test_config_snapshot_includes_unrelated_rules_and_rewrite_order) ... ERROR
+test_create_only_then_complete_get_and_exact_conflict (__main__.ProviderContract.test_create_only_then_complete_get_and_exact_conflict) ... ERROR
+test_exact_rewrite_preserves_alias_target_and_priority (__main__.ProviderContract.test_exact_rewrite_preserves_alias_target_and_priority) ... ok
+test_explicit_transport_does_not_consume_proxy_or_debug_environment (__main__.ProviderContract.test_explicit_transport_does_not_consume_proxy_or_debug_environment) ... ERROR
+test_identity_versioning_and_sdk_wire_are_bound (__main__.ProviderContract.test_identity_versioning_and_sdk_wire_are_bound) ... ERROR
+test_object_local_drift_and_key_escape_prevent_writes (__main__.ProviderContract.test_object_local_drift_and_key_escape_prevent_writes) ... ok
+test_readback_needs_full_eof_size_hash_cache_without_compression (__main__.ProviderContract.test_readback_needs_full_eof_size_hash_cache_without_compression) ... ok
+test_refresh_foreign_or_directory_urls_rejected_without_write (__main__.ProviderContract.test_refresh_foreign_or_directory_urls_rejected_without_write) ... ok
+test_refresh_only_exact_task_ids_in_bounded_batches (__main__.ProviderContract.test_refresh_only_exact_task_ids_in_bounded_batches) ... ERROR
+test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) ... 
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Failed') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Canceled') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Timeout') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Refreshing') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='foreign') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='url') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='type') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='missing') ... ERROR
+  test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='duplicate') ... ERROR
+test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) ... ERROR
+test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) ... 
+  test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) (field='owner') ... ERROR
+  test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) (field='principal') ... ERROR
+test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) ... 
+  test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='timeout_before') ... ERROR
+  test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='timeout_after') ... ERROR
+  test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='denied') ... ERROR
+  test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='other409') ... ERROR
+test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) ... 
+  test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='unmanaged') ... ERROR
+  test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='delete') ... ERROR
+  test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='group') ... ERROR
+  test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='drift') ... ERROR
+test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) ... 
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<Other/>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration xmlns="wrong"/>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status/></VersioningConfiguration>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status>Enabled</Status></VersioningConfiguration>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status>Suspended</Status></VersioningConfiguration>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status>unknown</Status></VersioningConfiguration>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Unknown/></VersioningConfiguration>') ... ERROR
+  test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<!DOCTYPE a><VersioningConfiguration/>') ... ERROR
+test_wire_limits_and_ambiguous_route_inputs_are_rejected (__main__.ProviderContract.test_wire_limits_and_ambiguous_route_inputs_are_rejected) ... ok
+
+======================================================================
+ERROR: test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='zero')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 248, in test_bad_configid_partial_and_timeout_keep_truth
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 248, in test_bad_configid_partial_and_timeout_keep_truth
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='duplicate')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 248, in test_bad_configid_partial_and_timeout_keep_truth
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='partial')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 248, in test_bad_configid_partial_and_timeout_keep_truth
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) (fault='timeout')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 248, in test_bad_configid_partial_and_timeout_keep_truth
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_config_exact_batches_and_readback (__main__.ProviderContract.test_config_exact_batches_and_readback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 237, in test_config_exact_batches_and_readback
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_config_snapshot_includes_unrelated_rules_and_rewrite_order (__main__.ProviderContract.test_config_snapshot_includes_unrelated_rules_and_rewrite_order)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 229, in test_config_snapshot_includes_unrelated_rules_and_rewrite_order
+    first=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_create_only_then_complete_get_and_exact_conflict (__main__.ProviderContract.test_create_only_then_complete_get_and_exact_conflict)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 175, in test_create_only_then_complete_get_and_exact_conflict
+    result=self.client.put_create_only(KEY,self.path,FACTS)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 223, in put_create_only
+    self.observe_resource();frozen.seek(0);outcome='created'
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_explicit_transport_does_not_consume_proxy_or_debug_environment (__main__.ProviderContract.test_explicit_transport_does_not_consume_proxy_or_debug_environment)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 208, in test_explicit_transport_does_not_consume_proxy_or_debug_environment
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_identity_versioning_and_sdk_wire_are_bound (__main__.ProviderContract.test_identity_versioning_and_sdk_wire_are_bound)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 149, in test_identity_versioning_and_sdk_wire_are_bound
+    result=self.client.observe_resource()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_only_exact_task_ids_in_bounded_batches (__main__.ProviderContract.test_refresh_only_exact_task_ids_in_bounded_batches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 269, in test_refresh_only_exact_task_ids_in_bounded_batches
+    result=self.client.refresh(urls,max_polls=2,poll_interval=0)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Failed')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Canceled')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Timeout')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='Refreshing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='foreign')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='url')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='type')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) (fault='duplicate')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 279, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    with self.assertRaises(self.p.ProviderError):self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)
+                                                 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 282, in test_refresh_rejects_other_tasks_and_noncomplete_states
+    self.assertEqual(self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)['state'],'tasks_complete')
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 328, in refresh
+    self.observe_resource()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) (field='owner')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 168, in test_resource_drift_and_arbitrary_endpoints_are_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) (field='principal')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 168, in test_resource_drift_and_arbitrary_endpoints_are_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='timeout_before')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 188, in test_unknown_put_never_retries_write
+    try:result=self.client.put_create_only(KEY,self.path,FACTS)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 223, in put_create_only
+    self.observe_resource();frozen.seek(0);outcome='created'
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='timeout_after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 188, in test_unknown_put_never_retries_write
+    try:result=self.client.put_create_only(KEY,self.path,FACTS)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 223, in put_create_only
+    self.observe_resource();frozen.seek(0);outcome='created'
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='denied')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 188, in test_unknown_put_never_retries_write
+    try:result=self.client.put_create_only(KEY,self.path,FACTS)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 223, in put_create_only
+    self.observe_resource();frozen.seek(0);outcome='created'
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) (fault='other409')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 188, in test_unknown_put_never_retries_write
+    try:result=self.client.put_create_only(KEY,self.path,FACTS)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 223, in put_create_only
+    self.observe_resource();frozen.seek(0);outcome='created'
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='unmanaged')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 261, in test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='delete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 261, in test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='group')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 261, in test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) (mutation='drift')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 261, in test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply
+    before=self.client.read_configuration()
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 239, in read_configuration
+    detail=self._call(DescribeCdnDomainDetailRequest,DomainName=domain).get('GetDomainDetailModel')
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DescribeCdnDomainDetailRequest' object has no attribute 'set_domain'. Did you mean: 'set_DomainName'?
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<Other/>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration xmlns="wrong"/>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status/></VersioningConfiguration>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status>Enabled</Status></VersioningConfiguration>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status>Suspended</Status></VersioningConfiguration>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Status>unknown</Status></VersioningConfiguration>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<VersioningConfiguration><Unknown/></VersioningConfiguration>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) (raw=b'<!DOCTYPE a><VersioningConfiguration/>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 161, in test_versioning_ambiguous_inputs_all_rejected
+    with self.assertRaises(self.p.ProviderError):self.client.observe_resource()
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 172, in observe_resource
+    identity=self._call(GetCallerIdentityRequest)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py", line 161, in _call
+    request.set_domain('sts.aliyuncs.com' if cls is GetCallerIdentityRequest else 'cdn.aliyuncs.com')
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'GetCallerIdentityRequest' object has no attribute 'set_domain'
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.116s
+
+FAILED (errors=40)
+{"checkout_sha": "d824fe37918ee4ef22b1b1745bc02518812563e3", "checkout_tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c", "errors": 40, "failures": 0, "lock_sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b", "provider_network_allowed": false, "python": "3.13.5", "schema": "wukongim.provider_sdk_contract/v1", "sdk_versions": {"alibabacloud-oss-v2": "1.4.1", "aliyun-python-sdk-cdn": "3.8.8", "aliyun-python-sdk-core": "2.16.1", "aliyun-python-sdk-sts": "3.1.3"}, "skips": 0, "test_names": ["test_bad_configid_partial_and_timeout_keep_truth", "test_config_exact_batches_and_readback", "test_config_snapshot_includes_unrelated_rules_and_rewrite_order", "test_create_only_then_complete_get_and_exact_conflict", "test_exact_rewrite_preserves_alias_target_and_priority", "test_explicit_transport_does_not_consume_proxy_or_debug_environment", "test_identity_versioning_and_sdk_wire_are_bound", "test_object_local_drift_and_key_escape_prevent_writes", "test_readback_needs_full_eof_size_hash_cache_without_compression", "test_refresh_foreign_or_directory_urls_rejected_without_write", "test_refresh_only_exact_task_ids_in_bounded_batches", "test_refresh_rejects_other_tasks_and_noncomplete_states", "test_resource_drift_and_arbitrary_endpoints_are_rejected", "test_unknown_put_never_retries_write", "test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply", "test_versioning_ambiguous_inputs_all_rejected", "test_wire_limits_and_ambiguous_route_inputs_are_rejected"], "tests": 17}

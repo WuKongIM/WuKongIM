@@ -1,0 +1,11 @@
+{
+  "head": "2368c8745853d7d8ad82e706a6e7980842526241",
+  "tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "parent": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "checked_at": "2026-10-21T17:10:22.073513+00:00",
+  "reviewed_patch_sha256": "ae81b89b062d474aeb51f56933f0773db536d171524fa75cab8026f56f8960e0",
+  "push_exit_code": 0,
+  "working_tree_clean": true,
+  "linux_native_acceptance": "pending first natural run",
+  "production_activation": false
+}

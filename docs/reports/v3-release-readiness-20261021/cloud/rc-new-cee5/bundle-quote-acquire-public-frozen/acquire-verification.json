@@ -1,0 +1,65 @@
+{
+  "observed_at": "2026-10-21T16:58:39.384528+00:00",
+  "identity_and_budget_checks": "passed",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "lease_id": "chat-20261021T163850Z-4ccd7506-rehearsal-1",
+  "state": "active",
+  "region": "cn-hangzhou",
+  "zone": "cn-hangzhou-b",
+  "created_at": "2026-10-21T16:55:17.849894924Z",
+  "expires_at": "2026-10-22T04:47:07Z",
+  "bundle_run_id": 39637578380,
+  "quote_run_id": 39637891019,
+  "acquire_run_id": 39639010616,
+  "top_run_id": 39637426411,
+  "all_attempts": 1,
+  "bundle_digest": "sha256:cdd10689b4765e1804ef0632eb598f06c22dd1f0208bbf40b3055506fb8f4686",
+  "plan_digest": "70f96461abb6f2b0eb0ca0f998d7abc7130e947557eb1f275e0d1674946eb36c",
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1351044800,
+    "committed_micros": 0,
+    "operational_stop_micros": 1201044800
+  },
+  "new_quote_cost_micros": 74477600,
+  "prior_task_quote_reserve_micros": 148955200,
+  "prior_task_reserve_plus_new_full_quote_micros": 223432800,
+  "actual_provider_bill": null,
+  "old_reserve_is_not_new_request_prior": true,
+  "resource_counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "instance_role_counts": {
+    "service": 3,
+    "load": 1
+  },
+  "all_resource_identity_tags_match": true,
+  "temporary_access_ports": [
+    22,
+    80
+  ],
+  "access_until": "2026-10-22T04:47:07Z",
+  "quote_bytes_same_in_quote_and_acquire": true,
+  "receipt_selector_identity_fields_match": true,
+  "actual_top_release_selector_observed": false,
+  "measured_run_start_observed": false,
+  "limits": [
+    "Authenticated exact-source workflow receipts checked; no independent provider API read",
+    "Acquired resources do not imply deployed application health or measured workload start",
+    "Actual top-level release-selector.json is not yet published; only receipt identity and every resource tag are checked here",
+    "Receipt committed_micros=0 is the admitted new-request prior, not a statement of zero provider bill",
+    "Full Quote reserve comparison is conservative planning accounting, not an invoice",
+    "Run-title correlation and exact source are verified; later handoff must confirm its explicit bundle/acquire/deployment producer IDs"
+  ]
+}

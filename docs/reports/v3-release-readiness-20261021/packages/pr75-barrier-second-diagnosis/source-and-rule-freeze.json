@@ -1,0 +1,11 @@
+{
+  "source_head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "applicable_AGENTS": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "repository_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83"
+  },
+  "FLOW_files": [],
+  "scope_discovery": "No AGENTS/FLOW/CONTRIBUTING within packages; no applicable parent scoped FLOW. Parent AGENTS applies.",
+  "CONTEXT_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+}

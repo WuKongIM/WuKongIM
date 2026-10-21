@@ -1,0 +1,46 @@
+{
+  "base": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "base_tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "candidate_tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "source_frozen": true,
+  "committed": false,
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "0346dc5634de234ef67d09a24cd88e9c920a04b7b3b06401d3bfe8d0b0cf9abc",
+      "size": 3279
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "size": 13654
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "8d7a8a003e6ff0df51f75834a89ea2e9d19c76237102360f9cca35acc2bff314",
+      "size": 70172
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+      "size": 79919
+    }
+  ],
+  "patch_sha256": "ae81b89b062d474aeb51f56933f0773db536d171524fa75cab8026f56f8960e0",
+  "tests_before_code_sha256": "33b2cf5950a907b5c9808501ffafd06b390d33313001cd65fcb9864c56729d69",
+  "native_body_bindings": [
+    {
+      "distribution": "Rocky",
+      "native_body_sha256": "109be5dbb5dc224f3e6674a32c24c68262b58402244870187176d89d4814ee9c",
+      "new_shipping_body_identical": true,
+      "probe_sha256": "e057e51d4c78141487b87afed7ede4d5bc575cbe1b87548637abb14dd4fc2e9a"
+    },
+    {
+      "distribution": "Alma",
+      "native_body_sha256": "109be5dbb5dc224f3e6674a32c24c68262b58402244870187176d89d4814ee9c",
+      "new_shipping_body_identical": true,
+      "probe_sha256": "eb6eb35ab40c3adb24e54959291f64861368d96866ae6730a25005eb70a4401c"
+    }
+  ],
+  "full_validation": "in progress at freeze; final result separate validation.json"
+}

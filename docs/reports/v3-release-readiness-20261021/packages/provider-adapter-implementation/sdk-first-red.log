@@ -1,0 +1,227 @@
+test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth) ... ERROR
+test_config_exact_batches_and_readback (__main__.ProviderContract.test_config_exact_batches_and_readback) ... ERROR
+test_config_snapshot_includes_unrelated_rules_and_rewrite_order (__main__.ProviderContract.test_config_snapshot_includes_unrelated_rules_and_rewrite_order) ... ERROR
+test_create_only_then_complete_get_and_exact_conflict (__main__.ProviderContract.test_create_only_then_complete_get_and_exact_conflict) ... ERROR
+test_exact_rewrite_preserves_alias_target_and_priority (__main__.ProviderContract.test_exact_rewrite_preserves_alias_target_and_priority) ... ERROR
+test_explicit_transport_does_not_consume_proxy_or_debug_environment (__main__.ProviderContract.test_explicit_transport_does_not_consume_proxy_or_debug_environment) ... ERROR
+test_identity_versioning_and_sdk_wire_are_bound (__main__.ProviderContract.test_identity_versioning_and_sdk_wire_are_bound) ... ERROR
+test_object_local_drift_and_key_escape_prevent_writes (__main__.ProviderContract.test_object_local_drift_and_key_escape_prevent_writes) ... ERROR
+test_readback_needs_full_eof_size_hash_cache_without_compression (__main__.ProviderContract.test_readback_needs_full_eof_size_hash_cache_without_compression) ... ERROR
+test_refresh_foreign_or_directory_urls_rejected_without_write (__main__.ProviderContract.test_refresh_foreign_or_directory_urls_rejected_without_write) ... ERROR
+test_refresh_only_exact_task_ids_in_bounded_batches (__main__.ProviderContract.test_refresh_only_exact_task_ids_in_bounded_batches) ... ERROR
+test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states) ... ERROR
+test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected) ... ERROR
+test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write) ... ERROR
+test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply) ... ERROR
+test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected) ... ERROR
+test_wire_limits_and_ambiguous_route_inputs_are_rejected (__main__.ProviderContract.test_wire_limits_and_ambiguous_route_inputs_are_rejected) ... ERROR
+
+======================================================================
+ERROR: test_bad_configid_partial_and_timeout_keep_truth (__main__.ProviderContract.test_bad_configid_partial_and_timeout_keep_truth)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_config_exact_batches_and_readback (__main__.ProviderContract.test_config_exact_batches_and_readback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_config_snapshot_includes_unrelated_rules_and_rewrite_order (__main__.ProviderContract.test_config_snapshot_includes_unrelated_rules_and_rewrite_order)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_create_only_then_complete_get_and_exact_conflict (__main__.ProviderContract.test_create_only_then_complete_get_and_exact_conflict)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_exact_rewrite_preserves_alias_target_and_priority (__main__.ProviderContract.test_exact_rewrite_preserves_alias_target_and_priority)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_explicit_transport_does_not_consume_proxy_or_debug_environment (__main__.ProviderContract.test_explicit_transport_does_not_consume_proxy_or_debug_environment)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_identity_versioning_and_sdk_wire_are_bound (__main__.ProviderContract.test_identity_versioning_and_sdk_wire_are_bound)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_object_local_drift_and_key_escape_prevent_writes (__main__.ProviderContract.test_object_local_drift_and_key_escape_prevent_writes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_readback_needs_full_eof_size_hash_cache_without_compression (__main__.ProviderContract.test_readback_needs_full_eof_size_hash_cache_without_compression)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_refresh_foreign_or_directory_urls_rejected_without_write (__main__.ProviderContract.test_refresh_foreign_or_directory_urls_rejected_without_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_refresh_only_exact_task_ids_in_bounded_batches (__main__.ProviderContract.test_refresh_only_exact_task_ids_in_bounded_batches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_refresh_rejects_other_tasks_and_noncomplete_states (__main__.ProviderContract.test_refresh_rejects_other_tasks_and_noncomplete_states)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_resource_drift_and_arbitrary_endpoints_are_rejected (__main__.ProviderContract.test_resource_drift_and_arbitrary_endpoints_are_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_unknown_put_never_retries_write (__main__.ProviderContract.test_unknown_put_never_retries_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply (__main__.ProviderContract.test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_versioning_ambiguous_inputs_all_rejected (__main__.ProviderContract.test_versioning_ambiguous_inputs_all_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+======================================================================
+ERROR: test_wire_limits_and_ambiguous_route_inputs_are_rejected (__main__.ProviderContract.test_wire_limits_and_ambiguous_route_inputs_are_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/tests/provider_sdk/test_aliyun_object_storage_provider.py", line 140, in setUp
+    self.p=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.p)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/scripts/aliyun-object-storage-provider.py'
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.007s
+
+FAILED (errors=17)
+{"errors": 17, "failures": 0, "provider_network_allowed": false, "schema": "wukongim.provider_sdk_contract/v1", "skips": 0, "tests": 17}

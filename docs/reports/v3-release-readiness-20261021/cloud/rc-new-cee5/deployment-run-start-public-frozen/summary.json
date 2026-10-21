@@ -1,0 +1,81 @@
+{
+  "schema": "local.cloud_rc.deployment_run_start_observation/v1",
+  "frozen_at": "2026-10-21T17:13:55.558394+00:00",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "top": {
+    "run_id": 39637426411,
+    "run_number": 34,
+    "attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-21T17:06:15Z"
+  },
+  "child_chain": {
+    "bundle": 39637578380,
+    "quote": 39637891019,
+    "acquire": 39639010616,
+    "deployment": 39639281581
+  },
+  "deployment": {
+    "activated_at": "2026-10-21T17:02:39Z",
+    "three_service_nodes": true,
+    "healthy_slots": 256,
+    "pending_controller_tasks": 0,
+    "ready_workers": 3,
+    "prometheus_up": 7,
+    "prometheus_want": 7,
+    "actual_checkout_exact": true
+  },
+  "run_start": {
+    "schema": "wukongim.chat_lifecycle.run_start/v1",
+    "stage": "rehearsal",
+    "started_at": "2026-10-22T01:05:48.909224454+08:00",
+    "expected_end_at": "2026-10-22T03:05:48.909224454+08:00",
+    "run_hash": "sha256:4d1a0f3b44a15dd9c3c0fb93396a17a7991b768d45619bcf2d11c31438576496",
+    "assignment_hash": "sha256:51817c54cb0b692a3dff72ef9d81f9a1a206c92a0bee02d301378ad6b51551b8",
+    "generation": 1
+  },
+  "handoff_artifact": {
+    "id": 12364958085,
+    "bytes": 35078,
+    "actual_full_zip_sha256": "4b4230c1be6d514061be45819a883e425a25278388c229e97aeb49ca7c7ba275",
+    "complete_sha_and_crc_checked": true
+  },
+  "binding": {
+    "checks_passed": 100,
+    "official_lease_digest_normalization": "cmd/wkcloudgate/deployment_commands.go::deploymentDigest",
+    "budget_hard_micros": 1351044800,
+    "budget_stop_micros": 1201044800,
+    "new_request_prior_committed_micros": 0,
+    "quoted_reserve_micros": 74477600,
+    "old_task_reserve_micros": 148955200,
+    "reserve_not_invoice": true,
+    "exact_selector_verified": true,
+    "encrypted_outer_identity_verified": true,
+    "encrypted_content_decrypted": false,
+    "private_keys_read": false
+  },
+  "preclock": {
+    "valid": true,
+    "original_empty_Job_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalized_Job": 0,
+    "raw_7_property_stdout_sha256": "57c3e320a832417c5e803553961f261771af23813115c207218162f214488524",
+    "same_input_as_previous_run33_repro": true
+  },
+  "last_snapshot": "poll-12",
+  "last_github_run_snapshot_at": "2026-10-21T17:08:39.007432+00:00",
+  "issue_fresh_get_at": "2026-10-21T17:12:58.856718+00:00",
+  "prior_archive": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/bundle-quote-acquire-public-frozen",
+    "manifest_sha256": "b452d5a8af536eeed5a9970be1dd6244a330f3bd53a107b5041b58c02def3cd6",
+    "bundle_recopied": false
+  },
+  "limits": [
+    "Deployment success does not itself prove workload start. Actual run-start is present and bound separately.",
+    "Run-start is typed post-sync/post-first-grant evidence; it contains no independent live10000counter or achieved2000persecond sample. Those barriers are source/config bound.",
+    "No2hterminal result, formal result, current provider inventory, or final zero-inventory observed here.",
+    "Wrappper-secret match not separately reproved; sealed outer fields and source checkout/activation receipts checked without decrypting.",
+    "Raw GitHub logs/ZIPs/SSH config/known_hosts/encrypted ciphertext and private keys excluded from public archive."
+  ]
+}

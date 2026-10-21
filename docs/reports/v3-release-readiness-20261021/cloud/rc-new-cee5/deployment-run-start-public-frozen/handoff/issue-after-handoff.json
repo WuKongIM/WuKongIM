@@ -1,0 +1,14 @@
+{
+  "number": 1023,
+  "state": "open",
+  "locked": false,
+  "title": "[chat-lifecycle] chat-20261021T163850Z-4ccd7506",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1023",
+  "created_at": "2026-10-21T16:42:32Z",
+  "updated_at": "2026-10-21T17:06:10Z",
+  "comments": 1,
+  "observed_at": "2026-10-21T17:12:58.856718+00:00",
+  "body_sha256": "17e9c45b4d22e68b0ae018f9133fa45761ab3596ce4c7394c934076af5262438",
+  "exact_request_title": true,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

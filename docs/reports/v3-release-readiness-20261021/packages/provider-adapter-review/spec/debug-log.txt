@@ -1,0 +1,1 @@
+Request received. Product:Sts Endpoint:sts.aliyuncs.com Params: {'SecurityToken': '<TEST-ONLY-STS-TOKEN>', 'Version': '2015-04-01', 'Action': 'GetCallerIdentity', 'Format': 'JSON'}

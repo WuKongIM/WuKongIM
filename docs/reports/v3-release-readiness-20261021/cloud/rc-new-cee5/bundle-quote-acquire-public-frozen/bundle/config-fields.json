@@ -1,0 +1,41 @@
+{
+  "scope": "Byte-verified static workload configuration; not measured throughput or an observed first grant",
+  "members": [
+    {
+      "member": "config/chat-lifecycle-rehearsal.yaml",
+      "size": 4367,
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542",
+      "selected_static_lines": [
+        "  send_rate_per_second: 2000",
+        "  sync: {completed_coverage: 0, max_conversations: 500}",
+        "  max_global_burst: 4000",
+        "    one_shot: {percent: 60, active_duration: {min: 0s, max: 0s}}",
+        "    revisit: {percent: 25, active_duration: {min: 0s, max: 0s}}",
+        "    rotating: {percent: 10, active_duration: {min: 20m, max: 40m}}",
+        "    long: {percent: 5, active_duration: {min: 2h, max: 4h}}",
+        "    sync: {p99: 1s, p999: 3s}",
+        "  aged_checkpoint: {reference: \"\", completed: false, passed: false, duration: 0s}",
+        "  maximum_duration: 8h",
+        "  recovery_duration: 30m"
+      ]
+    },
+    {
+      "member": "config/chat-lifecycle.yaml",
+      "size": 4361,
+      "sha256": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573",
+      "selected_static_lines": [
+        "  send_rate_per_second: 2000",
+        "  sync: {completed_coverage: 0, max_conversations: 500}",
+        "  max_global_burst: 4000",
+        "    one_shot: {percent: 60, active_duration: {min: 0s, max: 0s}}",
+        "    revisit: {percent: 25, active_duration: {min: 0s, max: 0s}}",
+        "    rotating: {percent: 10, active_duration: {min: 20m, max: 40m}}",
+        "    long: {percent: 5, active_duration: {min: 2h, max: 4h}}",
+        "    sync: {p99: 1s, p999: 3s}",
+        "  aged_checkpoint: {reference: \"\", completed: false, passed: false, duration: 0s}",
+        "  maximum_duration: 8h",
+        "  recovery_duration: 30m"
+      ]
+    }
+  ]
+}

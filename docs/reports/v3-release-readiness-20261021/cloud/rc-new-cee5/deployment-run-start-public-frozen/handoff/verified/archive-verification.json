@@ -1,0 +1,257 @@
+{
+  "artifact_id": 12364958085,
+  "complete_actual_size": 35078,
+  "actual_zip_sha256": "4b4230c1be6d514061be45819a883e425a25278388c229e97aeb49ca7c7ba275",
+  "api_digest_match": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "member": "analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "1aa665f014b1c36261e7f922506719afa5e6d6e93bd8e2a25f061bbaea0bb585",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T163850Z-4ccd7506/receipt.json",
+      "bytes": 41130,
+      "sha256": "49d2851054312349017c8e8b8f2734cc16b65861e1b82ccada4165fb5d7b0dbf",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T163850Z-4ccd7506/quote.json",
+      "bytes": 1842,
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/attempted-deployment-control-shas",
+      "bytes": 41,
+      "sha256": "cfe8d8f4b00889010d753b120cd4a1791559d6d36a446307ec5dbcf7bc0285e6",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/attempted-repair-source-shas",
+      "bytes": 41,
+      "sha256": "cfe8d8f4b00889010d753b120cd4a1791559d6d36a446307ec5dbcf7bc0285e6",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/bootstrap-access.json",
+      "bytes": 251,
+      "sha256": "b82200225f75ef9a19c3871960ed51c04dc08445889527d948d021c6b40e0440",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39639281581/analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "1aa665f014b1c36261e7f922506719afa5e6d6e93bd8e2a25f061bbaea0bb585",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39639281581/deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "ae586cfe0b0229e6156b339e46afa7a54a3fd52e88183c3b015058d8dde7ae8b",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39639281581/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "2815ec2f3999bf54b725b986faf4b91e08f646793f83bb59634cb3d14d3c0543",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39639281581/encrypted-access.json",
+      "bytes": 1312,
+      "sha256": "22d3153dd10486af0a8ec61d68e7b65834edb6b819ca85ea40882ac83f90019b",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39639281581/readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "c9d4a69c656ed110c302947d3dc6bd2efeaea268d0d2327db68131ca8c3e29f8",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "2815ec2f3999bf54b725b986faf4b91e08f646793f83bb59634cb3d14d3c0543",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-ssh-config",
+      "bytes": 871,
+      "sha256": "5b1ec1c1bc47c78e423a506b681ed432e3e505f7b3b2abb0757e7c4887e9b498",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-ssh-config.known_hosts",
+      "bytes": 94,
+      "sha256": "32a7044f59afd5487b6cac96b1bc0b89f2386fa5b58d996c9633c0d9f489c70a",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/lease-plan.json",
+      "bytes": 1892,
+      "sha256": "4f30e7d1f53aba9a02ad2564af80cc8fba3dcccefc8c157da6237a98332e305b",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/start-stderr.json",
+      "bytes": 106,
+      "sha256": "e2918c432271e0bf4802e8e02418c0efa889467a98a88ba67c76559bcb3659de",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/start-stdout.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/state-stderr.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/state-stdout.json",
+      "bytes": 106,
+      "sha256": "24e6ee75e942e5c09248d5515e9ef27ef83c1d7be5568a2c68226640e56659ee",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/unit.json",
+      "bytes": 966,
+      "sha256": "51eb2d5392a7293f209d90237d7564ca0c7ac45cfdee18a3d876454a8ab846ff",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/preflight-quote.json",
+      "bytes": 1842,
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/quote.json",
+      "bytes": 1842,
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T163850Z-4ccd7506/quote.json",
+      "bytes": 1842,
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/receipt-selector.json",
+      "bytes": 319,
+      "sha256": "347f4ace5e207350a900a95cde537e59d1111ae1a16ce859633df3845991c733",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/receipt.json",
+      "bytes": 41130,
+      "sha256": "49d2851054312349017c8e8b8f2734cc16b65861e1b82ccada4165fb5d7b0dbf",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/release-selector.json",
+      "bytes": 319,
+      "sha256": "347f4ace5e207350a900a95cde537e59d1111ae1a16ce859633df3845991c733",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/run-plan.json",
+      "bytes": 2361,
+      "sha256": "769d8819a7e29a61a6ce9828b1a34672f48b28fca3e27e03814c89eff5e7302c",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/run-start.json",
+      "bytes": 398,
+      "sha256": "dadfba49cf6e0bff7cd5ac704ad9e2b0c6eb7b29b4e2e848861f927e97c02570",
+      "selected_public": false
+    },
+    {
+      "member": "continuation-authentication.json",
+      "bytes": 129,
+      "sha256": "cc086d72e9d9ca01e23de2fb738693d8d8a4da9a520909898910446db77c8d3c",
+      "selected_public": true
+    },
+    {
+      "member": "deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "ae586cfe0b0229e6156b339e46afa7a54a3fd52e88183c3b015058d8dde7ae8b",
+      "selected_public": true
+    },
+    {
+      "member": "deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "2815ec2f3999bf54b725b986faf4b91e08f646793f83bb59634cb3d14d3c0543",
+      "selected_public": true
+    },
+    {
+      "member": "encrypted-access.json",
+      "bytes": 1312,
+      "sha256": "22d3153dd10486af0a8ec61d68e7b65834edb6b819ca85ea40882ac83f90019b",
+      "selected_public": false
+    },
+    {
+      "member": "encrypted-deployment-identity.json",
+      "bytes": 2316,
+      "sha256": "88d37784bf8f1ff92f2e70f59066a1b610239a853b30f3f9e3c6cba77b99ee1e",
+      "selected_public": false
+    },
+    {
+      "member": "handoff.json",
+      "bytes": 499,
+      "sha256": "d5ec0a4eaeafef3276c57dec0fda6aa43a1d95dccb97cc0952a757641bbaff9f",
+      "selected_public": true
+    },
+    {
+      "member": "issue-preflight.json",
+      "bytes": 258,
+      "sha256": "8f7c6b3ae8cf6e2226937f1969b43ddc01db22dbd75f91ee1e9373a9788c0285",
+      "selected_public": true
+    },
+    {
+      "member": "quote.json",
+      "bytes": 1842,
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917",
+      "selected_public": false
+    },
+    {
+      "member": "receipt.json",
+      "bytes": 41130,
+      "sha256": "49d2851054312349017c8e8b8f2734cc16b65861e1b82ccada4165fb5d7b0dbf",
+      "selected_public": false
+    },
+    {
+      "member": "release-selector.json",
+      "bytes": 319,
+      "sha256": "347f4ace5e207350a900a95cde537e59d1111ae1a16ce859633df3845991c733",
+      "selected_public": true
+    },
+    {
+      "member": "request-budget.json",
+      "bytes": 68,
+      "sha256": "29a6a879a13554b139c45b3bdfc4e8379f8ca837b64d9eda87661178f462223f",
+      "selected_public": true
+    },
+    {
+      "member": "run-plan.json",
+      "bytes": 2361,
+      "sha256": "769d8819a7e29a61a6ce9828b1a34672f48b28fca3e27e03814c89eff5e7302c",
+      "selected_public": true
+    },
+    {
+      "member": "run-start.json",
+      "bytes": 398,
+      "sha256": "dadfba49cf6e0bff7cd5ac704ad9e2b0c6eb7b29b4e2e848861f927e97c02570",
+      "selected_public": true
+    }
+  ],
+  "selected_public_payloads": 15,
+  "encrypted_payloads_copied": false
+}

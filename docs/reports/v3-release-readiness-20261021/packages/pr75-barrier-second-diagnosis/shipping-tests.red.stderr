@@ -1,0 +1,20 @@
+...................................F........
+======================================================================
+FAIL: test_switch_download_command_holds_both_rpm_phases_with_initial_refresh (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_holds_both_rpm_phases_with_initial_refresh) (family='rpm', mode='rpm-switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-barrier-second-diagnosis/tests/test_native_stable_clients_drill.py", line 206, in test_switch_download_command_holds_both_rpm_phases_with_initial_refresh
+    self.assertEqual(value, expected)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['doc[4342 chars]@]}" makecache --refresh\ndnf "${dnf_options[@[692 chars]txt'] != ['doc[4342 chars]@]}" --setopt=wukongim-stable.metadata_expire=[736 chars]txt']
+
+First differing element 39:
+'test[3328 chars]@]}" makecache --refresh\ndnf "${dnf_options[@[691 chars].txt'
+'test[3328 chars]@]}" --setopt=wukongim-stable.metadata_expire=[735 chars].txt'
+
+Diff is 5929 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 44 tests in 0.516s
+
+FAILED (failures=1)

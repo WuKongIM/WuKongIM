@@ -1,0 +1,20 @@
+{
+  "id": 12365317936,
+  "node_id": "MDg6QXJ0aWZhY3QxMjM2NTMxNzkzNg==",
+  "name": "chat-lifecycle-rehearsal-preflight-chat-20261021T163850Z-4ccd7506",
+  "size_in_bytes": 338,
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12365317936",
+  "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12365317936/zip",
+  "expired": false,
+  "digest": "sha256:bba7c1ce1ea627778f23d855a05ac1dd7623f128e1c8da9ed8ecc5921d696ea7",
+  "created_at": "2026-10-21T17:06:05Z",
+  "updated_at": "2026-10-21T17:06:05Z",
+  "expires_at": "2026-10-29T17:06:04Z",
+  "workflow_run": {
+    "id": 39637426411,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "cee5d51f325fb84033060f546337d326110adae5"
+  }
+}

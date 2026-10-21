@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12365331885,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM2NTMzMTg4NQ==",
+      "name": "cloud-deployment-39639281581",
+      "size_in_bytes": 6676,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12365331885",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12365331885/zip",
+      "expired": false,
+      "digest": "sha256:68f56804820358aa7d91ed06aaf2f83627e27d488aadc9903917427d8a0981dd",
+      "created_at": "2026-10-21T17:02:39Z",
+      "updated_at": "2026-10-21T17:02:39Z",
+      "expires_at": "2026-10-28T17:02:39Z",
+      "workflow_run": {
+        "id": 39639281581,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "main",
+        "head_sha": "cee5d51f325fb84033060f546337d326110adae5"
+      }
+    }
+  ]
+}

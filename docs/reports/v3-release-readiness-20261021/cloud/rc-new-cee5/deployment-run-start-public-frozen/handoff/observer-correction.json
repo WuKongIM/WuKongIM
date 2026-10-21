@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-10-21T17:12:47.150609+00:00",
+  "initial_observer_failure": {
+    "reported_by": "root",
+    "expression": "direct equality Acquire.receipt.plan_digest versus deployment.lease_plan_digest",
+    "outcome": "AssertionError at line15; remaining checks were not executed and no verification receipt was produced",
+    "original_artifact_error": false
+  },
+  "correction": "Compare exact valid SHA256 bytes through official cmd/wkcloudgate/deployment_commands.go::deploymentDigest. Acquire is lowercase64hex; deployment prefixes sha256:. Original files are unchanged.",
+  "official_source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "corrected_checks": "handoff/verified/identity-verification.json",
+  "additional_read_only_inspection_error": "Initial ad-hoc dictionary inspection treated wrapped receipt.json as unwrapped and raised KeyError; corrected by using receipt field before verification. No source or artifact mutation."
+}

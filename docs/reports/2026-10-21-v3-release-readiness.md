@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 16:55Z（北京时间10月22日00:55）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 17:16Z（北京时间10月22日01:16）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类；b3fdb777 的本地及首次 Linux 验收均通过，已按长期授权合并为 cee5d51f，同完整代码树。原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，其首次客户端验收在Alma A→B切换中未满足精确A目标；四文件窄修虽已双轴复核并通过本地相关检查，新head d824fe37首次Linux的557项Python（零skip）及4合同通过，原生验收仍在第23项Rocky切换失败：22通过、26未执行，仍阻塞合并。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类；b3fdb777 的本地及首次 Linux 验收均通过，已按长期授权合并为 cee5d51f，同完整代码树。原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，其首次客户端验收在Alma A→B切换中未满足精确A目标；四文件窄修虽已双轴复核并通过本地相关检查，d824fe37首次Linux原生验收仍在第23项Rocky切换失败。第二次窄修经固定Rocky/Alma实际DNF持久状态对照及两项独立复核后已推送2368c874；其首次Linux Pages557零skip+4通过，完整49客户端仍待终态，PR尚未合并。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -232,6 +232,14 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 [packages #75屏障修复](v3-release-readiness-20261021/packages/pr75-client-barrier-diagnosis/README.md)用固定Rocky/Alma镜像验证metadata_expire=0的整秒年龄依赖；有界真实签名探针保留旧跨秒选B行为，并证明只在第二个切换阶段显式复用A元数据时，B mirrorlist和B前缀仍可下载已验签精确A，fresh-B仍B。原CI未记录mtime，不能声称唯一追溯其跨秒/GPG原因。四文件全测试先红后绿，44相关/557本地（1既有Mac工具skip）/4合同通过，[双轴独审](v3-release-readiness-20261021/packages/pr75-barrier-review/combined-review.md)无发现，production validator与其他114文件不变。新head d824fe37918ee4ef22b1b1745bc02518812563e3、tree50e099e7的首次Pages39636511642已557零skip+4通过；native39636512103随后终态失败，具体完整证据见下一段；这次小型探针未覆盖实际失败，不能替代49场景验收。
 
 [#75第二代首次CI完整封存](v3-release-readiness-20261021/packages/pr75-ci-generation-2/README.md)绑定d824fe37、synthetic ecc8012ea3a600d94da3bc94320018203e35f295及相同tree50e099e7。Pages557零skip+4合同和旧完整签名仓库演练通过；stable客户端22通过，第23项Rocky A→B失败，26项未到达。命令161已含metadata_expire=-1，却在serial24取得B元数据和已验签B/3.0.1，host精确A守卫正确拒绝。八项A/B基线身份通过，所有所属容器、网络、三个已创建缓存清零，Alma缓存未创建。五个小制品均完成全量API SHA/ZIP CRC核验；[覆盖补充](v3-release-readiness-20261021/packages/pr75-ci-generation-2-coverage/README.md)确认1070B合并输出完整，但缺mtime、原始repomd及分阶段日志，不能追溯唯一根因。保留首次失败，不重跑旧CI、不合并红检查；固定镜像的第二轮有界诊断进行中。
+
+[本次云Bundle/Quote/Acquire封存](v3-release-readiness-20261021/cloud/rc-new-cee5/bundle-quote-acquire-public-frozen/README.md)确认四台主机、八盘、一个EIP已创建。实际新预算H1351044800/S1201044800、prior0与授权一致；新完整Quote reserve74477600 micros，加旧148955200为整项保守预留¥223.4328，均不是账单。三条自然子workflow均success，bundle141108162B全SHA及110成员验证通过；28资源身份标签闭合，清理及预演finalizer均已由受审工作流启用。该封存截至16:58Z部署仍进行，不能用它宣称run-start或长稳通过；后续交接证据独立保留。
+
+[#75持久过期第二次修复](v3-release-readiness-20261021/packages/pr75-barrier-second-diagnosis/README.md)在固定Rocky/Alma使用实际bootstrap与原shell，延迟真实DNF保存状态而不伪造文件：第一调用metadata_expire=0会写expired_repos，第二调用即使-1仍重新获取B。修复仅给TEST ONLY switch两个阶段都设-1，首阶段仍--refresh；相同对照下保留A元数据、由B mirror/B前缀取得已验签精确A，fresh-B仍B。原CI缺状态/mtime，不能声称唯一追溯。44相关检查先1断言红后全绿，557本地（1原有Mac skip）和4合同通过，[两项独立复核](v3-release-readiness-20261021/packages/pr75-barrier-second-review/combined-review.md)均0发现。代码2368c8745853d7d8ad82e706a6e7980842526241/tree2119196cef38a159f23a8f5c47f8878e4fde8399已推送；新首次Linux Pages39641288308通过557零skip+4，native39641288253仍运行，未重复执行旧失败head。
+
+[D2真实SDK与输入接线初稿](v3-release-readiness-20261021/packages/provider-adapter-implementation/README.md)八文件已完成本地17 SDK、10输入、567默认（1原有skip）验证，未提交/推送。[双轴首审](v3-release-readiness-20261021/packages/provider-adapter-review/combined-review-v1.md)保留Standards的1项P2过程违规：两项HTTP接线测试在实现后补写，不能倒写首红或称全套tests-first；Spec发现2项P2：调用者配置正文未重算绑定其摘要、SDK调试日志拒绝太迟。仅用虚构令牌和离线transport复现，无真实provider请求，正按新增失败回归先行修复。生产激活始终unsupported；完整v2/native签名正例和真实路由等价性尚未证明。
+
+[真实部署与run-start封存](v3-release-readiness-20261021/cloud/rc-new-cee5/deployment-run-start-public-frozen/README.md)已核：部署39639281581于17:02:39Z通过三节点/256健康slot、0pending controller、3worker/7监测目标；顶层39637426411于17:06:15Z success。实际run-start generation1、hash绑定exactLease、started_at北京时间01:05:48.909224454，预期03:05:48.909224454，整2小时。bundle/Acquire/Deployment父链、selector及预算、加密外层身份均验证；已校验bundle配置和执行源码绑定10k在线同步/首2000 SEND/s grant的启动门槛，收据无独立在线计数或持续吞吐采样，不能夸大为两小时性能通过。原空Job在本次Linux正常归一为0并通过启动，支持#1021修复实际生效。初次本地验证因Acquire裸digest与deployment sha256前缀不同失败已保留，按官方类型修正后100项交叉检查通过。尚无2小时终态、正式72小时结果或该租约零库存。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

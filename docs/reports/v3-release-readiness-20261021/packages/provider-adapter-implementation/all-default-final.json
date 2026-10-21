@@ -1,0 +1,31 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+  "timeout_seconds": 360,
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 122.04,
+  "terminal": true,
+  "source_sha256": {
+    "CHANGELOG.md": "5d627c032394bfbca8dab99d79201a7f9ce08bfd5269371938d566ecb85799fc",
+    "docs/object-storage-delivery.md": "906069c85b290dd399d8db283d844958a7a2429b360d7816f32cfa07069b9626",
+    ".github/workflows/object-storage-provider-contract.yml": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+    "requirements-object-storage-provider.lock": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+    "scripts/aliyun-object-storage-provider.py": "f41d6980b1c0a02a2f9e0d58e7329d293d349c6605a9a8c4b5a7fe6ddcdf5200",
+    "scripts/verify-object-storage-delivery-inputs.py": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "a81912db19e7ad948a3f3d911bad2f8da080ca4caeebd3f0b9e547ed281e2fb9",
+    "tests/test_object_storage_delivery_inputs.py": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55"
+  },
+  "source_unchanged": true
+}

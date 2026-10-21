@@ -1,0 +1,26 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "files": [
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/start_receipt.go",
+      "bytes": 1899,
+      "sha256": "4b81aa65fed8f07221a2d55dd6cde2e7cb13476a7cb0de2948cf97a6e3f2fa7e"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 27890,
+      "sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba"
+    }
+  ],
+  "scope": "Read-only basis for interpreting run-start receipt; not evidence that this new request has reached the boundary"
+}

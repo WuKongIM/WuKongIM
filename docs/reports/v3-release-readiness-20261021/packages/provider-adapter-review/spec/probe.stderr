@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/probe.py", line 82, in <module>
+    assert results['tampered_before']['actual_write_calls'] == 0, 'tampered observation allowed a CDN write'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: tampered observation allowed a CDN write

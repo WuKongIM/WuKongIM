@@ -1,0 +1,648 @@
+{
+  "schema": "wukongim.d2-standards-review-binding/v1",
+  "observed_at": "2026-10-21T17:09:53.243153+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+  "head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "base_tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "branch": "codex/stable-object-provider",
+  "commits_in_scope": [],
+  "scope_commands": [
+    "git diff HEAD",
+    "git ls-files --others --exclude-standard"
+  ],
+  "status_porcelain": " M CHANGELOG.md\n M docs/object-storage-delivery.md\n?? .github/workflows/object-storage-provider-contract.yml\n?? requirements-object-storage-provider.lock\n?? scripts/aliyun-object-storage-provider.py\n?? scripts/verify-object-storage-delivery-inputs.py\n?? tests/provider_sdk/\n?? tests/test_object_storage_delivery_inputs.py\n",
+  "tracked_diff": [
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md"
+  ],
+  "untracked_source": [
+    ".github/workflows/object-storage-provider-contract.yml",
+    "requirements-object-storage-provider.lock",
+    "scripts/aliyun-object-storage-provider.py",
+    "scripts/verify-object-storage-delivery-inputs.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/test_object_storage_delivery_inputs.py"
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "tracked": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "5d627c032394bfbca8dab99d79201a7f9ce08bfd5269371938d566ecb85799fc",
+      "bytes": 3464,
+      "tracked": true
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "906069c85b290dd399d8db283d844958a7a2429b360d7816f32cfa07069b9626",
+      "bytes": 13744,
+      "tracked": true
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+      "bytes": 36702,
+      "tracked": false
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "f41d6980b1c0a02a2f9e0d58e7329d293d349c6605a9a8c4b5a7fe6ddcdf5200",
+      "bytes": 23486,
+      "tracked": false
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "bytes": 11718,
+      "tracked": false
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "a81912db19e7ad948a3f3d911bad2f8da080ca4caeebd3f0b9e547ed281e2fb9",
+      "bytes": 21561,
+      "tracked": false
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "bytes": 15586,
+      "tracked": false
+    }
+  ],
+  "freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/source-freeze.json",
+    "sha256": "0761513c5467cb6956bab292c89b70ecf13e4b7ed5e40fb0685766658908ca83"
+  },
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/implementation.patch",
+    "sha256": "b0d72c451e879897e4761e630b3615b33b2fbf7e8165daaff535efa9359087a0",
+    "bytes": 119697,
+    "all_eight_outputs_reconstructed_against_HEAD": true
+  },
+  "unchanged_tracked_file_count": 116,
+  "unchanged_tracked_files": [
+    {
+      "path": ".github/CODEOWNERS",
+      "git_blob": "e3698b7c24616a20d8fd06ddddef446f7e06898e"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "git_blob": "5619013af98e0b48a8f064482dad3db424132aea"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "git_blob": "a597af699e9411d847302088f2f9d1aca8d092bf"
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "git_blob": "7fb1c3d427ef7aae2db0c001dd971dc26afd72a1"
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "git_blob": "029158d341681e34f3f86b6396c441b85427c77b"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "git_blob": "c80fdd7c57f97a114f0687a7f83e867be2082bdd"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "git_blob": "393bfb3692e099596924dd36e15a0e23ab4ead8c"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "git_blob": "785d15d7153b28713fcff88925d79e8be98bcc15"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "git_blob": "ece84229cb63715c6cdf5fb2a7434c3f93d456b6"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "git_blob": "320114760a530bf160c424735fc418043665e011"
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "git_blob": "16cb071901a516e682499857f8ed1c484f72f6c2"
+    },
+    {
+      "path": ".gitignore",
+      "git_blob": "098fefd7acbd0b77dc9d50a404667d3fe000ece0"
+    },
+    {
+      "path": "LICENSE",
+      "git_blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64"
+    },
+    {
+      "path": "README.md",
+      "git_blob": "2e80cf7e6897797f7cea7dbc05d36bbdf171dafc"
+    },
+    {
+      "path": "SECURITY.md",
+      "git_blob": "b7e1f8cef4ad254d18bcea586a3f22f5a9fd2a4e"
+    },
+    {
+      "path": "docs/object-storage-planning.md",
+      "git_blob": "67f7b9c1dada3f461031cfc18de5130669bba6bb"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "git_blob": "2116e8c5092655da6563b1173d98badcd7142baf"
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "git_blob": "e6739b5e8a7e2ba9d4a559cbfca1e2ec089131e6"
+    },
+    {
+      "path": "keys/README.md",
+      "git_blob": "7ccd185d53b39c2ab77e21c34a6b48a799cc206c"
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "git_blob": "7cfd2c7826c694d6325711b5bfeedefcad8a1261"
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "git_blob": "ac83c92c292a46cd364a52ecf2b73c185bf04ea1"
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "git_blob": "cf6915956c24893b873c34cd0567ff9caf43bd5f"
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "git_blob": "ad8543f41100504821da1e7d0690d2957fafde45"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "git_blob": "4b30a6436853c02fc731012cc6ae0c730721e96d"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "git_blob": "5266992bd184a18817d45840eeec6e41232ee43f"
+    },
+    {
+      "path": "manifests/channels.json",
+      "git_blob": "c65f94118e00077656721b0daee17b61f5970dda"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "git_blob": "d49ceaefa1348273df1883ebb42d3d109ecb12fc"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "git_blob": "791d09c701213d182b1803965e0605c502bf096c"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "git_blob": "653e9502ba7f9c70b9643d87c284a4142f440b4f"
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "git_blob": "475e7ee1b30a00ecaea61dabe66e1b9d830272ab"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "git_blob": "c77c80b4327b3fc0923efc0c4fa5d9a053429093"
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "git_blob": "0bfd5f91f67acc1532261162f9a36c0b52e711df"
+    },
+    {
+      "path": "scripts/bind-audit-release.py",
+      "git_blob": "e2d66b442168d9f748a046715acc7e710ff2c581"
+    },
+    {
+      "path": "scripts/build-repository-bootstrap-packages.py",
+      "git_blob": "9a8d42213a81d75b4f0507c1016e2365569181de"
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "git_blob": "6ebfb3d5953208421e1dd5fea1d3a47bc4aba44a"
+    },
+    {
+      "path": "scripts/derive-rpm-allowlists.py",
+      "git_blob": "66cf7251e7edbf5692cc4bad5cb441eb6c6bd53a"
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "git_blob": "97a612c71b3c0586b97883f45f98f61e0526bf03"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "git_blob": "735d964c399828ca9fb39cedf1d964cf8b98dfa0"
+    },
+    {
+      "path": "scripts/plan-package-publication.py",
+      "git_blob": "79c355d3ae07cb7b624ed6fc9e4727b9adb81aab"
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "git_blob": "cd80e7ad5bdd857d999bdcd2b439b6a3f16f41bb"
+    },
+    {
+      "path": "scripts/prepare-package-site.py",
+      "git_blob": "2b5f8bb95dbf14bb5c33be9ac457543ae442107d"
+    },
+    {
+      "path": "scripts/resolve-audit-release.py",
+      "git_blob": "a3734bf63418e115a027fdc3a16c4b59936b2865"
+    },
+    {
+      "path": "scripts/resolve-source-release.py",
+      "git_blob": "9c0ac28c2f65935c9851c7a6d017ca5c8a93d9cf"
+    },
+    {
+      "path": "scripts/seal-audit-release.py",
+      "git_blob": "d63ee4bf6eb3c1dea847d7a1bc36abb2d1bdb3bd"
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "git_blob": "5b567b0746c26b99412007dc2fe46108a4ded040"
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "git_blob": "0f3a3d6925182d10b1c2aa474411c4ceef2c0730"
+    },
+    {
+      "path": "scripts/validate-installed-wkcli.py",
+      "git_blob": "6f6c3d6960a5786a5fa458b1432de05b08371f0a"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "git_blob": "0b2435acf5f39257730522ba732029496afa83fa"
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "git_blob": "622e166f0a195c71df59ca032e6c5add69b44eea"
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "git_blob": "71b2d45461baa694d44ac874e6bde21082775980"
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "git_blob": "1b8014490964b5c0f9ea6bb8f502e900e00b977c"
+    },
+    {
+      "path": "scripts/verify-source-package-metadata.py",
+      "git_blob": "d2916548e24c83c466ca0f52a4ec1e171690f705"
+    },
+    {
+      "path": "scripts/verify-stable-seal-inputs.py",
+      "git_blob": "2c674a6e700538aa0e4be1eaf2f1159473e1e452"
+    },
+    {
+      "path": "site/index.html",
+      "git_blob": "e74db381c5851eb7fc6386966e782054408d6773"
+    },
+    {
+      "path": "site/status.json",
+      "git_blob": "41a51d8656650a171d66762b21024bfb110900c3"
+    },
+    {
+      "path": "tests/contract.sh",
+      "git_blob": "7bf69b0dec233cebcc4ed16dace4845927ca0d6c"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_checksums.txt",
+      "git_blob": "c59b8120e2c5115266b7d88fcf52fb09c560df94"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "git_blob": "77036f8d4f82b6b6d6da2e62ae8b2e18a97aa896"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "git_blob": "fa3c918ed86620bad4aaf24994f8d3a2499ef03b"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "git_blob": "1ce006a8e1636814fd6efca3474a570ee3bb3106"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "git_blob": "49fb34d6515847b48143eba0e0e55cc5da84b4d7"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "git_blob": "74ce82a4328a9f7798f24f4d785b3a27e0a7d11d"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "git_blob": "fb14a1c2c30cbce5fff35d1cdd4a98830b21866d"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/README.md",
+      "git_blob": "9fabe8b15d424e9abd8fbf6bc4882f71dd45fabf"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/native-v3-unregistered.tar.gz",
+      "git_blob": "e81a1c86a18b0150dedda04bca1fcf476448629a"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/native-v3.tar.gz",
+      "git_blob": "c7243a96fb540f248d192844d5ea3719e130582c"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/original-v2-empty.tar.gz",
+      "git_blob": "5da16760a90d30786742277e70f627adc9e7110f"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/scenario.yaml",
+      "git_blob": "504bc9d45354dfe0aad8a623742f857f080c6070"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/sha256.json",
+      "git_blob": "ac3650caf9abb7f2c114c3b9c9ab0abd808c6c21"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/target.yaml",
+      "git_blob": "da084a1376397661862ad4e95db061d46954960e"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/workers.yaml",
+      "git_blob": "9bc32d9510162004f082b6882f6cb5b847fcf808"
+    },
+    {
+      "path": "tests/native_bootstrap_preparation_drill.py",
+      "git_blob": "f9d49089d4f4202b93ab5451cf294afdbb262347"
+    },
+    {
+      "path": "tests/native_local_signing_drill.py",
+      "git_blob": "29eff5ca09c56fd5b01489bee0a9bf372a977fb7"
+    },
+    {
+      "path": "tests/native_source_metadata_drill.py",
+      "git_blob": "29d0fdf404e7a7d74fcbddf6110e01b2bab5c4d6"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "git_blob": "f9178dafa93fcf427ed7909ddcf7c4260baddbac"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "git_blob": "53188dca7969f9692687f158adad4093deb8f068"
+    },
+    {
+      "path": "tests/native_stable_seal_transport_drill.py",
+      "git_blob": "49b15c0bd2ab3756bba89b402eebd233bae58a93"
+    },
+    {
+      "path": "tests/stable_audit_fixture.py",
+      "git_blob": "b9ec2fbb3a27f2be74c7d4fb8cf04e4aae2472c3"
+    },
+    {
+      "path": "tests/test_archive_package_snapshot.py",
+      "git_blob": "cee815fb786c0e9df6e8ede7f0124288db49d7bc"
+    },
+    {
+      "path": "tests/test_bind_audit_release.py",
+      "git_blob": "9c47cd6d9005493467f26846cc91340a3c22a04b"
+    },
+    {
+      "path": "tests/test_build_repository_bootstrap_packages.py",
+      "git_blob": "71ba2155b8474aba2fab2be971337e5e3aff6f85"
+    },
+    {
+      "path": "tests/test_compose_package_site.py",
+      "git_blob": "a8abceb5063f5dfe9e537e03867cf0de0d5bbfbb"
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "git_blob": "39241ec4cd31f49e5ebc7d23508afab3ce4650d0"
+    },
+    {
+      "path": "tests/test_derive_rpm_allowlists.py",
+      "git_blob": "bfe8177a0fc7b61946cc8441f599a27f8b89d1f9"
+    },
+    {
+      "path": "tests/test_installed_cli_acceptance.py",
+      "git_blob": "50da6a7197cb7c0707b3fb794187a6631532b825"
+    },
+    {
+      "path": "tests/test_native_bootstrap_preparation_drill.py",
+      "git_blob": "81c92bead2f560f51a48a698901555f9abf7d54e"
+    },
+    {
+      "path": "tests/test_native_local_signing_drill.py",
+      "git_blob": "503b6b8d92825ad3f17ed419255c0aadcd1ea5e9"
+    },
+    {
+      "path": "tests/test_native_stable_candidate_drill.py",
+      "git_blob": "6c3b22ec255c171db8883bc6a8f7bf8ab4fb95c1"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "git_blob": "565622eee4ac794b2047758a4e63cc84ddcf6a6f"
+    },
+    {
+      "path": "tests/test_object_storage_delivery.py",
+      "git_blob": "c5fd02ee51fc1fcfb45c2f559f2c24ad7c943988"
+    },
+    {
+      "path": "tests/test_package_audit_receipt.py",
+      "git_blob": "d0e2ab8328963657adf3a2d0048eb221f43ea4fb"
+    },
+    {
+      "path": "tests/test_plan_object_storage_publication.py",
+      "git_blob": "355dc22a0c621e38cc62bf3261ad9b68ffe4c99c"
+    },
+    {
+      "path": "tests/test_plan_package_publication.py",
+      "git_blob": "c604d2d58a89375289bf16f42e06610aec10f6dd"
+    },
+    {
+      "path": "tests/test_prepare_package_site.py",
+      "git_blob": "ef731b4c6f7a325f20686079b0f344fb0ec25f61"
+    },
+    {
+      "path": "tests/test_resolve_audit_release.py",
+      "git_blob": "2d2e408d394973559a82d8e8ba76e14c92a80f32"
+    },
+    {
+      "path": "tests/test_resolve_source_release.py",
+      "git_blob": "6fbc312f32b7b0616703e7cf62c00f45aaa0fd24"
+    },
+    {
+      "path": "tests/test_seal_audit_release.py",
+      "git_blob": "25446f25f2dc02bd35988af8647b4ada4f84631b"
+    },
+    {
+      "path": "tests/test_sign_package_family.py",
+      "git_blob": "ff69a14300993123e9ad72c28eb49440d7a0e64b"
+    },
+    {
+      "path": "tests/test_source_channel_classification.py",
+      "git_blob": "0c8d07f5b4864cb1e6355ffa0049fa06307bd152"
+    },
+    {
+      "path": "tests/test_source_preflight_workflow.py",
+      "git_blob": "875c033af5e3f1ff692046b4e122a053133fbfc0"
+    },
+    {
+      "path": "tests/test_stable_audit_transport.py",
+      "git_blob": "e8d7253237ecb2acb98d2d208e7a3ab293faecca"
+    },
+    {
+      "path": "tests/test_stable_bootstrap_preparation.py",
+      "git_blob": "d1835ecab72023d2e7cae5bf4a10fb60ca39307e"
+    },
+    {
+      "path": "tests/test_stable_candidate_audit.py",
+      "git_blob": "2e97a7d60dd3d2f6a3bb8e6b5182ddd6e772e21c"
+    },
+    {
+      "path": "tests/test_stable_candidate_closure.py",
+      "git_blob": "454883639fce839a901e71fc3f04637760f891d3"
+    },
+    {
+      "path": "tests/test_stable_candidate_prepare.py",
+      "git_blob": "6fca38a83a9abdbde45bb321b7e8c312bec0e099"
+    },
+    {
+      "path": "tests/test_stable_candidate_verifier.py",
+      "git_blob": "7e60442b0a93bf4ab7ebe84871c1c7526edee426"
+    },
+    {
+      "path": "tests/test_stable_offline_candidate.py",
+      "git_blob": "20823c0fcf5973fe4e970c4e80bf879713148428"
+    },
+    {
+      "path": "tests/test_stable_public_keys.py",
+      "git_blob": "c5a5ca587537b10d081550684c3c03350fafeef0"
+    },
+    {
+      "path": "tests/test_stable_seal_inputs.py",
+      "git_blob": "1d3b8a6ecd7f3a2aafa3a8d2c2e80a9527ab5d95"
+    },
+    {
+      "path": "tests/test_validate_control.py",
+      "git_blob": "683dc6d38332e2e09048ab39769d2f9bac4add92"
+    },
+    {
+      "path": "tests/test_validate_production_package_clients.py",
+      "git_blob": "80ef30d0c01c5dc655cbdbaf4137a4bb685ee97b"
+    },
+    {
+      "path": "tests/test_validate_signing_material.py",
+      "git_blob": "2f9900d9b855b455db57e7e677c2370d97c24c77"
+    },
+    {
+      "path": "tests/test_verify_production_package_site.py",
+      "git_blob": "c6ac2468fb7319c7177332761d5109f604a2b61f"
+    },
+    {
+      "path": "tests/test_verify_source_attestations.py",
+      "git_blob": "dda566c93163322aed1b0ff083378b8c13084cc8"
+    },
+    {
+      "path": "tests/test_verify_source_package_metadata.py",
+      "git_blob": "527f842a5b3fdd37eb2a8968933665dd8e51eba7"
+    },
+    {
+      "path": "toolchain/native-package-signing/Dockerfile",
+      "git_blob": "a13dd50f51b6bc92e7ff1ec349abce5463b75d8e"
+    }
+  ],
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/object-storage-delivery.md",
+      "sha256": "906069c85b290dd399d8db283d844958a7a2429b360d7816f32cfa07069b9626"
+    }
+  ],
+  "author_receipts_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/README.md",
+      "bytes": 5406,
+      "sha256": "5e844ce48e58775c3568fc7fbe59cfe024d32b35beea9cf86f09132cc562c183"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/initial-binding.json",
+      "bytes": 2527,
+      "sha256": "bfaa6c6a1f48f08876737aae5b28eea7dbc8fb3464ecef7c814023aa8a72a860"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/failure-inventory.md",
+      "bytes": 3292,
+      "sha256": "c7b14c522cf92922b541781c07ccac588c9c6234e4a27f4fd5233e900ad850d4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/first-red.json",
+      "bytes": 1412,
+      "sha256": "7f5646753d35ee1cf2d0ee3d120b5ddcc7b162e89053288137bb9e3d230faec4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/fresh-boundary-first-run.log",
+      "bytes": 2077,
+      "sha256": "5bb0eee6f77e322d41cb1ce8bee032fe6d7c21ea0874bff0ba00321aae5cf781"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/dirty-executor-first-red.log",
+      "bytes": 3092,
+      "sha256": "ba8e6aa05a8d11b8d31e28b327715d99d98d496922604ffc9f63a2e55e09cd76"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/config-response-id-first-red.log",
+      "bytes": 4062,
+      "sha256": "635c1abdfe05e1334f4fccd452763b07265d4349c38d4cbcaab798f7499ed208"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/sdk-contract-final-receipt.json",
+      "bytes": 1510,
+      "sha256": "10bd7bd2dd5c352bfab15ed747a57b60088571e59fc1dd5dfabcf61a16dff5e9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/sdk-final-frozen.json",
+      "bytes": 848,
+      "sha256": "852e15ab85f751d9e9b2c7790edb9748af198def9650e649a2edc1cc1ba1cdf0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/inputs-final.json",
+      "bytes": 269,
+      "sha256": "303f7e60829c234243d370c651a36eecb77e170e123667c011c4f1d1fe922b8d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/all-default-final.json",
+      "bytes": 1348,
+      "sha256": "8452a378f4e76d4b8f6d92de73216f57b367ac6e3f847061bc86939231ee0732"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-install.json",
+      "bytes": 460,
+      "sha256": "86eaa1d75f0f6ab32a21eba6c1f69aa71ca5c88c31f85fd43bc76a55c1e875f8"
+    }
+  ],
+  "reviewer_validation": "Independent hashes, full diff/untracked scope and exact patch replay in memory; static Standards review. No test rerun, network, provider, secret access, source edits or other-axis report reads.",
+  "findings": {
+    "hard_process": 1,
+    "additional_hard_code": 0,
+    "heuristic": 0
+  },
+  "limitations": [
+    "Two HTTP wiring tests were added after implementation, explicitly disclosed in author README.",
+    "Author SDK17/input10/default567(1 existing Mac skip) are local receipts, not new Linux/live provider acceptance.",
+    "Fresh preview positive substitutes native-helper subprocess; no new complete v2/native-signature positive."
+  ]
+}

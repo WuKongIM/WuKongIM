@@ -1,0 +1,82 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "size": 2327,
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "size": 4737,
+      "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "size": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "size": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "size": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": "cmd/wkcloudgate/deployment_commands.go",
+      "size": 9275,
+      "sha256": "c599ca08c971a31f1664dc25abd88e9184827c9e39dda3b0f6e68d3dd77e3729"
+    },
+    {
+      "path": "internal/usecase/clouddeploy/runtime.go",
+      "size": 5825,
+      "sha256": "d8eb9a4ae521e061aaeaf0a6606e644fe82d01d2fd773232fba8ceaeba4e775a"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "size": 121975,
+      "sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "size": 27890,
+      "sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/worker_server.go",
+      "size": 60318,
+      "sha256": "456cc0b9f15653ca31d041d26f54bb5964f7cd2dc3a1f6715d341dd309b4b538"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session.go",
+      "size": 55019,
+      "sha256": "b51382894de7e306c22bb276d493b8bc605d770109103b65c6ebd6bc494b7e05"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/sync.go",
+      "size": 8875,
+      "sha256": "0b163a4fed0bc6ba002a54e808c128b80908b5455c4f7a84a93752ea026acdad"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "size": 4367,
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "size": 48953,
+      "sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7"
+    }
+  ],
+  "source": "git show exact revision; no working-tree assumptions",
+  "rules_already_read": true
+}

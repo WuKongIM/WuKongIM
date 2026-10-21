@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+    "-B",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "--receipt",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/sdk-contract-final-receipt.json"
+  ],
+  "timeout_seconds": 120,
+  "exit_code": 0,
+  "terminal": true,
+  "elapsed_seconds": 0.37,
+  "source_sha256": {
+    "scripts/aliyun-object-storage-provider.py": "f41d6980b1c0a02a2f9e0d58e7329d293d349c6605a9a8c4b5a7fe6ddcdf5200",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "a81912db19e7ad948a3f3d911bad2f8da080ca4caeebd3f0b9e547ed281e2fb9",
+    "requirements-object-storage-provider.lock": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+  },
+  "source_unchanged": true
+}
