@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "test_elapsed_seconds": 54.65,
+  "product_changed": false,
+  "new_release_gate": false,
+  "binary_sha256": "a6b6d20a8d60cc38f164a6479f34557f698fd9400892d8ea05f9f64051db9b05",
+  "hash_slots": 256,
+  "topologies": [
+    1,
+    3
+  ],
+  "acknowledged": 12,
+  "complete_history_checks": 12,
+  "history_pages": 28,
+  "history_row_observations": 48,
+  "whole_cluster_restarts": 2,
+  "default_auth_negative_controls": 2,
+  "recv_frames": 32,
+  "duplicate_recv_frames": 16,
+  "sender_suppression_windows": 8,
+  "history_unavailable_retries": 0,
+  "fixture_corrections": [
+    "Both zero range bounds request latest history; change to explicit inclusive start=1, preserve full exact history checks",
+    "Client.Close returns ErrClosed on second close; close each device once, preserve first close error checks"
+  ],
+  "copy_files": [
+    {
+      "path": "test/e2e/message/self_chat/AGENTS.md",
+      "sha256": "bde51642b834d6286765881dbe2d15302abcb827c2836d8df52da382767e9c4d"
+    },
+    {
+      "path": "test/e2e/message/self_chat/self_chat_test.go",
+      "sha256": "b7496caf79a47dcff637a1d4e26d237d96670d8387bbf9fb6bfdb13b046bb5ce"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603"
+    },
+    {
+      "path": "test/e2e/message/AGENTS.md",
+      "sha256": "0cd01fbc6be5a28f1a76cf4b84521d5f5f8fbc8832f7c7f0b01917ff9e9e9a25"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+  "product_revision": "98c25091bb9587a303af982bb14bf4cedd9aa110",
+  "product_tree_equal_to_head": true,
+  "binary_sha256": "a6b6d20a8d60cc38f164a6479f34557f698fd9400892d8ea05f9f64051db9b05",
+  "frozen_instructions": [
+    {
+      "path": "AGENTS.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "c4e0ac72f2e03e27d8d8df553ce10f6233b6bef13cf9b1b739260874af2c2d2d"
+    },
+    {
+      "path": "test/e2e/message/AGENTS.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "d29017ff566a78424f1b5eae2d937cbac7bf55436948a0ff995b34d06b23e9bb"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "7ae41e62c0ba2a83051d9199d963e21dc4fd9c471b611b2c5a9224cdbfa689a5"
+    },
+    {
+      "path": "internal/access/api/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "2af34512e6fb8cd0559ddad21c8e4d4a317b699c088ed28c0673847a2940ade9"
+    },
+    {
+      "path": "pkg/client/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "401df3fb9feb42b6c5ea97ee098a8664e7bc77eaf9ba3b7c8ca5eeb127008508"
+    },
+    {
+      "path": "docs-site/FLOW.md",
+      "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+      "sha256": "03f3c50888418eb6d05465f85c49b4e3d3ea7349f9d28c08cb014864a1a2e636"
+    }
+  ],
+  "scenario_files": [
+    {
+      "path": "test/e2e/message/self_chat/AGENTS.md",
+      "sha256": "6abec3a28858f18650b0854ca92538d26c29f969513df00bd8178c6f06b43e91"
+    },
+    {
+      "path": "test/e2e/message/self_chat/self_chat_test.go",
+      "sha256": "e5fd2c27f6ad50d9aec0679799b5ea60992e0d2908c5d19d6e4265fb0afba523"
+    }
+  ],
+  "scope": "new process-level coverage; not a new release gate; no product changes",
+  "existing_contracts": [
+    "internal/runtime/persondirectory/projector.go self-channel distinct UID handling",
+    "internal/runtime/delivery/runtime_test.go TestRuntimeSuppressesOnlyExactSenderSession",
+    "docs-site/content/docs/guide/core-concepts/devices.en.mdx",
+    "docs-site/content/docs/api/dictionaries/device-flags.en.mdx",
+    "docs-site/content/docs/api/product-http/messages/syncQuickstartChannelMessages.en.mdx"
+  ]
+}

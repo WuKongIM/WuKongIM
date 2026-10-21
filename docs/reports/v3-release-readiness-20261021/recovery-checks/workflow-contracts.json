@@ -1,0 +1,16 @@
+{
+  "name": "workflow-contracts",
+  "source_sha": "84cf66c0fb24a561dea8fd8dc4e95a5aaf4453fe",
+  "working_tree_diff_sha256": "15479089b1009220d7e63100aa3620cd7760a10665b3f172cddb62d442c1cc4f",
+  "arguments": [
+    "go",
+    "test",
+    "./scripts/...",
+    "-run",
+    "Workflow|ReviewAgent",
+    "-count=1"
+  ],
+  "exit_code": 0,
+  "log_bytes": 469,
+  "at": "2026-10-21T04:50:58.183282+00:00"
+}

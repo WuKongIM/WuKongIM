@@ -1,16 +1,16 @@
 # v3 RC：stable 原生包渠道实施草案
 
-状态：供审阅；2026-10-20 只读核对完成，尚未实施、预置资源或发布。
+状态：供审阅；2026-10-21 再次核对当前控制与公网状态。生产 stable 仍禁用，尚未预置资源或发布；独立代码准备进度见[发布复核](2026-10-21-v3-release-readiness.md)。
 结论：stable 需要补齐发布链路，不能仅修改 `enabled` 或存储配置。
 
 ## 固定基线与核对范围
 
-- 产品候选：`WuKongIM/WuKongIM@b469c6e5e2b4ff65611a8fe3389fb5034de3f152`。
+- 已通过迁移及 Linux 性能验收的产品候选：`WuKongIM/WuKongIM@ef798352c40a94e57f768f76b2f4713712f827fe`；尚未发布。
 - 包仓库当前 main：`WuKongIM/packages@feb7f21503d35133cf23df7d7ab250c5d4129e71`；已用 GitHub API 再核对。
 - 所有下列源码链接均固定到该包仓库控制 SHA，后续实施须重新读取当前控制与审计身份。
 - 当前 stable 为 `enabled=false`、`status=object_storage_required`、空 releases。[频道控制](https://github.com/WuKongIM/packages/blob/feb7f21503d35133cf23df7d7ab250c5d4129e71/manifests/channels.json#L68-L72)
 - 该控制的历史 publisher [37102109407](https://github.com/WuKongIM/packages/actions/runs/37102109407) 成功；不是本次公网复验。
-- 本次直接读取公网 `status.json` 遇本机 TLS `SSL_ERROR_SYSCALL`，因此没有重新确认 live snapshot。
+- 10 月 20 日公网读取曾因本机 TLS `SSL_ERROR_SYSCALL` 失败；10 月 21 日已成功读取 `status.json`（HTTP 200），目标仍为 `3.0.0-beta.24`，audit Release `402342684`、控制 SHA `feb7f215…`。immutable audit tag、receipt 摘要和 snapshot 身份一致。此只读核对没有重新执行四客户端安装，也没有重新下载验证整份约 294 MiB 快照。
 - GitHub API 确认 Pages 自定义域名为 `packages.githubim.com`，HTTPS enforcement 开启，build type 为 workflow。
 
 ## 已证实的实施缺口

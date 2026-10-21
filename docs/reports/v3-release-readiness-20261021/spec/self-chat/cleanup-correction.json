@@ -1,0 +1,10 @@
+{
+  "classification": "fixture_cleanup_correction",
+  "prior_source_sha256": "acdd55c41ce2c4e681e49e341dedc9f7139c2ab835b3eddf6158300e596b92e7",
+  "corrected_source_sha256": "b7496caf79a47dcff637a1d4e26d237d96670d8387bbf9fb6bfdb13b046bb5ce",
+  "prior_result": "both cases reached complete business phase; failures only from cleanup second Client.Close returning ErrClosed",
+  "product_changed": false,
+  "change": "device.close joins client exactly once; first-close error remains checked",
+  "evidence": "pkg/client/client.go:246 repeated Close returns ErrClosed",
+  "rerun": "final-run.json"
+}

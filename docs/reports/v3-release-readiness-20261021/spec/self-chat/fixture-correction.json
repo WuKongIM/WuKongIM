@@ -1,0 +1,14 @@
+{
+  "classification": "fixture_pagination_correction",
+  "first_source_sha256": "e5fd2c27f6ad50d9aec0679799b5ea60992e0d2908c5d19d6e4265fb0afba523",
+  "corrected_source_sha256": "acdd55c41ce2c4e681e49e341dedc9f7139c2ab835b3eddf6158300e596b92e7",
+  "preserved_first_failure": "first-run.log and first-run.json",
+  "product_changed": false,
+  "change": "Use explicit inclusive start_message_seq=1 for full ascending history; retain strict page contents/order/completeness checks. Also retain raw final page before assertions.",
+  "evidence": [
+    "internal/usecase/message/page_reader.go:258 both bounds zero select latest reverse",
+    "docs-site/content/docs/api/product-http/messages/syncQuickstartChannelMessages.en.mdx:51 start boundary inclusive",
+    "test/e2e/message/webhook/webhook_test.go:793 existing start=1, pull_mode=1 full history"
+  ],
+  "rerun": "explicit-start-run.json"
+}

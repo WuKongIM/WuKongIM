@@ -1895,3 +1895,12 @@ specification, runbook, report, or module documentation; link to them when neede
   unique historical cause or beta-to-candidate non-regression. The diagnostic
   does not replace the earlier full 20-result Linux qualification. See
   [CPU contention evidence and limitations](../reports/2026-10-21-v3-cpu-contention.md).
+- V3 readiness separates candidate product qualification, the agreed RC long-run
+  plan, and mandatory release delivery. Migration recovery and the full Linux
+  conversation floor are qualified for product candidate `ef798352c`; the CPU
+  attribution experiment is not an additional release gate. Candidate integration,
+  its own CI, the agreed formal chain, and the disabled stable native package
+  channel remain separate work. Main's green checks do not certify a changed
+  product tree; the final tag still requires its own publisher gates and exact
+  signed APT/RPM public-client receipts. See
+  [2026-10-21 release readiness](../reports/2026-10-21-v3-release-readiness.md).

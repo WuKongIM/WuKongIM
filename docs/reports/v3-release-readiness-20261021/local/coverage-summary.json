@@ -1,0 +1,967 @@
+{
+  "source_sha": "32d402f7625c36f5667a290ec95c045f5f35937c",
+  "coverage": "all default packages across bounded infrastructure-recovery attempts, not one all-green run",
+  "stages": [
+    {
+      "name": "full-unit-p2",
+      "package_counts": {
+        "pass": 118,
+        "skip": 14,
+        "fail": 102
+      }
+    },
+    {
+      "name": "missing-cache-build-retry",
+      "package_counts": {
+        "pass": 101,
+        "skip": 1
+      }
+    }
+  ],
+  "final_package_counts": {
+    "pass": 219,
+    "skip": 15
+  },
+  "packages": {
+    "github.com/WuKongIM/WuKongIM/cmd/wkchatlifecycle": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkanalysis": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudanalysisbridge": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudbundle": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkclouddiagnosis": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudbootstrap": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudgate": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudhost": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudlease": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudleaseoidc": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudview": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcloudsim": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkissueagent": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkreviewcheck": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkreviewagent": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkreviewcheckmcp": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wukongim": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/api/demoui": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/api": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/cloudanalysismcp": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/cloudview": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/gateway": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/issueagentcli": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/manager/webui": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/manager": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/migratecli": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/mqtt": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/node": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/opsmcp": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/plugin": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/reviewagentcheckmcp": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/reviewagentcli": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/app/migration": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/arrival": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/capacity": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/app": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/config": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/coordinator": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/devsim": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/localbaseline": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/messageevent": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/metrics": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/planner": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/report": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/target": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/wkproto": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/worker": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/bench/workload": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/authority": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/config": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/backup": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/messageevents": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cloudanalysis": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/clouddeploy": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/backup": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/alibaba": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/alibaba": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/fake": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/deploy": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/delivery": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/cluster": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/migrationv3": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/mqttowner": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/mqttwill": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/reviewagentgithub": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/webhook": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/log": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/observability/taskaudit": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/backup": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/cloudviewstate": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/delivery": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/issueagentverify": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/online": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/presence": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/readavailability": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/webhook": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/backup": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/channel": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerepair": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/cloudanalysis": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/clouddeploy": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/conversation": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/management": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/message": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/migration": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/plugin": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/presence": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/usecase/user": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/backup": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/bench/model": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/machine": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/reactor": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/replication": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/service": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/store": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/testkit": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/transport": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/channel/worker": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/client": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/channels": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/control": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/internal/clock": {
+      "action": "skip",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/internal/lifecycle": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/net": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/observe": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/propose": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/routing": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/slots": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/cluster/tasks": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/command": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/fsm": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/planner": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/raft": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/server": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/state": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/statefile": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/controller/sync": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/dataformat": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/inspect": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/cache": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/internal/schema": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/message": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/meta": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/db/transfer": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/flowdoc": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/binding": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/core": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/jsonrpc": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/mqtt": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wsmux": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/session": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/testkit": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/transport": {
+      "action": "skip",
+      "stage": "full-unit-p2"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/types": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/gateway/wkprotoenc": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/goroutine": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/hashslot": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/metrics": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/codec": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/frame": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/jsonrpc": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/publication": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/quorumlog": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/raftlog": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/slot/fsm": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/slot/proxy": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/core": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/peer": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/testkit": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/transport/wire": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/wklog": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/workqueue": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/scripts": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/flowcheck": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/skillcheck": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/skillcontracts": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/docker": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/docker/observability/grafana": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/docker/observability/prometheus": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/docker/sim": {
+      "action": "pass",
+      "stage": "missing-cache-build-retry"
+    },
+    "github.com/WuKongIM/WuKongIM/internal/infra/migrationv2": {
+      "action": "pass",
+      "stage": "full-unit-p2"
+    }
+  },
+  "product_assertion_failures": 0,
+  "initial_failure": "disk exhausted before package tests",
+  "second_failure": "102 package build failures with missing shared Go cache files",
+  "recovery": "only the 102 build-failed packages rebuilt using dedicated cache; no product change or assertion relaxation"
+}

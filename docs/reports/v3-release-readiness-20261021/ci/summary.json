@@ -1,0 +1,41 @@
+{
+  "observed_at_utc": "2026-10-21T04:37:32.421409+00:00",
+  "main": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "candidate_product": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "rc_branch_head": "32d402f7625c36f5667a290ec95c045f5f35937c",
+  "latest_release": "v3.0.0-beta.24",
+  "latest_release_commit": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "rc_branch_prs": [],
+  "candidate_ahead_of_main": 7,
+  "rc_head_ahead_of_candidate": 3,
+  "product_directory_trees": {
+    "b469c6e5e2b4ff65611a8fe3389fb5034de3f152": {
+      "cmd": "bd2e4f43caa52cf7b745bc2e5453664b5d52dfc6",
+      "internal": "85390d685ec5da12247d945c732a91da8dd4613f",
+      "pkg": "f61b51bfc0005e52c575becf3c263341fea44b78"
+    },
+    "ef798352c40a94e57f768f76b2f4713712f827fe": {
+      "cmd": "bd2e4f43caa52cf7b745bc2e5453664b5d52dfc6",
+      "internal": "85390d685ec5da12247d945c732a91da8dd4613f",
+      "pkg": "9be2f839cec4b0a70da72f7524d777241a4714ea"
+    },
+    "32d402f7625c36f5667a290ec95c045f5f35937c": {
+      "cmd": "bd2e4f43caa52cf7b745bc2e5453664b5d52dfc6",
+      "internal": "85390d685ec5da12247d945c732a91da8dd4613f",
+      "pkg": "9be2f839cec4b0a70da72f7524d777241a4714ea"
+    }
+  },
+  "candidate_gate": {
+    "run_id": 39453556254,
+    "attempt": 1,
+    "endpoint_results": 20,
+    "all_pass": true,
+    "scheduled": 43800,
+    "completed": 43800,
+    "completed_in_window": 43795,
+    "max_p99_ms": 75.80928,
+    "min_completion_ratio": 0.9966666666666667,
+    "errors": 0,
+    "drops": 0
+  }
+}

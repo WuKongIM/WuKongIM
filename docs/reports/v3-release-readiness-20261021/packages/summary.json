@@ -1,0 +1,120 @@
+{
+  "schema": "wukongim.v3_readiness.packages/v1",
+  "observed_at_utc": "2026-10-21T04:37:29.987372+00:00",
+  "packages_control_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "unchanged_from_2026_10_20": true,
+  "public_status": {
+    "apt": true,
+    "audit_release_id": 402342684,
+    "control_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+    "operation": "add_release",
+    "reason": "ready",
+    "rpm": true,
+    "schema": "wukongim.native_package_repository_status/v2",
+    "snapshot_sha256": "242af0efec792b089661a5411e0b57b954998432cf13df9c657fb2d823851be8",
+    "target_version": "3.0.0-beta.24"
+  },
+  "public_identity_checks": {
+    "receipt_digest_matches_github_asset": true,
+    "audit_published_immutable": true,
+    "audit_tag_matches_control": true,
+    "release_target_matches_control": true,
+    "public_control_matches_current_main": true,
+    "public_receipt_audit_matches": true,
+    "public_snapshot_matches_receipt": true,
+    "public_version_matches_receipt": true
+  },
+  "audit_url": "https://github.com/WuKongIM/packages/releases/tag/native-package-preview-r402342684",
+  "preview_active_versions": [
+    "3.0.0-beta.21",
+    "3.0.0-beta.22",
+    "3.0.0-beta.23",
+    "3.0.0-beta.24"
+  ],
+  "preview_max_online_versions": 4,
+  "preview_snapshot_total_bytes": 308357492,
+  "preview_key_public_validity": {
+    "apt": {
+      "public_certificate_sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "current_public_subkey": {
+        "kind": "sub",
+        "bits": 4096,
+        "algorithm": "1",
+        "created_epoch": 1788279412,
+        "expiry_epoch": 1798647412,
+        "fingerprint": "1A4D90C85D398C2A27DFEB21F88A82679D9B5284"
+      },
+      "expires_at_utc": "2026-12-30T16:16:52+00:00",
+      "days_remaining": 70.48567144245371,
+      "minimum_valid_days": 30,
+      "rotation_begin_days": 45
+    },
+    "rpm": {
+      "public_certificate_sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "current_public_subkey": {
+        "kind": "sub",
+        "bits": 4096,
+        "algorithm": "1",
+        "created_epoch": 1788279417,
+        "expiry_epoch": 1798647417,
+        "fingerprint": "C2ED4800DA17788D0DF150F50AD7BE4E6B5A0853"
+      },
+      "expires_at_utc": "2026-12-30T16:16:57+00:00",
+      "days_remaining": 70.48572931282408,
+      "minimum_valid_days": 30,
+      "rotation_begin_days": 45
+    }
+  },
+  "stable": {
+    "enabled": false,
+    "status": "object_storage_required",
+    "releases": []
+  },
+  "stable_ready": false,
+  "blockers": [
+    "Stable control schema, source preflight, composition, publisher, audit identity and public clients remain preview-only.",
+    "Required object storage/CDN publication has not been evidenced; current origin remains GitHub Pages.",
+    "Independent stable APT/RPM public trust roots and offline/hardware signing ceremony have not been evidenced.",
+    "Stable bootstrap/channel-selection compatibility and exact-version public client acceptance are not implemented.",
+    "Preview already has four active versions; a new RC requires existing two-stage retirement first."
+  ],
+  "protected_state": {
+    "main_enforce_admins": true,
+    "required_checks": [
+      "Validate complete Pages snapshot"
+    ],
+    "required_approving_review_count": 0,
+    "immutable_releases": {
+      "enabled": true,
+      "enforced_by_owner": false
+    },
+    "environment_names": [
+      "github-pages",
+      "native-package-preview-apt-signing",
+      "native-package-preview-audit",
+      "native-package-preview-audit-read",
+      "native-package-preview-rpm-signing",
+      "native-package-source-read",
+      "native-package-toolchain-publish"
+    ],
+    "repository_variable_names": [],
+    "audit_tag_ruleset_ids": [
+      22025013,
+      22025014
+    ]
+  },
+  "scope": {
+    "read_only_remote": true,
+    "dispatches": 0,
+    "publication_changes": 0,
+    "permission_changes": 0,
+    "purchases": 0,
+    "secret_material_read_or_written": false
+  },
+  "limitations": [
+    "Public status and immutable receipt identities were checked, not a fresh four-client installation run.",
+    "The 308 MB snapshot archive was not re-downloaded or fully cryptographically reverified in this audit.",
+    "Preview signing validity was checked from public certificates only; it does not prove secret custody, backups or signing availability.",
+    "Absence of repository settings is not proof that no externally managed cloud storage or signing hardware exists."
+  ]
+}

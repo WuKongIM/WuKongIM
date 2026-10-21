@@ -1,0 +1,22 @@
+{
+  "frozen_at_utc": "2026-10-21T04:41:53.325798+00:00",
+  "package_source_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "package_AGENTS": [],
+  "package_FLOW": [],
+  "inherited_rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "repository_head": "e416a3c5bc2607c8cd75cfaf37a36f6a300af5b4",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-source-classification",
+  "branch": "codex/stable-source-classification",
+  "protected_no_change": [
+    ".github/workflows",
+    "manifests",
+    "keys",
+    "site",
+    "toolchain"
+  ]
+}

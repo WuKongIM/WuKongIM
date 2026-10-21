@@ -1,0 +1,55 @@
+{
+  "workflow_sha256": "12bdb82613b27113e80d73cf5f25ae6a23c21bda3e923a1b497f41ad53070d8f",
+  "kind": "manual real-process integration probes of extracted workflow executor; no product load",
+  "cases": [
+    {
+      "case": "pass",
+      "expected_status": "passed",
+      "observed": {
+        "status": "passed",
+        "exit_code": 0,
+        "output_bytes": 14,
+        "output_truncated": false,
+        "elapsed_seconds": 0.033
+      },
+      "wrapper_exit_code": 0
+    },
+    {
+      "case": "exit_7",
+      "expected_status": "failed",
+      "observed": {
+        "status": "failed",
+        "exit_code": 7,
+        "output_bytes": 0,
+        "output_truncated": false,
+        "elapsed_seconds": 0.027
+      },
+      "wrapper_exit_code": 7
+    },
+    {
+      "case": "timeout",
+      "expected_status": "timeout",
+      "observed": {
+        "status": "timeout",
+        "exit_code": -9,
+        "output_bytes": 0,
+        "output_truncated": false,
+        "elapsed_seconds": 1.003
+      },
+      "wrapper_exit_code": 1
+    },
+    {
+      "case": "output_limit",
+      "expected_status": "output_limit",
+      "observed": {
+        "status": "output_limit",
+        "exit_code": -9,
+        "output_bytes": 2049,
+        "output_truncated": true,
+        "elapsed_seconds": 0.018
+      },
+      "wrapper_exit_code": 1
+    }
+  ],
+  "pass": true
+}

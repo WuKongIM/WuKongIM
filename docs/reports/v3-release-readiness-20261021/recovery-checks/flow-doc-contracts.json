@@ -1,0 +1,15 @@
+{
+  "name": "flow-doc-contracts",
+  "source_sha": "84cf66c0fb24a561dea8fd8dc4e95a5aaf4453fe",
+  "policy_sha": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+  "arguments": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "exit_code": 0,
+  "log_bytes": 1376,
+  "at": "2026-10-21T04:46:18.311494+00:00"
+}

@@ -1,0 +1,76 @@
+{
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification",
+  "source_revision": "32d402f7625c36f5667a290ec95c045f5f35937c",
+  "task": "read-only specification/release-readiness audit",
+  "date": "2026-10-21",
+  "timezone": "Asia/Shanghai",
+  "repository_mutations": false,
+  "tests_or_loads_started": false,
+  "flow_scope": "No product package was deeply analyzed; report/rule/evidence inspection only. No applicable docs-root FLOW found.",
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "6342598d7f96f4bde4fa2418938b2b976cf1b6738bbb263536aaa92a3a9aa8ff"
+    },
+    {
+      "path": "docs/development/RELEASING.md",
+      "sha256": "7e14b1df0d8c73c022ca544e13b64c06dc66a15fe12d0f5763efe906f619c5fc"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "7c31c844da3636fb1d5864cff753837a5d3aade49ac775e25b3feab3fb0d2b79"
+    },
+    {
+      "path": "docs/reports/2026-10-20-v3-rc-qualification.md",
+      "sha256": "02dd9bc6d38196cfb48ac0929542ed2140c27c8367974271a13a030275de788d"
+    },
+    {
+      "path": "docs/reports/2026-10-20-v3-migration-recovery-repair.md",
+      "sha256": "3d522bb9caf2e34c7a2cdd63d221875f7b34208ac95b440b94c961ecfdbdaa9c"
+    },
+    {
+      "path": "docs/reports/2026-10-20-v3-fixed-host-performance.md",
+      "sha256": "b547b0279b15b7adcdad4d13d241976af21d76e765a1a24ee0174dbd764a2a0a"
+    },
+    {
+      "path": "docs/reports/2026-10-21-v3-cpu-contention.md",
+      "sha256": "0dcb31d859cc369914f06632b12f19fa58b10690bb691c8aaed72aa051e9a6d7"
+    },
+    {
+      "path": "docs/reports/2026-10-20-v3-rc-formal-plan.md",
+      "sha256": "660612834200fd1b1bc5fb91a46693dc79e386290da84401977a6843e1e19a07"
+    },
+    {
+      "path": "docs/reports/2026-10-20-v3-stable-channel-plan.md",
+      "sha256": "534621b4074b7ff75da823f6186e85812cf38cb09e17c0f1492350be848c98aa"
+    },
+    {
+      "path": "docs/reports/v3-fixed-host-20261020/independent-audit.json",
+      "sha256": "8802642da2d8ce94031a68775e02056a109c1494213d07a79923b57378d14be7"
+    },
+    {
+      "path": "docs/reports/v3-fixed-host-20261020/independent-supplement.json",
+      "sha256": "14d43e2f1277c9756772a341f0a56cae403729dd15b8d2a1f165ca55d1968368"
+    },
+    {
+      "path": "docs/reports/v3-cpu-contention-20261021/analysis/independent-summary.json",
+      "sha256": "c01db97ed891eac636563704b6d20fbbcefacfe9ac5225afe7cef535df250cb2"
+    },
+    {
+      "path": "docs/reports/v3-cpu-contention-20261021/delivery-validation.json",
+      "sha256": "9234e1c0f773537a6437b541213df092cdf516da4812a0913dfec21df4151200"
+    },
+    {
+      "path": "docs/reports/v3-migration-repair-20261020/regressions-after-sequence-fixture.json",
+      "sha256": "48ab14fb313de48386860c267a090a5a2dc4b01fdf0a13bbd4d9b9c6e001e29d"
+    }
+  ]
+}

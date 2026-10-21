@@ -1,0 +1,152 @@
+{
+  "schema": "wukongim.stable_source_preparation/v1",
+  "recorded_at_utc": "2026-10-21T04:46:08.311275+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-source-classification",
+  "branch": "codex/stable-source-classification",
+  "base_sha": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "commit": "dafbc9dbcd88eefeaabfcafa319a6dabb37738f1",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "7631d5493ea865114feba90b7c728c21c042897b8b1b3e6ab0ac13b61def7223"
+    },
+    {
+      "path": "README.md",
+      "sha256": "6260776b4291ec9eb9fc99ff1427044e44680dfb3a79ead3e55b2742b6dba85f"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "6d8b9e953e2691a9474b4a580765cc5f6e2344d4cc4caf58e5f098884bfe5f0b"
+    },
+    {
+      "path": "scripts/resolve-source-release.py",
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9"
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0"
+    },
+    {
+      "path": "tests/test_resolve_source_release.py",
+      "sha256": "b091e4920df9a966045aad9d417627189811ea91f7547eb0ba84762a613404a1"
+    },
+    {
+      "path": "tests/test_source_channel_classification.py",
+      "sha256": "745bf97a2fad33d3ea21b59a8a2f4999b49ee97b2799c1114bbc2eed00f01b2d"
+    },
+    {
+      "path": "tests/test_validate_control.py",
+      "sha256": "ec32b8a320cecbda12c03616437f3ecc2f36f3f938bbb9af9d0917151f3ecc4f"
+    },
+    {
+      "path": "tests/test_verify_source_attestations.py",
+      "sha256": "71c91cb0fe3b7194f6ce7e2e3bd1e8c8f8fe42b50e50787ec3d79a8560fc6a26"
+    }
+  ],
+  "worktree_clean": true,
+  "protected_production_paths_changed": [],
+  "tests": [
+    {
+      "command": "PYTHONPATH=tests python3 -m unittest -v test_resolve_source_release test_verify_source_attestations test_source_channel_classification test_validate_control.ValidateControlTest.test_rejects_stable_publication_on_pages test_validate_control.ValidateControlTest.test_rejects_stable_or_malformed_preview_version",
+      "exit_code": 0,
+      "tests": 38,
+      "log": "/tmp/wukongim-v3-readiness-20261021/packages/focused-tests.log"
+    },
+    {
+      "command": "./tests/contract.sh",
+      "exit_code": 0,
+      "log": "/tmp/wukongim-v3-readiness-20261021/packages/contracts.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "red_before_green": true,
+  "logs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/red-resolver.log",
+      "sha256": "d62c2de52a336401a3e266d9ecf285e57476982364fa8f0410550cf714711418"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/green-resolver.log",
+      "sha256": "969c4ae7f9b74f4956d62da2b703ed54d65b0d9a5cc1ff3aae38fe75ac652b03"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/red-attestations.log",
+      "sha256": "934ba64301e760e6b80832bc2bd607d67c72d03de7ae2f5440ed8a303c404476"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/green-attestations.log",
+      "sha256": "28142067a82a7594bb739850b1a084be18d435c7e70b3c850b616b7084e4d462"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/focused-tests.log",
+      "sha256": "13fd7abdfa75f40ec975ddd8417fe2cad00063a8dda8bd2c06832475c71abbbb"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/contracts.log",
+      "sha256": "56958563c8a7a1584ae9e15c05232adc100e273a0cb711725a8ce9ac52637cd2"
+    }
+  ],
+  "rule_freeze": "/tmp/wukongim-v3-readiness-20261021/packages/implementation-rules-freeze.json",
+  "failure_inventory": "/tmp/wukongim-v3-readiness-20261021/packages/failure-inventory.md",
+  "draft_pr": {
+    "baseRefName": "main",
+    "baseRefOid": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+    "headRefName": "codex/stable-source-classification",
+    "headRefOid": "dafbc9dbcd88eefeaabfcafa319a6dabb37738f1",
+    "isDraft": true,
+    "number": 67,
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39545800696/job/119043571460",
+        "name": "Validate complete Pages snapshot",
+        "startedAt": "2026-10-21T04:45:41Z",
+        "status": "IN_PROGRESS",
+        "workflowName": "Safety Automation - Deploy Package Repository Bootstrap"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "detailsUrl": "https://github.com/WuKongIM/packages/actions/runs/39545800695/job/119043571531",
+        "name": "TEST ONLY signed APT/RPM repository",
+        "startedAt": "2026-10-21T04:45:41Z",
+        "status": "IN_PROGRESS",
+        "workflowName": "Safety Automation - Drill Native Package Repository"
+      }
+    ],
+    "url": "https://github.com/WuKongIM/packages/pull/67"
+  },
+  "pr_workflow_authorization_audit": {
+    "files": [
+      ".github/workflows/pages.yml",
+      ".github/workflows/native-package-repository-drill.yml"
+    ],
+    "validation_repository_permissions": "contents: read",
+    "production_deploy_excludes_pull_requests": true,
+    "drill_uses_only_test_keys": true,
+    "production_workflows_only_workflow_dispatch": true,
+    "branch_push_and_draft_pr_created": true,
+    "production_dispatches": 0,
+    "merges": 0,
+    "publication_or_channel_enablement": false
+  },
+  "remaining_work": [
+    "Hosted stable preflight and DEB/RPM metadata mapping",
+    "Stable signing custody and public trust roots",
+    "Object storage/CDN publication and recovery",
+    "Stable bootstrap/channel-selection policy",
+    "Publisher/audit stable contracts and public exact-version client acceptance"
+  ],
+  "external_decisions": [
+    "Storage/CDN provider/account/resources/budget",
+    "Offline or hardware stable signing and custodian",
+    "New-install default channel policy"
+  ]
+}
