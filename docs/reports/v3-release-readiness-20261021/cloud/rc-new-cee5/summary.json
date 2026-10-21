@@ -1,0 +1,105 @@
+{
+  "schema": "wukongim.cloud_rc.preparation_summary/v1",
+  "sealed_at": "2026-10-21T16:44:03.357859+00:00",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "tracking_issue": "https://github.com/WuKongIM/WuKongIM/issues/1023",
+  "tracking_issue_create_attempts": 1,
+  "issue_open_unlocked_unique": true,
+  "planned_inputs": "planned-workflow-inputs.json",
+  "input_count": 6,
+  "request_budget_limit_micros": "1351044800",
+  "operational_stop_micros": 1201044800,
+  "prior_quote_reserve_micros": 148955200,
+  "reserve_is_invoice": false,
+  "aggregate_hard_limit_micros": 1500000000,
+  "aggregate_operational_stop_micros": 1350000000,
+  "rules_and_source_files_verified": 31,
+  "seven_identity_plus_wrapping_unchanged": true,
+  "oidc_subject_unchanged": true,
+  "diagnostic_public_fingerprint": "256 SHA256:616KYRkhhNGRpYQEEUQLp0bqrgZUtZGkIgb/AV/QMMc chat-20261021T163850Z-4ccd7506 (ED25519)",
+  "diagnostic_public_private_match": true,
+  "private_key_in_public_archive": false,
+  "latest_preparation_top_run": {
+    "id": 39605452697,
+    "run_number": 33,
+    "run_attempt": 1,
+    "status": "completed",
+    "conclusion": "failure",
+    "head_sha": "e30299fa59ea6669ea71024eabe209840f241f19",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39605452697"
+  },
+  "workflow_states": {
+    "chat-lifecycle-rehearsal.yml": {
+      "id": 329938003,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml"
+    },
+    "chat-lifecycle-rehearsal-finalize.yml": {
+      "id": 329938002,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    "chat-lifecycle-formal.yml": {
+      "id": 329938001,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal.yml"
+    },
+    "chat-lifecycle-formal-finalize.yml": {
+      "id": 329938000,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml"
+    },
+    "chat-lifecycle-stop.yml": {
+      "id": 329938004,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-stop.yml"
+    },
+    "cloud-deployment-bundle.yml": {
+      "id": 329938006,
+      "state": "active",
+      "path": ".github/workflows/cloud-deployment-bundle.yml"
+    },
+    "cloud-deployment-activate.yml": {
+      "id": 329938005,
+      "state": "active",
+      "path": ".github/workflows/cloud-deployment-activate.yml"
+    },
+    "cloud-lease-provision.yml": {
+      "id": 329938009,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-provision.yml"
+    },
+    "cloud-lease-release.yml": {
+      "id": 329938010,
+      "state": "disabled_manually",
+      "path": ".github/workflows/cloud-lease-release.yml"
+    },
+    "cloud-lease-observe.yml": {
+      "id": 329938007,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-observe.yml"
+    }
+  },
+  "dispatch_performed_by_this_subtask": false,
+  "provider_calls_by_this_subtask": false,
+  "workflow_permission_config_changes_by_this_subtask": false,
+  "all_subtask_exec_terminal": true,
+  "preserved_observations": [
+    "Initial formal-finalizer GET transport EOF; raw stderr is restricted 0600 outside public allowlist, public digest retained. One read-only retry succeeded.",
+    "Initial local guard incorrectly required generic release schedule already active; exact source says idle disabled is valid and paid arm_release is the enabling owner. Original scripts and correction receipt retained. No workflow change was made.",
+    "Initial complete Search immediately after successful Issue creation returned zero due to not-yet-visible search result. A subsequent read-only GET plus complete Search returned one exact matching Issue. No second create call."
+  ],
+  "limits": [
+    "Authorization was relayed by root from the explicit human response, preserved verbatim.",
+    "Latest top #33 failure is terminal; its failure is not relabeled success.",
+    "Old two Lease zero inventory is parent-provided prior evidence, not a new provider inventory read here.",
+    "Hash equality is public metadata continuity, not live IAM/secret/wrapping-key proof.",
+    "Identity/inventory/Quote/capacity/budget live admission belongs to the existing workflow.",
+    "No local execution of the GH_TOKEN-dependent shell preflight; exact official GET/Search fields independently checked.",
+    "Fresh main checks are point-in-time; root owns the final pre-dispatch guard and single initial dispatch.",
+    "All no-dispatch statements are this preparation snapshot, not a claim that root can never subsequently dispatch."
+  ]
+}

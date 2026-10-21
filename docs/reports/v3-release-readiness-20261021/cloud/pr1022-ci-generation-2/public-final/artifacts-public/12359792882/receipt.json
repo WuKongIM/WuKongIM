@@ -1,0 +1,33 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/artifacts/12359792882/zip",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T16:19:29.448802+00:00",
+  "artifact": {
+    "id": 12359792882,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM1OTc5Mjg4Mg==",
+    "name": "500qps-channel-append-8805fe2e09d4171ff761bfa4699859c6ba4fed17-1",
+    "size_in_bytes": 25167,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12359792882",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12359792882/zip",
+    "expired": false,
+    "digest": "sha256:ec7d75207628b808a61388d9e9e15e7693ab6bc5868e3663ef7225ed46f9542b",
+    "created_at": "2026-10-21T16:17:26Z",
+    "updated_at": "2026-10-21T16:17:26Z",
+    "expires_at": "2026-11-04T16:17:25Z",
+    "workflow_run": {
+      "id": 39632640443,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-budget-downward",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947"
+    }
+  },
+  "observed_bytes": 25167,
+  "observed_sha256": "ec7d75207628b808a61388d9e9e15e7693ab6bc5868e3663ef7225ed46f9542b",
+  "zip_crc_pass": true,
+  "member_count": 17,
+  "retained_count": 16
+}

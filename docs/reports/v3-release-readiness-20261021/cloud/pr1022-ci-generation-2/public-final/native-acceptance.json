@@ -1,0 +1,339 @@
+{
+  "jobs": [
+    {
+      "job_id": 119334693755,
+      "name": "Build and install deb/rpm preview",
+      "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+      "actual_checkout": [
+        {
+          "line": 603,
+          "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+        }
+      ],
+      "steps": [
+        {
+          "name": "Run package and CLI contracts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T16:12:40Z",
+          "completed_at": "2026-10-21T16:13:45Z"
+        },
+        {
+          "name": "Run single-node cluster SEND integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T16:13:45Z",
+          "completed_at": "2026-10-21T16:13:58Z"
+        },
+        {
+          "name": "Build deb and rpm preview",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T16:13:58Z",
+          "completed_at": "2026-10-21T16:16:37Z"
+        },
+        {
+          "name": "Validate signed repository metadata closure",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T16:16:37Z",
+          "completed_at": "2026-10-21T16:18:22Z"
+        },
+        {
+          "name": "Inspect package metadata",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T16:18:22Z",
+          "completed_at": "2026-10-21T16:18:28Z"
+        },
+        {
+          "name": "Install on Ubuntu 24.04",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T16:18:28Z",
+          "completed_at": "2026-10-21T16:18:45Z"
+        },
+        {
+          "name": "Install on Debian 12",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T16:18:45Z",
+          "completed_at": "2026-10-21T16:18:55Z"
+        },
+        {
+          "name": "Install on Rocky Linux 9",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T16:18:55Z",
+          "completed_at": "2026-10-21T16:19:12Z"
+        },
+        {
+          "name": "Install on AlmaLinux 9",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T16:19:12Z",
+          "completed_at": "2026-10-21T16:19:43Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T16:19:46Z",
+          "completed_at": "2026-10-21T16:19:46Z"
+        }
+      ],
+      "test_pass_lines": [
+        {
+          "line": 732,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wukongim\t3.452s"
+        },
+        {
+          "line": 733,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli\t0.045s"
+        },
+        {
+          "line": 734,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench\t0.013s"
+        },
+        {
+          "line": 735,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark\t14.651s"
+        },
+        {
+          "line": 737,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context\t0.009s"
+        },
+        {
+          "line": 738,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database\t20.116s"
+        },
+        {
+          "line": 739,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics\t0.026s"
+        },
+        {
+          "line": 741,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops\t0.167s"
+        },
+        {
+          "line": 742,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim\t0.219s"
+        },
+        {
+          "line": 743,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top\t0.022s"
+        },
+        {
+          "line": 745,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/config\t0.214s"
+        },
+        {
+          "line": 746,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t2.721s"
+        },
+        {
+          "line": 747,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t0.014s"
+        },
+        {
+          "line": 755,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t3.506s"
+        },
+        {
+          "line": 820,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t100.954s"
+        }
+      ],
+      "log_sha256": "9c80eea994460f91c7a374b53da95160ac1e155640f69a506ab9421e60262883"
+    },
+    {
+      "job_id": 119338651418,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+      "actual_checkout": [
+        {
+          "line": 606,
+          "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+        }
+      ],
+      "steps": [
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T16:20:29Z",
+          "completed_at": "2026-10-21T16:20:29Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T16:20:29Z",
+          "completed_at": "2026-10-21T16:21:58Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T16:21:58Z",
+          "completed_at": "2026-10-21T16:21:58Z"
+        }
+      ],
+      "test_pass_lines": [
+        {
+          "line": 780,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t55.180s"
+        }
+      ],
+      "log_sha256": "c5f60948d29a0fce9efc755ceff4c097db80cf7ca33e99b77c581454a3811f92"
+    },
+    {
+      "job_id": 119338651509,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+      "actual_checkout": [
+        {
+          "line": 606,
+          "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+        }
+      ],
+      "steps": [
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T16:20:21Z",
+          "completed_at": "2026-10-21T16:20:21Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T16:20:21Z",
+          "completed_at": "2026-10-21T16:21:33Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T16:21:33Z",
+          "completed_at": "2026-10-21T16:21:34Z"
+        }
+      ],
+      "test_pass_lines": [
+        {
+          "line": 777,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t37.065s"
+        }
+      ],
+      "log_sha256": "4eea0ad3b7e35416ea04aa1c75f348cbe17e38a1fb4cb5e658201a0c1b72425f"
+    },
+    {
+      "job_id": 119338651528,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+      "actual_checkout": [
+        {
+          "line": 606,
+          "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+        }
+      ],
+      "steps": [
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T16:20:19Z",
+          "completed_at": "2026-10-21T16:20:19Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T16:20:19Z",
+          "completed_at": "2026-10-21T16:21:44Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T16:21:44Z",
+          "completed_at": "2026-10-21T16:21:45Z"
+        }
+      ],
+      "test_pass_lines": [
+        {
+          "line": 778,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t50.112s"
+        }
+      ],
+      "log_sha256": "d6a964f1b7e06332ee898bdaa7e9ae1252679341a56c6ff23e0fd47f1d62d457"
+    },
+    {
+      "job_id": 119338651637,
+      "name": "Exercise Debian 12 package lifecycle",
+      "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+      "actual_checkout": [
+        {
+          "line": 606,
+          "source": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+        }
+      ],
+      "steps": [
+        {
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T16:20:23Z",
+          "completed_at": "2026-10-21T16:20:23Z"
+        },
+        {
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T16:20:23Z",
+          "completed_at": "2026-10-21T16:21:38Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T16:21:38Z",
+          "completed_at": "2026-10-21T16:21:39Z"
+        }
+      ],
+      "test_pass_lines": [
+        {
+          "line": 777,
+          "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t43.114s"
+        }
+      ],
+      "log_sha256": "cca5ca915414bd0d647ef37ea2a10d63e17320ea213f693fe80334a088712843"
+    }
+  ],
+  "package_archive_downloaded": false,
+  "checksums_range_receipt": "large-artifact-selected/native-checksum-receipt.json",
+  "limit": "Credential-free snapshot packages and TEST ONLY signed metadata validation; not signed public stable publication."
+}

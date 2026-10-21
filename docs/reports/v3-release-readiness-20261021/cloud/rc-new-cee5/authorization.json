@@ -1,0 +1,22 @@
+{
+  "schema": "wukongim.cloud_rc.paid_authorization/v1",
+  "recorded_at": "2026-10-21T16:38:50.259081+00:00",
+  "human_answer_verbatim": "授权按此方案启动新的云 RC",
+  "human_answer_source": "explicit human reply relayed by parent /root in the current conversation",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "scope": "New first-attempt request. Hangzhou four 4-vCPU/8GiB hosts (three server nodes plus one load host), 256 slots; 2h rehearsal and release, then fresh Lease for continuous72h soak, capacity<=8h and30min recovery; temporary public SSH/HTTP, unique tracking Issue, safety schedules and final exact zero cleanup. Admission failure stops.",
+  "prior_quote_reserve_micros": 148955200,
+  "request_budget_limit_micros": "1351044800",
+  "operational_stop_micros": "1201044800",
+  "aggregate_hard_limit_micros": 1500000000,
+  "aggregate_operational_stop_micros": 1350000000,
+  "reserve_is_not_provider_invoice": true,
+  "new_budget_or_iam_changes_authorized": false,
+  "dispatch_owner": "/root",
+  "subtask_scope": "GET-only checks, new local request-scoped diagnostic SSH identity and one exact tracking Issue; no dispatch, provider calls or workflow/configuration changes",
+  "workflow_route": "Exact formal Actions authorization; Direct Lab is a different diagnostic contract and is not selected",
+  "old_request_reuse": false,
+  "released_preclock_run_id": ""
+}

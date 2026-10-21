@@ -1,0 +1,19 @@
+{
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "clean": true,
+  "source_files": {
+    "tests/native_stable_clients_drill.py": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+    "tests/test_native_stable_clients_drill.py": "f8b1a8e128453c34b8a054a01bb342f43a6f6d97be2dd33c44b430dd1a80890a",
+    "scripts/validate-production-package-clients.py": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+    "docs/stable-audit-transport.md": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1"
+  },
+  "applicable_rules": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "repository_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "context_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+  "flow_files": [],
+  "discovery": "No AGENTS.md, FLOW.md, CONTEXT.md within packages checkout; parent root AGENTS applies. No parent scoped FLOW found."
+}

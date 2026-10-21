@@ -1,0 +1,16 @@
+{
+  "head": {
+    "endpoint": "repos/WuKongIM/WuKongIM/git/commits/b3fdb777b9270128fe56086bc47562b321c2c947",
+    "exit_code": 0,
+    "sha256": "12fcb7b395a92e35f8f10c615c88700a01dcb3987bc786f703b4374cf72b1990",
+    "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+    "sha": "b3fdb777b9270128fe56086bc47562b321c2c947"
+  },
+  "merge": {
+    "endpoint": "repos/WuKongIM/WuKongIM/git/commits/8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+    "exit_code": 0,
+    "sha256": "7ee580fda54206ddab8f5b88b19586f1a312b8ef31b93926cb689780f90cd2ab",
+    "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+    "sha": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+  }
+}

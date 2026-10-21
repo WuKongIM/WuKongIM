@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-21T16:37:37.065038+00:00",
+  "head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "parent": "eac9d252f13ea201b405825e6303de703af08c16",
+  "patch_sha256": "31b799475c7dbf3c88de48d017ff21a1e4f94caa649015166b912533be2d560a",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "077f9730fa2c50cd9a9d9daedb1a42964d4d975403121042d0cbb30b0af0154a",
+      "size": 3297
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "5e0def41669818a1908b2c4c2185f2f464ee2f42f7520435e49251319b5df758",
+      "size": 70008
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "bbafd1bff285aaf93141bce29fc15c967322d19b8b0aca3b9c662f17a9d6ab74",
+      "size": 79123
+    }
+  ],
+  "full_suite": "557 tests: 556 passed and one pre-existing Mac RPM skip; 4 contracts passed",
+  "reviews": {
+    "Standards": 0,
+    "Spec": 0
+  },
+  "prior_ci_failure_preserved": true,
+  "linux_ci": "not yet started",
+  "cloud_write": false
+}

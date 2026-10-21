@@ -1,0 +1,27 @@
+[
+  {
+    "path": "AGENTS.md",
+    "size": 13284,
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  {
+    "path": ".github/workflows/README.md",
+    "size": 85960,
+    "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+  },
+  {
+    "path": "test/e2e/AGENTS.md",
+    "size": 30711,
+    "sha256": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603"
+  },
+  {
+    "path": "test/e2e/migration/ordinary_history/AGENTS.md",
+    "size": 2383,
+    "sha256": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc"
+  },
+  {
+    "path": "pkg/channel/FLOW.md",
+    "size": 12423,
+    "sha256": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259"
+  }
+]

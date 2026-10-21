@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "gh",
+    "api",
+    "repos/WuKongIM/WuKongIM/pulls/1022"
+  ],
+  "started_at": "2026-10-21T16:27:14.736087+00:00",
+  "completed_at": "2026-10-21T16:27:16.103698+00:00",
+  "bytes": 18970,
+  "sha256": "75878802e5bc9abc2cdba5451d942efd198f948b7cf5f0fcf8b09554e7b68da4"
+}

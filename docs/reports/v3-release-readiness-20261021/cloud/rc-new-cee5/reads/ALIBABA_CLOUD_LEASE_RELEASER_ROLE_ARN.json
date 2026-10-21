@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-21T16:38:52.986461+00:00",
+  "observed_at": "2026-10-21T16:38:54.084457+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+  "exit_code": 0,
+  "response_bytes": 172,
+  "response_sha256": "0094c81b421c676cd5be79cb0017a980268995ec4e14fb33b253eb146f3aa65b",
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+    "present": true,
+    "value_sha256": "f31bd3e263514685dd6cb9d95c40280a1dd59acf9cc20460a74eb0dffab0be40"
+  }
+}

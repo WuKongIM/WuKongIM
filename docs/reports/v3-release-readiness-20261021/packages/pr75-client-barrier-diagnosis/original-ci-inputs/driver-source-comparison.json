@@ -1,0 +1,123 @@
+{
+  "source_refs": [
+    "983e567f155a982c45ca066e4dc67d33851f0d24",
+    "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+    "eac9d252f13ea201b405825e6303de703af08c16"
+  ],
+  "files": [
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "versions": [
+        {
+          "ref": "983e567f155a982c45ca066e4dc67d33851f0d24",
+          "sha256": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+          "size": 67658
+        },
+        {
+          "ref": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+          "sha256": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+          "size": 67658
+        },
+        {
+          "ref": "eac9d252f13ea201b405825e6303de703af08c16",
+          "sha256": "18a0d098f9cb9203e12b58180e64b8691708d0032adfa1ab463f7a1295c23f4e",
+          "size": 67658
+        }
+      ],
+      "identical": true
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "versions": [
+        {
+          "ref": "983e567f155a982c45ca066e4dc67d33851f0d24",
+          "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+          "size": 87886
+        },
+        {
+          "ref": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+          "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+          "size": 87886
+        },
+        {
+          "ref": "eac9d252f13ea201b405825e6303de703af08c16",
+          "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+          "size": 87886
+        }
+      ],
+      "identical": true
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "versions": [
+        {
+          "ref": "983e567f155a982c45ca066e4dc67d33851f0d24",
+          "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+          "size": 42889
+        },
+        {
+          "ref": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+          "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+          "size": 42889
+        },
+        {
+          "ref": "eac9d252f13ea201b405825e6303de703af08c16",
+          "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+          "size": 42889
+        }
+      ],
+      "identical": true
+    },
+    {
+      "path": "tests/native_source_metadata_drill.py",
+      "versions": [
+        {
+          "ref": "983e567f155a982c45ca066e4dc67d33851f0d24",
+          "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+          "size": 12447
+        },
+        {
+          "ref": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+          "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+          "size": 12447
+        },
+        {
+          "ref": "eac9d252f13ea201b405825e6303de703af08c16",
+          "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+          "size": 12447
+        }
+      ],
+      "identical": true
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "versions": [
+        {
+          "ref": "983e567f155a982c45ca066e4dc67d33851f0d24",
+          "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+          "size": 15073
+        },
+        {
+          "ref": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+          "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+          "size": 15073
+        },
+        {
+          "ref": "eac9d252f13ea201b405825e6303de703af08c16",
+          "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+          "size": 15073
+        }
+      ],
+      "identical": true
+    }
+  ],
+  "all_identical": true,
+  "pr_changed_files": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/object-storage-delivery.md",
+    "scripts/prepare-object-storage-delivery.py",
+    "tests/test_object_storage_delivery.py"
+  ],
+  "causal_limit": "Identical driver and client validation bytes exclude a direct change to those files, but do not prove an infrastructure or nondeterministic root cause."
+}

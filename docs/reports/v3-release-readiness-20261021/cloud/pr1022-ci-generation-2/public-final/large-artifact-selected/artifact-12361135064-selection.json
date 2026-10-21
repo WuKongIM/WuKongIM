@@ -1,0 +1,9 @@
+{
+  "artifact_id": 12361135064,
+  "archive_size": 77863000,
+  "downloaded_range_bytes": 509,
+  "selected_entries": [
+    "checksums.txt"
+  ],
+  "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked"
+}

@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-10-21T16:38:56.517116+00:00",
+  "observed_at": "2026-10-21T16:38:57.580208+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/chat-lifecycle-stop.yml",
+  "exit_code": 0,
+  "response_bytes": 564,
+  "response_sha256": "603d084bd8834f16ad50d52c793f1f227ebc6217a8cad2c632ab6280db09d6d4",
+  "data": {
+    "id": 329938004,
+    "node_id": "W_kwDOJgfwyc4TqnRU",
+    "name": "Agent Tool - Stop Chat Lifecycle Request",
+    "path": ".github/workflows/chat-lifecycle-stop.yml",
+    "state": "active",
+    "created_at": "2026-08-08T19:52:22.000+08:00",
+    "updated_at": "2026-08-08T19:52:22.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938004",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-stop.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Agent%20Tool%20-%20Stop%20Chat%20Lifecycle%20Request/badge.svg"
+  }
+}

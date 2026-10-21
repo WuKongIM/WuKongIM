@@ -1,0 +1,302 @@
+{
+  "scope": "public-only local preparation; private sibling excluded",
+  "payload_files": 59,
+  "payload_bytes": 167101,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3296,
+      "sha256": "5cd0f1f1ed2001519b229b0418c438e0686d7209c15b7d1004f6f347c4278b35"
+    },
+    {
+      "path": "authorization.json",
+      "bytes": 1515,
+      "sha256": "86988ef6ecb7a7cf13581c0d0b677a53dcb561e778b4b9829fd749d349547ed6"
+    },
+    {
+      "path": "create-issue-once.py",
+      "bytes": 6879,
+      "sha256": "c1ef5124a432b313996326ce57bce341d5c34f148f3a474d8c3d4b3798657e10"
+    },
+    {
+      "path": "diagnostic.pub",
+      "bytes": 112,
+      "sha256": "e0b425f1bd5d2051b65108188348730851285cca650d80482c169768b136535c"
+    },
+    {
+      "path": "docs__agents__issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529"
+    },
+    {
+      "path": "execution/issue-before.json",
+      "bytes": 5165,
+      "sha256": "311e99a8739be01b701478c6d56e422731ef2cd24449af156a3abf6409317613"
+    },
+    {
+      "path": "execution/main-before.json",
+      "bytes": 332,
+      "sha256": "ced74602633ce50ed84b1067518370ac1ab889f6bab7024b672e75769fa68341"
+    },
+    {
+      "path": "fresh-public-guard.json",
+      "bytes": 4998,
+      "sha256": "d5fb5f90e73ae750174c99f069d53a876f48f840577771b96a6ee3293c7a6cf4"
+    },
+    {
+      "path": "guard-contract-correction.json",
+      "bytes": 606,
+      "sha256": "ccdfb15ad6c171d886a76d8d0d21765348f5a241c5e416855aaa464db0bbdb87"
+    },
+    {
+      "path": "guard.py",
+      "bytes": 9328,
+      "sha256": "054565ed7834b7ce8a32747cd74af1e0319ae16fba3a8a7eaeeef1a626fb9974"
+    },
+    {
+      "path": "issue-body.md",
+      "bytes": 2802,
+      "sha256": "17e9c45b4d22e68b0ae018f9133fa45761ab3596ce4c7394c934076af5262438"
+    },
+    {
+      "path": "issue-create-attempt.json",
+      "bytes": 655,
+      "sha256": "fe1ca90a34edcff5c6d2291a213bc2fa9228b0e95d331c70896671a4b199f7ae"
+    },
+    {
+      "path": "issue-create-result.json",
+      "bytes": 357,
+      "sha256": "d19ac239e6ff7cc4220def916de03e9c8107179818004f59f64f6bd606a95cea"
+    },
+    {
+      "path": "issue-verification.json",
+      "bytes": 670,
+      "sha256": "d3457349e836d0117e8f6e57def3626df1546ee24a245c7e3e707eeff1ec9413"
+    },
+    {
+      "path": "local-diagnostic-identity.json",
+      "bytes": 607,
+      "sha256": "3d689cf61fcd630ea60a972597a731be3d3c6f6fe459dd3920cd6e4f43207c22"
+    },
+    {
+      "path": "planned-dispatch.json",
+      "bytes": 978,
+      "sha256": "a6c7536d0d9c25ab1ef39b6fec6a2201d8f310c6ddc23da5877e10a73fd7d637"
+    },
+    {
+      "path": "planned-workflow-inputs.json",
+      "bytes": 365,
+      "sha256": "d83b988021ff7f78a182ab9e6ed34cf165df61bda1af7e81fa48d45c3110a5c7"
+    },
+    {
+      "path": "prepare-local.py",
+      "bytes": 5260,
+      "sha256": "4e7c9dab85f674ba21ce58cc642741c06ccb8f4fdd3706f891ed97fca8a52027"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH.json",
+      "bytes": 511,
+      "sha256": "fa74365a1bc92f19807bead676135688364f39f34acb16377444b3b7cb223f17"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN.json",
+      "bytes": 515,
+      "sha256": "f786040f8736f87bace940e3b3122f87fb8962da0825a47340de00b50e46229f"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE.json",
+      "bytes": 507,
+      "sha256": "5d25ed9e40554a548ebead17e0c046435ad4c4e32804d66f5c78597b0f509aa1"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN.json",
+      "bytes": 515,
+      "sha256": "dc9c85944727eb795ee8a2479ed0ccfffe3b9bfb94471a3305b1774d92c0f562"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN.json",
+      "bytes": 521,
+      "sha256": "14a0d563cedc42dda61562497b99553bcce610a280bba1af340886e9c56c0fc5"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_REGION.json",
+      "bytes": 493,
+      "sha256": "1c1725493f4d39270e4fa1b013e0e9adca5b30beecfe7a97cbd95821ee417b42"
+    },
+    {
+      "path": "reads/ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN.json",
+      "bytes": 515,
+      "sha256": "b68b8787899052eeaa85748e5f09174a9f102030e3abcd1f290a1f1dd609a24d"
+    },
+    {
+      "path": "reads/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY.json",
+      "bytes": 515,
+      "sha256": "a6f910f5dcd59e270c0a101e012fa4f12a8a1989ecb5f7d60014dfc45ef3eb36"
+    },
+    {
+      "path": "reads/chat-lifecycle-formal-finalize.yml-retry-reason.json",
+      "bytes": 193,
+      "sha256": "a5cd5450632e4b18cd19d11cd8535def7c9f3c667bb20177fde36f613b16bac6"
+    },
+    {
+      "path": "reads/issue-before.json",
+      "bytes": 388,
+      "sha256": "64240c04100622359e89c5d6b791b2ae43472df255d89ec3a06dcdbda511ba34"
+    },
+    {
+      "path": "reads/issue-exact-after-create.json",
+      "bytes": 5986,
+      "sha256": "69d50e25bdfbb226caa747bd79b867668c0facd5ab6319b20975ecad8a26107b"
+    },
+    {
+      "path": "reads/issue-exact-read-2.json",
+      "bytes": 5986,
+      "sha256": "9825216cc1fc164bf1078596d6658149dd8b7aa89627c8b4c8219d41e45463e7"
+    },
+    {
+      "path": "reads/issue-pre-create.json",
+      "bytes": 388,
+      "sha256": "179f084ae178c588d4ba959e72c65d7259916c5848610ed423f9672c8a586290"
+    },
+    {
+      "path": "reads/issue-search-after-create.json",
+      "bytes": 388,
+      "sha256": "a5d4610299ff0f4dea4033d2f771d2f3a344df5877835fc69c367b5466a4de21"
+    },
+    {
+      "path": "reads/issue-search-read-2.json",
+      "bytes": 6377,
+      "sha256": "fa9453f63e2e6bf6539053fda43fbd3b51eb6232e8d2a242d9fff38a835ff028"
+    },
+    {
+      "path": "reads/latest-top.json",
+      "bytes": 19903,
+      "sha256": "226be69c275c1ddd9db5e29449b26e8ad055d6e9eca44f4afbc715a8a57c9beb"
+    },
+    {
+      "path": "reads/main-after.json",
+      "bytes": 700,
+      "sha256": "13d067a94c0abf3997ca19b4a27df24e97724f05babeff15959fbf7afb2d32d7"
+    },
+    {
+      "path": "reads/main-before.json",
+      "bytes": 700,
+      "sha256": "39c582096b4c5ff82ef7ea6f68eda89c6422f860cd2da99724ec76c02b989a58"
+    },
+    {
+      "path": "reads/main-post-issue-create.json",
+      "bytes": 700,
+      "sha256": "f969ff2d17dfde421b40ccd11543249f18e81fbb873ba5591df435db2ddc9812"
+    },
+    {
+      "path": "reads/main-pre-issue-create.json",
+      "bytes": 700,
+      "sha256": "02a4c86d0a070670e43c50c9dc4e584c67bf176838d0c0aa8355045fccd1d355"
+    },
+    {
+      "path": "reads/oidc-subject.json",
+      "bytes": 531,
+      "sha256": "b5557227e1e8c4e7231a767a0812f64e4df9341041b128739e3e454bc38565d4"
+    },
+    {
+      "path": "reads/top-33.json",
+      "bytes": 18364,
+      "sha256": "a802f20334982c864feb3764342dbf9c572b0be45c09cdaa102b80822c4676e8"
+    },
+    {
+      "path": "reads/workflow-chat-lifecycle-formal-finalize.yml-failure.json",
+      "bytes": 424,
+      "sha256": "e5a0bb3a057862b63f760e049ca76dfde43e93108f76bdfeabe8fe18948fd0fb"
+    },
+    {
+      "path": "reads/workflow-chat-lifecycle-formal-finalize.yml-read-2.json",
+      "bytes": 1038,
+      "sha256": "538a041c46d34fcc53a1a5734ed4d6054c5dba6e2d1430b445f573da78ab5e64"
+    },
+    {
+      "path": "reads/workflow-chat-lifecycle-formal.yml.json",
+      "bytes": 1007,
+      "sha256": "709b420343d145ce84c532f64fdc10f01cefcc89ce07b63328d418a79e8513b6"
+    },
+    {
+      "path": "reads/workflow-chat-lifecycle-rehearsal-finalize.yml.json",
+      "bytes": 1043,
+      "sha256": "2e5b3b538d937b0f724f539f519856a04a3bc0bc5bec76edbbd231ab22f846ee"
+    },
+    {
+      "path": "reads/workflow-chat-lifecycle-rehearsal.yml.json",
+      "bytes": 983,
+      "sha256": "b5bde6595e6f472e21c1de004941bad6808a2bdc6f7d7989ea3417016e8d0c12"
+    },
+    {
+      "path": "reads/workflow-chat-lifecycle-stop.yml.json",
+      "bytes": 962,
+      "sha256": "077ea754430b33930cda9e2c0910acdfd63d1a045d3a4682d690f4a714219309"
+    },
+    {
+      "path": "reads/workflow-cloud-deployment-activate.yml.json",
+      "bytes": 974,
+      "sha256": "6890fdffc92b7bd0ddce0bb420d59d7df6bf80626109f900ea700ef634e9a16e"
+    },
+    {
+      "path": "reads/workflow-cloud-deployment-bundle.yml.json",
+      "bytes": 978,
+      "sha256": "b40202b27213ac987eb6917f6beebfe95eec18a3e6eb1d2f2306e99918112047"
+    },
+    {
+      "path": "reads/workflow-cloud-lease-observe.yml.json",
+      "bytes": 944,
+      "sha256": "dd155487a9da38394ff6be59b35ea4d4637524ff82179da8046abe814f22a0ce"
+    },
+    {
+      "path": "reads/workflow-cloud-lease-provision.yml.json",
+      "bytes": 954,
+      "sha256": "3166061993595ac9f45378aba24e569046ad09d33f49f1f0eb0f0a68e190df84"
+    },
+    {
+      "path": "reads/workflow-cloud-lease-release.yml.json",
+      "bytes": 971,
+      "sha256": "b214ed213fcb6072fca1674d61b87e2dabbf3162a14f3fea7d2a844d45d74541"
+    },
+    {
+      "path": "reconcile-issue-readonly.py",
+      "bytes": 4814,
+      "sha256": "15cba3b187a3690360b29cdb8c59a92b3436badaae4eb5025d661c1432a6f641"
+    },
+    {
+      "path": "resume-guard-v2.py",
+      "bytes": 6775,
+      "sha256": "af0ed8fa7d284a3a0f8aa4dabf87de05e236822a6acbd24e684b24cdb2c56131"
+    },
+    {
+      "path": "resume-guard.py",
+      "bytes": 6537,
+      "sha256": "a5608b95b72b8c11e200bc186db45a2357a6a5e14720d5a590566ce0fc0f98c1"
+    },
+    {
+      "path": "rules-and-source-freeze.json",
+      "bytes": 8252,
+      "sha256": "149d119dd6e0f17a2fa487f60eb39dc41cd6e61e08931a826cf0f8689c648cb7"
+    },
+    {
+      "path": "scripts__chat-lifecycle__comment-request-issue.sh",
+      "bytes": 6706,
+      "sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0"
+    },
+    {
+      "path": "seal-public.py",
+      "bytes": 7734,
+      "sha256": "16bf3c2ecf2665aa94a87f2126544c79c44582c909e12a07463b50b915143fee"
+    },
+    {
+      "path": "sealing-notes.json",
+      "bytes": 267,
+      "sha256": "23b011c51ea2d57d5501459613caef1bbe1364e56283992a670a4cac64832e87"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 4802,
+      "sha256": "9fe69810df9a2b72840e194ea822056feada952b67bafbb5886474b51ea99452"
+    }
+  ]
+}

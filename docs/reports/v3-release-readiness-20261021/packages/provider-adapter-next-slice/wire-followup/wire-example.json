@@ -1,0 +1,32 @@
+{
+  "purpose": "illustrative request only; not executed; no real resource ID",
+  "action": "BatchSetCdnDomainConfig",
+  "version": "2018-05-10",
+  "parameters": {
+    "DomainNames": "example.com",
+    "Functions": "[{\"functionName\":\"back_to_origin_url_rewrite\",\"functionArgs\":[{\"argName\":\"source_url\",\"argValue\":\"^/repo$\"},{\"argName\":\"target_url\",\"argValue\":\"/fixture/site/repo\"},{\"argName\":\"flag\",\"argValue\":\"break\"},{\"argName\":\"sequence\",\"argValue\":\"1\"}]}]"
+  },
+  "decoded_functions_for_review": [
+    {
+      "functionName": "back_to_origin_url_rewrite",
+      "functionArgs": [
+        {
+          "argName": "source_url",
+          "argValue": "^/repo$"
+        },
+        {
+          "argName": "target_url",
+          "argValue": "/fixture/site/repo"
+        },
+        {
+          "argName": "flag",
+          "argValue": "break"
+        },
+        {
+          "argName": "sequence",
+          "argValue": "1"
+        }
+      ]
+    }
+  ]
+}

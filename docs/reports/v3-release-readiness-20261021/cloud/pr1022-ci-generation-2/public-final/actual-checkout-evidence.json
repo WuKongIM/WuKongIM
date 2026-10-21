@@ -1,0 +1,264 @@
+[
+  {
+    "job_id": 119334693755,
+    "name": "Build and install deb/rpm preview",
+    "checkout_observations": [
+      {
+        "command_line": 602,
+        "value_line": 603,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "9c80eea994460f91c7a374b53da95160ac1e155640f69a506ab9421e60262883"
+  },
+  {
+    "job_id": 119334704670,
+    "name": "Emit credential-free wake-up",
+    "checkout_observations": [],
+    "checkout_not_applicable": true,
+    "reason": "signal/aggregate-only job has no checkout or product execution",
+    "log_sha256": "d0c81901c193b2a8f02469b4aa928628b3dff608a28dbc4caf30a99fa8cfe5bd"
+  },
+  {
+    "job_id": 119334693787,
+    "name": "PR three-node correctness",
+    "checkout_observations": [
+      {
+        "command_line": 601,
+        "value_line": 602,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "5d832a20899ec944bb9d5b180bd7749f34997009a15d201dbb1221cb93d501c1"
+  },
+  {
+    "job_id": 119334694083,
+    "name": "PR messaging unit and race",
+    "checkout_observations": [
+      {
+        "command_line": 600,
+        "value_line": 601,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "bb7a451f1fa760e1f95b3d98bd9ea4cbab94c3251e781c07903a9e87eb872a0c"
+  },
+  {
+    "job_id": 119334694368,
+    "name": "PR performance baseline evidence",
+    "checkout_observations": [
+      {
+        "command_line": 597,
+        "value_line": 598,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "2d7cb3758dc7a8564cb9e9361441b46bfe3ae968d2ffe2b4c39458e823ece92f"
+  },
+  {
+    "job_id": 119334862524,
+    "name": "PR 500 QPS / mixed-send",
+    "checkout_observations": [
+      {
+        "command_line": 603,
+        "value_line": 604,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "fe65e54ee89ec1a01e95cf920f047b0bb7c7f945f708c766531177669de042cd"
+  },
+  {
+    "job_id": 119334862603,
+    "name": "PR 500 QPS / tcp-sendack",
+    "checkout_observations": [
+      {
+        "command_line": 603,
+        "value_line": 604,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "c22e4d43176da21b7c42509db9280a74483fd9dff6202f25308efc47356283bb"
+  },
+  {
+    "job_id": 119334862916,
+    "name": "PR 500 QPS / channel-append",
+    "checkout_observations": [
+      {
+        "command_line": 603,
+        "value_line": 604,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "cf6e8cd3ed3193fcd6f4dd931ab711d369cf92f688f60b99a75a35885875626c"
+  },
+  {
+    "job_id": 119334694831,
+    "name": "Emit credential-free wake-up",
+    "checkout_observations": [],
+    "checkout_not_applicable": true,
+    "reason": "signal/aggregate-only job has no checkout or product execution",
+    "log_sha256": "c2b358d5ff1b93517543ca3ca36cf68c84b87bae99547984ec67f9179dd2891c"
+  },
+  {
+    "job_id": 119334693278,
+    "name": "Candidate default suite (go-unit)",
+    "checkout_observations": [
+      {
+        "command_line": 608,
+        "value_line": 609,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "dcdadb0dfcd8e0965dea434c4bcababbf9324154028a0c1061b8124e2e41459a"
+  },
+  {
+    "job_id": 119334693992,
+    "name": "Candidate scripts integration",
+    "checkout_observations": [
+      {
+        "command_line": 608,
+        "value_line": 609,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "40a03012d0ea5867e38337d4ab04b15b3dbf6099448f70208430bed9fed60f98"
+  },
+  {
+    "job_id": 119334695968,
+    "name": "iOS CocoaPods 1.1.1",
+    "checkout_observations": [
+      {
+        "command_line": 118,
+        "value_line": 119,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "ff7863f3f64651c17215ee965f6d9936857567a853f15881db8b1d93ab45186d"
+  },
+  {
+    "job_id": 119334696322,
+    "name": "Android Maven Central 1.0.5",
+    "checkout_observations": [
+      {
+        "command_line": 133,
+        "value_line": 134,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "92aaae9f84b1714bee107867084bbb7361e73f872c6791cc545e019c5ed1177c"
+  },
+  {
+    "job_id": 119334696491,
+    "name": "Flutter pub.dev 1.1.0 on iOS",
+    "checkout_observations": [
+      {
+        "command_line": 169,
+        "value_line": 170,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "84eac382fb31e43e13f6563bb68bd3cad7552643b3e8e3c5a16550e79af39988"
+  },
+  {
+    "job_id": 119337576521,
+    "name": "PR three-node regression",
+    "checkout_observations": [],
+    "checkout_not_applicable": true,
+    "reason": "signal/aggregate-only job has no checkout or product execution",
+    "log_sha256": "2c8dba9865ddc4caff2b72230b6bf1a0944f4dab461621acba5a7d6b2742779b"
+  },
+  {
+    "job_id": 119338651418,
+    "name": "Exercise Rocky Linux 9 package lifecycle",
+    "checkout_observations": [
+      {
+        "command_line": 605,
+        "value_line": 606,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "c5f60948d29a0fce9efc755ceff4c097db80cf7ca33e99b77c581454a3811f92"
+  },
+  {
+    "job_id": 119338651509,
+    "name": "Exercise Ubuntu 24.04 package lifecycle",
+    "checkout_observations": [
+      {
+        "command_line": 605,
+        "value_line": 606,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "4eea0ad3b7e35416ea04aa1c75f348cbe17e38a1fb4cb5e658201a0c1b72425f"
+  },
+  {
+    "job_id": 119338651528,
+    "name": "Exercise AlmaLinux 9 package lifecycle",
+    "checkout_observations": [
+      {
+        "command_line": 605,
+        "value_line": 606,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "d6a964f1b7e06332ee898bdaa7e9ae1252679341a56c6ff23e0fd47f1d62d457"
+  },
+  {
+    "job_id": 119338651637,
+    "name": "Exercise Debian 12 package lifecycle",
+    "checkout_observations": [
+      {
+        "command_line": 605,
+        "value_line": 606,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "cca5ca915414bd0d647ef37ea2a10d63e17320ea213f693fe80334a088712843"
+  },
+  {
+    "job_id": 119338657899,
+    "name": "Candidate migration and messaging E2E",
+    "checkout_observations": [
+      {
+        "command_line": 607,
+        "value_line": 608,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17"
+      }
+    ],
+    "checkout_not_applicable": false,
+    "reason": null,
+    "log_sha256": "419e9381c48834ae633fdc6acd912d86887d07e855f9176cf3f3e029945f1d97"
+  }
+]

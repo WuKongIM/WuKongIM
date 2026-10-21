@@ -1,0 +1,110 @@
+{
+  "review_axis": "Standards",
+  "observed_at": "2026-10-21T16:36:25.391966+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "base_tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "candidate_tree_verified_without_git_writes": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "scope": "Uncommitted HEAD diff including index and worktree; all nonignored untracked discovered",
+  "changed_files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "077f9730fa2c50cd9a9d9daedb1a42964d4d975403121042d0cbb30b0af0154a",
+      "size": 3297
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "5e0def41669818a1908b2c4c2185f2f464ee2f42f7520435e49251319b5df758",
+      "size": 70008
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "bbafd1bff285aaf93141bce29fc15c967322d19b8b0aca3b9c662f17a9d6ab74",
+      "size": 79123
+    }
+  ],
+  "untracked": [],
+  "local_AGENTS_FLOW_CONTRIBUTING": [],
+  "unchanged_tracked_count": 114,
+  "tracked_count": 118,
+  "all_other_tracked_files_match_head": true,
+  "freeze_sha256": "68677fa0b4159bcc8a2aec486557c888889d9ded44e0a028d2ab0c7e6b7f7e1f",
+  "patch_sha256": "31b799475c7dbf3c88de48d017ff21a1e4f94caa649015166b912533be2d560a",
+  "rules": [
+    {
+      "path": "README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+    }
+  ],
+  "user_rules": "User-supplied Working agreements and root AGENTS.md: Code Quality; Testing and Validation; Release Notes. No package-local AGENTS/FLOW/CONTRIBUTING present.",
+  "evidence_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/FAILURE-INVENTORY.md",
+      "sha256": "8f8eaaae2c2c132006a724db7c442d87ba7f197be78304f52490b2feafc1b378",
+      "size": 5455
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/shipping-tests-before-code.json",
+      "sha256": "5d3401ac910c676924a4d4cd752d9697c16bfd3ce8b8a35cbf138ee4454be4fb",
+      "size": 355
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/shipping-tests-before-code.py",
+      "sha256": "bbafd1bff285aaf93141bce29fc15c967322d19b8b0aca3b9c662f17a9d6ab74",
+      "size": 79123
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/shipping-tests.red.stderr",
+      "sha256": "6e1880a0ee5e7fbfb01d942d8f1e958cbdabb6f65d254b0db36c55376dd613c6",
+      "size": 67871
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/shipping-tests.green.stderr",
+      "sha256": "c605e9bf50adc7a7971fd2bd2d6c5868f425912570f612d61d2948b5ec64b967",
+      "size": 143
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/signed-client.receipt.json",
+      "sha256": "8ce5ab895b38bec41f9e9c6638cc3059830aa17681b640d5ea81fcac612e5812",
+      "size": 34931
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/validation.json",
+      "sha256": "353b31c9343dd86a10d347c2ff72898f7b081f6111a58998c4344e784f1fca0d",
+      "size": 686
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/full-python.stderr",
+      "sha256": "ab2ab0c93a7b71bb1520404b705271a9de56c0286f97bf5efe6ef4d1eb964bbd",
+      "size": 671
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/contracts.stderr",
+      "sha256": "feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6",
+      "size": 102
+    }
+  ],
+  "test_runs_by_reviewer": 0,
+  "cloud_api_ci_calls_by_reviewer": 0,
+  "repository_mutations_by_reviewer": 0
+}

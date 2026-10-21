@@ -1,0 +1,32 @@
+{
+  "rpm_versions": [
+    "dnf-4.14.0-34.el9_8.alma.1.noarch",
+    "libdnf-0.69.0-18.el9.alma.1.x86_64",
+    "python3-dnf-4.14.0-34.el9_8.alma.1.noarch"
+  ],
+  "metadata_expire": 0,
+  "repo_cache": "/tmp/probe-cache/wukongim-stable-5702a8a51b8fa885",
+  "observed": [
+    {
+      "requested_age": 0,
+      "now": 1792599784,
+      "primary_mtime": 1792599784,
+      "native_age": 0,
+      "native_expired": false
+    },
+    {
+      "requested_age": 3,
+      "now": 1792599784,
+      "primary_mtime": 1792599781,
+      "native_age": 3,
+      "native_expired": true
+    }
+  ],
+  "only_repo_cache": {
+    "load_downloaded": false,
+    "global_cacheonly": false,
+    "strategy": 2
+  },
+  "global_cacheonly_package_rule": "    def _select_remote_pkgs(self, install_pkgs):\n        \"\"\" Check checksum of packages from local repositories and returns list packages from remote\n        repositories that will be downloaded. Packages from commandline are skipped.\n\n        :param install_pkgs: list of packages\n        :return: list of remote pkgs\n        \"\"\"\n        def _verification_of_packages(pkg_list, logger_msg):\n            all_packages_verified = True\n            for pkg in pkg_list:\n                pkg_successfully_verified = False\n                try:\n                    pkg_successfully_verified = pkg.verifyLocalPkg()\n                except Exception as e:\n                    logger.critical(str(e))\n                if pkg_successfully_verified is not True:\n                    logger.critical(logger_msg.format(pkg, pkg.reponame))\n                    all_packages_verified = False\n\n            return all_packages_verified\n\n        remote_pkgs = []\n        local_repository_pkgs = []\n        for pkg in install_pkgs:\n            if pkg._is_local_pkg():\n                if pkg.reponame != hawkey.CMDLINE_REPO_NAME:\n                    local_repository_pkgs.append(pkg)\n            else:\n                remote_pkgs.append(pkg)\n\n        msg = _('Package \"{}\" from local repository \"{}\" has incorrect checksum')\n        if not _verification_of_packages(local_repository_pkgs, msg):\n            raise dnf.exceptions.Error(\n                _(\"Some packages from local repository have incorrect checksum\"))\n\n        if self.conf.cacheonly:\n            msg = _('Package \"{}\" from repository \"{}\" has incorrect checksum')\n            if not _verification_of_packages(remote_pkgs, msg):\n                raise dnf.exceptions.Error(\n                    _('Some packages have invalid cache, but cannot be downloaded due to '\n                      '\"--cacheonly\" option'))\n            remote_pkgs = []\n\n        return remote_pkgs, local_repository_pkgs\n",
+  "limits": "Unsigned local metadata, no network; proves actual pinned library freshness and repository-only cache API, not GPG or retained-payload download."
+}

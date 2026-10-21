@@ -1,0 +1,26 @@
+[
+  {
+    "file": "upstream/Repo.cpp",
+    "url": "https://raw.githubusercontent.com/rpm-software-management/libdnf/0.69.0/libdnf/repo/Repo.cpp",
+    "size": 73534,
+    "sha256": "86fcdd4ebbb666a3ac204d754c2013f2a87938c0a5959b1b9409e56e2c7831d9"
+  },
+  {
+    "file": "upstream/Repo.hpp",
+    "url": "https://raw.githubusercontent.com/rpm-software-management/libdnf/0.69.0/libdnf/repo/Repo.hpp",
+    "size": 12609,
+    "sha256": "c7406ae2f397cc689cb91e7c3dea38310cda47e47f0ed1cd67d68cdd00a747bc"
+  },
+  {
+    "file": "upstream/dnf-base.py",
+    "url": "https://raw.githubusercontent.com/rpm-software-management/dnf/4.14.0/dnf/base.py",
+    "size": 118246,
+    "sha256": "b9e6c1c68c589ccb9531fefdc85a1686b02ec0bfa90cfa9c9a13befef1c3cb88"
+  },
+  {
+    "file": "upstream/dnf-repo.py",
+    "url": "https://raw.githubusercontent.com/rpm-software-management/dnf/4.14.0/dnf/repo.py",
+    "size": 20812,
+    "sha256": "99b723022bbc611c105e4192d1e09b13340574c07c42e682703e9d685855549a"
+  }
+]

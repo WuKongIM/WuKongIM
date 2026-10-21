@@ -1,0 +1,52 @@
+{
+  "id": 119337576521,
+  "run_id": 39632640443,
+  "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1022 attempt 1",
+  "head_branch": "codex/v3-rc-budget-downward",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39632640443",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbyRLoSQ",
+  "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119337576521",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119337576521",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T16:17:51Z",
+  "started_at": "2026-10-21T16:17:54Z",
+  "completed_at": "2026-10-21T16:17:56Z",
+  "name": "PR three-node regression",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T16:17:54Z",
+      "completed_at": "2026-10-21T16:17:54Z"
+    },
+    {
+      "name": "Require every independent check",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T16:17:54Z",
+      "completed_at": "2026-10-21T16:17:55Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T16:17:55Z",
+      "completed_at": "2026-10-21T16:17:55Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119337576521",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": 1000024416,
+  "runner_name": "GitHub Actions 1000024416",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

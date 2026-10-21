@@ -1,0 +1,26 @@
+[
+  {
+    "mutation": "A-only-payload",
+    "rejected": false
+  },
+  {
+    "mutation": "A-only-mirror",
+    "rejected": false
+  },
+  {
+    "mutation": "payload-before-mirror",
+    "rejected": false
+  },
+  {
+    "mutation": "other-case",
+    "rejected": false
+  },
+  {
+    "mutation": "missing-serial",
+    "rejected": false
+  },
+  {
+    "mutation": "other-retained",
+    "rejected": false
+  }
+]

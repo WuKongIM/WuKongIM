@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-10-21T16:38:55.517555+00:00",
+  "observed_at": "2026-10-21T16:38:56.527317+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/chat-lifecycle-rehearsal-finalize.yml",
+  "exit_code": 0,
+  "response_bytes": 631,
+  "response_sha256": "cc6b6e07a1448e4a55dfb4cd70c37f67dd96be18183c8dea44dabfdf929a060c",
+  "data": {
+    "id": 329938002,
+    "node_id": "W_kwDOJgfwyc4TqnRS",
+    "name": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
+    "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+    "state": "disabled_manually",
+    "created_at": "2026-08-08T19:52:22.000+08:00",
+    "updated_at": "2026-10-21T21:53:58.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938002",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Safety%20Automation%20-%20Finalize%20Chat%20Lifecycle%20Rehearsals/badge.svg"
+  }
+}

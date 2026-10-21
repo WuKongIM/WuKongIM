@@ -1,0 +1,13 @@
+{
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "algorithm": "ed25519",
+  "private_path": "/Users/tt/.wukongim-cloud-rc-identities/chat-20261021T163850Z-4ccd7506/diagnostic_ed25519",
+  "directory_mode": "0700",
+  "private_mode": "0600",
+  "public_mode": "0600",
+  "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAIrV2X8ZduuAjboACebxaSAlhkTurIZou5bIT1Y9Ffw chat-20261021T163850Z-4ccd7506",
+  "fingerprint": "256 SHA256:616KYRkhhNGRpYQEEUQLp0bqrgZUtZGkIgb/AV/QMMc chat-20261021T163850Z-4ccd7506 (ED25519)",
+  "public_private_match": true,
+  "generated_once": true,
+  "private_key_archived": false
+}

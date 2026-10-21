@@ -1,0 +1,7 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39632640443/jobs?per_page=100",
+  "exit_code": 0,
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "7211f07e8a4b1c5ebb4c31aa040fb3b24e0ae6559b559e98e396a28fcbe3e284"
+}

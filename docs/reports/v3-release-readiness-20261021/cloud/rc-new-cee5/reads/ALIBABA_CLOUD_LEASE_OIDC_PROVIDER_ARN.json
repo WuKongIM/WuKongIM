@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-21T16:38:51.836780+00:00",
+  "observed_at": "2026-10-21T16:38:52.932038+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+  "exit_code": 0,
+  "response_bytes": 190,
+  "response_sha256": "0ff134749f9c9139b30ed934bf5b1a419f4519fdddb77e02779a324ad1339a71",
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+    "present": true,
+    "value_sha256": "95e8e092f8f2929fb85e086a3ffb73cba78bea940f3c41d06065fecae929c5bc"
+  }
+}

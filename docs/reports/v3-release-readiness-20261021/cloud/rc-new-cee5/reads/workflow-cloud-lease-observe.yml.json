@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-10-21T16:38:57.583615+00:00",
+  "observed_at": "2026-10-21T16:38:58.678404+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/cloud-lease-observe.yml",
+  "exit_code": 0,
+  "response_bytes": 546,
+  "response_sha256": "b1ffaa41f725b4e67cf1c077cf3cceb6bfa6858940f2598a5395b17d49693412",
+  "data": {
+    "id": 329938007,
+    "node_id": "W_kwDOJgfwyc4TqnRX",
+    "name": "Agent Tool - Inspect Cloud Lease",
+    "path": ".github/workflows/cloud-lease-observe.yml",
+    "state": "active",
+    "created_at": "2026-08-08T19:52:22.000+08:00",
+    "updated_at": "2026-08-08T19:52:22.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938007",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-lease-observe.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Agent%20Tool%20-%20Inspect%20Cloud%20Lease/badge.svg"
+  }
+}

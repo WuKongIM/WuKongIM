@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "gh",
+    "pr",
+    "merge",
+    "1022",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--merge",
+    "--match-head-commit",
+    "b3fdb777b9270128fe56086bc47562b321c2c947"
+  ],
+  "started_at": "2026-10-21T16:27:38.093173+00:00",
+  "completed_at": "2026-10-21T16:27:43.458238+00:00",
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "authorization": "User standing authorization: 以后你自己合并 不需要再让我确认",
+  "scope": "Reviewed and validated PR #1022 only; no paid start or formal release"
+}

@@ -1,0 +1,16 @@
+{
+  "artifact_id": 12361135064,
+  "selected_bytes": 248,
+  "selected_sha256": "b647452cd488a9f55f5c28e29ca945a950f83ff3c3fd835d5e80d51d58c2bbaa",
+  "selection": {
+    "artifact_id": 12361135064,
+    "archive_size": 77863000,
+    "downloaded_range_bytes": 509,
+    "selected_entries": [
+      "checksums.txt"
+    ],
+    "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked"
+  },
+  "package_bytes_fetched": false,
+  "whole_zip_sha_verified": false
+}

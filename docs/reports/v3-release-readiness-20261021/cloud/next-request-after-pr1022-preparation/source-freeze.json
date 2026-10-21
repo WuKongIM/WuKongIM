@@ -1,0 +1,200 @@
+{
+  "schema": "wukongim.cloud_rc.next_request_source_review/v1",
+  "observed_at": "2026-10-21T16:18:06.189957+00:00",
+  "candidate_head": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "candidate_tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "worktree_clean": true,
+  "control_sha": "pending_control_sha",
+  "final_product_sha": "pending_root_source_selection",
+  "rules_read_and_frozen": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "bytes": 13284
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "bytes": 85960
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf",
+      "git_blob": "3a3c9460d9b7546c7617f9b96dedaa571e3ac554",
+      "bytes": 3772
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711",
+      "git_blob": "cd23d7c961ae22b968aceea3ce90ac21774685d4",
+      "bytes": 4737
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368",
+      "git_blob": "763eb1eafafdb38234f0449e2f2b0b7bc316179f",
+      "bytes": 2327
+    },
+    {
+      "path": "cmd/wkcloudlease/FLOW.md",
+      "sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1",
+      "git_blob": "4a24bb97ea2b5a214e05cd2f489002e954023ba9",
+      "bytes": 1998
+    }
+  ],
+  "source_files_frozen": [
+    {
+      "path": ".github/review-agent/policy.json",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "bytes": 14492
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034",
+      "git_blob": "39fa822d617caaeae4e65664c135faa34a17958f",
+      "bytes": 10785
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c",
+      "git_blob": "5866d61fb951e2d5dccf2b335964bc609ca00d00",
+      "bytes": 16310
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f",
+      "git_blob": "5d9d0b9bc4aa3d898087e3bbb274b2867218c7dc",
+      "bytes": 34715
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05",
+      "git_blob": "cbb7567e7b1bbab22f8f29c0851f8f174135c902",
+      "bytes": 31210
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62",
+      "git_blob": "2b5956181959bd70fc8caf7bc926c4a72bb8f73c",
+      "bytes": 3747
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4",
+      "git_blob": "f1eb3121c9ee3e8401fea35bf5c8e8ca6fd088a0",
+      "bytes": 8145
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-activate.yml",
+      "sha256": "74ca6dba1abe62b07738a3f723220048d64fbcc4347846b479a1359bfbd0933e",
+      "git_blob": "7e8c850bbfd311902adc8b4b11e0fb7d34adcc71",
+      "bytes": 24727
+    },
+    {
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "sha256": "f67e53fb8490108bcac5bdfdf59c94f08a41904d0fa1f124732021fab7ee4110",
+      "git_blob": "5ee328bd4f71444cde57614ee640923ab674948e",
+      "bytes": 7038
+    },
+    {
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea",
+      "git_blob": "3c30d3532ef2843477a0e732269b99aab0aef1e1",
+      "bytes": 5948
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7",
+      "git_blob": "6b098f35c7611e1f6c66a08e8f91962d235eae0c",
+      "bytes": 48953
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "sha256": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd",
+      "git_blob": "aadc269516068e13794a7b4b652f7da9f6dffe00",
+      "bytes": 45040
+    },
+    {
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+      "sha256": "1bc9a9231d306d230331fc2ce9fe6eeed00a4589ea4efeea4eefa9b7f92d16a8",
+      "git_blob": "2d70a0dfb49d00bd5f3a7d88a703d2e8d4bf8a88",
+      "bytes": 396
+    },
+    {
+      "path": "scripts/chat-lifecycle/rehearsal-finalizer-state.sh",
+      "sha256": "ec20a23cf8f88cbf9d396ac93acb09832d51b0f4a93daaadea98f82293f0321b",
+      "git_blob": "5eea87e98d8885bacbf8d9574450bf8b85da9eab",
+      "bytes": 2847
+    },
+    {
+      "path": "scripts/chat-lifecycle/formal-workflows-state.sh",
+      "sha256": "bec10f1b881a7d5f0d278b21719f6cf5e4bc173883af220677a5cbc36d3600b6",
+      "git_blob": "6bc7bf098bb5a8afad6a7b4dcb0e5bfc64de394a",
+      "bytes": 4031
+    },
+    {
+      "path": "scripts/chat-lifecycle/cloud-lease-release-state.sh",
+      "sha256": "8bbf18ce1208ab490943c3a8205dce126a3951a413c79de65dfbeaf329dbbd3d",
+      "git_blob": "2d09bec70c0b5805cd83f6d672a0c4e51a9e0fb3",
+      "bytes": 3276
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72",
+      "git_blob": "6214c7c8d020fd375459548bdcae17fefecde730",
+      "bytes": 17021
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887",
+      "git_blob": "d689cf02c83651c5dab057e9965ee56fad3cc934",
+      "bytes": 25696
+    },
+    {
+      "path": "internal/usecase/cloudlease/control.go",
+      "sha256": "4b9f73a03d25833e08186a5c23b16c46654c738b8f36edd08e8301842915a71f",
+      "git_blob": "5599b1dcda8842190255fde8f7920284faa2f508",
+      "bytes": 34885
+    },
+    {
+      "path": "internal/usecase/clouddeploy/deployment.go",
+      "sha256": "b1099deaa151575db01edcb0f2705ca87b291272378d5bae5e56a5530a74fbf2",
+      "git_blob": "a29affd387b779fcb79140e217233e0acfda6fd0",
+      "bytes": 33434
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0",
+      "git_blob": "15d2e2ecdd6c750daeabefc3dd507cc7822764aa",
+      "bytes": 17480
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b",
+      "git_blob": "4634426955afd8861add69130b8d664130a2ac4e",
+      "bytes": 1021
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0",
+      "git_blob": "8ffc81f5b2d070ba4f2a98dd05a100312aaff1cc",
+      "bytes": 1021
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542",
+      "git_blob": "7714ea42ebafac57fb972aec53f52dd7aa5b6bd9",
+      "bytes": 4367
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/formal.yaml",
+      "sha256": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573",
+      "git_blob": "e530d74b6cfecc9524d41b9f66afe6131e0d7ea5",
+      "bytes": 4361
+    }
+  ],
+  "scope": "Read-only code review; no tests, cloud/provider calls, workflow writes or dispatches."
+}

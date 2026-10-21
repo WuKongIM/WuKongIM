@@ -1,0 +1,49 @@
+{
+  "selection": {
+    "artifact_id": 12360845662,
+    "archive_size": 229441135,
+    "downloaded_range_bytes": 42847,
+    "selected_entries": [
+      "artifacts/local-step.json",
+      "artifacts/report/final.json",
+      "artifacts/report/qualification.json",
+      "artifacts/report/run-start.json",
+      "artifacts/report/worker-evidence.json",
+      "host.json"
+    ],
+    "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked"
+  },
+  "files": [
+    {
+      "path": "artifacts/local-step.json",
+      "bytes": 836,
+      "sha256": "38614bd325b2ad1bf329c0418a26164e9af7b7b59b8e2f6d6d6752595359c834"
+    },
+    {
+      "path": "artifacts/report/final.json",
+      "bytes": 23509,
+      "sha256": "ee8f976ec0529ccff502273e912990409c5eac5e62cc1eec8f3e6d865a7ffc04"
+    },
+    {
+      "path": "artifacts/report/qualification.json",
+      "bytes": 23443,
+      "sha256": "672f36691b002fb72f141821473dd6db9abce83dce90bacde842cca2a2d6f272"
+    },
+    {
+      "path": "artifacts/report/run-start.json",
+      "bytes": 387,
+      "sha256": "badf2ccf0ba88baa86e90bdc2b1b7aa46158a3c62278ddfed1e6c6d73971ba44"
+    },
+    {
+      "path": "artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "61a3b62657c781932cec7d238c1c24b4ea4114159afa0492daa4972471b4a931"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4483,
+      "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+    }
+  ],
+  "authority": "Exact GitHub artifact ID and authenticated redirect/ranges, each selected ZIP entry CRC; entire archive SHA was not downloaded or independently verified."
+}

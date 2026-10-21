@@ -1,0 +1,18 @@
+{
+  "test_only": true,
+  "fingerprint": "71CD4D5B329B4EC2080EC6FAC1229FCF01983DA7",
+  "payloads": {
+    "A": {
+      "version": "3.0.0",
+      "member": "A/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "sha256": "603fa052c56de45919291424b55a6618b60c89b1c26abea457a048ef3ee778c5",
+      "size": 6211
+    },
+    "B": {
+      "version": "3.0.1",
+      "member": "B/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "sha256": "a67985a9c8a40de41c25040d5200800f55863b0480461cd1a9a8d5ebbabc7b17",
+      "size": 6211
+    }
+  }
+}

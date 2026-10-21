@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "gh",
+    "api",
+    "repos/WuKongIM/WuKongIM/git/commits/b3fdb777b9270128fe56086bc47562b321c2c947"
+  ],
+  "started_at": "2026-10-21T16:27:15.819354+00:00",
+  "completed_at": "2026-10-21T16:27:16.852069+00:00",
+  "bytes": 1122,
+  "sha256": "12fcb7b395a92e35f8f10c615c88700a01dcb3987bc786f703b4374cf72b1990"
+}

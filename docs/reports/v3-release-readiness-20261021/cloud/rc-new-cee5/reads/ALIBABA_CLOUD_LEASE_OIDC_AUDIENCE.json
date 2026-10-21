@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-21T16:38:51.836642+00:00",
+  "observed_at": "2026-10-21T16:38:52.986093+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+  "exit_code": 0,
+  "response_bytes": 147,
+  "response_sha256": "935d5c6c0124b21aba267c028f744cc5d236a073d774d42030c088617a9ab870",
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+    "present": true,
+    "value_sha256": "2c921542db4ac1ef91591c6fb0ece035dc77fa8c3989e9910a98b1ca93840069"
+  }
+}

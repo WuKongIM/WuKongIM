@@ -1,0 +1,49 @@
+{
+  "schema": "wukongim.cloud_rc.safety_automation_preparation/v1",
+  "snapshot_file": "github-public-snapshot.json",
+  "state_is_inventory_proof": false,
+  "staged_activation": [
+    {
+      "workflow": "chat-lifecycle-rehearsal-finalize.yml",
+      "observed_state": "disabled_manually",
+      "future_owner": "chat-lifecycle-rehearsal.yml:112",
+      "required_before": "rehearsal orchestration/Acquire",
+      "behavior": "10min safety finalizer; incomplete inventory or producer observation leaves schedule enabled."
+    },
+    {
+      "workflow": "cloud-lease-release.yml",
+      "observed_state": "disabled_manually",
+      "future_owner": "cloud-lease-provision.yml arm_release job; cloud-lease-release-state.sh enable-after-provision",
+      "required_before": "paid Acquire, then after older release passes finish",
+      "behavior": "Independent15min cleanup-pending/expired sweep; must retain exact selector ownership on ambiguous Acquire."
+    },
+    {
+      "workflow": "chat-lifecycle-formal.yml",
+      "observed_state": "disabled_manually",
+      "future_owner": "chat-lifecycle-rehearsal-finalize.yml:397",
+      "required_before": "publishing valid formal transition",
+      "behavior": "Only authenticated unspent same-request transition can cause fresh formal procurement."
+    },
+    {
+      "workflow": "chat-lifecycle-formal-finalize.yml",
+      "observed_state": "disabled_manually",
+      "future_owner": "chat-lifecycle-formal.yml:177",
+      "required_before": "formal orchestration/Acquire",
+      "behavior": "Formal terminal evidence and exact cleanup; retains schedule until authenticated idle."
+    }
+  ],
+  "currently_active_entries": [
+    "chat-lifecycle-rehearsal.yml",
+    "chat-lifecycle-stop.yml",
+    "cloud-deployment-bundle.yml",
+    "cloud-deployment-activate.yml",
+    "cloud-lease-provision.yml",
+    "cloud-lease-observe.yml"
+  ],
+  "not_done": [
+    "No workflow was enabled, disabled or dispatched",
+    "No Issue was created or changed",
+    "No provider or SSH call was made"
+  ],
+  "idle_interpretation": "Current disabled schedules are compatible with repository idle disarm behavior; they do not prove all resources are deleted. Future authorized owners must arm the right schedule at each existing lifecycle boundary."
+}

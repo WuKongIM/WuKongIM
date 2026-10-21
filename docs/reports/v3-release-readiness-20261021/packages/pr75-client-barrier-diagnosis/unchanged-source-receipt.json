@@ -1,0 +1,583 @@
+{
+  "base": "eac9d252f13ea201b405825e6303de703af08c16",
+  "changed_exactly": [
+    "CHANGELOG.md",
+    "docs/stable-audit-transport.md",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "unchanged_count": 114,
+  "all_other_tracked_files_byte_identical": true,
+  "files": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "size": 27
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e",
+      "size": 6183
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281",
+      "size": 7039
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+      "size": 5321
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432",
+      "size": 21677
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f",
+      "size": 103240
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+      "size": 15073
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81",
+      "size": 13721
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1",
+      "size": 6111
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "size": 3104
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+      "size": 6270
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "082fe603e5f2a151808fc625671d4cf2e0c453086e9572569555bfc5865a8c87",
+      "size": 80
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "size": 11357
+    },
+    {
+      "path": "README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "9c6903b38838cb47ef6a4428bd7fcd4555645f2781d707b21b7fa2b1881169ea",
+      "size": 859
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "a7f50b2a86259666f0e81e942dd06dcc23a1222eb7c55a86a654f27eb6291b58",
+      "size": 8905
+    },
+    {
+      "path": "docs/object-storage-planning.md",
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6",
+      "size": 7359
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+      "size": 5439
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+      "size": 6210
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+      "size": 4772
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+      "size": 6210
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+      "size": 4772
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "size": 785
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+      "size": 96
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "size": 2579
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+      "size": 1110
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "size": 295
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "size": 381
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+      "size": 651
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+      "size": 898
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+      "size": 30568
+    },
+    {
+      "path": "scripts/bind-audit-release.py",
+      "sha256": "6e26cf867d7663825f6d76ce87ce4940b703bbe59b006989cf0cee9af14332be",
+      "size": 18653
+    },
+    {
+      "path": "scripts/build-repository-bootstrap-packages.py",
+      "sha256": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c",
+      "size": 33191
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+      "size": 125707
+    },
+    {
+      "path": "scripts/derive-rpm-allowlists.py",
+      "sha256": "4cade66db6133824e14a1d61b5d80a2440a96e2696e4c53b12cf210a366aeffe",
+      "size": 24214
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475",
+      "size": 71340
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "size": 38978
+    },
+    {
+      "path": "scripts/plan-package-publication.py",
+      "sha256": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff",
+      "size": 24355
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "size": 26015
+    },
+    {
+      "path": "scripts/prepare-package-site.py",
+      "sha256": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd",
+      "size": 47796
+    },
+    {
+      "path": "scripts/resolve-audit-release.py",
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb",
+      "size": 25685
+    },
+    {
+      "path": "scripts/resolve-source-release.py",
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+      "size": 23044
+    },
+    {
+      "path": "scripts/seal-audit-release.py",
+      "sha256": "156d350c65eb1cf2de0f658c252ca96f4d86aee5843cf5cb869a4d6649895012",
+      "size": 26100
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "size": 38244
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "size": 44355
+    },
+    {
+      "path": "scripts/validate-installed-wkcli.py",
+      "sha256": "c4c73f4ef4de8e84f8947cdffe0194ab8ee38f4844fcd707219ff8299dc4d8e0",
+      "size": 10004
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+      "size": 87886
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "size": 34568
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+      "size": 76893
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "size": 22527
+    },
+    {
+      "path": "scripts/verify-source-package-metadata.py",
+      "sha256": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+      "size": 6185
+    },
+    {
+      "path": "scripts/verify-stable-seal-inputs.py",
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e",
+      "size": 21424
+    },
+    {
+      "path": "site/index.html",
+      "sha256": "2ba98f220e612423af3894d98b3d334a8c84cef162e760b39ea7c55e9d46d6d3",
+      "size": 863
+    },
+    {
+      "path": "site/status.json",
+      "sha256": "fd3d2dd70c1d02eb9e72417a5ce2e9be3fe6f04e8f5c9bd9a134f18940148086",
+      "size": 116
+    },
+    {
+      "path": "tests/contract.sh",
+      "sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+      "size": 54998
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_checksums.txt",
+      "sha256": "4f69155131cfdadf7e6c326753701aabe32150651b32b56f7f4e9265da25453e",
+      "size": 626
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "sha256": "a65d7da7f673cdc77c915c4d0e4bbbe9647c1b561c5b6bf008c8dc2e50bfc632",
+      "size": 36
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "sha256": "f8f15594db2e88c5ee0a9bae453e9a94cd542f78f89a8dfb0caa54d8639ce032",
+      "size": 36
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "sha256": "76649682a12752f30e405e3ccbf23c18f10b8a48f9f1ec91a93be6d8b860eba4",
+      "size": 40
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "sha256": "a82d21400b86c0f3283be25333bb0740a9b0ec66dc97a1620918b07c06e5d634",
+      "size": 40
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "sha256": "35748f3955e78cec41339905a2fdfb24aeb002203a7ec448084fdc4611d63237",
+      "size": 35
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "sha256": "ca79b2494783d25f81c679453eb39998ba6af31f9f2b0c1943273fdb9ebfa290",
+      "size": 35
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/README.md",
+      "sha256": "84e17d55217dc82027fd1d2065dcd49e1699cebe4365398002710e69c67a01d1",
+      "size": 2552
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/native-v3-unregistered.tar.gz",
+      "sha256": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb",
+      "size": 1448
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/native-v3.tar.gz",
+      "sha256": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b",
+      "size": 1639
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/original-v2-empty.tar.gz",
+      "sha256": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62",
+      "size": 5466
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/scenario.yaml",
+      "sha256": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc",
+      "size": 1590
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/sha256.json",
+      "sha256": "76a729dc8666f668aa480f86585ab359f2fb3ca3d9c6c2a05bef4a61d62ed0fc",
+      "size": 552
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/target.yaml",
+      "sha256": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e",
+      "size": 314
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/workers.yaml",
+      "sha256": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4",
+      "size": 175
+    },
+    {
+      "path": "tests/native_bootstrap_preparation_drill.py",
+      "sha256": "2531ca427208fff207f5b366e852a161e47214542efae3d5691f2900f77d0ae8",
+      "size": 11755
+    },
+    {
+      "path": "tests/native_local_signing_drill.py",
+      "sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578",
+      "size": 22961
+    },
+    {
+      "path": "tests/native_source_metadata_drill.py",
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+      "size": 12447
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+      "size": 42889
+    },
+    {
+      "path": "tests/native_stable_seal_transport_drill.py",
+      "sha256": "fba5187558f2b8808e0faf4c966732f0a71859560490eed62ffcd953b93b72c3",
+      "size": 8555
+    },
+    {
+      "path": "tests/stable_audit_fixture.py",
+      "sha256": "5e00526ca4c0f528320746c24b8b4f47b3d5957805a58b6a811ec80a22f70b3a",
+      "size": 4454
+    },
+    {
+      "path": "tests/test_archive_package_snapshot.py",
+      "sha256": "6eab8c2edfd5ad3f28960d9a9c139e5b75b3d8086539dbfa9fcf06084e65fe7c",
+      "size": 15250
+    },
+    {
+      "path": "tests/test_bind_audit_release.py",
+      "sha256": "f4ed3e0b13f2c3d222849a7efbcb79da3d0522ea8a173f5d6c2768e83f279c00",
+      "size": 16986
+    },
+    {
+      "path": "tests/test_build_repository_bootstrap_packages.py",
+      "sha256": "e6378af9050733a96e01f6b381d4502ab781eb61918e2d2d94bfaa8cb49ccd96",
+      "size": 15065
+    },
+    {
+      "path": "tests/test_compose_package_site.py",
+      "sha256": "cd43e18a1d39bc762e88e5e63e576ae8458d1acb4ed44207b946a13b7a82c29d",
+      "size": 47350
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd",
+      "size": 30049
+    },
+    {
+      "path": "tests/test_derive_rpm_allowlists.py",
+      "sha256": "dffe776b870fb7b0a77da3f5d15e33ab8c64a70d37884d9a3393056c3b7d9035",
+      "size": 20838
+    },
+    {
+      "path": "tests/test_installed_cli_acceptance.py",
+      "sha256": "263191ad6b4f51ef45de9a63065a53b4f70fd4e875ad62eb49dc8fefb442c873",
+      "size": 11707
+    },
+    {
+      "path": "tests/test_native_bootstrap_preparation_drill.py",
+      "sha256": "3b309f37b45cf0cbd7b2a6705aa690eac29ab20437ed4b143a836810a34d8196",
+      "size": 2566
+    },
+    {
+      "path": "tests/test_native_local_signing_drill.py",
+      "sha256": "eb30cc500ad7dc19207370e08cb3f893c0bc2e95a1e797e1b72b858997f9c7f0",
+      "size": 7166
+    },
+    {
+      "path": "tests/test_native_stable_candidate_drill.py",
+      "sha256": "ef8c1a912bfd339140819c37d072c06025304f63d9212b48c69fa66f76a378d4",
+      "size": 12530
+    },
+    {
+      "path": "tests/test_object_storage_delivery.py",
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b",
+      "size": 33155
+    },
+    {
+      "path": "tests/test_package_audit_receipt.py",
+      "sha256": "fb12ce0a34d5b4e639b94543644da93856603044f38b2e84585abc28a13cafbe",
+      "size": 41404
+    },
+    {
+      "path": "tests/test_plan_object_storage_publication.py",
+      "sha256": "96320d5bb6ec063763bc893e9963a35caf6de1567eb99411d010b39e18f6b2d1",
+      "size": 28251
+    },
+    {
+      "path": "tests/test_plan_package_publication.py",
+      "sha256": "94c3149481e2ffc35a18295ff9836e144b5616353bcb542fed18f08105d97574",
+      "size": 15147
+    },
+    {
+      "path": "tests/test_prepare_package_site.py",
+      "sha256": "8c02bc529811210bfb3465fc7169861389427378ff471e25e83526a856750795",
+      "size": 20866
+    },
+    {
+      "path": "tests/test_resolve_audit_release.py",
+      "sha256": "52f7cc981ddcf884760e1f9651fcc482c3b79c1f50a571bb65be621c450fe376",
+      "size": 23089
+    },
+    {
+      "path": "tests/test_resolve_source_release.py",
+      "sha256": "b091e4920df9a966045aad9d417627189811ea91f7547eb0ba84762a613404a1",
+      "size": 18461
+    },
+    {
+      "path": "tests/test_seal_audit_release.py",
+      "sha256": "82db4b4c3aebf30622bd53f12180c17de0658a0d3077566814b2b73171b71551",
+      "size": 21740
+    },
+    {
+      "path": "tests/test_sign_package_family.py",
+      "sha256": "65b79602daadd672a8628b82aa50df3d0819c0c07e6f20efd3fa10f26f222cb1",
+      "size": 34997
+    },
+    {
+      "path": "tests/test_source_channel_classification.py",
+      "sha256": "745bf97a2fad33d3ea21b59a8a2f4999b49ee97b2799c1114bbc2eed00f01b2d",
+      "size": 8632
+    },
+    {
+      "path": "tests/test_source_preflight_workflow.py",
+      "sha256": "a7b84fce05a39b38c63beda3ddc4629b896fbfbc75922684610376dcb385fee0",
+      "size": 5728
+    },
+    {
+      "path": "tests/test_stable_audit_transport.py",
+      "sha256": "5766e360fd682cc0204a3440e7ce1f92791be185d385f211667e8e3c4b686f13",
+      "size": 8751
+    },
+    {
+      "path": "tests/test_stable_bootstrap_preparation.py",
+      "sha256": "5d3f5a42404aefc11f2de5be5f861c7570223fb8d12f8488ca9ef25b6ed7ad48",
+      "size": 12461
+    },
+    {
+      "path": "tests/test_stable_candidate_audit.py",
+      "sha256": "9c38da55121e5be00c4f7c15732e473aa73e46040d027e420c7614be2e6da8f8",
+      "size": 3360
+    },
+    {
+      "path": "tests/test_stable_candidate_closure.py",
+      "sha256": "fe18b11699505544e037c33e6062fb0bd2dd74126e5a1036a063dd71c63d309b",
+      "size": 4698
+    },
+    {
+      "path": "tests/test_stable_candidate_prepare.py",
+      "sha256": "d0e59eee543c88904c1b40e0914931c10e19fc04af0365af23e9398a68cf55fb",
+      "size": 6011
+    },
+    {
+      "path": "tests/test_stable_candidate_verifier.py",
+      "sha256": "06eddf0f09285f2f7eb96d5a622dcdf6d0694015708fd476f0418cc38db32585",
+      "size": 1950
+    },
+    {
+      "path": "tests/test_stable_offline_candidate.py",
+      "sha256": "53656d73f83b8ab1fe5c69be94f2a7952a707b2954ced6f8f37c434bb9b36d3c",
+      "size": 8505
+    },
+    {
+      "path": "tests/test_stable_public_keys.py",
+      "sha256": "2a18798d4b7af6d7876b21f9a6030238db43f59227b05d04f681a71c0245e23e",
+      "size": 9553
+    },
+    {
+      "path": "tests/test_stable_seal_inputs.py",
+      "sha256": "f27b31af2c0344dcae5f4dcdd347f827bd55f1aa1d04c34eb719d82a185e617f",
+      "size": 10578
+    },
+    {
+      "path": "tests/test_validate_control.py",
+      "sha256": "462aabcc1c08519b14e8503b9667d76f937451ad1954c01e1b792a0d8af56618",
+      "size": 36589
+    },
+    {
+      "path": "tests/test_validate_production_package_clients.py",
+      "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41",
+      "size": 67130
+    },
+    {
+      "path": "tests/test_validate_signing_material.py",
+      "sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe",
+      "size": 24911
+    },
+    {
+      "path": "tests/test_verify_production_package_site.py",
+      "sha256": "f7cb017611a24d47eb6e6c80ce0359126ff7276b3049fdd760555f8bd07aa928",
+      "size": 47923
+    },
+    {
+      "path": "tests/test_verify_source_attestations.py",
+      "sha256": "71c91cb0fe3b7194f6ce7e2e3bd1e8c8f8fe42b50e50787ec3d79a8560fc6a26",
+      "size": 13434
+    },
+    {
+      "path": "tests/test_verify_source_package_metadata.py",
+      "sha256": "5b97c01d0e10e7aa3f20cc0a82164d9e55eeec65faa29dfde1f0ca45b0d03cea",
+      "size": 10019
+    },
+    {
+      "path": "toolchain/native-package-signing/Dockerfile",
+      "sha256": "45c8d63f5580e51db968d70fb62777fa9a05c6e0ed019032f6365e491a1481bd",
+      "size": 911
+    }
+  ]
+}

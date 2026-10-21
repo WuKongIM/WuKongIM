@@ -1,0 +1,132 @@
+[
+  {
+    "job_id": 119334693787,
+    "job_name": "PR three-node correctness",
+    "checkout_log_observations": [
+      {
+        "line": 602,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 601
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "5d832a20899ec944bb9d5b180bd7749f34997009a15d201dbb1221cb93d501c1"
+  },
+  {
+    "job_id": 119334694083,
+    "job_name": "PR messaging unit and race",
+    "checkout_log_observations": [
+      {
+        "line": 601,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 600
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "bb7a451f1fa760e1f95b3d98bd9ea4cbab94c3251e781c07903a9e87eb872a0c"
+  },
+  {
+    "job_id": 119334694368,
+    "job_name": "PR performance baseline evidence",
+    "checkout_log_observations": [
+      {
+        "line": 598,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 597
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "2d7cb3758dc7a8564cb9e9361441b46bfe3ae968d2ffe2b4c39458e823ece92f"
+  },
+  {
+    "job_id": 119334694831,
+    "job_name": "Emit credential-free wake-up",
+    "checkout_log_observations": [],
+    "expected_source_present": false,
+    "log_sha256": "c2b358d5ff1b93517543ca3ca36cf68c84b87bae99547984ec67f9179dd2891c"
+  },
+  {
+    "job_id": 119334695968,
+    "job_name": "iOS CocoaPods 1.1.1",
+    "checkout_log_observations": [
+      {
+        "line": 119,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 118
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "ff7863f3f64651c17215ee965f6d9936857567a853f15881db8b1d93ab45186d"
+  },
+  {
+    "job_id": 119334696322,
+    "job_name": "Android Maven Central 1.0.5",
+    "checkout_log_observations": [
+      {
+        "line": 134,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 133
+      },
+      {
+        "line": 384,
+        "value": "61ae6dc6d0077b15e47cda1fd530296b97a06a7a",
+        "command_line": 383
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "92aaae9f84b1714bee107867084bbb7361e73f872c6791cc545e019c5ed1177c"
+  },
+  {
+    "job_id": 119334704670,
+    "job_name": "Emit credential-free wake-up",
+    "checkout_log_observations": [],
+    "expected_source_present": false,
+    "log_sha256": "d0c81901c193b2a8f02469b4aa928628b3dff608a28dbc4caf30a99fa8cfe5bd"
+  },
+  {
+    "job_id": 119334862524,
+    "job_name": "PR 500 QPS / mixed-send",
+    "checkout_log_observations": [
+      {
+        "line": 604,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 603
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "fe65e54ee89ec1a01e95cf920f047b0bb7c7f945f708c766531177669de042cd"
+  },
+  {
+    "job_id": 119334862603,
+    "job_name": "PR 500 QPS / tcp-sendack",
+    "checkout_log_observations": [
+      {
+        "line": 604,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 603
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "c22e4d43176da21b7c42509db9280a74483fd9dff6202f25308efc47356283bb"
+  },
+  {
+    "job_id": 119334862916,
+    "job_name": "PR 500 QPS / channel-append",
+    "checkout_log_observations": [
+      {
+        "line": 604,
+        "value": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+        "command_line": 603
+      }
+    ],
+    "expected_source_present": true,
+    "log_sha256": "cf6e8cd3ed3193fcd6f4dd931ab711d369cf92f688f60b99a75a35885875626c"
+  },
+  {
+    "job_id": 119337576521,
+    "job_name": "PR three-node regression",
+    "checkout_log_observations": [],
+    "expected_source_present": false,
+    "log_sha256": "2c8dba9865ddc4caff2b72230b6bf1a0944f4dab461621acba5a7d6b2742779b"
+  }
+]

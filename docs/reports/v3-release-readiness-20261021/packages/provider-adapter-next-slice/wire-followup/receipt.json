@@ -1,0 +1,90 @@
+{
+  "observed_at_utc": "2026-10-21T16:34:06.756488+00:00",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "worktree_clean": true,
+  "wire_contract_found": true,
+  "official_function_document": "https://www.alibabacloud.com/help/en/cdn/developer-reference/parameters-for-configuring-features-for-domain-names",
+  "document_last_updated": "2026-07-28",
+  "function_id": 225,
+  "function_name": "back_to_origin_url_rewrite",
+  "required_arguments": [
+    "source_url",
+    "target_url"
+  ],
+  "optional_arguments": [
+    "flag",
+    "sequence"
+  ],
+  "selected_flag": "break",
+  "sequence_range": [
+    1,
+    99
+  ],
+  "smaller_sequence_precedes": true,
+  "max_rules": 50,
+  "cdn_api_version": "2018-05-10",
+  "original_payload_preserved": [
+    {
+      "path": "README.md",
+      "size": 14043,
+      "sha256": "dc7c8ed7b43c70192af988e4c6435e0d6aee0502e6bb61f0abf1f6c7f50247f9"
+    },
+    {
+      "path": "failure-matrix.md",
+      "size": 3632,
+      "sha256": "453767ea5bf0b10c3e12ef57bf0fcb44375e4d467e22f7ddf8822f5840ec1eb2"
+    },
+    {
+      "path": "official-sources.md",
+      "size": 4883,
+      "sha256": "aae482c7516ac05d3cc157fa4c05fd5e7e108b116cbd639693cebf5621779daa"
+    },
+    {
+      "path": "source-binding.json",
+      "size": 12140,
+      "sha256": "5a91ce9fa1dfdbb384cdc8ff1a9fdab7acfb1a313f3cc51342e3a59119613329"
+    },
+    {
+      "path": "summary.json",
+      "size": 1604,
+      "sha256": "7203fad5d463da777b25e6b5308e59bf2ad6ddce33909935caab1b9d1dc17d54"
+    }
+  ],
+  "original_manifest_sha256": "b57717910b07ba05cc9507e392e98c68cdb13db83d73df49b3b3f6b4cc65af68",
+  "ci_gap_confirmed": true,
+  "proposed_scope_files_after_correction": 8,
+  "additional_file": ".github/workflows/object-storage-provider-contract.yml",
+  "planned_sdk_test_path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+  "mandatory_sdk_job_skip_count": 0,
+  "provider_calls": 0,
+  "tests_run": false,
+  "files_changed_in_worktree": false,
+  "source_files": [
+    {
+      "path": ".github/workflows/pages.yml",
+      "size": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "size": 15073,
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca"
+    },
+    {
+      "path": "tests/contract.sh",
+      "size": 54998,
+      "sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44"
+    },
+    {
+      "path": "tests/test_source_preflight_workflow.py",
+      "size": 5728,
+      "sha256": "a7b84fce05a39b38c63beda3ddc4629b896fbfbc75922684610376dcb385fee0"
+    }
+  ],
+  "limits": [
+    "no live API behavior demonstrated",
+    "SDK version and dependency hashes not selected",
+    "real route compression and PCRE/parameter-size limits still need verification",
+    "new CI wiring proposed only"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schema": "wukongim.cloud_rc.public_preparation_allowlist/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "purpose": "Chinese bounded execution plan and limits",
+      "bytes": 9335,
+      "sha256": "784d547ac4ae6ab60749d44b250e7c8f407308c47350b58d722ff626d1ff50da"
+    },
+    {
+      "path": "dispatch-draft.json",
+      "purpose": "Non-executable draft inputs with unresolved source/control/identity/authorization",
+      "bytes": 2541,
+      "sha256": "35953faf46519702354db13d14a358f716203a795c3fbdbbe6e660ee478d3063"
+    },
+    {
+      "path": "budget-chain.json",
+      "purpose": "Exact budget arithmetic and source-linked consumer contracts",
+      "bytes": 4304,
+      "sha256": "ed9f9dcf2cbd2bf765bc8a839eaf1d745931fc841bd2cd638c093d6f42e8a4b2"
+    },
+    {
+      "path": "execution-and-live-gates.json",
+      "purpose": "Future ordered stages and unperformed live admission/cleanup checks",
+      "bytes": 6964,
+      "sha256": "c7c31d66ee802d0687da3eca6ee5c5da18156da8da6f1d992dacc1a160fd2a38"
+    },
+    {
+      "path": "safety-automation-plan.json",
+      "purpose": "Snapshot workflow state and stage-specific future activation owners",
+      "bytes": 2276,
+      "sha256": "1d6cd34aa7ac46d37f164e34a289151332463f21304711ea9b1c62c4d5d555cc"
+    },
+    {
+      "path": "source-freeze.json",
+      "purpose": "Exact candidate SHA/tree and rule/source file digests",
+      "bytes": 7955,
+      "sha256": "a70ba910e4ffe29d1760df9ceceaaafccc50e23e3f4c36398a11ca8d4566961b"
+    },
+    {
+      "path": "github-public-snapshot.json",
+      "purpose": "Read-only public GitHub PR/check/Issue/workflow metadata",
+      "bytes": 14007,
+      "sha256": "0ee5cf51c74bc3ca98876f9416ea7e739dcf537e1006f19d674484c523b611e6"
+    },
+    {
+      "path": "prior-public-evidence-index.json",
+      "purpose": "Hashes of prior public design/implementation evidence and history boundary",
+      "bytes": 1841,
+      "sha256": "f1d1b8aca77bcc2e6e12cd10a0810f1b1eb280d12561b6d9195a953034e1d064"
+    }
+  ],
+  "excluded": [
+    "Provider responses or account credentials",
+    "Private/decrypted keys and tokens",
+    "Browser/account state",
+    "Private local caches",
+    "Binaries or executable paid input",
+    "Workflow dispatch results (none exist)",
+    "Repository patches (none made)"
+  ],
+  "manifest_rule": "SHA256SUMS covers this allowlist and all listed files, excluding itself."
+}

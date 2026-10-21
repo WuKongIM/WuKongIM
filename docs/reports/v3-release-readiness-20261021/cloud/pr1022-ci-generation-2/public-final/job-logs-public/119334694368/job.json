@@ -1,0 +1,68 @@
+{
+  "id": 119334694368,
+  "run_id": 39632640443,
+  "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1022 attempt 1",
+  "head_branch": "codex/v3-rc-budget-downward",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39632640443",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbyObt4A",
+  "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119334694368",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334694368",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T16:12:08Z",
+  "started_at": "2026-10-21T16:12:11Z",
+  "completed_at": "2026-10-21T16:12:27Z",
+  "name": "PR performance baseline evidence",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T16:12:11Z",
+      "completed_at": "2026-10-21T16:12:12Z"
+    },
+    {
+      "name": "Checkout exact candidate without credentials",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T16:12:12Z",
+      "completed_at": "2026-10-21T16:12:23Z"
+    },
+    {
+      "name": "Check identical-input successful main baseline",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T16:12:23Z",
+      "completed_at": "2026-10-21T16:12:25Z"
+    },
+    {
+      "name": "Post Checkout exact candidate without credentials",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-10-21T16:12:25Z",
+      "completed_at": "2026-10-21T16:12:25Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-10-21T16:12:25Z",
+      "completed_at": "2026-10-21T16:12:25Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119334694368",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": 1000024408,
+  "runner_name": "GitHub Actions 1000024408",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

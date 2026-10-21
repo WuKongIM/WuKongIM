@@ -1,0 +1,106 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "run_id": 39634976362,
+  "run_attempt": 1,
+  "event": "push",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "job_id": 119342896869,
+      "name": "Verify and package the static documentation site",
+      "conclusion": "success",
+      "actual_checkout": [
+        {
+          "line": 138,
+          "source": "cee5d51f325fb84033060f546337d326110adae5"
+        }
+      ],
+      "deployment_has_no_checkout": false,
+      "receipts": [],
+      "log_sha256": "500c5d50c273cdb4f56fe7d4bf41fca32eef5db9a50aec1ab2a0cdcb9e3bb256"
+    },
+    {
+      "job_id": 119343995093,
+      "name": "Deploy the verified artifact",
+      "conclusion": "success",
+      "actual_checkout": [],
+      "deployment_has_no_checkout": true,
+      "receipts": [
+        {
+          "line": 48,
+          "text": "\"artifact_id\": 12360937523,",
+          "observed_at": "2026-10-21T16:30:02.4617641Z"
+        },
+        {
+          "line": 49,
+          "text": "\"pages_build_version\": \"cee5d51f325fb84033060f546337d326110adae5\",",
+          "observed_at": "2026-10-21T16:30:02.4618907Z"
+        },
+        {
+          "line": 52,
+          "text": "Created deployment for cee5d51f325fb84033060f546337d326110adae5, ID: cee5d51f325fb84033060f546337d326110adae5",
+          "observed_at": "2026-10-21T16:30:03.3465176Z"
+        },
+        {
+          "line": 56,
+          "text": "Reported success!",
+          "observed_at": "2026-10-21T16:30:13.8142117Z"
+        },
+        {
+          "line": 58,
+          "text": "Evaluated environment url: https://origin-docs.githubim.com/",
+          "observed_at": "2026-10-21T16:30:13.8477234Z"
+        }
+      ],
+      "log_sha256": "cb23461fa3a4ad17af16c91cd6c6bf85dacf815b9d1dc64e95b10751e12f942b"
+    },
+    {
+      "job_id": 119344155279,
+      "name": "Verify the direct GitHub Pages origin",
+      "conclusion": "success",
+      "actual_checkout": [
+        {
+          "line": 119,
+          "source": "cee5d51f325fb84033060f546337d326110adae5"
+        }
+      ],
+      "deployment_has_no_checkout": false,
+      "receipts": [
+        {
+          "line": 157,
+          "text": "origin_ready domain=origin-docs.githubim.com attempt=1 paths=5 bypass=wukongim.github.io",
+          "observed_at": "2026-10-21T16:30:26.3497348Z"
+        }
+      ],
+      "log_sha256": "9de4f4921ffc6a3aaf77c5af3d15c7f349a87561e29be5d5660ecdfff936dcc8"
+    },
+    {
+      "job_id": 119344290406,
+      "name": "Refresh bounded Alibaba CDN URLs",
+      "conclusion": "success",
+      "actual_checkout": [
+        {
+          "line": 119,
+          "source": "cee5d51f325fb84033060f546337d326110adae5"
+        }
+      ],
+      "deployment_has_no_checkout": false,
+      "receipts": [
+        {
+          "line": 202,
+          "text": "Alibaba CDN refresh accepted: task_id=33642912665 request_id=01A15F4D-022A-518B-B5A1-2405DE506D5E urls=4",
+          "observed_at": "2026-10-21T16:30:45.4722916Z"
+        }
+      ],
+      "log_sha256": "d4e993f99fdbe639ce9cba82153776f8905a60dbd54eb325acf87f68af3f7d79"
+    }
+  ],
+  "pages_artifact_id": 12360937523,
+  "pages_artifact_bytes_downloaded": false,
+  "limits": [
+    "Observed Pages deployment success and direct-origin checks; no independent Pages artifact full-byte verification.",
+    "CDN refresh request accepted for4 bounded URLs; this is not proof of every edge cache completing invalidation.",
+    "This agent only read GitHub metadata and logs; automatic workflow performed its already-configured publication/refresh.",
+    "No paid RC dispatch, cloud resource purchase or private-key access."
+  ]
+}

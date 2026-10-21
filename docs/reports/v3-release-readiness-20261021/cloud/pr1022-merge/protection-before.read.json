@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "gh",
+    "api",
+    "repos/WuKongIM/WuKongIM/branches/main/protection"
+  ],
+  "started_at": "2026-10-21T16:27:14.736907+00:00",
+  "completed_at": "2026-10-21T16:27:15.818639+00:00",
+  "bytes": 1200,
+  "sha256": "20d7e38e9ee07736822d3b21bd9b803e633c60bdf8520baf00b9ea0d66231396"
+}

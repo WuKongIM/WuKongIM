@@ -1,0 +1,688 @@
+................................EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE.......
+======================================================================
+ERROR: test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 732, in test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='no-alias')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='unknown-source')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='wrong-member')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='source-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='source-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-channel')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-architecture')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-prefix')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='metadata-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='unknown-metadata')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='missing-metadata')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='missing-payload')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='missing-signature')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='missing-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='wrong-first-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='wrong-later-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='mirror-status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='mirror-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-object-key')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-destination')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='alias-cache')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-family')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_rejects_unbound_paths_sources_and_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_rejects_unbound_paths_sources_and_delivery) (mutation='payload-version')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 801, in test_rpm_switch_rejects_unbound_paths_sources_and_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='A-only-payload')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='A-only-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='unknown-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='same-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='no-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='other-retained')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='payload-before-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='other-case')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='missing-serial')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='mirror-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='payload-incomplete')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='payload-sha')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery (test_native_stable_clients_drill.NativeStableClientsTests.test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery) (mutation='payload-size')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 259, in test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery
+    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              after_audit_release_id=after)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: verify_rpm_requests() got an unexpected keyword argument 'after_audit_release_id'. Did you mean 'audit_release_id'?
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='normal')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='apt-switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='rpm-switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='missing-metadata')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='wrong-asc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='wrong-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='redirect')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='disconnect')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='apt', mode='wrong-san')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='normal')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='apt-switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='rpm-switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='missing-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='corrupt-byhash')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='missing-metadata')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='wrong-asc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='wrong-mirror')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='redirect')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='disconnect')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_preserves_everything_except_second_rpm_phase (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_preserves_everything_except_second_rpm_phase) (family='rpm', mode='wrong-san')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 197, in test_switch_download_command_preserves_everything_except_second_rpm_phase
+    value = drill.download_client_command(validator, 'fixed-image', root, cert,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_rejects_ambiguous_phase_boundaries (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_rejects_ambiguous_phase_boundaries) (mutation='missing-first')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 227, in test_switch_download_command_rejects_ambiguous_phase_boundaries
+    drill.download_client_command(validator, 'fixed-image', root, cert, 'rpm', bootstrap, mode='rpm-switch')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_rejects_ambiguous_phase_boundaries (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_rejects_ambiguous_phase_boundaries) (mutation='missing-second')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 227, in test_switch_download_command_rejects_ambiguous_phase_boundaries
+    drill.download_client_command(validator, 'fixed-image', root, cert, 'rpm', bootstrap, mode='rpm-switch')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_rejects_ambiguous_phase_boundaries (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_rejects_ambiguous_phase_boundaries) (mutation='double-first')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 227, in test_switch_download_command_rejects_ambiguous_phase_boundaries
+    drill.download_client_command(validator, 'fixed-image', root, cert, 'rpm', bootstrap, mode='rpm-switch')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_rejects_ambiguous_phase_boundaries (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_rejects_ambiguous_phase_boundaries) (mutation='double-second')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 227, in test_switch_download_command_rejects_ambiguous_phase_boundaries
+    drill.download_client_command(validator, 'fixed-image', root, cert, 'rpm', bootstrap, mode='rpm-switch')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+======================================================================
+ERROR: test_switch_download_command_rejects_ambiguous_phase_boundaries (test_native_stable_clients_drill.NativeStableClientsTests.test_switch_download_command_rejects_ambiguous_phase_boundaries) (mutation='reversed')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py", line 227, in test_switch_download_command_rejects_ambiguous_phase_boundaries
+    drill.download_client_command(validator, 'fixed-image', root, cert, 'rpm', bootstrap, mode='rpm-switch')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'native_stable_clients_test' has no attribute 'download_client_command'
+
+----------------------------------------------------------------------
+Ran 44 tests in 0.523s
+
+FAILED (errors=73)

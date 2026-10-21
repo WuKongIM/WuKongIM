@@ -1,0 +1,24 @@
+{
+  "schema": "wukongim.cloud_rc.public_preparation_manifest/v1",
+  "generation": 2,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1789,
+      "sha256": "cc2affefddeaf820148fcb88055d5587a1b135df9e59595fd9911649bd613beb"
+    },
+    {
+      "path": "dispatch-draft.json",
+      "bytes": 3097,
+      "sha256": "5b8db34d27dd4923dee437c0a6377d21853b157ead3868a6deda872c577da5f5"
+    },
+    {
+      "path": "source-choice.json",
+      "bytes": 2418,
+      "sha256": "a55ab3ca6966490cbd76c85d4a9b4055ec44c9ff36b65a34f1341a425360c312"
+    }
+  ],
+  "scope": "Local public-only source-choice addendum; no executable paid input or credentials.",
+  "original_generation_unchanged": true,
+  "original_generation_file_count": 10
+}

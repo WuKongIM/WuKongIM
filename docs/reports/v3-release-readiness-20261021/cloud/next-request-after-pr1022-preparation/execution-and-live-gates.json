@@ -1,0 +1,89 @@
+{
+  "schema": "wukongim.cloud_rc.next_request_gates/v1",
+  "status": "prepared_not_started",
+  "source_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "steps": [
+    {
+      "order": 1,
+      "owner": "root before paid authorization",
+      "gate": "Wait for #1022 exact-head required CI/review and merge. Record final selected product SHA and protected main control SHA; compare applicable rule/source digests, re-review changed relevant bytes. Preserve earlier scripts timeout as historical; only exact new-head green evidence closes its pending qualification."
+    },
+    {
+      "order": 2,
+      "owner": "root final user question",
+      "gate": "Present one concrete paid start request with final source/control, new request ID/public identity, Hangzhou topology, complete lifecycle, H/S and external reserve. Autonomous merge permission is not this authorization."
+    },
+    {
+      "order": 3,
+      "owner": "authorized start preparation",
+      "gate": "After approval, create exactly one open unlocked [chat-lifecycle] <new_request_id> Issue. Bind approved public diagnostic identity and configured wrapping identity; do not reuse #1018 as the new request Issue or clear its durable stop marker."
+    },
+    {
+      "order": 4,
+      "owner": "authorized startup admission",
+      "gate": "Authenticate bounded full artifact inventory for both stages and all prior cleanup owners; no active or ambiguous prior Lease without exact selector-bound zero proof. Recheck no active paid producer/conflicting transition. Historical Issue comments and idle workflow states cannot substitute for this."
+    },
+    {
+      "order": 5,
+      "owner": "authorized rehearsal workflow",
+      "gate": "Dispatch reviewed input set only on main after control readback. Exact new string H, prior0/attempt1, empty released_preclock_run_id. Validate source reachable from main, fixed operator and normalized public keys; issue preflight before bundle/key/Quote."
+    },
+    {
+      "order": 6,
+      "owner": "authorized workflow safety and live admission",
+      "gate": "Enable rehearsal finalizer before orchestration; generic Release schedule before paid Acquire and seal it enabled after older release passes finish. Failure to arm or incomplete authority rejects procurement. Build immutable source/control-bound bundle once. Before Acquire, obtain a current read-only Quote; validate capacity/quota/full conservative cost <= S-prior, complete account/region/Plan/source/bundle/public-key identity and bounded selector inventory. Seal deployment identity and exact release selector before Acquire. Unknown/missing/conflicting facts reject."
+    },
+    {
+      "order": 7,
+      "owner": "rehearsal orchestration/finalizer",
+      "gate": "Acquire exactly one 12h AutoRelease Lease using admitted Quote; deploy 3 service+1 load hosts. Readiness is bounded 2h; only accepted run-start with 10000 syncs and first full 2000 SEND/s grant starts measured 2h rehearsal. Continuous budget/expiry guards and original correctness thresholds remain."
+    },
+    {
+      "order": 8,
+      "owner": "same-request bounded failure handling",
+      "gate": "Known runtime/correctness failure ends run; no paid retry. Allowed pre-clock control repair needs distinct protected-main revision with exact request trailer, same Lease/source/bundle/sealed identity and original budget/expiry/readiness bounds. Product/bundle change requires terminal cleanup and separate authorization, never replacement on the same Lease."
+    },
+    {
+      "order": 9,
+      "owner": "rehearsal finalizer -> formal starter",
+      "gate": "Collect complete terminal evidence, Release exact rehearsal Lease, authenticate zero inventory. Only rehearsal_pass+full authenticated transition may enable/consume the scheduled formal continuation once. Carry same product/bundle/request and lower H/S; new prior is conservative rehearsal creation-to-zero cost, not old request reserve nor entire rehearsal Quote. Enable formal starter before transition publication."
+    },
+    {
+      "order": 10,
+      "owner": "formal starter/finalizer",
+      "gate": "Before new Acquire, refuse active inventory and arm formal finalizer; obtain fresh Quote and new selector/identity for a fresh 96h Lease. Admit >=81.5h runtime reserve; run uninterrupted72h (h24/h72 reports), <=8h aged-data capacity,30m2000 SEND/s recovery in one process. Same dataset/fence/lifetime; no spliced clocks or restart pass."
+    },
+    {
+      "order": 11,
+      "owner": "terminal cleanup and qualification",
+      "gate": "Maintain five-second cost and one-hour expiry reserve guard. Non-success diagnostic hold <=2h, report rescue <=2h only while budget/expiry/health allow. Release proceeds even if report upload fails. Persist exact zero proof and complete report/cost/identity bundle; verify terminal budgets against original lower H/S after cleanup. Only complete genuine reports can qualify; formal green is not publication of v3 packages."
+    }
+  ],
+  "live_items_not_observed_now": [
+    "New provider AccountID/role/session admission and region authority; no credentials accessed in this review.",
+    "Current actual Quote, exact instance/image/zone availability, quota, price, line-item retention/egress envelope and validity.",
+    "Complete authenticated prior and current provider inventory/selector zero scopes; old comments alone are insufficient.",
+    "Request public diagnostic identity/wrapping public identity and sealed per-Lease deployment identity bindings.",
+    "Safety workflow activation success, exact run control SHA and absence of conflicting live paid owners.",
+    "Bundle artifact/build identities and fresh Lease receipt equality with pre-sealed Plan/Quote.",
+    "Real remote lowered-budget env/runtime guard receipt, workload clock, chronology and complete h24/h72/capacity/recovery outcomes.",
+    "Final exact zero inventory and provider-reported billing when available; reserve never becomes actual bill by inference."
+  ],
+  "stop_conditions": [
+    "Any missing/inconsistent source/control/Plan/Quote/Receipt/account/region/key/selector identity",
+    "Expired/incomplete artifact authority or inventory",
+    "Budget <= reserve, cap drift/default fallback, quote > S-prior or runtime accrued >= S",
+    "Unknown capacity/quota/price or invalid quote",
+    "Safety automation cannot be armed",
+    "Stop marker, known runtime/correctness failure, expiry cleanup reserve reached",
+    "Lost safe control, unbounded diagnosis, or incomplete cleanup evidence"
+  ],
+  "manual_stop_entry": ".github/workflows/chat-lifecycle-stop.yml with exact new request ID; do not hard-cancel cleanup owner",
+  "no_automatic_expansion": [
+    "No region/host/disk/workload/budget increase",
+    "No old-request stop reset",
+    "No second released-preclock continuation",
+    "No direct-repair laboratory substitution for formal RC",
+    "No change in provider IAM or permissions under this preparation"
+  ]
+}

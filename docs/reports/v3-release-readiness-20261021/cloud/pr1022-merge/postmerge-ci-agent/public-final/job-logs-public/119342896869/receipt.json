@@ -1,0 +1,229 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119342896869/logs",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T16:30:46.912741+00:00",
+  "job_id": 119342896869,
+  "run_id": 39634976362,
+  "conclusion": "success",
+  "raw_bytes": 652110,
+  "raw_sha256": "726f70211bef35792ea61b3cb73e0aeae969c271130dedd5ea57531b98b6f1ad",
+  "public_bytes": 650506,
+  "public_sha256": "500c5d50c273cdb4f56fe7d4bf41fca32eef5db9a50aec1ab2a0cdcb9e3bb256",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "size": 63,
+      "sha256": "16c4d733b317580c632897ef560952d71dc26e785186ed001effe79e3551e70e"
+    },
+    {
+      "line": 26,
+      "size": 52,
+      "sha256": "96d06eb08f135b24ca3b8e248308067ea94f1b8d25dc1cc3299cd7fa5c7063b9"
+    },
+    {
+      "line": 44,
+      "size": 42,
+      "sha256": "090e450a36822017f14ba5567806832fab49681daaa56afdfa9043ecb0ae7316"
+    },
+    {
+      "line": 99,
+      "size": 211,
+      "sha256": "9b73d01dc95c3553b2a36b335ec2a02e2df824ac6fca0896ddfc87a2cb930d69"
+    },
+    {
+      "line": 171,
+      "size": 42,
+      "sha256": "35b73b6ea5c418e62b71492d60e7f80332f104422b588ad4bb194bfc3ae3871d"
+    },
+    {
+      "line": 185,
+      "size": 42,
+      "sha256": "89f5cd57a5ee01a7521e6db4d6d35076e3110a7248475c331854be8083136de4"
+    },
+    {
+      "line": 219,
+      "size": 56,
+      "sha256": "84fd12354752548f8c1cbb243006f250c92832faf41f0d9b558c3d97c8982faa"
+    },
+    {
+      "line": 308,
+      "size": 107,
+      "sha256": "51f61128a1fb441c0b040870124f7d69b3a959f949d9278f03e201c1705e7567"
+    },
+    {
+      "line": 309,
+      "size": 104,
+      "sha256": "386609fd0ab84748975da2d80a64acaf27d62586edd8710dc6c1a960c9f40007"
+    },
+    {
+      "line": 539,
+      "size": 129,
+      "sha256": "ff2c981f4532e898aa1666a35ffc5df79e0456360bfbb089b509b489ee20542b"
+    },
+    {
+      "line": 598,
+      "size": 148,
+      "sha256": "eca667966db7326fa514d031f8908879236ff6e9926983713f40541f2f739a79"
+    },
+    {
+      "line": 721,
+      "size": 75,
+      "sha256": "a435bdfa31fb42e6db5727618becfde8f5c16fd2e96daa5bebdd7e4237cc0fb4"
+    },
+    {
+      "line": 722,
+      "size": 139,
+      "sha256": "48a081c0c66948772e3070a8a4da949795c24fcf96a9c7d91e15902132bc5112"
+    },
+    {
+      "line": 723,
+      "size": 168,
+      "sha256": "82b824248adb8c146e5d34d585a255ed758cccff02b57492717878f1f32907af"
+    },
+    {
+      "line": 1522,
+      "size": 81,
+      "sha256": "d80a4022b824b0d397b4796e7036ce442d3f43cbceb9a1d33ff0d2245b4c8ab2"
+    },
+    {
+      "line": 1523,
+      "size": 120,
+      "sha256": "c3c8be41258770c5a179d2457dbb2573bf6d7c88fe4429b896ac552fdf17c2bc"
+    },
+    {
+      "line": 1524,
+      "size": 99,
+      "sha256": "ad18a8dd2e9ed40921e5c9bc6c0c39921626beeb479feea1999f67c6105133a5"
+    },
+    {
+      "line": 1525,
+      "size": 129,
+      "sha256": "d9331cdbb2f7b645379f7bc0f87ce9206dc768296cfbd871fffa834c0a690100"
+    },
+    {
+      "line": 1526,
+      "size": 91,
+      "sha256": "5d81c95705ab4efaebdaf1391b371ffc23ad93c0795c19f187a4fd605801fa46"
+    },
+    {
+      "line": 1527,
+      "size": 90,
+      "sha256": "1359a6484b6b82a40ad4973bb0b7225e07967f878df2868edc423126b32bfdca"
+    },
+    {
+      "line": 1528,
+      "size": 138,
+      "sha256": "de28b9a6f789772726c9aab4c2953b4970e880be8ae69151d62bb1966bcf0258"
+    },
+    {
+      "line": 1529,
+      "size": 97,
+      "sha256": "1086fe0965b35e828de3d9dbe4493a6235f100c23ba0228bad0331b6ec51f924"
+    },
+    {
+      "line": 1530,
+      "size": 97,
+      "sha256": "302fda3dc17d3feac92cbe8d7bb3a4be5bcff4ef31184b3fdae79dca56cdb406"
+    },
+    {
+      "line": 1531,
+      "size": 97,
+      "sha256": "6d9cdce3e6bc242ac40e208faf16e6ca4f221b7b6e985d9c2d34ff9cb06efb7c"
+    },
+    {
+      "line": 1532,
+      "size": 98,
+      "sha256": "316c0f5d1c24247d5c05e9f8d714afa123191ced11dcc6983fce2e0267cdfca3"
+    },
+    {
+      "line": 1533,
+      "size": 109,
+      "sha256": "bff229b73803f07f7190acdeecab6cad988145aad0d13955a843b2b671dfcc65"
+    },
+    {
+      "line": 4195,
+      "size": 81,
+      "sha256": "d9ff23df31fa8c93ef33343990b1ab0828797f945563c4910c712cb9b708c709"
+    },
+    {
+      "line": 4196,
+      "size": 120,
+      "sha256": "2cda28c46e226990aeced84d398c6213408cb6d5df52dc8a936ffdc232e7592b"
+    },
+    {
+      "line": 4197,
+      "size": 99,
+      "sha256": "6b0fb308ba8facf4f9834768211b4b3a9f19d9c32724e516b5110ed214a6e9b1"
+    },
+    {
+      "line": 4198,
+      "size": 129,
+      "sha256": "88ddb20c8dd9abedd43bfc63b837d03ffe11eb5acba3bffec69ec5126d2ce1ac"
+    },
+    {
+      "line": 4199,
+      "size": 91,
+      "sha256": "7f12dfea65853b6353098590b59e9f27ba297901938e6372419332cf94b0380c"
+    },
+    {
+      "line": 4200,
+      "size": 90,
+      "sha256": "3212acb366543d18495ffdf37b4a1076e840fb32cf3e00420a6d30a7f8955a08"
+    },
+    {
+      "line": 4201,
+      "size": 138,
+      "sha256": "7e1cc3d792de30640a0ac050868d98230bbaa30b74270dbfffd4a971ed2d9bb8"
+    },
+    {
+      "line": 4202,
+      "size": 97,
+      "sha256": "e3cd5244d71206e29517ec4c582943f4f363b558ca9ae880215b00aa0380ef76"
+    },
+    {
+      "line": 4203,
+      "size": 97,
+      "sha256": "f273fc5b980238bb35bb5afa798d75a4bf0b2614d2efdd849d098a78cd648915"
+    },
+    {
+      "line": 4204,
+      "size": 97,
+      "sha256": "857dcc8f1c23015ce9684c661083055ef7958efd6d9670963e47a6c2e0bfff03"
+    },
+    {
+      "line": 4205,
+      "size": 98,
+      "sha256": "ab79ceb0c84162f87dc7d27c693946444c065335012b473cb856f013447f7d3c"
+    },
+    {
+      "line": 4206,
+      "size": 109,
+      "sha256": "6ab4aea35dfc4a96255fe4ac9b75563721b59970e4f09d94df9e814bf0d0a697"
+    },
+    {
+      "line": 6388,
+      "size": 90,
+      "sha256": "2d436e5d403cd84c55cbecc48699e1d44be4ca0b1518800c010f9ea76fdd07e7"
+    },
+    {
+      "line": 6389,
+      "size": 100,
+      "sha256": "60e08904833ed732c18031aed6d20bc554c24fa1ce03f9e589524701041c8639"
+    },
+    {
+      "line": 6837,
+      "size": 90,
+      "sha256": "a53bfbd125d3b78d8f3b6d38b5a9872021e4f135283e83af8ca42eab2dc0f0a8"
+    },
+    {
+      "line": 6838,
+      "size": 100,
+      "sha256": "fb53d457f575b82e48e8756aa0d4bbfc33ae3404ebaf528634c366b48a74feb5"
+    }
+  ],
+  "synthetic_sha_present": true,
+  "head_sha_present": true
+}

@@ -1,0 +1,9 @@
+{
+  "observed_at": "2026-10-21T16:42:32.690952+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "6e9e2b71c0b8da8bdb912ac34cb8394bb8785490ba4a684996662463e18c77f1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_public": false,
+  "url": "https://github.com/WuKongIM/WuKongIM/issues/1023",
+  "number": 1023
+}

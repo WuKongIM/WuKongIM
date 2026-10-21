@@ -1,0 +1,103 @@
+{
+  "label": "barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb",
+  "cleanup_verified": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "create",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb",
+        "--label",
+        "wk-stable-barrier-diagnosis=barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "0:0",
+        "--cpus",
+        "1",
+        "--memory",
+        "512m",
+        "--pids-limit",
+        "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=128m",
+        "--volume",
+        "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis:/probe:ro",
+        "--entrypoint",
+        "python3",
+        "quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5",
+        "-B",
+        "/probe/cache-age-probe-rocky.py"
+      ],
+      "exit_code": 0,
+      "stdout": "465633cbea9c46747ed6136ef6a2870c2e183c2a8dcf6d9e1484feee577ef108\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "wk-barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"rpm_versions\": [\n    \"dnf-4.14.0-34.el9_8.rocky.0.1.noarch\",\n    \"libdnf-0.69.0-18.el9.rocky.0.1.x86_64\",\n    \"python3-dnf-4.14.0-34.el9_8.rocky.0.1.noarch\"\n  ],\n  \"metadata_expire\": 0,\n  \"repo_cache\": \"/tmp/probe-cache/wukongim-stable-5702a8a51b8fa885\",\n  \"observed\": [\n    {\n      \"requested_age\": 0,\n      \"now\": 1792599796,\n      \"primary_mtime\": 1792599796,\n      \"native_age\": 0,\n      \"native_expired\": false\n    },\n    {\n      \"requested_age\": 3,\n      \"now\": 1792599796,\n      \"primary_mtime\": 1792599793,\n      \"native_age\": 3,\n      \"native_expired\": true\n    }\n  ],\n  \"only_repo_cache\": {\n    \"load_downloaded\": false,\n    \"global_cacheonly\": false,\n    \"strategy\": 2\n  },\n  \"global_cacheonly_package_rule\": \"    def _select_remote_pkgs(self, install_pkgs):\\n        \\\"\\\"\\\" Check checksum of packages from local repositories and returns list packages from remote\\n        repositories that will be downloaded. Packages from commandline are skipped.\\n\\n        :param install_pkgs: list of packages\\n        :return: list of remote pkgs\\n        \\\"\\\"\\\"\\n        def _verification_of_packages(pkg_list, logger_msg):\\n            all_packages_verified = True\\n            for pkg in pkg_list:\\n                pkg_successfully_verified = False\\n                try:\\n                    pkg_successfully_verified = pkg.verifyLocalPkg()\\n                except Exception as e:\\n                    logger.critical(str(e))\\n                if pkg_successfully_verified is not True:\\n                    logger.critical(logger_msg.format(pkg, pkg.reponame))\\n                    all_packages_verified = False\\n\\n            return all_packages_verified\\n\\n        remote_pkgs = []\\n        local_repository_pkgs = []\\n        for pkg in install_pkgs:\\n            if pkg._is_local_pkg():\\n                if pkg.reponame != hawkey.CMDLINE_REPO_NAME:\\n                    local_repository_pkgs.append(pkg)\\n            else:\\n                remote_pkgs.append(pkg)\\n\\n        msg = _('Package \\\"{}\\\" from local repository \\\"{}\\\" has incorrect checksum')\\n        if not _verification_of_packages(local_repository_pkgs, msg):\\n            raise dnf.exceptions.Error(\\n                _(\\\"Some packages from local repository have incorrect checksum\\\"))\\n\\n        if self.conf.cacheonly:\\n            msg = _('Package \\\"{}\\\" from repository \\\"{}\\\" has incorrect checksum')\\n            if not _verification_of_packages(remote_pkgs, msg):\\n                raise dnf.exceptions.Error(\\n                    _('Some packages have invalid cache, but cannot be downloaded due to '\\n                      '\\\"--cacheonly\\\" option'))\\n            remote_pkgs = []\\n\\n        return remote_pkgs, local_repository_pkgs\\n\",\n  \"limits\": \"Unsigned local metadata, no network; proves actual pinned library freshness and repository-only cache API, not GPG or retained-payload download.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-barrier-diagnosis=barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb"
+      ],
+      "exit_code": 0,
+      "stdout": "465633cbea9c\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-barrier-diagnosis\"}}",
+        "465633cbea9c"
+      ],
+      "exit_code": 0,
+      "stdout": "/wk-barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "465633cbea9c"
+      ],
+      "exit_code": 0,
+      "stdout": "465633cbea9c\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-barrier-diagnosis=barrier-diagnosis-5feb33cbaac2438d9fc21452dd32b1cb"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

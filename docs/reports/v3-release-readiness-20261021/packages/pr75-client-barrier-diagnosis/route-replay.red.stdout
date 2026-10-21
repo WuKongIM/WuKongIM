@@ -1,0 +1,110 @@
+{
+  "replayed_captured_request_count": 17,
+  "host_exact_A_rejection": "downloaded rpm package is absent from the indexed snapshot",
+  "switch_after_first_mirror": true,
+  "observed": [
+    {
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "https://packages.githubim.com/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/\n"
+    },
+    {
+      "path": "/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "A repomd.xml"
+    },
+    {
+      "path": "/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "A repomd.xml.asc"
+    },
+    {
+      "path": "/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "A repomd.xml"
+    },
+    {
+      "path": "/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "A repomd.xml.asc"
+    },
+    {
+      "path": "/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "A filelists.xml.gz"
+    },
+    {
+      "path": "/snapshots/stable/r4242-5b7fc1d006fbc9bdbab9675681a8597d0d40ba8c5354a6acc3c80f1f177aaa12/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "A primary.xml.gz"
+    },
+    {
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "https://packages.githubim.com/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/\n"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B repomd.xml"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B repomd.xml.asc"
+    },
+    {
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "https://packages.githubim.com/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/\n"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B repomd.xml"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B repomd.xml.asc"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B filelists.xml.gz"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B primary.xml.gz"
+    },
+    {
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "https://packages.githubim.com/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/\n"
+    },
+    {
+      "path": "/snapshots/stable/r4243-8b0f25ab0e55043d966f5c64217e19e30587666434afab0eea1dc91cd5b4081a/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "status": 200,
+      "selected_generation_after_response": "B",
+      "body_marker": "B wukongim_3.0.1_linux_amd64.rpm"
+    }
+  ],
+  "scope": "Real RouteTable.response and production _download_receipt with marker bytes. Native resolution/signatures are from CI evidence, not reproduced here."
+}

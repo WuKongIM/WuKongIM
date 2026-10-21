@@ -1,0 +1,5 @@
+{
+  "original_stderr_sha256": "d92a6c52d338c6869c70c4c107b559e79a8c7b90f69f970b6b0ce1391da48c43",
+  "transport_EOF": true,
+  "retry": "one read-only GET; no failed CI or mutation is retried"
+}

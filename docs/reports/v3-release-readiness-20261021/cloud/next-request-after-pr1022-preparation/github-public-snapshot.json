@@ -1,0 +1,322 @@
+{
+  "schema": "wukongim.cloud_rc.public_metadata_snapshot/v1",
+  "started_at": "2026-10-21T16:18:06.189957+00:00",
+  "completed_at": "2026-10-21T16:18:09.406704+00:00",
+  "methods": [
+    "GET"
+  ],
+  "endpoints": {
+    "pull": "repos/WuKongIM/WuKongIM/pulls/1022",
+    "issue": "repos/WuKongIM/WuKongIM/issues/1018",
+    "comments": "repos/WuKongIM/WuKongIM/issues/1018/comments?per_page=100",
+    "workflows": "repos/WuKongIM/WuKongIM/actions/workflows?per_page=100",
+    "main": "repos/WuKongIM/WuKongIM/commits/main",
+    "checks": "repos/WuKongIM/WuKongIM/commits/b3fdb777b9270128fe56086bc47562b321c2c947/check-runs?per_page=100"
+  },
+  "main_sha": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "pull": {
+    "number": 1022,
+    "title": "fix: preserve RC budget reserves and migration recovery readiness",
+    "state": "open",
+    "draft": true,
+    "merged": false,
+    "merged_at": null,
+    "merge_commit_sha": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/pull/1022",
+    "updated_at": "2026-10-21T16:12:05Z",
+    "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+    "base_ref": "main"
+  },
+  "checks": [
+    {
+      "id": 119337576521,
+      "name": "PR three-node regression",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:17:54Z",
+      "completed_at": "2026-10-21T16:17:56Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119337576521"
+    },
+    {
+      "id": 119334862916,
+      "name": "PR 500 QPS / channel-append",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:29Z",
+      "completed_at": "2026-10-21T16:17:29Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334862916"
+    },
+    {
+      "id": 119334862603,
+      "name": "PR 500 QPS / tcp-sendack",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:29Z",
+      "completed_at": "2026-10-21T16:17:10Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334862603"
+    },
+    {
+      "id": 119334862524,
+      "name": "PR 500 QPS / mixed-send",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:29Z",
+      "completed_at": "2026-10-21T16:17:51Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334862524"
+    },
+    {
+      "id": 119334704670,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:12Z",
+      "completed_at": "2026-10-21T16:12:16Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632644184/job/119334704670"
+    },
+    {
+      "id": 119334696573,
+      "name": "Nightly direct 500 QPS qualification",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T16:12:09Z",
+      "completed_at": "2026-10-21T16:12:08Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334696573"
+    },
+    {
+      "id": 119334696491,
+      "name": "Flutter pub.dev 1.1.0 on iOS",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-21T16:12:28Z",
+      "completed_at": null,
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641140/job/119334696491"
+    },
+    {
+      "id": 119334696423,
+      "name": "Fixed Linux SEND diagnosis",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-21T16:12:09Z",
+      "completed_at": "2026-10-21T16:12:08Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334696423"
+    },
+    {
+      "id": 119334696322,
+      "name": "Android Maven Central 1.0.5",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:11Z",
+      "completed_at": "2026-10-21T16:16:47Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641140/job/119334696322"
+    },
+    {
+      "id": 119334695968,
+      "name": "iOS CocoaPods 1.1.1",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:15Z",
+      "completed_at": "2026-10-21T16:16:36Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641140/job/119334695968"
+    },
+    {
+      "id": 119334694831,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:11Z",
+      "completed_at": "2026-10-21T16:12:13Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641028/job/119334694831"
+    },
+    {
+      "id": 119334694368,
+      "name": "PR performance baseline evidence",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:11Z",
+      "completed_at": "2026-10-21T16:12:27Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334694368"
+    },
+    {
+      "id": 119334694083,
+      "name": "PR messaging unit and race",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:10Z",
+      "completed_at": "2026-10-21T16:15:03Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334694083"
+    },
+    {
+      "id": 119334693992,
+      "name": "Candidate scripts integration",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-21T16:12:10Z",
+      "completed_at": null,
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640472/job/119334693992"
+    },
+    {
+      "id": 119334693787,
+      "name": "PR three-node correctness",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-21T16:12:10Z",
+      "completed_at": "2026-10-21T16:16:58Z",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443/job/119334693787"
+    },
+    {
+      "id": 119334693755,
+      "name": "Build and install deb/rpm preview",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-21T16:12:11Z",
+      "completed_at": null,
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640756/job/119334693755"
+    },
+    {
+      "id": 119334693278,
+      "name": "Candidate default suite (go-unit)",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-21T16:12:10Z",
+      "completed_at": null,
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640472/job/119334693278"
+    }
+  ],
+  "historical_issue": {
+    "number": 1018,
+    "title": "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+    "state": "open",
+    "locked": false,
+    "comments": 3,
+    "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1018",
+    "updated_at": "2026-10-21T13:47:00Z"
+  },
+  "historical_issue_comments": [
+    {
+      "id": 6317250473,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1018#issuecomment-6317250473",
+      "created_at": "2026-10-21T13:26:58Z",
+      "updated_at": "2026-10-21T13:26:58Z",
+      "body": "<!-- chat-lifecycle:chat-20261021T095421Z-cf11d65c:rehearsal_deployment_repair_39605452697_2_1 -->\nstate=rehearsal_deployment_repair_pending\nobserved_at_utc=2026-10-21T13:26:57Z\nobserved_at_asia_shanghai=2026-10-21T21:26:57+0800\nfailure_code=stage_state_parse_failed last_gate=deployment_receipt deployment_run=https://github.com/WuKongIM/WuKongIM/actions/runs/39607092610 control_sha=e30299fa59ea6669ea71024eabe209840f241f19 repair_deadline_utc=2026-10-21T16:20:38Z; retaining the exact Lease and waiting for a protected-main revision with trailer Chat-Lifecycle-Repair: chat-20261021T095421Z-cf11d65c"
+    },
+    {
+      "id": 6317513097,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1018#issuecomment-6317513097",
+      "created_at": "2026-10-21T13:39:29Z",
+      "updated_at": "2026-10-21T13:39:29Z",
+      "body": "<!-- chat-lifecycle:chat-20261021T095421Z-cf11d65c:operator_stop_requested -->\nstate=operator_stop_requested\nobserved_at_utc=2026-10-21T13:39:29Z\nobserved_at_asia_shanghai=2026-10-21T21:39:29+0800\nrun=https://github.com/WuKongIM/WuKongIM/actions/runs/39609861645"
+    },
+    {
+      "id": 6317672882,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1018#issuecomment-6317672882",
+      "created_at": "2026-10-21T13:47:00Z",
+      "updated_at": "2026-10-21T13:47:00Z",
+      "body": "<!-- chat-lifecycle:chat-20261021T095421Z-cf11d65c:rehearsal_zero_inventory_run_39605452697 -->\nstate=rehearsal_zero_inventory\nobserved_at_utc=2026-10-21T13:46:59Z\nobserved_at_asia_shanghai=2026-10-21T21:46:59+0800\nrun=https://github.com/WuKongIM/WuKongIM/actions/runs/39605452697"
+    }
+  ],
+  "relevant_workflow_states": [
+    {
+      "id": 329938003,
+      "name": "Agent Tool - Start Chat Lifecycle Rehearsal",
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "state": "active",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-rehearsal.yml",
+      "updated_at": "2026-08-08T19:52:22.000+08:00"
+    },
+    {
+      "id": 329938004,
+      "name": "Agent Tool - Stop Chat Lifecycle Request",
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "state": "active",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-stop.yml",
+      "updated_at": "2026-08-08T19:52:22.000+08:00"
+    },
+    {
+      "id": 329938005,
+      "name": "Agent Tool - Activate Cloud Deployment",
+      "path": ".github/workflows/cloud-deployment-activate.yml",
+      "state": "active",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-deployment-activate.yml",
+      "updated_at": "2026-08-08T19:52:22.000+08:00"
+    },
+    {
+      "id": 329938006,
+      "name": "Agent Tool - Build Cloud Deployment Bundle",
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "state": "active",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-deployment-bundle.yml",
+      "updated_at": "2026-08-08T19:52:22.000+08:00"
+    },
+    {
+      "id": 329938007,
+      "name": "Agent Tool - Inspect Cloud Lease",
+      "path": ".github/workflows/cloud-lease-observe.yml",
+      "state": "active",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-lease-observe.yml",
+      "updated_at": "2026-08-08T19:52:22.000+08:00"
+    },
+    {
+      "id": 329938009,
+      "name": "Agent Tool - Provision Cloud Lease",
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "state": "active",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-lease-provision.yml",
+      "updated_at": "2026-08-08T19:52:22.000+08:00"
+    },
+    {
+      "id": 329938000,
+      "name": "Safety Automation - Finalize Formal Chat Lifecycle Runs",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "state": "disabled_manually",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-formal-finalize.yml",
+      "updated_at": "2026-10-21T21:40:04.000+08:00"
+    },
+    {
+      "id": 329938001,
+      "name": "Safety Automation - Start Fresh Formal Chat Lifecycle",
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "state": "disabled_manually",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-formal.yml",
+      "updated_at": "2026-09-01T19:22:30.000+08:00"
+    },
+    {
+      "id": 329938002,
+      "name": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "state": "disabled_manually",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "updated_at": "2026-10-21T21:53:58.000+08:00"
+    },
+    {
+      "id": 329938010,
+      "name": "Safety Automation - Release Cloud Leases",
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "state": "disabled_manually",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-lease-release.yml",
+      "updated_at": "2026-10-21T21:54:59.000+08:00"
+    }
+  ],
+  "limitations": [
+    "GitHub workflow state is not cloud inventory proof.",
+    "Historical Issue comments are status projections, not authenticated provider zero inventory.",
+    "No provider, account credential, repository secret or browser account data was accessed.",
+    "CI state is a point-in-time snapshot and is not final qualification."
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/119334693755/logs",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "error_class": null,
+  "at": "2026-10-21T16:21:10.798788+00:00",
+  "job_id": 119334693755,
+  "run_id": 39632640756,
+  "conclusion": "success",
+  "raw_bytes": 229068,
+  "raw_sha256": "6b6c8c4e5eddd22066ddf7a66b3137df4e17b095d9024a4f8dcf0d13ea6818b9",
+  "public_bytes": 228840,
+  "public_sha256": "9c80eea994460f91c7a374b53da95160ac1e155640f69a506ab9421e60262883",
+  "redacted_lines": [
+    {
+      "line": 22,
+      "size": 63,
+      "sha256": "8677cd66314a88df22db03f3b9b8a93db36a312ec497866f73c10079300dcd66"
+    },
+    {
+      "line": 26,
+      "size": 52,
+      "sha256": "c6756fd933877a497deb3adee89b3f082cdbf7586643cc39f412e7d58b447876"
+    },
+    {
+      "line": 41,
+      "size": 42,
+      "sha256": "125c348965a80fc7d6ddf62fb02e002d0469de4666f7d332b9d2b96aba1cca21"
+    },
+    {
+      "line": 98,
+      "size": 211,
+      "sha256": "bb66adacfe2575995317fd8b6da626f32c2bac1aae50d735121bb9135ab2f7cb"
+    },
+    {
+      "line": 306,
+      "size": 140,
+      "sha256": "4f8d7131f5f73dd885906fc7dd9b6c1072909eaa514f52519257b2a9556ebd38"
+    },
+    {
+      "line": 637,
+      "size": 42,
+      "sha256": "22c20fd8bb4968ef5a196504a0da4306bc3320daed77ba235c3f462ed2bb39a7"
+    },
+    {
+      "line": 1478,
+      "size": 77,
+      "sha256": "a24bfc964bf2df1ba8141fbd07247d4d3d03a9a2428914cb0542df25198e898a"
+    },
+    {
+      "line": 1887,
+      "size": 77,
+      "sha256": "fb76e8f7eee3ca99edf8ff1b86db89c4d74ae0f38d31a6e2914d4ebce82e65cc"
+    },
+    {
+      "line": 2209,
+      "size": 77,
+      "sha256": "d5411797bcca142a13ddfb361e6a39351abaf7994b531a5dd62d71ca46c86735"
+    },
+    {
+      "line": 2427,
+      "size": 77,
+      "sha256": "abda6c639e2556b801c806f336ca39521bad41b664b27e6c22c8465e73c320ed"
+    }
+  ],
+  "synthetic_sha_present": true,
+  "head_sha_present": true
+}

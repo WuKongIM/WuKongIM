@@ -1,0 +1,8 @@
+{
+  "source_head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "driver_unmodified": true,
+  "test_sha256": "bbafd1bff285aaf93141bce29fc15c967322d19b8b0aca3b9c662f17a9d6ab74",
+  "exit_code": 1,
+  "tests_run": 44,
+  "result": "73 subtest errors: missing new command seam / new after-generation keyword. Distinct from real native original-behavior red."
+}

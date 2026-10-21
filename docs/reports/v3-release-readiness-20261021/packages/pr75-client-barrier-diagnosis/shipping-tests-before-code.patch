@@ -1,0 +1,132 @@
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index c134774..565622e 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -181,6 +181,84 @@ class NativeStableClientsTests(unittest.TestCase):
+                          lambda *args: (_ for _ in ()).throw(RuntimeError('interrupted')))
+         self.assertFalse(owned.cleanup()['verified'])
+ 
++    def test_switch_download_command_preserves_everything_except_second_rpm_phase(self):
++        drill = load()
++        validator = drill.module('scripts/validate-production-package-clients.py')
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); cert = root / 'public.asc'; cert.write_bytes(b'public')
++            bootstrap = root / 'bootstrap'; bootstrap.write_bytes(b'bootstrap')
++            for family in ('apt', 'rpm'):
++                modes = ('normal', 'apt-switch', 'rpm-switch', 'missing-byhash', 'corrupt-byhash',
++                         'missing-metadata', 'wrong-asc', 'wrong-mirror', 'redirect', 'disconnect', 'wrong-san')
++                with mock.patch.object(validator, '_host_ca_bundle', return_value=cert):
++                    original = validator.stable_client_command('fixed-image', root, cert, family, bootstrap)
++                    for mode in modes:
++                        with self.subTest(family=family, mode=mode):
++                            value = drill.download_client_command(validator, 'fixed-image', root, cert,
++                                                                  family, bootstrap, mode=mode)
++                            expected = list(original)
++                            if family == 'rpm' and mode == 'rpm-switch':
++                                expected[-1] = expected[-1].replace(
++                                    'dnf "${dnf_options[@]}" install --downloadonly',
++                                    'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 install --downloadonly')
++                            self.assertEqual(value, expected)
++                    self.assertEqual(validator.stable_client_command('fixed-image', root, cert, family, bootstrap), original)
++
++    def test_switch_download_command_rejects_ambiguous_phase_boundaries(self):
++        drill = load()
++        validator = drill.module('scripts/validate-production-package-clients.py')
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp); cert = root / 'public.asc'; cert.write_bytes(b'public')
++            bootstrap = root / 'bootstrap'; bootstrap.write_bytes(b'bootstrap')
++            original = validator.stable_client_command('fixed-image', root, cert, 'rpm', bootstrap)
++            first = 'dnf "${dnf_options[@]}" makecache --refresh'
++            second = 'dnf "${dnf_options[@]}" install --downloadonly'
++            for mutation in ('missing-first', 'missing-second', 'double-first', 'double-second', 'reversed'):
++                with self.subTest(mutation=mutation):
++                    command = list(original)
++                    if mutation == 'missing-first': command[-1] = command[-1].replace(first, '')
++                    elif mutation == 'missing-second': command[-1] = command[-1].replace(second, '')
++                    elif mutation == 'double-first': command[-1] = command[-1].replace(first, first + '\n' + first)
++                    elif mutation == 'double-second': command[-1] = command[-1].replace(second, second + '\n' + second)
++                    else: command[-1] = command[-1].replace(first, 'PHASE').replace(second, first).replace('PHASE', second)
++                    frozen = list(command)
++                    with mock.patch.object(validator, 'stable_client_command', return_value=command):
++                        with self.assertRaisesRegex(RuntimeError, 'RPM switch phase'):
++                            drill.download_client_command(validator, 'fixed-image', root, cert, 'rpm', bootstrap, mode='rpm-switch')
++                    self.assertEqual(command, frozen)
++
++    def test_rpm_switch_requires_explicit_after_generation_and_ordered_same_case_delivery(self):
++        for mutation in ('A-only-payload', 'A-only-mirror', 'unknown-after', 'same-after', 'no-after',
++                         'other-retained', 'payload-before-mirror', 'other-case', 'missing-serial',
++                         'mirror-incomplete', 'payload-incomplete', 'payload-sha', 'payload-size'):
++            with self.subTest(mutation=mutation):
++                drill, plan, observed, payload, alias = self.rpm_request_fixture()
++                after = 4243
++                if mutation == 'A-only-payload': observed[-1]['path'] = '/' + payload['object_key']
++                elif mutation == 'A-only-mirror': observed[-2] = dict(observed[0])
++                elif mutation == 'unknown-after': after = 9999
++                elif mutation == 'same-after': after = 4242
++                elif mutation == 'no-after': after = None
++                elif mutation == 'payload-before-mirror': observed[-2:] = list(reversed(observed[-2:]))
++                elif mutation == 'other-case': observed[-1]['serial'] = 2
++                elif mutation == 'missing-serial': observed[-1].pop('serial')
++                elif mutation == 'mirror-incomplete': observed[-2]['response_write_completed'] = False
++                elif mutation == 'payload-incomplete': observed[-1]['response_write_completed'] = False
++                elif mutation == 'payload-sha': observed[-1]['sha256'] = 'f' * 64
++                elif mutation == 'payload-size': observed[-1]['size'] += 1
++                elif mutation == 'other-retained':
++                    plan['snapshots'].append({'channel': 'stable', 'audit_release_id': 4244,
++                                              'candidate': {'snapshot_sha256': 'c' * 64}})
++                    c_prefix = '/snapshots/stable/r4244-' + 'c' * 64 + '/'
++                    alias['public_uri'] = c_prefix + payload['source']['member']
++                    alias['object_key'] = 'public' + alias['public_uri']
++                    observed[-1]['path'] = alias['public_uri']
++                    mirror = (drill.ORIGIN + c_prefix + 'site/rpm/stable/el/9/x86_64/\n').encode()
++                    observed[-2].update(sha256=hashlib.sha256(mirror).hexdigest(), size=len(mirror))
++                with self.assertRaises(RuntimeError):
++                    drill.verify_rpm_requests(observed, plan, 4242, switching=True,
++                                              after_audit_release_id=after)
++
+     def test_cache_covers_early_installroot_and_final_cli_paths_without_mixing_state(self):
+         drill = load()
+         self.assertEqual(drill.cache_mounts('rpm'), [('dnf-cache', '/tmp/client-root/tmp/dnf-cache'),
+@@ -637,7 +715,7 @@ class NativeStableClientsTests(unittest.TestCase):
+         mirror_facts = {'sha256': hashlib.sha256(mirror).hexdigest(), 'size': len(mirror)}
+         plan['entrypoints'].append({'public_uri': drill.MIRROR, **mirror_facts})
+         def response(path, value):
+-            return {'path': path, 'status': 200, 'sha256': value['sha256'], 'size': value['size'],
++            return {'path': path, 'serial': 1, 'status': 200, 'sha256': value['sha256'], 'size': value['size'],
+                     'etag': '"' + value['sha256'] + '"', 'response_write_completed': True,
+                     'if_none_match': None, 'if_modified_since': None}
+         alias = dict(payload, public_uri='/' + prefixes[4243] + payload['source']['member'])
+@@ -651,10 +729,10 @@ class NativeStableClientsTests(unittest.TestCase):
+ 
+     def test_rpm_switch_accepts_only_planned_exact_retained_payload_bytes(self):
+         drill, plan, observed, payload, alias = self.rpm_request_fixture()
+-        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+         original_path = observed[-1]['path']
+         observed[-1]['path'] = '/' + payload['object_key']
+-        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        drill.verify_rpm_requests(observed, plan, 4242, switching=False)
+         observed[-1]['path'] = original_path
+         # An identical signed member in another verified snapshot may own a
+         # deduplicated source locator; the semantic identity remains A's bytes.
+@@ -663,9 +741,9 @@ class NativeStableClientsTests(unittest.TestCase):
+         duplicate['object_key'] = alias['public_uri'].lstrip('/')
+         plan['snapshot_objects'].append(duplicate)
+         alias['source'] = copy.deepcopy(duplicate['source'])
+-        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+         plan['immutable_aliases'].clear()
+-        drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++        drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+ 
+     def test_rpm_switch_rejects_unbound_paths_sources_and_delivery(self):
+         for mutation in ('no-alias', 'unknown-source', 'wrong-member', 'source-sha', 'source-size',
+@@ -720,7 +798,7 @@ class NativeStableClientsTests(unittest.TestCase):
+                 elif mutation == 'mirror-status': observed[0]['status'] = 404
+                 elif mutation == 'mirror-incomplete': observed[0]['response_write_completed'] = False
+                 with self.assertRaises(RuntimeError):
+-                    drill.verify_rpm_requests(observed, plan, 4242, switching=True)
++                    drill.verify_rpm_requests(observed, plan, 4242, switching=True, after_audit_release_id=4243)
+ 
+     def test_rpm_conditional_metadata_binds_exact_object_and_header_precedence(self):
+         for condition in ('etag', 'modified', 'wrong-etag', 'wrong-modified', 'wrong-response-etag', 'missing', 'conflicting', 'body', 'incomplete', 'wrong-url'):

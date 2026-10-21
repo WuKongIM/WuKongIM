@@ -1,0 +1,183 @@
+{
+  "reviewed_at": "2026-10-21T16:36:11.808172+00:00",
+  "axis": "Spec",
+  "method": "static read-only review; no runtime execution",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase",
+  "base_sha": "eac9d252f13ea201b405825e6303de703af08c16",
+  "head_sha": "eac9d252f13ea201b405825e6303de703af08c16",
+  "base_tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "candidate_tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "branch_commits": [],
+  "diff_command": "git diff HEAD -- CHANGELOG.md docs/stable-audit-transport.md tests/native_stable_clients_drill.py tests/test_native_stable_clients_drill.py",
+  "untracked_command": "git ls-files --others --exclude-standard",
+  "changed_files": [
+    "CHANGELOG.md",
+    "docs/stable-audit-transport.md",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "untracked": [],
+  "freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/final-source-freeze.json",
+    "sha256": "68677fa0b4159bcc8a2aec486557c888889d9ded44e0a028d2ab0c7e6b7f7e1f",
+    "size": 1164
+  },
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/final.patch",
+    "sha256": "31b799475c7dbf3c88de48d017ff21a1e4f94caa649015166b912533be2d560a",
+    "size": 18957
+  },
+  "files": {
+    "CHANGELOG.md": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/CHANGELOG.md",
+      "sha256": "077f9730fa2c50cd9a9d9daedb1a42964d4d975403121042d0cbb30b0af0154a",
+      "size": 3297
+    },
+    "docs/stable-audit-transport.md": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/docs/stable-audit-transport.md",
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    "tests/native_stable_clients_drill.py": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/native_stable_clients_drill.py",
+      "sha256": "5e0def41669818a1908b2c4c2185f2f464ee2f42f7520435e49251319b5df758",
+      "size": 70008
+    },
+    "tests/test_native_stable_clients_drill.py": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_native_stable_clients_drill.py",
+      "sha256": "bbafd1bff285aaf93141bce29fc15c967322d19b8b0aca3b9c662f17a9d6ab74",
+      "size": 79123
+    }
+  },
+  "frozen_source_copies": {
+    "CHANGELOG.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/final-source/CHANGELOG.md",
+      "sha256": "077f9730fa2c50cd9a9d9daedb1a42964d4d975403121042d0cbb30b0af0154a",
+      "size": 3297
+    },
+    "docs/stable-audit-transport.md": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/final-source/docs/stable-audit-transport.md",
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    "tests/native_stable_clients_drill.py": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/final-source/tests/native_stable_clients_drill.py",
+      "sha256": "5e0def41669818a1908b2c4c2185f2f464ee2f42f7520435e49251319b5df758",
+      "size": 70008
+    },
+    "tests/test_native_stable_clients_drill.py": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/final-source/tests/test_native_stable_clients_drill.py",
+      "sha256": "bbafd1bff285aaf93141bce29fc15c967322d19b8b0aca3b9c662f17a9d6ab74",
+      "size": 79123
+    }
+  },
+  "all_hashes_match": true,
+  "exact_patch_bytes_match": true,
+  "candidate_tree_matches_working_copy": true,
+  "applicable_rule": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "size": 13284
+  },
+  "source_and_rule_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/source-and-rule-freeze.json",
+    "sha256": "3df84ce6d36f0da1f092a9037d11e55eb8e39e3c633af5f58efa0cd00c9fb009",
+    "size": 1105
+  },
+  "base_contract_sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1",
+  "spec_sources": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/docs/stable-audit-transport.md",
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-ci-generation-1/README.md",
+      "sha256": "4b7523b5df2febb2b31940faa534a5e8217a0efc2c3e8e57259cf2e7e45d31c5",
+      "size": 3415
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-ci-generation-1/first-failure.json",
+      "sha256": "86c6e100bd3fbfd080466a7b3a818767654a66892343384684f7f47761e88ccd",
+      "size": 18577
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/FAILURE-INVENTORY.md",
+      "sha256": "8f8eaaae2c2c132006a724db7c442d87ba7f197be78304f52490b2feafc1b378",
+      "size": 5455
+    }
+  ],
+  "unchanged_supporting_sources": {
+    "scripts/validate-production-package-clients.py": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/scripts/validate-production-package-clients.py",
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a",
+      "size": 87886
+    },
+    "scripts/prepare-object-storage-delivery.py": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "size": 26015
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "size": 38978
+    },
+    "tests/test_object_storage_delivery.py": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/tests/test_object_storage_delivery.py",
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b",
+      "size": 33155
+    },
+    "docs/object-storage-delivery.md": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/docs/object-storage-delivery.md",
+      "sha256": "a7f50b2a86259666f0e81e942dd06dcc23a1222eb7c55a86a654f27eb6291b58",
+      "size": 8905
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase/.github/workflows/native-package-repository-drill.yml",
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+      "size": 15073
+    }
+  },
+  "supplied_validation": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/validation.json",
+      "sha256": "353b31c9343dd86a10d347c2ff72898f7b081f6111a58998c4344e784f1fca0d",
+      "size": 686
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/shipping-tests.green.stderr",
+      "sha256": "c605e9bf50adc7a7971fd2bd2d6c5868f425912570f612d61d2948b5ec64b967",
+      "size": 143
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/full-python.stderr",
+      "sha256": "ab2ab0c93a7b71bb1520404b705271a9de56c0286f97bf5efe6ef4d1eb964bbd",
+      "size": 671
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/contracts.stderr",
+      "sha256": "feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6",
+      "size": 102
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/signed-client.receipt.json",
+      "sha256": "8ce5ab895b38bec41f9e9c6638cc3059830aa17681b640d5ea81fcac612e5812",
+      "size": 34931
+    }
+  ],
+  "findings": 0,
+  "scope_creep": false,
+  "report": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-barrier-review/spec/README.md",
+    "sha256": "c5bf37e227ef36c3e332828dd21eea73908cc41103190e03932db8c83b90676e",
+    "size": 2316
+  },
+  "tests_run": false,
+  "ci_used": false,
+  "cloud_api_used": false,
+  "source_edits": false,
+  "git_mutations": false,
+  "private_material_read": false,
+  "all_reviewer_commands_terminal": true
+}

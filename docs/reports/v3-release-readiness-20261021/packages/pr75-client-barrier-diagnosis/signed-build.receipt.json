@@ -1,0 +1,111 @@
+{
+  "label": "signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d",
+  "cleanup_verified": true,
+  "probe_passed": true,
+  "steps": [
+    {
+      "command": [
+        "docker",
+        "create",
+        "--platform",
+        "linux/amd64",
+        "--name",
+        "wk-signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d",
+        "--label",
+        "wk-stable-barrier-diagnosis=signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--cpus",
+        "2",
+        "--memory",
+        "768m",
+        "--pids-limit",
+        "128",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=384m",
+        "--tmpfs",
+        "/var/log:rw,nosuid,nodev,size=32m",
+        "--volume",
+        "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis:/probe:ro",
+        "--volume",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery:/control:ro",
+        "--user",
+        "501:20",
+        "--volume",
+        "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/signed-public:/output:rw",
+        "--entrypoint",
+        "python3",
+        "ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922",
+        "-B",
+        "/probe/build-signed-probe.py"
+      ],
+      "exit_code": 0,
+      "stdout": "7a1ec20f762ed3034d8b2085d42efbd15eda1a361f1ce795af4c70ed38e562e3\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "start",
+        "--attach",
+        "wk-signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"exported_public_files\": [\"A/Packages/wukongim_3.0.0_linux_amd64.rpm\", \"A/repodata/filelists.xml.gz\", \"A/repodata/other.xml.gz\", \"A/repodata/primary.xml.gz\", \"A/repodata/repomd.xml\", \"A/repodata/repomd.xml.asc\", \"B/Packages/wukongim_3.0.0_linux_amd64.rpm\", \"B/Packages/wukongim_3.0.1_linux_amd64.rpm\", \"B/repodata/filelists.xml.gz\", \"B/repodata/other.xml.gz\", \"B/repodata/primary.xml.gz\", \"B/repodata/repomd.xml\", \"B/repodata/repomd.xml.asc\", \"facts.json\", \"rpm-test.asc\"], \"secrets_destroyed_before_export\": true}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--no-trunc",
+        "--filter",
+        "label=wk-stable-barrier-diagnosis=signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d"
+      ],
+      "exit_code": 0,
+      "stdout": "7a1ec20f762ed3034d8b2085d42efbd15eda1a361f1ce795af4c70ed38e562e3\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Name}} {{index .Config.Labels \"wk-stable-barrier-diagnosis\"}}",
+        "7a1ec20f762ed3034d8b2085d42efbd15eda1a361f1ce795af4c70ed38e562e3"
+      ],
+      "exit_code": 0,
+      "stdout": "/wk-signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "7a1ec20f762ed3034d8b2085d42efbd15eda1a361f1ce795af4c70ed38e562e3"
+      ],
+      "exit_code": 0,
+      "stdout": "7a1ec20f762ed3034d8b2085d42efbd15eda1a361f1ce795af4c70ed38e562e3\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=wk-stable-barrier-diagnosis=signed-barrier-b8ee7fcdddab45c79c86c739e0144d0d"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

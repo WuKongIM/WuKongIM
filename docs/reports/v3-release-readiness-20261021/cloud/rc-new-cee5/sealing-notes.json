@@ -1,0 +1,5 @@
+{
+  "initial_seal": "not completed",
+  "reason": "Scanner matched its own literal signature-parameter search strings, not an observed signed URL. Narrowed scan to URL-shaped occurrences. No public manifest existed at that point.",
+  "private_material_found": false
+}

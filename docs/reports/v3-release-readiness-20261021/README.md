@@ -355,3 +355,11 @@ immutable publication and signed native-package public-client acceptance.
 - [#1022第二代提交绑定](cloud/pr1022-delivery-generation-2/commit-source-binding.json)、[迁移组合回归封存](cloud/pr1022-migration-connect-diagnosis/combined-public-final/SHA256SUMS)与[最终双轴复核](cloud/pr1022-migration-connect-diagnosis/barrier-review/combined-review-final.md)：b3fdb777，本地五拓扑55次历史校验通过；原始故障因果限制保留，新的Linux CI待完成。
 - [对象交付v2独审](packages/object-delivery-review/combined-review-v2.md)及`packages/object-delivery-repair-v2/`：两项P2已关闭，source绑定#75/eac9d252；真实云适配未启用。
 - [#75首轮CI](packages/pr75-ci-generation-1/README.md)：554+4与旧native通过；Alma A→B第34例精确版本失败，33通过、15未执行、cleanup零；全部原始收据封存，不重跑或改写失败。
+
+- [#1022第二代首次完整Linux](cloud/pr1022-ci-generation-2/public-final/README.md)：默认/scripts/五拓扑55history/消息/性能/SDK/四系统native全绿；后普通merge为cee5d51f，同验收tree，原失败不覆盖。
+- [合并后云RC准备](cloud/next-request-after-pr1022-preparation/generation-3/README.md)：cee5产品/控制、预算保留旧reserve，新付费启动授权待定；未采购。
+
+- [#1022合并及后置文档](cloud/pr1022-merge/README.md)：cee5同验收tree，保护不变、原分支/worktree已正常清理，4job文档通过。
+- [新云RC单次启动](cloud/rc-new-cee5/execution/README.md)：用户另行批准后run39637426411/#34/attempt1启动，新request/Issue1023和降额保留历史reserve；负载与资格待核。
+- [#75有界屏障修复](packages/pr75-client-barrier-diagnosis/README.md)与[独审](packages/pr75-barrier-review/combined-review.md)：d824fe37，明确阶段缓存语义，严格B地址下载exact-A，首次完整Linux仍执行。
+- [真实provider下一切片](packages/provider-adapter-next-slice/README.md)及[官方wire/CI补查](packages/provider-adapter-next-slice/wire-followup/README.md)：只读设计已完成，开始独立测试先行实现；未配置真实资源或启用stable。

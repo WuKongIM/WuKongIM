@@ -1,0 +1,100 @@
+{
+  "id": 119344290406,
+  "run_id": 39634976362,
+  "workflow_name": "Documentation Pages main attempt 1",
+  "head_branch": "main",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39634976362",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbyXlaZg",
+  "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119344290406",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39634976362/job/119344290406",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T16:30:29Z",
+  "started_at": "2026-10-21T16:30:33Z",
+  "completed_at": "2026-10-21T16:30:48Z",
+  "name": "Refresh bounded Alibaba CDN URLs",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T16:30:34Z",
+      "completed_at": "2026-10-21T16:30:35Z"
+    },
+    {
+      "name": "Checkout the exact source revision",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T16:30:35Z",
+      "completed_at": "2026-10-21T16:30:41Z"
+    },
+    {
+      "name": "Validate the exact CDN refresh binding without credentials",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T16:30:41Z",
+      "completed_at": "2026-10-21T16:30:41Z"
+    },
+    {
+      "name": "Install the pinned Alibaba Cloud CLI",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 4,
+      "started_at": "2026-10-21T16:30:41Z",
+      "completed_at": "2026-10-21T16:30:42Z"
+    },
+    {
+      "name": "Exchange the exact CDN refresh OIDC identity",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 5,
+      "started_at": "2026-10-21T16:30:42Z",
+      "completed_at": "2026-10-21T16:30:43Z"
+    },
+    {
+      "name": "Refresh only the bounded stable public URLs",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-10-21T16:30:43Z",
+      "completed_at": "2026-10-21T16:30:45Z"
+    },
+    {
+      "name": "Post Exchange the exact CDN refresh OIDC identity",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 11,
+      "started_at": "2026-10-21T16:30:45Z",
+      "completed_at": "2026-10-21T16:30:45Z"
+    },
+    {
+      "name": "Post Checkout the exact source revision",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 12,
+      "started_at": "2026-10-21T16:30:45Z",
+      "completed_at": "2026-10-21T16:30:45Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 13,
+      "started_at": "2026-10-21T16:30:45Z",
+      "completed_at": "2026-10-21T16:30:45Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119344290406",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": 1000024428,
+  "runner_name": "GitHub Actions 1000024428",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

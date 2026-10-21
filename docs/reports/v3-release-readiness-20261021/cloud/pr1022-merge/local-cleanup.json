@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-21T16:29:05.262410+00:00",
+  "merged_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "original_tip": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "target_contains_original_tip": true,
+  "worktree_clean_including_ignored": true,
+  "worktree_remove": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "local_branch_delete": {
+    "exit_code": 0,
+    "stdout": "Deleted branch codex/v3-rc-budget-downward (was b3fdb777b).\n",
+    "stderr": "warning: deleting branch 'codex/v3-rc-budget-downward' that has been merged to\n         'refs/remotes/origin/codex/v3-rc-budget-downward', but not yet merged to HEAD.\n"
+  },
+  "primary_before": {
+    "head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "status": ""
+  },
+  "primary_after": {
+    "head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "status": ""
+  }
+}

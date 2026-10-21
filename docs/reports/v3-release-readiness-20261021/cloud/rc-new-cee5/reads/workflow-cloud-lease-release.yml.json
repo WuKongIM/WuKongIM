@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-10-21T16:38:57.581707+00:00",
+  "observed_at": "2026-10-21T16:38:58.553763+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/cloud-lease-release.yml",
+  "exit_code": 0,
+  "response_bytes": 573,
+  "response_sha256": "0d7bab2f7eea797f3eb91e114e4cebbd30e77fe289779b8e1f762f0d98282258",
+  "data": {
+    "id": 329938010,
+    "node_id": "W_kwDOJgfwyc4TqnRa",
+    "name": "Safety Automation - Release Cloud Leases",
+    "path": ".github/workflows/cloud-lease-release.yml",
+    "state": "disabled_manually",
+    "created_at": "2026-08-08T19:52:22.000+08:00",
+    "updated_at": "2026-10-21T21:54:59.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938010",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-lease-release.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Safety%20Automation%20-%20Release%20Cloud%20Leases/badge.svg"
+  }
+}

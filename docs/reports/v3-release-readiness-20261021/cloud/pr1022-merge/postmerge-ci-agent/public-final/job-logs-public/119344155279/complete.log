@@ -1,0 +1,173 @@
+﻿2026-10-21T16:30:18.3792355Z Current runner version: '2.338.0'
+2026-10-21T16:30:18.3814708Z ##[group]Runner Image Provisioner
+2026-10-21T16:30:18.3815621Z Hosted Compute Agent
+2026-10-21T16:30:18.3816204Z Version: 20261015.610
+2026-10-21T16:30:18.3816852Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-21T16:30:18.3817611Z Build Date: 2026-10-14T17:06:54Z
+2026-10-21T16:30:18.3818280Z Worker ID: {a74e2527-82e5-4bd5-8e84-c28788f39d3b}
+2026-10-21T16:30:18.3818963Z Region: westus3
+2026-10-21T16:30:18.3819498Z Cloud: Azure
+2026-10-21T16:30:18.3820044Z ##[endgroup]
+2026-10-21T16:30:18.3822163Z ##[group]Operating System
+2026-10-21T16:30:18.3822781Z Ubuntu
+2026-10-21T16:30:18.3823267Z 24.04.5
+2026-10-21T16:30:18.3823806Z LTS
+2026-10-21T16:30:18.3824396Z ##[endgroup]
+2026-10-21T16:30:18.3825002Z ##[group]Runner Image
+2026-10-21T16:30:18.3825575Z Image: ubuntu-24.04
+2026-10-21T16:30:18.3826107Z Version: 20261018.339.1
+2026-10-21T16:30:18.3827379Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T16:30:18.3828854Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T16:30:18.3829725Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:18.3833198Z Contents: read
+2026-10-21T16:30:18.3833743Z Metadata: read
+2026-10-21T16:30:18.3834331Z Pages: read
+2026-10-21T16:30:18.3834828Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:18.3837760Z Cache mode: write
+2026-10-21T16:30:18.3838400Z Prepare workflow directory
+2026-10-21T16:30:18.4122593Z Prepare all required actions
+2026-10-21T16:30:18.4173250Z Getting action download info
+2026-10-21T16:30:18.7520105Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-10-21T16:30:18.9628389Z Complete job name: Verify the direct GitHub Pages origin
+2026-10-21T16:30:19.0251885Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-10-21T16:30:19.0252904Z with:
+2026-10-21T16:30:19.0253354Z   fetch-depth: 1
+2026-10-21T16:30:19.0253838Z   persist-credentials: false
+2026-10-21T16:30:19.0254377Z   repository: WuKongIM/WuKongIM
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:19.0258169Z   ssh-strict: true
+2026-10-21T16:30:19.0258627Z   ssh-user: git
+2026-10-21T16:30:19.0259066Z   clean: true
+2026-10-21T16:30:19.0259539Z   sparse-checkout-cone-mode: true
+2026-10-21T16:30:19.0260084Z   fetch-tags: false
+2026-10-21T16:30:19.0260693Z   show-progress: true
+2026-10-21T16:30:19.0261170Z   lfs: false
+2026-10-21T16:30:19.0261597Z   submodules: false
+2026-10-21T16:30:19.0262082Z   set-safe-directory: true
+2026-10-21T16:30:19.0262657Z   allow-unsafe-pr-checkout: false
+2026-10-21T16:30:19.0263343Z ##[endgroup]
+2026-10-21T16:30:19.1123981Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T16:30:19.1125890Z ##[group]Getting Git version info
+2026-10-21T16:30:19.1126759Z Working directory is '/home/runner/work/WuKongIM/WuKongIM'
+2026-10-21T16:30:19.1127872Z [command]/usr/bin/git version
+2026-10-21T16:30:19.1185002Z git version 2.55.0
+2026-10-21T16:30:19.1200947Z ##[endgroup]
+2026-10-21T16:30:19.1209925Z Temporarily overriding HOME='/home/runner/work/_temp/c9c8dd94-fa2d-47ef-bea8-2d8e966ac9d3' before making global git config changes
+2026-10-21T16:30:19.1211658Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T16:30:19.1214966Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T16:30:19.1253874Z Deleting the contents of '/home/runner/work/WuKongIM/WuKongIM'
+2026-10-21T16:30:19.1257106Z ##[group]Determining repository object format
+2026-10-21T16:30:19.1258415Z ##[endgroup]
+2026-10-21T16:30:19.1259662Z ##[group]Initializing the repository
+2026-10-21T16:30:19.1263055Z [command]/usr/bin/git init /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T16:30:19.1353259Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T16:30:19.1354536Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T16:30:19.1355806Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T16:30:19.1356540Z hint: call:
+2026-10-21T16:30:19.1357008Z hint:
+2026-10-21T16:30:19.1357821Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T16:30:19.1358625Z hint:
+2026-10-21T16:30:19.1359269Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T16:30:19.1360169Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T16:30:19.1361172Z hint:
+2026-10-21T16:30:19.1361796Z hint: 	git branch -m <name>
+2026-10-21T16:30:19.1362297Z hint:
+2026-10-21T16:30:19.1363024Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T16:30:19.1364425Z Initialized empty Git repository in /home/runner/work/WuKongIM/WuKongIM/.git/
+2026-10-21T16:30:19.1366807Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T16:30:19.1404707Z ##[endgroup]
+2026-10-21T16:30:19.1405554Z ##[group]Disabling automatic garbage collection
+2026-10-21T16:30:19.1407383Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T16:30:19.1433608Z ##[endgroup]
+2026-10-21T16:30:19.1435011Z ##[group]Setting up auth
+2026-10-21T16:30:19.1436116Z Removing SSH command configuration
+2026-10-21T16:30:19.1438557Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T16:30:19.1463137Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T16:30:19.1734637Z Removing HTTP extra header
+2026-10-21T16:30:19.1739088Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T16:30:19.1763874Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T16:30:19.1941547Z Removing includeIf entries pointing to credentials config files
+2026-10-21T16:30:19.1945834Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T16:30:19.1976046Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:19.2200337Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path /home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:19.2224327Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:19.2251463Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:19.2275537Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:19.2297113Z ##[endgroup]
+2026-10-21T16:30:19.2297833Z ##[group]Fetching the repository
+2026-10-21T16:30:19.2303078Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +cee5d51f325fb84033060f546337d326110adae5:refs/remotes/origin/main
+2026-10-21T16:30:23.3411185Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T16:30:23.3413794Z  * [new ref]         cee5d51f325fb84033060f546337d326110adae5 -> origin/main
+2026-10-21T16:30:23.3420068Z [command]/usr/bin/git branch --list --remote origin/main
+2026-10-21T16:30:23.3442121Z   origin/main
+2026-10-21T16:30:23.3449187Z [command]/usr/bin/git rev-parse refs/remotes/origin/main
+2026-10-21T16:30:23.3468145Z cee5d51f325fb84033060f546337d326110adae5
+2026-10-21T16:30:23.3472251Z ##[endgroup]
+2026-10-21T16:30:23.3474015Z ##[group]Determining the checkout info
+2026-10-21T16:30:23.3475845Z ##[endgroup]
+2026-10-21T16:30:23.3476801Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T16:30:23.3559244Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T16:30:23.3585473Z ##[group]Checking out the ref
+2026-10-21T16:30:23.3587559Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-21T16:30:24.0317943Z Switched to a new branch 'main'
+2026-10-21T16:30:24.0319569Z branch 'main' set up to track 'origin/main'.
+2026-10-21T16:30:24.0336550Z ##[endgroup]
+2026-10-21T16:30:24.0371997Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T16:30:24.0395540Z cee5d51f325fb84033060f546337d326110adae5
+2026-10-21T16:30:24.0402471Z ##[group]Removing auth
+2026-10-21T16:30:24.0403252Z Removing SSH command configuration
+2026-10-21T16:30:24.0406142Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T16:30:24.0430895Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T16:30:24.0615396Z Removing HTTP extra header
+2026-10-21T16:30:24.0616060Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T16:30:24.0639867Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T16:30:24.0818318Z Removing includeIf entries pointing to credentials config files
+2026-10-21T16:30:24.0819945Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T16:30:24.0843570Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T16:30:24.0844656Z includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T16:30:24.0845362Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T16:30:24.0846076Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T16:30:24.0850657Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path
+2026-10-21T16:30:24.0866969Z /home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.0874457Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git.path /home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.0902248Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path
+2026-10-21T16:30:24.0918225Z /home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.0924689Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/WuKongIM/WuKongIM/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.0957557Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T16:30:24.0976209Z /github/runner_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.0982063Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.1006916Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T16:30:24.1024533Z /github/runner_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.1031791Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config
+2026-10-21T16:30:24.1058341Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T16:30:24.1222281Z Removing credentials config '/home/runner/work/_temp/git-credentials-34da4814-019d-4189-a769-c517e3499e49.config'
+2026-10-21T16:30:24.1231401Z ##[endgroup]
+2026-10-21T16:30:24.1439298Z ##[group]Run ./scripts/docs-cdn/verify-pages-origin.sh
+2026-10-21T16:30:24.1439892Z [36;1m./scripts/docs-cdn/verify-pages-origin.sh[0m
+2026-10-21T16:30:24.1565367Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T16:30:24.1565851Z env:
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:24.1569069Z   DOCS_PAGES_REPOSITORY: WuKongIM/WuKongIM
+2026-10-21T16:30:24.1569453Z   DOCS_PAGES_DOMAIN: 
+2026-10-21T16:30:24.1569908Z   DOCS_PAGES_CACHE_BUST: cee5d51f325fb84033060f546337d326110adae5-39634976362-1
+2026-10-21T16:30:24.1570381Z ##[endgroup]
+2026-10-21T16:30:26.3497348Z origin_ready domain=origin-docs.githubim.com attempt=1 paths=5 bypass=wukongim.github.io
+2026-10-21T16:30:26.3664170Z Post job cleanup.
+2026-10-21T16:30:26.4386932Z [command]/usr/bin/git version
+2026-10-21T16:30:26.4424981Z git version 2.55.0
+2026-10-21T16:30:26.4452326Z Temporarily overriding HOME='/home/runner/work/_temp/cf338fd0-f1dc-475f-b7ef-e9bc54be87da' before making global git config changes
+2026-10-21T16:30:26.4453129Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T16:30:26.4457313Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/WuKongIM/WuKongIM
+2026-10-21T16:30:26.4481225Z Removing SSH command configuration
+2026-10-21T16:30:26.4486204Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T16:30:26.4511994Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T16:30:26.4686547Z Removing HTTP extra header
+2026-10-21T16:30:26.4690906Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T16:30:26.4715616Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T16:30:26.4886365Z Removing includeIf entries pointing to credentials config files
+2026-10-21T16:30:26.4890930Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T16:30:26.4914421Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T16:30:26.5189945Z Cleaning up orphan processes

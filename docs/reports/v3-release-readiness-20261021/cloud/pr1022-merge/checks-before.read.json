@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "gh",
+    "pr",
+    "checks",
+    "1022",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--json",
+    "name,state,bucket,link,workflow"
+  ],
+  "started_at": "2026-10-21T16:27:14.737871+00:00",
+  "completed_at": "2026-10-21T16:27:16.525142+00:00",
+  "bytes": 4842,
+  "sha256": "8b4d4d29b24c39ace12d2dff06cfbcdf20e08feb07ec187ee54604e9a3dd76bd"
+}

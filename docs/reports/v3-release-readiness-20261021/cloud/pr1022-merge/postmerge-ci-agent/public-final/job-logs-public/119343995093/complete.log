@@ -1,0 +1,59 @@
+﻿2026-10-21T16:30:01.3024673Z Current runner version: '2.338.0'
+2026-10-21T16:30:01.3051706Z ##[group]Runner Image Provisioner
+2026-10-21T16:30:01.3052621Z Hosted Compute Agent
+2026-10-21T16:30:01.3054155Z Version: 20261012.601
+2026-10-21T16:30:01.3055242Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-21T16:30:01.3056379Z Build Date: 2026-10-12T17:48:21Z
+2026-10-21T16:30:01.3057422Z Worker ID: {27093741-d20b-4e49-8c30-275a422fde26}
+2026-10-21T16:30:01.3058653Z Region: eastus
+2026-10-21T16:30:01.3060334Z Cloud: Azure
+2026-10-21T16:30:01.3061181Z ##[endgroup]
+2026-10-21T16:30:01.3063477Z ##[group]Operating System
+2026-10-21T16:30:01.3064215Z Ubuntu
+2026-10-21T16:30:01.3064764Z 24.04.5
+2026-10-21T16:30:01.3065326Z LTS
+2026-10-21T16:30:01.3065842Z ##[endgroup]
+2026-10-21T16:30:01.3066386Z ##[group]Runner Image
+2026-10-21T16:30:01.3067080Z Image: ubuntu-24.04
+2026-10-21T16:30:01.3067676Z Version: 20261012.334.1
+2026-10-21T16:30:01.3069356Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T16:30:01.3070974Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-21T16:30:01.3072174Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:01.3076136Z Metadata: read
+2026-10-21T16:30:01.3076747Z Pages: write
+2026-10-21T16:30:01.3077377Z ##[endgroup]
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:01.3081150Z Cache mode: write
+2026-10-21T16:30:01.3082135Z Prepare workflow directory
+2026-10-21T16:30:01.3421975Z Prepare all required actions
+2026-10-21T16:30:01.3470805Z Getting action download info
+2026-10-21T16:30:01.5843595Z Download action repository 'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128' (SHA:cd2ce8fcbc39b97be8ca5fce6e763baed58fa128)
+2026-10-21T16:30:01.9331873Z Complete job name: Deploy the verified artifact
+2026-10-21T16:30:02.0222538Z ##[group]Run actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
+2026-10-21T16:30:02.0223721Z with:
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:02.0227894Z   timeout: 600000
+2026-10-21T16:30:02.0228335Z   error_count: 10
+2026-10-21T16:30:02.0229020Z   reporting_interval: 5000
+2026-10-21T16:30:02.0229550Z   artifact_name: github-pages
+2026-10-21T16:30:02.0230076Z   preview: false
+2026-10-21T16:30:02.0230818Z ##[endgroup]
+2026-10-21T16:30:02.2299167Z (node:2195) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T16:30:02.2301435Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T16:30:02.3578197Z Fetching artifact metadata for "github-pages" in this workflow run
+2026-10-21T16:30:02.4601222Z Found 1 artifact(s)
+2026-10-21T16:30:02.4615521Z Creating Pages deployment with payload:
+2026-10-21T16:30:02.4616614Z {
+2026-10-21T16:30:02.4617641Z 	"artifact_id": 12360937523,
+2026-10-21T16:30:02.4618907Z 	"pages_build_version": "cee5d51f325fb84033060f546337d326110adae5",
+[redacted authentication-related line; original hash retained]
+2026-10-21T16:30:02.4675024Z }
+2026-10-21T16:30:03.3465176Z Created deployment for cee5d51f325fb84033060f546337d326110adae5, ID: cee5d51f325fb84033060f546337d326110adae5
+2026-10-21T16:30:08.3489691Z Getting Pages deployment status...
+2026-10-21T16:30:08.5834227Z Current status: updating_pages
+2026-10-21T16:30:13.5839968Z Getting Pages deployment status...
+2026-10-21T16:30:13.8142117Z Reported success!
+2026-10-21T16:30:13.8472580Z Evaluate and set environment url
+2026-10-21T16:30:13.8477234Z Evaluated environment url: https://origin-docs.githubim.com/
+2026-10-21T16:30:13.8478232Z Cleaning up orphan processes

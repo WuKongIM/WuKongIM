@@ -1,0 +1,64 @@
+{
+  "head": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "head_tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "base": "aeb45c2164b6a50214928f520edd2a8815b7a976",
+  "actual_checkout_expected": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "size": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "size": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "size": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "size": 13037,
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71"
+    },
+    {
+      "path": ".github/workflows/easysdk-release-acceptance.yml",
+      "size": 8658,
+      "sha256": "3073866aecc25a86dd1ad4cbef27b3913732e8a1c581cb53bc1a77a10a8f3ecd"
+    },
+    {
+      "path": ".github/workflows/native-package-preview.yml",
+      "size": 6230,
+      "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2"
+    },
+    {
+      "path": ".github/workflows/manager-browser-smoke.yml",
+      "size": 2865,
+      "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "size": 30711,
+      "sha256": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603"
+    },
+    {
+      "path": "test/e2e/migration/ordinary_history/AGENTS.md",
+      "size": 2383,
+      "sha256": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc"
+    },
+    {
+      "path": "pkg/channel/FLOW.md",
+      "size": 12423,
+      "sha256": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259"
+    }
+  ],
+  "authorization": "Read-only first natural PR CI. No rerun, dispatch, cancel, source edits, ready, merge, or cloud mutation."
+}

@@ -1,0 +1,14 @@
+{
+  "artifact_id": 12360845662,
+  "archive_size": 229441135,
+  "downloaded_range_bytes": 42847,
+  "selected_entries": [
+    "artifacts/local-step.json",
+    "artifacts/report/final.json",
+    "artifacts/report/qualification.json",
+    "artifacts/report/run-start.json",
+    "artifacts/report/worker-evidence.json",
+    "host.json"
+  ],
+  "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked"
+}

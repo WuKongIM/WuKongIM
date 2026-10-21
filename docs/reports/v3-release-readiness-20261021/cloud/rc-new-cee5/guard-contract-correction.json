@@ -1,0 +1,11 @@
+{
+  "first_guard_failed": true,
+  "failure": "required workflow is not active: cloud-lease-release.yml",
+  "classification": "local admission assumption stricter than the exact source contract; no workflow mutation attempted",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "evidence": [
+    ".github/workflows/README.md:953-963",
+    ".github/workflows/cloud-lease-provision.yml:arm_release and provision needs/if"
+  ],
+  "resolution": "Accept idle disabled_manually for generic cleanup only under existing paid arm_release dependency; record real state; no enabling by this preparation"
+}

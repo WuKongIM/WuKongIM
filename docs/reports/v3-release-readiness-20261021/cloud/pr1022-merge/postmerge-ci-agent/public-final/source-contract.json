@@ -1,0 +1,25 @@
+{
+  "source": "cee5d51f325fb84033060f546337d326110adae5",
+  "run": 39634976362,
+  "event": "push",
+  "attempt": 1,
+  "workflow": ".github/workflows/docs-pages.yml",
+  "rule_and_workflow_digests": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960
+    },
+    {
+      "path": ".github/workflows/docs-pages.yml",
+      "sha256": "5b61562a02f1e07d00e5bd6becaa5ed3395b5fa92f01160ad240b19cb2dcb699",
+      "bytes": 10081
+    }
+  ],
+  "boundary": "Observe naturally triggered workflow only. No dispatch, provider API invocation, secret access, permission/config/source changes."
+}

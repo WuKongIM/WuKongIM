@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 16:22Z（北京时间10月22日00:22）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 16:46Z（北京时间10月22日00:46）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类，候选 b3fdb777 的本地五拓扑55次历史校验通过，新的首次 Linux CI仍在运行；原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，但其首次客户端验收在Alma A→B切换中读到B版本，未满足精确A目标，仍阻塞合并。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类；b3fdb777 的本地及首次 Linux 验收均通过，已按长期授权合并为 cee5d51f，同完整代码树。原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，其首次客户端验收在Alma A→B切换中未满足精确A目标；四文件窄修已双轴复核并通过557项本地测试（1既有skip）/4合同，新head d824fe37的完整原生49场景正在首次Linux验证。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -42,7 +42,7 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 两次云请求均在计时前结束并清零，尚未完成预演/长稳。run32原始原因未知；run33已证实控制脚本空Job误判，修复#1021已批准合并。原一次续跑资格已使用；再次执行需要保留¥148.9552历史报价reserve的向下预算能力及含该守卫的新产品候选。实际费用未知，没有新增付费启动批准。该RC计划不是RELEASING对所有发行的通用机械门禁 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 两次云请求均在计时前结束并清零，尚未完成预演/长稳。run32原始原因未知；run33已证实控制脚本空Job误判，修复#1021已批准合并。原一次续跑资格已使用；再次执行需要保留¥148.9552历史报价reserve的向下预算能力及含该守卫的新产品候选。实际费用未知；新方案另获批准后已单次启动run39637426411，尚待真实预演结果。该RC计划不是RELEASING对所有发行的通用机械门禁 |
 | stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。安装引导准备#71也已合并，通过真实preview/stable共存及重复安装；仍是未签发准备包。离线stable组装/审计及独立验签实现#72已在TEST ONLY Linux通过并获批准合并；实际生产候选封存、OSS/CDN发布与精确版本四客户端公网验收未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
@@ -220,6 +220,16 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 [对象存储离线核心v2独审](v3-release-readiness-20261021/packages/object-delivery-review/combined-review-v2.md)关闭两项P2：写入前及激活前观察当前control，并绑定原始stable客户端回执的transport inputs/plan摘要；本地75项相关、完整554项（553通过、1既有Mac工具skip）与4合同通过。已提交[#75](https://github.com/WuKongIM/packages/pull/75)，head `eac9d252f13ea201b405825e6303de703af08c16`、tree `ca255a7d0fc27186a68f291ccf7ce70948a976d1`。同tree rebase未改变五文件源字节。该核心仍使用fake API且生产关闭，不具备真实OSS/CDN发布能力。
 
 [#75首次CI完整封存](v3-release-readiness-20261021/packages/pr75-ci-generation-1/README.md)：Pages39631486007的554项Python零skip、4合同通过，原native完整签名安装演练及7/10/6/31/8项通过；native39631486744的新stable job失败。33/49通过，case34 Alma A→B request-barrier下载exit0并验签B3.0.1，但host精确A索引拒绝；15项未到达。HTTP serial35包含A元数据后又获取B元数据及B payload，非404或坏签名；两代八套baseline身份全部通过，容器/网络/四缓存清理零遗留。相关driver/validator/fixtures/workflow在983e→620b→eac9完全相同，此事实不直接证明基础设施根因。已开始精确屏障与缓存时序诊断，不放松版本目标，也不重跑旧CI取绿。
+
+[#1022第二代完整Linux封存](v3-release-readiness-20261021/cloud/pr1022-ci-generation-2/public-final/README.md)确认六条自然首次CI全部success：默认219包通过，scripts 649根用例通过/6既有skip、15项预算根检查完整；五拓扑55次历史检查、跨节点4项及单/三节点自聊通过，原2000QPS opt-in跳过，所有owned-session清理为零。三个性能场景合计270,000请求，零error/drop、所有窗口P99低于400ms；正确性75,502 SEND=ACK且最终队列清空，保留1retry/1transport rejection。SDK三平台和四发行版原生包生命周期均通过。19项屏障用例属于精确source完整复制包覆盖，Linux非verbose日志不能伪称逐例事件。全部首次证据完整保留；两个大型artifact仅range读取所选小成员，不宣称整体SHA重算。
+
+按用户长期授权，#1022于16:27:41Z普通merge为 `cee5d51f325fb84033060f546337d326110adae5`，parents aeb+b3f、tree ae5a4175与验收完全相同。合并前19成功/2条件skip、无阻断review，Review Agent仍停用；分支保护前后逐字相同，没有admin绕过。fetch验证main包含原tip且工作树无tracked/untracked/ignored修改后，正常移除任务worktree并用branch -d删除原分支；用户primary a804及其干净状态未变。[自然文档后置CI](v3-release-readiness-20261021/cloud/pr1022-merge/README.md)39634976362已四job首次通过，Pages实际部署为cee5、5路径origin验证通过，4URL CDN刷新accepted；不宣称所有edge完成。
+
+[合并后的新云方案](v3-release-readiness-20261021/cloud/next-request-after-pr1022-preparation/generation-3/README.md)固定cee5同时作为产品与控制源，31项规则/源码摘要闭合。新request上限/停止线¥1351.0448/¥1201.0448，加旧¥148.9552报价reserve仍为整项¥1500/¥1350。2小时预演→释放→新租约72h/≤8h容量/30m恢复及原始阈值不变。用户随后单独明确批准并已执行一次新付费启动，具体收据见下文；合并授权未被用于替代付费批准。旧request的stop和已用完的一次continuation不重置。
+
+[新RC授权准备](v3-release-readiness-20261021/cloud/rc-new-cee5/README.md)完成source/31项规则、身份变量hash/subject和新诊断公私匹配；只创建一次Issue #1023并确认open/unlocked/搜索唯一。首次API EOF、过严idle release guard及Issue索引尚不可见均原样保留，按现有arm-owner合同修正本地guard，无IAM或schedule修改。[单次启动收据](v3-release-readiness-20261021/cloud/rc-new-cee5/execution/README.md)确认16:44:07Z的run39637426411、number34/attempt1、cee5产品/控制与已批准输入完全一致。已进入远端编排，尚未证明负载run-start、2小时或72小时通过；后续由受审workflow执行Quote/Acquire前准入和清理责任。
+
+[packages #75屏障修复](v3-release-readiness-20261021/packages/pr75-client-barrier-diagnosis/README.md)用固定Rocky/Alma镜像验证metadata_expire=0的整秒年龄依赖；有界真实签名探针保留旧跨秒选B行为，并证明只在第二个切换阶段显式复用A元数据时，B mirrorlist和B前缀仍可下载已验签精确A，fresh-B仍B。原CI未记录mtime，不能声称唯一追溯其跨秒/GPG原因。四文件全测试先红后绿，44相关/557本地（1既有Mac工具skip）/4合同通过，[双轴独审](v3-release-readiness-20261021/packages/pr75-barrier-review/combined-review.md)无发现，production validator与其他114文件不变。新head d824fe37918ee4ef22b1b1745bc02518812563e3、tree50e099e7的首次Pages39636511642已557零skip+4通过；native39636512103仍运行，不提前认定49全绿。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

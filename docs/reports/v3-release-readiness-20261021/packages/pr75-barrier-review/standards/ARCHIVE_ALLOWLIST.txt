@@ -1,0 +1,6 @@
+findings.json
+review.md
+scope.json
+tracked-source-integrity.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

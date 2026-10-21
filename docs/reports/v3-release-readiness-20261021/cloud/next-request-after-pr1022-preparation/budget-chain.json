@@ -1,0 +1,85 @@
+{
+  "schema": "wukongim.cloud_rc.downward_budget_review/v1",
+  "source_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "task_envelope": {
+    "currency": "CNY",
+    "historical_quote_reserve_micros": 148955200,
+    "historical_quote_reserve_cny": "148.9552",
+    "historical_reserve_is_actual_bill": false,
+    "actual_provider_bill": "unknown",
+    "new_request_hard_micros": 1351044800,
+    "new_request_hard_cny": "1351.0448",
+    "new_request_stop_micros": 1201044800,
+    "new_request_stop_cny": "1201.0448",
+    "hard_minus_stop_micros": 150000000,
+    "historical_plus_new_hard_micros": 1500000000,
+    "historical_plus_new_stop_micros": 1350000000,
+    "new_request_initial_prior_micros": 0
+  },
+  "chain": [
+    {
+      "boundary": "Workflow string input",
+      "evidence": ".github/workflows/chat-lifecycle-rehearsal.yml:28,57,82",
+      "contract": "Canonical decimal input validated before bundle/key/Quote; 150000000 < H <= 1500000000; no predecessor with reduced H."
+    },
+    {
+      "boundary": "Stage -> materialize CLI",
+      "evidence": "scripts/chat-lifecycle/stage-orchestrate.sh:53,561; cmd/wkchatlifecycle/main.go:207,223,255",
+      "contract": "Pass exact H once, distinguish omitted from explicit empty/zero, set TrustedContext pointer. Formal must supply authenticated H."
+    },
+    {
+      "boundary": "RunPlan -> Lease Plan",
+      "evidence": "internal/usecase/chatlifecyclerun/run.go:330,471",
+      "contract": "Derive S=H-150000000 in local effective template; first rehearsal prior0/attempt1. Formal prior comes only from authenticated same-request released rehearsal transition."
+    },
+    {
+      "boundary": "Quote -> Receipt",
+      "evidence": "internal/usecase/cloudlease/control.go:706,817",
+      "contract": "Exact Lease/request/provider/region/Plan digest/currency/capacity/quota/validity; estimate <= S-prior. Equality accepted; greater rejected. Quote is not billing."
+    },
+    {
+      "boundary": "DeploymentPlan",
+      "evidence": "internal/usecase/clouddeploy/deployment.go:690,704",
+      "contract": "Identity-bound H/S/prior and positive exact line-item sum; estimate <= remaining S; immutable envelope preserves fixed 150M reserve."
+    },
+    {
+      "boundary": "Native load environment",
+      "evidence": ".github/workflows/cloud-deployment-activate.yml:237",
+      "contract": "Read H/S/prior/estimate/line items dynamically from DeploymentPlan into root-only WK_CHAT_BUDGET_* env."
+    },
+    {
+      "boundary": "Product wkcli guard",
+      "evidence": "cmd/wkcli/internal/benchmark/formal_chain_command.go:163,229,303",
+      "contract": "Admit same lower immutable envelope and exact quote/prior; stop accrued >= S, keep expiry reserve through rehearsal/soak/capacity/recovery."
+    },
+    {
+      "boundary": "Formal continuation",
+      "evidence": ".github/workflows/chat-lifecycle-formal.yml:103,159; scripts/chat-lifecycle/select-formal-transition-committed.jq:1",
+      "contract": "Authenticate original rehearsal RunPlan/Receipt, derive caps without default fallback; actual conservative rehearsal creation-to-zero cost becomes same-request prior."
+    },
+    {
+      "boundary": "Terminal qualification after cleanup",
+      "evidence": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml:387,443; .github/workflows/chat-lifecycle-formal-finalize.yml:378,430",
+      "contract": "Compare handoff/original/terminal/DeploymentPlan budgets after cleanup; mismatches reject qualification, never suppress owned-Lease Release and zero-proof publication."
+    }
+  ],
+  "source_boundary": {
+    "evidence": ".github/workflows/cloud-deployment-bundle.yml:91",
+    "product_binaries": [
+      "wukongim",
+      "wkcli",
+      "wkanalysis"
+    ],
+    "product_source": "final immutable product SHA, not control replacement",
+    "old_fc182_lower_budget_capability": false,
+    "candidate_contains_lower_budget_guard": true,
+    "candidate_runtime_qualification": "Pending candidate CI and later actual admitted remote evidence; static review is not live qualification."
+  },
+  "not_implemented_or_claimed": [
+    "Cross-request billing authentication",
+    "Actual invoice reconciliation",
+    "A second released-preclock continuation",
+    "A new Quote or provider price/capacity result",
+    "Paid start authorization"
+  ]
+}

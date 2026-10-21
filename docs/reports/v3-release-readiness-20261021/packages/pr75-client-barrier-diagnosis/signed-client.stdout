@@ -1,0 +1,804 @@
+{
+  "test_only": true,
+  "scope": "Real signed data-only RPM and signed repository, native Alma image, HTTPS loopback only. No production bootstrap/product/source-release claim. Age is deliberate in this probe, not an observed original CI timestamp.",
+  "facts": {
+    "test_only": true,
+    "fingerprint": "71CD4D5B329B4EC2080EC6FAC1229FCF01983DA7",
+    "payloads": {
+      "A": {
+        "version": "3.0.0",
+        "member": "A/Packages/wukongim_3.0.0_linux_amd64.rpm",
+        "sha256": "603fa052c56de45919291424b55a6618b60c89b1c26abea457a048ef3ee778c5",
+        "size": 6211
+      },
+      "B": {
+        "version": "3.0.1",
+        "member": "B/Packages/wukongim_3.0.1_linux_amd64.rpm",
+        "sha256": "a67985a9c8a40de41c25040d5200800f55863b0480461cd1a9a8d5ebbabc7b17",
+        "size": 6211
+      }
+    }
+  },
+  "results": [
+    {
+      "case": "original-expired-A",
+      "passed": true,
+      "selected": "B",
+      "version": "3.0.1",
+      "sha256": "a67985a9c8a40de41c25040d5200800f55863b0480461cd1a9a8d5ebbabc7b17",
+      "signature": "/tmp/barrier-probe/original-expired-A/downloads/wukongim_3.0.1_linux_amd64.rpm: digests signatures OK",
+      "before": {
+        "mtime_ns": 1792600118715910014,
+        "now": 1792600118.800691,
+        "sha256": "f3abb0842fbc09bdb98b95a0819c87e727e6b9ea5c74e325a929a465d2e7752d"
+      },
+      "aged": {
+        "mtime_ns": 1792600118715910014,
+        "now": 1792600120.9077857,
+        "sha256": "f3abb0842fbc09bdb98b95a0819c87e727e6b9ea5c74e325a929a465d2e7752d"
+      },
+      "exact_A_assertion_passes": false,
+      "B_mirror_and_B_payload_prefix": true,
+      "metadata_paths": [
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc"
+      ]
+    },
+    {
+      "case": "explicit-A-stage",
+      "passed": true,
+      "selected": "A",
+      "version": "3.0.0",
+      "sha256": "603fa052c56de45919291424b55a6618b60c89b1c26abea457a048ef3ee778c5",
+      "signature": "/tmp/barrier-probe/explicit-A-stage/downloads/wukongim_3.0.0_linux_amd64.rpm: digests signatures OK",
+      "before": {
+        "mtime_ns": 1792600123394576002,
+        "now": 1792600123.4776921,
+        "sha256": "f3abb0842fbc09bdb98b95a0819c87e727e6b9ea5c74e325a929a465d2e7752d"
+      },
+      "aged": {
+        "mtime_ns": 1792600123394576002,
+        "now": 1792600125.5861533,
+        "sha256": "f3abb0842fbc09bdb98b95a0819c87e727e6b9ea5c74e325a929a465d2e7752d"
+      },
+      "exact_A_assertion_passes": true,
+      "B_mirror_and_B_payload_prefix": true,
+      "metadata_paths": [
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+        "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc"
+      ]
+    },
+    {
+      "case": "fresh-B",
+      "passed": true,
+      "selected": "B",
+      "version": "3.0.1",
+      "sha256": "a67985a9c8a40de41c25040d5200800f55863b0480461cd1a9a8d5ebbabc7b17",
+      "signature": "/tmp/barrier-probe/fresh-B/downloads/wukongim_3.0.1_linux_amd64.rpm: digests signatures OK",
+      "before": {
+        "mtime_ns": 1792600127445576004,
+        "now": 1792600127.5322309,
+        "sha256": "09afbf16c8d86e2d5ffd75f9752a42e269b21de9618ca6c02a7f0bdee39b9c0b"
+      },
+      "aged": {
+        "mtime_ns": 1792600127445576004,
+        "now": 1792600127.5322726,
+        "sha256": "09afbf16c8d86e2d5ffd75f9752a42e269b21de9618ca6c02a7f0bdee39b9c0b"
+      },
+      "exact_A_assertion_passes": false,
+      "B_mirror_and_B_payload_prefix": true,
+      "metadata_paths": [
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+        "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "case": "setup",
+      "phase": "setup",
+      "command": [
+        "openssl",
+        "req",
+        "-x509",
+        "-newkey",
+        "rsa:2048",
+        "-nodes",
+        "-days",
+        "1",
+        "-subj",
+        "/CN=packages.githubim.com",
+        "-addext",
+        "subjectAltName=DNS:packages.githubim.com",
+        "-keyout",
+        "/tmp/barrier-probe/tls.key",
+        "-out",
+        "/tmp/barrier-probe/tls.crt"
+      ],
+      "started_at": 1792600117.711394,
+      "finished_at": 1792600117.808313,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ".....+.......+.....+.+++++++++++++++++++++++++++++++++++++++*........+...+..........+...+..+.+......+.....+...+.......+.........+.....+.........+.............+...+............+.........+.....+...+...+.......+........+....+...+..+....+......+........+.+++++++++++++++++++++++++++++++++++++++*.+......+.+..+.+...........+....+..+....+......+........+....+...........+..........+.....+.+.....+...+...+....+...+..+.+.....+........................+...+.+......+......+..+..........+.....+............+..........+...+..................+...+.....+......+...+..........+..+................+.....+....+.....+.+..................+...........+......+.......+..+.+........+.........+............+...+.......+...+...+.....+....+.....+.+..+.+............+.................+......+.+......+...+...........+...+.......+........+.+.................+...+.+..............+.......+...+......+.....+...............+.+...+..+.......+..+....+....................+....+......+..+...+.......+..+.............+............++++++\n...+...+.+...+..................+.........+.....+.........+.+......+...+.........+.....+.+...........+++++++++++++++++++++++++++++++++++++++*.....+.+........+.........+.............+.........+.....+++++++++++++++++++++++++++++++++++++++*...+.........+.....+...+...+.......+...............+......+.....+.+........+...+.........+...+.......++++++\n-----\n"
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "command": [
+        "dnf",
+        "--quiet",
+        "--assumeyes",
+        "--installroot=/tmp/barrier-probe/original-expired-A/client-root",
+        "--releasever=9",
+        "--disablerepo=*",
+        "--enablerepo=wukongim-stable",
+        "--setopt=reposdir=/tmp/barrier-probe/original-expired-A/repos",
+        "--setopt=cachedir=/tmp/barrier-probe/original-expired-A/cache",
+        "--setopt=persistdir=/tmp/barrier-probe/original-expired-A/state",
+        "--setopt=keepcache=False",
+        "--setopt=install_weak_deps=False",
+        "--setopt=wukongim-stable.sslcacert=/tmp/barrier-probe/tls.crt",
+        "makecache",
+        "--refresh"
+      ],
+      "started_at": 1792600117.8345752,
+      "finished_at": 1792600118.800499,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Importing GPG key 0x01983DA7:\n Userid     : \"BARRIER TEST ONLY <test@invalid>\"\n Fingerprint: 71CD 4D5B 329B 4EC2 080E C6FA C122 9FCF 0198 3DA7\n From       : /tmp/barrier-probe/public/rpm-test.asc\n"
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "command": [
+        "dnf",
+        "--quiet",
+        "--assumeyes",
+        "--installroot=/tmp/barrier-probe/original-expired-A/client-root",
+        "--releasever=9",
+        "--disablerepo=*",
+        "--enablerepo=wukongim-stable",
+        "--setopt=reposdir=/tmp/barrier-probe/original-expired-A/repos",
+        "--setopt=cachedir=/tmp/barrier-probe/original-expired-A/cache",
+        "--setopt=persistdir=/tmp/barrier-probe/original-expired-A/state",
+        "--setopt=keepcache=False",
+        "--setopt=install_weak_deps=False",
+        "--setopt=wukongim-stable.sslcacert=/tmp/barrier-probe/tls.crt",
+        "install",
+        "--downloadonly",
+        "--downloaddir=/tmp/barrier-probe/original-expired-A/downloads",
+        "wukongim"
+      ],
+      "started_at": 1792600120.9087996,
+      "finished_at": 1792600122.1890562,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Importing GPG key 0x01983DA7:\n Userid     : \"BARRIER TEST ONLY <test@invalid>\"\n Fingerprint: 71CD 4D5B 329B 4EC2 080E C6FA C122 9FCF 0198 3DA7\n From       : /tmp/barrier-probe/public/rpm-test.asc\n"
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "verify",
+      "command": [
+        "rpm",
+        "--dbpath",
+        "/tmp/barrier-probe/original-expired-A/rpmdb",
+        "--initdb"
+      ],
+      "started_at": 1792600122.1893196,
+      "finished_at": 1792600122.2479355,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "verify",
+      "command": [
+        "rpmkeys",
+        "--dbpath",
+        "/tmp/barrier-probe/original-expired-A/rpmdb",
+        "--import",
+        "/tmp/barrier-probe/public/rpm-test.asc"
+      ],
+      "started_at": 1792600122.247981,
+      "finished_at": 1792600122.2963343,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "verify",
+      "command": [
+        "rpmkeys",
+        "--dbpath",
+        "/tmp/barrier-probe/original-expired-A/rpmdb",
+        "--checksig",
+        "/tmp/barrier-probe/original-expired-A/downloads/wukongim_3.0.1_linux_amd64.rpm"
+      ],
+      "started_at": 1792600122.2963772,
+      "finished_at": 1792600122.3452559,
+      "exit_code": 0,
+      "stdout": "/tmp/barrier-probe/original-expired-A/downloads/wukongim_3.0.1_linux_amd64.rpm: digests signatures OK\n",
+      "stderr": ""
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "verify",
+      "command": [
+        "rpm",
+        "-qp",
+        "--queryformat",
+        "%{VERSION}",
+        "/tmp/barrier-probe/original-expired-A/downloads/wukongim_3.0.1_linux_amd64.rpm"
+      ],
+      "started_at": 1792600122.3452775,
+      "finished_at": 1792600122.3959334,
+      "exit_code": 0,
+      "stdout": "3.0.1",
+      "stderr": "warning: /tmp/barrier-probe/original-expired-A/downloads/wukongim_3.0.1_linux_amd64.rpm: Header V4 RSA/SHA256 Signature, key ID 01983da7: NOKEY\n"
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "command": [
+        "dnf",
+        "--quiet",
+        "--assumeyes",
+        "--installroot=/tmp/barrier-probe/explicit-A-stage/client-root",
+        "--releasever=9",
+        "--disablerepo=*",
+        "--enablerepo=wukongim-stable",
+        "--setopt=reposdir=/tmp/barrier-probe/explicit-A-stage/repos",
+        "--setopt=cachedir=/tmp/barrier-probe/explicit-A-stage/cache",
+        "--setopt=persistdir=/tmp/barrier-probe/explicit-A-stage/state",
+        "--setopt=keepcache=False",
+        "--setopt=install_weak_deps=False",
+        "--setopt=wukongim-stable.sslcacert=/tmp/barrier-probe/tls.crt",
+        "makecache",
+        "--refresh"
+      ],
+      "started_at": 1792600122.397483,
+      "finished_at": 1792600123.4775116,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Importing GPG key 0x01983DA7:\n Userid     : \"BARRIER TEST ONLY <test@invalid>\"\n Fingerprint: 71CD 4D5B 329B 4EC2 080E C6FA C122 9FCF 0198 3DA7\n From       : /tmp/barrier-probe/public/rpm-test.asc\n"
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "download-A-selected",
+      "command": [
+        "dnf",
+        "--quiet",
+        "--assumeyes",
+        "--installroot=/tmp/barrier-probe/explicit-A-stage/client-root",
+        "--releasever=9",
+        "--disablerepo=*",
+        "--enablerepo=wukongim-stable",
+        "--setopt=reposdir=/tmp/barrier-probe/explicit-A-stage/repos",
+        "--setopt=cachedir=/tmp/barrier-probe/explicit-A-stage/cache",
+        "--setopt=persistdir=/tmp/barrier-probe/explicit-A-stage/state",
+        "--setopt=keepcache=False",
+        "--setopt=install_weak_deps=False",
+        "--setopt=wukongim-stable.sslcacert=/tmp/barrier-probe/tls.crt",
+        "--setopt=wukongim-stable.metadata_expire=-1",
+        "install",
+        "--downloadonly",
+        "--downloaddir=/tmp/barrier-probe/explicit-A-stage/downloads",
+        "wukongim"
+      ],
+      "started_at": 1792600125.5866024,
+      "finished_at": 1792600126.3688788,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Importing GPG key 0x01983DA7:\n Userid     : \"BARRIER TEST ONLY <test@invalid>\"\n Fingerprint: 71CD 4D5B 329B 4EC2 080E C6FA C122 9FCF 0198 3DA7\n From       : /tmp/barrier-probe/public/rpm-test.asc\n"
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "verify",
+      "command": [
+        "rpm",
+        "--dbpath",
+        "/tmp/barrier-probe/explicit-A-stage/rpmdb",
+        "--initdb"
+      ],
+      "started_at": 1792600126.3689744,
+      "finished_at": 1792600126.4271235,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "verify",
+      "command": [
+        "rpmkeys",
+        "--dbpath",
+        "/tmp/barrier-probe/explicit-A-stage/rpmdb",
+        "--import",
+        "/tmp/barrier-probe/public/rpm-test.asc"
+      ],
+      "started_at": 1792600126.4271638,
+      "finished_at": 1792600126.475761,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "verify",
+      "command": [
+        "rpmkeys",
+        "--dbpath",
+        "/tmp/barrier-probe/explicit-A-stage/rpmdb",
+        "--checksig",
+        "/tmp/barrier-probe/explicit-A-stage/downloads/wukongim_3.0.0_linux_amd64.rpm"
+      ],
+      "started_at": 1792600126.4758072,
+      "finished_at": 1792600126.5254366,
+      "exit_code": 0,
+      "stdout": "/tmp/barrier-probe/explicit-A-stage/downloads/wukongim_3.0.0_linux_amd64.rpm: digests signatures OK\n",
+      "stderr": ""
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "verify",
+      "command": [
+        "rpm",
+        "-qp",
+        "--queryformat",
+        "%{VERSION}",
+        "/tmp/barrier-probe/explicit-A-stage/downloads/wukongim_3.0.0_linux_amd64.rpm"
+      ],
+      "started_at": 1792600126.5254571,
+      "finished_at": 1792600126.576863,
+      "exit_code": 0,
+      "stdout": "3.0.0",
+      "stderr": "warning: /tmp/barrier-probe/explicit-A-stage/downloads/wukongim_3.0.0_linux_amd64.rpm: Header V4 RSA/SHA256 Signature, key ID 01983da7: NOKEY\n"
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "command": [
+        "dnf",
+        "--quiet",
+        "--assumeyes",
+        "--installroot=/tmp/barrier-probe/fresh-B/client-root",
+        "--releasever=9",
+        "--disablerepo=*",
+        "--enablerepo=wukongim-stable",
+        "--setopt=reposdir=/tmp/barrier-probe/fresh-B/repos",
+        "--setopt=cachedir=/tmp/barrier-probe/fresh-B/cache",
+        "--setopt=persistdir=/tmp/barrier-probe/fresh-B/state",
+        "--setopt=keepcache=False",
+        "--setopt=install_weak_deps=False",
+        "--setopt=wukongim-stable.sslcacert=/tmp/barrier-probe/tls.crt",
+        "makecache",
+        "--refresh"
+      ],
+      "started_at": 1792600126.5781715,
+      "finished_at": 1792600127.5320601,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Importing GPG key 0x01983DA7:\n Userid     : \"BARRIER TEST ONLY <test@invalid>\"\n Fingerprint: 71CD 4D5B 329B 4EC2 080E C6FA C122 9FCF 0198 3DA7\n From       : /tmp/barrier-probe/public/rpm-test.asc\n"
+    },
+    {
+      "case": "fresh-B",
+      "phase": "download-normal",
+      "command": [
+        "dnf",
+        "--quiet",
+        "--assumeyes",
+        "--installroot=/tmp/barrier-probe/fresh-B/client-root",
+        "--releasever=9",
+        "--disablerepo=*",
+        "--enablerepo=wukongim-stable",
+        "--setopt=reposdir=/tmp/barrier-probe/fresh-B/repos",
+        "--setopt=cachedir=/tmp/barrier-probe/fresh-B/cache",
+        "--setopt=persistdir=/tmp/barrier-probe/fresh-B/state",
+        "--setopt=keepcache=False",
+        "--setopt=install_weak_deps=False",
+        "--setopt=wukongim-stable.sslcacert=/tmp/barrier-probe/tls.crt",
+        "install",
+        "--downloadonly",
+        "--downloaddir=/tmp/barrier-probe/fresh-B/downloads",
+        "wukongim"
+      ],
+      "started_at": 1792600127.5322902,
+      "finished_at": 1792600128.2892344,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Importing GPG key 0x01983DA7:\n Userid     : \"BARRIER TEST ONLY <test@invalid>\"\n Fingerprint: 71CD 4D5B 329B 4EC2 080E C6FA C122 9FCF 0198 3DA7\n From       : /tmp/barrier-probe/public/rpm-test.asc\n"
+    },
+    {
+      "case": "fresh-B",
+      "phase": "verify",
+      "command": [
+        "rpm",
+        "--dbpath",
+        "/tmp/barrier-probe/fresh-B/rpmdb",
+        "--initdb"
+      ],
+      "started_at": 1792600128.289333,
+      "finished_at": 1792600128.3493338,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "fresh-B",
+      "phase": "verify",
+      "command": [
+        "rpmkeys",
+        "--dbpath",
+        "/tmp/barrier-probe/fresh-B/rpmdb",
+        "--import",
+        "/tmp/barrier-probe/public/rpm-test.asc"
+      ],
+      "started_at": 1792600128.3493805,
+      "finished_at": 1792600128.3992422,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "fresh-B",
+      "phase": "verify",
+      "command": [
+        "rpmkeys",
+        "--dbpath",
+        "/tmp/barrier-probe/fresh-B/rpmdb",
+        "--checksig",
+        "/tmp/barrier-probe/fresh-B/downloads/wukongim_3.0.1_linux_amd64.rpm"
+      ],
+      "started_at": 1792600128.3992844,
+      "finished_at": 1792600128.448121,
+      "exit_code": 0,
+      "stdout": "/tmp/barrier-probe/fresh-B/downloads/wukongim_3.0.1_linux_amd64.rpm: digests signatures OK\n",
+      "stderr": ""
+    },
+    {
+      "case": "fresh-B",
+      "phase": "verify",
+      "command": [
+        "rpm",
+        "-qp",
+        "--queryformat",
+        "%{VERSION}",
+        "/tmp/barrier-probe/fresh-B/downloads/wukongim_3.0.1_linux_amd64.rpm"
+      ],
+      "started_at": 1792600128.4481442,
+      "finished_at": 1792600128.498351,
+      "exit_code": 0,
+      "stdout": "3.0.1",
+      "stderr": "warning: /tmp/barrier-probe/fresh-B/downloads/wukongim_3.0.1_linux_amd64.rpm: Header V4 RSA/SHA256 Signature, key ID 01983da7: NOKEY\n"
+    }
+  ],
+  "events": [
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "2c26fa81ca3fc3978e33fb7a1d46ffa2d0add3acf884039207c319556b3c6ea0",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "659d95096ad0012e29218ad27035b5b1956b1a43d20b7b2041e8d5492f6c414e",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "375a119f80700bd45b6038db836f34080937e19cdb6188b4927b3cbb155f1a95",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "659d95096ad0012e29218ad27035b5b1956b1a43d20b7b2041e8d5492f6c414e",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "375a119f80700bd45b6038db836f34080937e19cdb6188b4927b3cbb155f1a95",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "status": 200,
+      "size": 617,
+      "sha256": "f3abb0842fbc09bdb98b95a0819c87e727e6b9ea5c74e325a929a465d2e7752d",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "status": 200,
+      "size": 267,
+      "sha256": "47b3d01e0febfc25b98f49db9eb4e88637b0aa8422ae5be7a345a0bf65a6f7ba",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "d4186eda26658f6ab5db370963d15c2fc3b0cb70931042cce805f7929c2ef1a6",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "61b23f4beeab39a649567819ad943af2a8c16748a825c5080a0dbf106236caf6",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "d4186eda26658f6ab5db370963d15c2fc3b0cb70931042cce805f7929c2ef1a6",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "61b23f4beeab39a649567819ad943af2a8c16748a825c5080a0dbf106236caf6",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "status": 200,
+      "size": 615,
+      "sha256": "09afbf16c8d86e2d5ffd75f9752a42e269b21de9618ca6c02a7f0bdee39b9c0b",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "status": 200,
+      "size": 267,
+      "sha256": "37e5b244870b4bf1e99c761efae4de99d7c49a3a70066b1bdd953a1f48c9ed58",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+      "completed": true
+    },
+    {
+      "case": "original-expired-A",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "status": 200,
+      "size": 6211,
+      "sha256": "a67985a9c8a40de41c25040d5200800f55863b0480461cd1a9a8d5ebbabc7b17",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "2c26fa81ca3fc3978e33fb7a1d46ffa2d0add3acf884039207c319556b3c6ea0",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "659d95096ad0012e29218ad27035b5b1956b1a43d20b7b2041e8d5492f6c414e",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "375a119f80700bd45b6038db836f34080937e19cdb6188b4927b3cbb155f1a95",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "659d95096ad0012e29218ad27035b5b1956b1a43d20b7b2041e8d5492f6c414e",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "375a119f80700bd45b6038db836f34080937e19cdb6188b4927b3cbb155f1a95",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "status": 200,
+      "size": 617,
+      "sha256": "f3abb0842fbc09bdb98b95a0819c87e727e6b9ea5c74e325a929a465d2e7752d",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "makecache-A",
+      "path": "/snapshots/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "status": 200,
+      "size": 267,
+      "sha256": "47b3d01e0febfc25b98f49db9eb4e88637b0aa8422ae5be7a345a0bf65a6f7ba",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "download-A-selected",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+      "completed": true
+    },
+    {
+      "case": "explicit-A-stage",
+      "phase": "download-A-selected",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "status": 200,
+      "size": 6211,
+      "sha256": "603fa052c56de45919291424b55a6618b60c89b1c26abea457a048ef3ee778c5",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "d4186eda26658f6ab5db370963d15c2fc3b0cb70931042cce805f7929c2ef1a6",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "61b23f4beeab39a649567819ad943af2a8c16748a825c5080a0dbf106236caf6",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "status": 200,
+      "size": 1351,
+      "sha256": "d4186eda26658f6ab5db370963d15c2fc3b0cb70931042cce805f7929c2ef1a6",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "status": 200,
+      "size": 488,
+      "sha256": "61b23f4beeab39a649567819ad943af2a8c16748a825c5080a0dbf106236caf6",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "status": 200,
+      "size": 615,
+      "sha256": "09afbf16c8d86e2d5ffd75f9752a42e269b21de9618ca6c02a7f0bdee39b9c0b",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "makecache-B",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "status": 200,
+      "size": 267,
+      "sha256": "37e5b244870b4bf1e99c761efae4de99d7c49a3a70066b1bdd953a1f48c9ed58",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "download-normal",
+      "path": "/rpm/stable/el/9/x86_64/mirrorlist",
+      "status": 200,
+      "size": 71,
+      "sha256": "e45525513e931bc2c61a95fb3febb957b20a4d42de34570d4a5c9c1a0226f228",
+      "completed": true
+    },
+    {
+      "case": "fresh-B",
+      "phase": "download-normal",
+      "path": "/snapshots/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "status": 200,
+      "size": 6211,
+      "sha256": "a67985a9c8a40de41c25040d5200800f55863b0480461cd1a9a8d5ebbabc7b17",
+      "completed": true
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "observed_at": "2026-10-21T16:42:58.898110+00:00",
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "title": "[chat-lifecycle] chat-20261021T163850Z-4ccd7506",
+  "id": 5964649866,
+  "number": 1023,
+  "url": "https://github.com/WuKongIM/WuKongIM/issues/1023",
+  "state": "open",
+  "locked": false,
+  "comments": 0,
+  "repository_url": "https://api.github.com/repos/WuKongIM/WuKongIM",
+  "exact_search_count": 1,
+  "search_complete": true,
+  "body_matches": true,
+  "main_exact": true,
+  "verification": "official gh GET and exact-title complete Search; not execution of the environment-token preflight shell",
+  "issue_create_attempts": 1,
+  "dispatched": false
+}

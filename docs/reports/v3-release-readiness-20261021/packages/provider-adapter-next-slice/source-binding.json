@@ -1,0 +1,256 @@
+{
+  "observed_at_utc": "2026-10-21T16:31:21.996091+00:00",
+  "repository": "WuKongIM/packages",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "worktree_status": "",
+  "changes_made": false,
+  "rules": {
+    "governing_user_provided_root_agreements": true,
+    "root_file": {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "size": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "root_source_sha": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "packages_AGENTS_FLOW_CONTEXT_workflowREADME_found": [],
+    "rule_summary": [
+      "read-only task; do not change any working tree or external state",
+      "read applicable FLOW before deep analysis; package repository has none",
+      "preserve protected control, explicit authorization and native package publication requirement",
+      "future implementation must inventory failures and write tests before code"
+    ]
+  },
+  "source_files": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/.github/workflows/native-package-publish.yml",
+      "size": 103240,
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/README.md",
+      "size": 10871,
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/object-storage-delivery.md",
+      "size": 8905,
+      "sha256": "a7f50b2a86259666f0e81e942dd06dcc23a1222eb7c55a86a654f27eb6291b58"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/object-storage-planning.md",
+      "size": 7359,
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/release-contract.md",
+      "size": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/docs/stable-audit-transport.md",
+      "size": 12830,
+      "sha256": "e5becbfad61fc9455caf746875c5b18f2d53787d00679ab62c8b5dde596fffa1"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/keys/apt-preview.asc",
+      "size": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/keys/apt-stable.asc",
+      "size": 4772,
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/keys/rpm-preview.asc",
+      "size": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/keys/rpm-stable.asc",
+      "size": 4772,
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/manifests/bootstrap-packages.json",
+      "size": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/manifests/channels.json",
+      "size": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/manifests/preview-signing.json",
+      "size": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/manifests/signing-toolchain.json",
+      "size": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/manifests/stable-public-keys.json",
+      "size": 651,
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/manifests/trusted-toolchain.json",
+      "size": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/archive-package-snapshot.py",
+      "size": 30568,
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/build-repository-bootstrap-packages.py",
+      "size": 33191,
+      "sha256": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/compose-package-site.py",
+      "size": 125707,
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/package-audit-receipt.py",
+      "size": 71340,
+      "sha256": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/plan-object-storage-publication.py",
+      "size": 38978,
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/plan-package-publication.py",
+      "size": 24355,
+      "sha256": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/prepare-object-storage-delivery.py",
+      "size": 26015,
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/prepare-package-site.py",
+      "size": 47796,
+      "sha256": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/resolve-audit-release.py",
+      "size": 25685,
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/resolve-source-release.py",
+      "size": 23044,
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/sign-package-family.py",
+      "size": 38244,
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/validate-control.py",
+      "size": 44355,
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/validate-production-package-clients.py",
+      "size": 87886,
+      "sha256": "f1353d7a006f6bc4d8aac23fb14a1a914e1eab4fa6133a6a34ea12237f83464a"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/validate-signing-material.py",
+      "size": 34568,
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/verify-production-package-site.py",
+      "size": 76893,
+      "sha256": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/verify-source-attestations.py",
+      "size": 22527,
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/verify-source-package-metadata.py",
+      "size": 6185,
+      "sha256": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/scripts/verify-stable-seal-inputs.py",
+      "size": 21424,
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery/tests/test_object_storage_delivery.py",
+      "size": 33155,
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b"
+    }
+  ],
+  "prior_designs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-native-delivery-gap/README.md",
+      "size": 10506,
+      "sha256": "0ce6f9036648e203f4ce6e9211d20a344dceedd03383d3d2b8fdad3cd52b32c2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-native-delivery-gap-review/README.md",
+      "size": 8182,
+      "sha256": "6a760804843d85fc77e8b7aab3e923ef086486ae77913a152d6e138d5a516976"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-native-delivery-gap-review/failure-inventory.md",
+      "size": 2971,
+      "sha256": "e46e78947c06290a6e6289e70a003d318b128b050c10997b506529200728f301"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/storage-resource-proposal/proposal.md",
+      "size": 13085,
+      "sha256": "d3164f6a4410003692d68ff35863311ba7b852856f7a7e7e106b314ada6df4f1"
+    }
+  ],
+  "protected_control_files": [
+    "manifests/channels.json",
+    "manifests/preview-signing.json",
+    "manifests/stable-public-keys.json",
+    "manifests/bootstrap-packages.json",
+    "manifests/signing-toolchain.json",
+    "manifests/trusted-toolchain.json",
+    "keys/apt-preview.asc",
+    "keys/rpm-preview.asc",
+    "keys/apt-stable.asc",
+    "keys/rpm-stable.asc"
+  ],
+  "protected_producer_files": [
+    "scripts/archive-package-snapshot.py",
+    "scripts/build-repository-bootstrap-packages.py",
+    "scripts/compose-package-site.py",
+    "scripts/package-audit-receipt.py",
+    "scripts/plan-package-publication.py",
+    "scripts/prepare-package-site.py",
+    "scripts/sign-package-family.py",
+    "scripts/validate-control.py",
+    "scripts/validate-signing-material.py",
+    "scripts/verify-production-package-site.py",
+    "scripts/verify-source-attestations.py",
+    "scripts/verify-source-package-metadata.py"
+  ],
+  "method": "local git/read/hash only plus official public documentation through web; no provider API/GitHub mutation/credential access/tests/containers",
+  "read_limitations": [
+    "CDN rewrite exact functionName/argument/order encoding not authenticated by gathered official pages",
+    "SDK pin/transport injection details not selected or tested",
+    "historical storage account observations not refreshed"
+  ]
+}

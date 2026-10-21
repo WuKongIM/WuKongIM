@@ -1,0 +1,148 @@
+{
+  "id": 119334695968,
+  "run_id": 39632641140,
+  "workflow_name": "Safety Automation - EasySDK Released Package Acceptance",
+  "head_branch": "codex/v3-rc-budget-downward",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39632641140",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbyOb0IA",
+  "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119334695968",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641140/job/119334695968",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T16:12:08Z",
+  "started_at": "2026-10-21T16:12:15Z",
+  "completed_at": "2026-10-21T16:16:36Z",
+  "name": "iOS CocoaPods 1.1.1",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T16:12:15Z",
+      "completed_at": "2026-10-21T16:12:18Z"
+    },
+    {
+      "name": "Check out WuKongIM",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T16:12:18Z",
+      "completed_at": "2026-10-21T16:12:23Z"
+    },
+    {
+      "name": "Set up Go",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T16:12:23Z",
+      "completed_at": "2026-10-21T16:12:40Z"
+    },
+    {
+      "name": "Set up Node.js",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 4,
+      "started_at": "2026-10-21T16:12:40Z",
+      "completed_at": "2026-10-21T16:12:46Z"
+    },
+    {
+      "name": "Set up Ruby",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 5,
+      "started_at": "2026-10-21T16:12:46Z",
+      "completed_at": "2026-10-21T16:12:46Z"
+    },
+    {
+      "name": "Install CocoaPods",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-10-21T16:12:46Z",
+      "completed_at": "2026-10-21T16:12:47Z"
+    },
+    {
+      "name": "Resolve the exact CocoaPods package",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-10-21T16:12:47Z",
+      "completed_at": "2026-10-21T16:12:55Z"
+    },
+    {
+      "name": "Start WuKongIM and released Web peer",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 8,
+      "started_at": "2026-10-21T16:12:55Z",
+      "completed_at": "2026-10-21T16:13:21Z"
+    },
+    {
+      "name": "Boot iOS Simulator",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 9,
+      "started_at": "2026-10-21T16:13:21Z",
+      "completed_at": "2026-10-21T16:14:12Z"
+    },
+    {
+      "name": "Build and run the CocoaPods app",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 10,
+      "started_at": "2026-10-21T16:14:12Z",
+      "completed_at": "2026-10-21T16:16:18Z"
+    },
+    {
+      "name": "Clean up runtime",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 11,
+      "started_at": "2026-10-21T16:16:18Z",
+      "completed_at": "2026-10-21T16:16:18Z"
+    },
+    {
+      "name": "Post Set up Node.js",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 20,
+      "started_at": "2026-10-21T16:16:18Z",
+      "completed_at": "2026-10-21T16:16:19Z"
+    },
+    {
+      "name": "Post Set up Go",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 21,
+      "started_at": "2026-10-21T16:16:19Z",
+      "completed_at": "2026-10-21T16:16:20Z"
+    },
+    {
+      "name": "Post Check out WuKongIM",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 22,
+      "started_at": "2026-10-21T16:16:20Z",
+      "completed_at": "2026-10-21T16:16:21Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 23,
+      "started_at": "2026-10-21T16:16:21Z",
+      "completed_at": "2026-10-21T16:16:32Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119334695968",
+  "labels": [
+    "macos-15"
+  ],
+  "runner_id": 1000024409,
+  "runner_name": "GitHub Actions 1000024409",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "/tmp/wukongim-v3-readiness-20261021/packages/pr75-client-barrier-diagnosis/route-replay.py",
+    "--assert-exact-A"
+  ],
+  "exit_code": 1,
+  "stdout_sha256": "e062fd0acfa4410b1883ed9dcadda13ec1867014a5cd4026fadff19c023dcd0b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "expected_red": true
+}

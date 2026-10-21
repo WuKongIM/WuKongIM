@@ -1,0 +1,41 @@
+{
+  "tcp-sendack": {
+    "artifact_id": 12359158645,
+    "pass": true,
+    "requests": 90000,
+    "errors": 0,
+    "dropped": 0,
+    "three_window_p99_ms": [
+      178.182355,
+      178.18732,
+      178.171228
+    ],
+    "maximum_second_p99_ms": 178.497534
+  },
+  "mixed-send": {
+    "artifact_id": 12359857763,
+    "pass": true,
+    "requests": 90000,
+    "errors": 0,
+    "dropped": 0,
+    "three_window_p99_ms": [
+      15.188324,
+      19.196462,
+      18.542993
+    ],
+    "maximum_second_p99_ms": 93.523646
+  },
+  "channel-append": {
+    "artifact_id": 12359792882,
+    "pass": true,
+    "requests": 90000,
+    "errors": 0,
+    "dropped": 0,
+    "three_window_p99_ms": [
+      7.182439,
+      7.415425,
+      9.445156
+    ],
+    "maximum_second_p99_ms": 48.558299
+  }
+}

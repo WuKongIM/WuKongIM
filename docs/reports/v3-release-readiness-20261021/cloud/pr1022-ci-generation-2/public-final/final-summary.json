@@ -1,0 +1,244 @@
+{
+  "recorded_at": "2026-10-21T16:27:24.834557+00:00",
+  "head": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "checkout": "8805fe2e09d4171ff761bfa4699859c6ba4fed17",
+  "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "all_runs_first_attempt_success": true,
+  "runs": [
+    {
+      "id": 39632640756,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T16:12:08Z",
+      "updated_at": "2026-10-21T16:22:04Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640756"
+    },
+    {
+      "id": 39632641140,
+      "name": "Safety Automation - EasySDK Released Package Acceptance",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T16:12:08Z",
+      "updated_at": "2026-10-21T16:19:49Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641140"
+    },
+    {
+      "id": 39632640443,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1022 attempt 1",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T16:12:07Z",
+      "updated_at": "2026-10-21T16:17:57Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640443"
+    },
+    {
+      "id": 39632641028,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T16:12:08Z",
+      "updated_at": "2026-10-21T16:12:20Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632641028"
+    },
+    {
+      "id": 39632640472,
+      "name": "V3 Candidate Regression pull_request 1022 attempt 1",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T16:12:07Z",
+      "updated_at": "2026-10-21T16:25:10Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632640472"
+    },
+    {
+      "id": 39632644184,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+      "run_attempt": 1,
+      "created_at": "2026-10-21T16:12:09Z",
+      "updated_at": "2026-10-21T16:12:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39632644184"
+    }
+  ],
+  "job_counts": {
+    "success": 20,
+    "expected_event_skip": 2
+  },
+  "candidate": {
+    "default_packages_passed": 219,
+    "scripts_root_pass": 649,
+    "scripts_skip": 6,
+    "scripts_fail": 0,
+    "scripts_unfinished": 0,
+    "scripts_budget_root_pass": 15,
+    "scripts_budget_pass_events": 112,
+    "migration_topologies_pass": 5,
+    "migration_history_checks": 55,
+    "migration_503_retries": 0,
+    "cross_node_root_pass": 4,
+    "cross_node_existing_optin_skip": 1,
+    "self_chat_node_counts_pass": [
+      1,
+      3
+    ],
+    "binary_sha256_recorded_by_runner": "e71eff98b325e28a69cbb180c5c9e709f1f14b363fb878c56d9448abdc489e41",
+    "binary_bytes_downloaded": false,
+    "all_candidate_cleanup_verified_zero": true
+  },
+  "performance": {
+    "tcp-sendack": {
+      "artifact_id": 12359158645,
+      "pass": true,
+      "requests": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "three_window_p99_ms": [
+        178.182355,
+        178.18732,
+        178.171228
+      ],
+      "maximum_second_p99_ms": 178.497534
+    },
+    "mixed-send": {
+      "artifact_id": 12359857763,
+      "pass": true,
+      "requests": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "three_window_p99_ms": [
+        15.188324,
+        19.196462,
+        18.542993
+      ],
+      "maximum_second_p99_ms": 93.523646
+    },
+    "channel-append": {
+      "artifact_id": 12359792882,
+      "pass": true,
+      "requests": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "three_window_p99_ms": [
+        7.182439,
+        7.415425,
+        9.445156
+      ],
+      "maximum_second_p99_ms": 48.558299
+    }
+  },
+  "sdk_platforms_pass": [
+    "ios",
+    "android",
+    "flutter"
+  ],
+  "native_systems_pass": [
+    "Ubuntu24.04",
+    "Debian12",
+    "Rocky9",
+    "Alma9"
+  ],
+  "limitations": [
+    "New 19-case replication regression is covered by exact-source complete package success; Linux nonverbose go-unit does not produce individual case events.",
+    "Original Linux TCP-refusal and Mac per-voter causes remain unknown. Migration passed without observing the new 503 path.",
+    "Native preview is not public signed stable package publication.",
+    "No new 2h/72h cloud qualification or paid request was made.",
+    "Large correctness and native artifacts were range-read; complete archive SHA not independently verified.",
+    "Historical generation1 failures and Mac scripts timeout are retained unchanged."
+  ],
+  "three_node_correctness": {
+    "outcome": "clean",
+    "messages": {
+      "sent": 75502,
+      "send_attempts": 75503,
+      "first_attempts": 75502,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 75502,
+      "send_rejected": 0,
+      "received": 98158,
+      "receive_acknowledged": 98158,
+      "receive_ack_failures": 0,
+      "retry_attempts": 1,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "harness": {
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 0,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "queues": {
+      "work_current": 0,
+      "deferred_group_routes": 0,
+      "work_peak": 54485,
+      "work_capacity": 114500,
+      "retry_current": 0,
+      "retry_peak": 1,
+      "retry_capacity": 12288,
+      "inflight_current": 0,
+      "inflight_peak": 500,
+      "inflight_capacity": 12288,
+      "transport_current": 0,
+      "transport_capacity": 0,
+      "transport_rejected": 1
+    },
+    "correlation": {
+      "pending_unfinished": 0,
+      "outstanding": 0,
+      "sampled": 835,
+      "delivered": 835,
+      "expired": 0,
+      "duplicate_completions": 0,
+      "conflicting_completions": 0,
+      "unknown_acknowledgments": 0
+    },
+    "sent_after_qualification_cut": 45498,
+    "limit": "Selected authenticated ZIP ranges, per-entry CRC verified; full ZIP SHA not independently checked. Nonzero retry/transport-rejection counters retained."
+  }
+}

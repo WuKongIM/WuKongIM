@@ -1,0 +1,5 @@
+{
+  "files_checked": 69,
+  "findings": [],
+  "scope": "Bounded fixed public evidence; TEST ONLY public cert and signed data RPMs only; no production credential inputs. Pattern screen is supplementary to explicit origin/allowlist review."
+}

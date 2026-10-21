@@ -1,0 +1,11 @@
+{
+  "axis": "Standards",
+  "findings": [],
+  "heuristic_findings": [],
+  "scope_verified": true,
+  "limitations": [
+    "Static independent review and reads of existing test receipts only; no test reruns.",
+    "Does not certify the final 49-case native CI run or public package publication.",
+    "Original CI timing attribution remains bounded by original evidence."
+  ]
+}

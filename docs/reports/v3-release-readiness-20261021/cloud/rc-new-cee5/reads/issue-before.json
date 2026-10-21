@@ -1,0 +1,14 @@
+{
+  "started_at": "2026-10-21T16:41:23.834477+00:00",
+  "observed_at": "2026-10-21T16:41:24.795986+00:00",
+  "endpoint": "search/issues",
+  "exit_code": 0,
+  "response_bytes": 79,
+  "response_sha256": "c9938edecb99d754b2d039ac9eec320a94c769b6a6417921e2dcbef9e2fe01a0",
+  "data": {
+    "total_count": 0,
+    "incomplete_results": false,
+    "items": [],
+    "search_type": "lexical"
+  }
+}

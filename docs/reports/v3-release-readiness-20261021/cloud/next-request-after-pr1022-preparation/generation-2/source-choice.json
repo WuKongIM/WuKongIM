@@ -1,0 +1,42 @@
+{
+  "schema": "wukongim.cloud_rc.root_source_choice/v1",
+  "generation": 2,
+  "recorded_at": "2026-10-21T16:22:33.170172+00:00",
+  "choice_owner": "parent/root",
+  "choice": "Final merged PR #1022 commit is both product and control; no further user SHA selection.",
+  "product_sha": "pending_merged_sha",
+  "control_sha": "pending_merged_sha",
+  "dispatch_source_sha": "pending_merged_sha",
+  "reviewed_candidate_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "required_merged_tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "required_changes": [
+    "downward immutable-request budget guard",
+    "migration recovery barrier fix"
+  ],
+  "acceptance_condition": "All three SHA fields must become the same exact merged PR #1022 commit after root verifies its tree equals the reviewed candidate acceptance tree. A different tree fails this prerequisite and requires renewed relevant review/validation; it is not silently accepted.",
+  "supersedes": "Original README/source-selection wording and original draft candidate-as-source field only; original evidence and other lifecycle/budget conditions remain intact.",
+  "not_authorized": [
+    "Paid startup",
+    "Workflow dispatch/state change",
+    "Issue creation or comments",
+    "Provider or external resource mutation"
+  ],
+  "not_performed": [
+    "GitHub polling",
+    "Merged SHA lookup",
+    "Merged tree verification",
+    "Additional tests"
+  ],
+  "original_file_sha256": {
+    "prior-public-evidence-index.json": "f1d1b8aca77bcc2e6e12cd10a0810f1b1eb280d12561b6d9195a953034e1d064",
+    "ARCHIVE_ALLOWLIST.json": "60e9c391a9c5b1fe3078b6ddf14f36e95ce7c936b8c63c6427e9788f923f486e",
+    "execution-and-live-gates.json": "c7c31d66ee802d0687da3eca6ee5c5da18156da8da6f1d992dacc1a160fd2a38",
+    "safety-automation-plan.json": "1d6cd34aa7ac46d37f164e34a289151332463f21304711ea9b1c62c4d5d555cc",
+    "github-public-snapshot.json": "0ee5cf51c74bc3ca98876f9416ea7e739dcf537e1006f19d674484c523b611e6",
+    "budget-chain.json": "ed9f9dcf2cbd2bf765bc8a839eaf1d745931fc841bd2cd638c093d6f42e8a4b2",
+    "README.md": "784d547ac4ae6ab60749d44b250e7c8f407308c47350b58d722ff626d1ff50da",
+    "source-freeze.json": "a70ba910e4ffe29d1760df9ceceaaafccc50e23e3f4c36398a11ca8d4566961b",
+    "dispatch-draft.json": "35953faf46519702354db13d14a358f716203a795c3fbdbbe6e660ee478d3063",
+    "SHA256SUMS": "900afcba57405339e1bfb11a09325fb157449f7ee4c9ffe6e35e9e1e29ae3a68"
+  }
+}

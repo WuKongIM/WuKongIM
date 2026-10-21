@@ -1,0 +1,22 @@
+{
+  "schema": "wukongim.cloud_rc.planned_dispatch/v1",
+  "prepared_at": "2026-10-21T16:42:58.898227+00:00",
+  "executed": false,
+  "dispatch_owner": "/root",
+  "repository": "WuKongIM/WuKongIM",
+  "workflow": ".github/workflows/chat-lifecycle-rehearsal.yml",
+  "ref": "main",
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "inputs_file": "planned-workflow-inputs.json",
+  "inputs_sha256": "d83b988021ff7f78a182ab9e6ed34cf165df61bda1af7e81fa48d45c3110a5c7",
+  "input_count": 6,
+  "request_id": "chat-20261021T163850Z-4ccd7506",
+  "tracking_issue": "https://github.com/WuKongIM/WuKongIM/issues/1023",
+  "prior_quote_reserve_micros": 148955200,
+  "request_budget_limit_micros": "1351044800",
+  "operational_stop_micros": 1201044800,
+  "provider_calls": false,
+  "workflow_or_permission_changes": false,
+  "next_action": "root fresh exact main guard and single authorized dispatch; no subagent dispatch"
+}

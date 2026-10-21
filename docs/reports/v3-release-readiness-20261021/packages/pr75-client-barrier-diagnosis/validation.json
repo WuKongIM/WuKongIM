@@ -1,0 +1,28 @@
+[
+  {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 120.884,
+    "stdout_sha256": "fa9f452f2cf9c95fa41bb7e7cb6f271a93f66fd7daa0669ae31530088deb700a",
+    "stderr_sha256": "ab2ab0c93a7b71bb1520404b705271a9de56c0286f97bf5efe6ef4d1eb964bbd"
+  },
+  {
+    "command": [
+      "bash",
+      "tests/contract.sh"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 1.12,
+    "stdout_sha256": "56958563c8a7a1584ae9e15c05232adc100e273a0cb711725a8ce9ac52637cd2",
+    "stderr_sha256": "feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6"
+  }
+]

@@ -1,0 +1,56 @@
+{
+  "schema": "wukongim.cloud_rc.review_only_dispatch_draft/v2",
+  "status": "BLOCKED_PENDING_EXACT_PAID_START_AUTHORIZATION",
+  "executable": false,
+  "repository": "WuKongIM/WuKongIM",
+  "workflow": ".github/workflows/chat-lifecycle-rehearsal.yml",
+  "workflow_dispatch_ref": "main",
+  "control_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "source_selection": "Merged PR #1022 source is both product and control, complete tree equals tested b3f candidate.",
+  "draft_inputs": {
+    "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "operator": "tangtaoit",
+    "codex_diagnostic_pubkey": "pending_new_request_public_key",
+    "request_id": "pending_new_request_id",
+    "released_preclock_run_id": "",
+    "request_budget_limit_micros": "1351044800"
+  },
+  "pending_fields": [
+    "fresh request_id",
+    "request-scoped diagnostic public key",
+    "exact paid start authorization",
+    "fresh live identity/inventory/quote admission"
+  ],
+  "not_operator_inputs": {
+    "operational_stop_micros": 1201044800,
+    "first_request_committed_micros": 0,
+    "first_rehearsal_attempt": 1,
+    "provider": "alibaba",
+    "region": "cn-hangzhou",
+    "service_hosts": 3,
+    "load_hosts": 1,
+    "vcpus_per_host": 4,
+    "memory_bytes_per_host": 8589934592,
+    "hash_slots": 256,
+    "rehearsal_workload_seconds": 7200,
+    "rehearsal_lease_seconds": 43200,
+    "fresh_formal_workload_seconds": 259200,
+    "fresh_formal_lease_seconds": 345600,
+    "capacity_ceiling_seconds": 28800,
+    "recovery_seconds": 1800
+  },
+  "ref_boundary": "Dispatch must use main because workflow requires refs/heads/main; a raw commit ref would skip the paid job. Read back main immediately before dispatch against root-frozen control SHA and record every producer run control SHA. Unexpected drift is not silently accepted.",
+  "continuation_boundary": "No old request ID, predecessor ID, old stop marker reset, or inherited cross-request prior. Reduced cap cannot combine with released_preclock_run_id. Formal is the existing authenticated scheduled continuation, not a second manual paid entry.",
+  "performed_actions": {
+    "dispatch": false,
+    "workflow_state_change": false,
+    "issue_write": false,
+    "provider_api": false,
+    "key_generation": false,
+    "credential_read": false
+  },
+  "generation": 2,
+  "product_sha": "pending_merged_sha",
+  "reviewed_candidate_sha": "b3fdb777b9270128fe56086bc47562b321c2c947",
+  "required_merged_tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2"
+}

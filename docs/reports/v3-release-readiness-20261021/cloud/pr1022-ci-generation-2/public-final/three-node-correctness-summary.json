@@ -1,0 +1,78 @@
+{
+  "outcome": "clean",
+  "messages": {
+    "sent": 75502,
+    "send_attempts": 75503,
+    "first_attempts": 75502,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 75502,
+    "send_rejected": 0,
+    "received": 98158,
+    "receive_acknowledged": 98158,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 54485,
+    "work_capacity": 114500,
+    "retry_current": 0,
+    "retry_peak": 1,
+    "retry_capacity": 12288,
+    "inflight_current": 0,
+    "inflight_peak": 500,
+    "inflight_capacity": 12288,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 1
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 835,
+    "delivered": 835,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "sent_after_qualification_cut": 45498,
+  "limit": "Selected authenticated ZIP ranges, per-entry CRC verified; full ZIP SHA not independently checked. Nonzero retry/transport-rejection counters retained."
+}

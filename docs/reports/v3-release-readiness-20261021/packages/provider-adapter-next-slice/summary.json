@@ -1,0 +1,32 @@
+{
+  "status": "read_only_plan_complete",
+  "head": "eac9d252f13ea201b405825e6303de703af08c16",
+  "tree": "ca255a7d0fc27186a68f291ccf7ce70948a976d1",
+  "recommendation": "D2 provider SDK adapter plus fresh input-verification library; preserve offline interfaces and keep executable production authority disconnected",
+  "proposed_scope_files": 7,
+  "must_resolve_before_CDN_apply_implementation": [
+    "official rewrite function/argument/order contract",
+    "finite route expressibility within 50 rules and actual parameter limits",
+    "managed config ownership/update/delete boundary; no inferred CAS or atomicity"
+  ],
+  "can_implement_before_storage_spending_approval": [
+    "official SDK request/response transport tests with no network or credentials",
+    "create-only OSS upload/readback adapter with bounded streams",
+    "fresh GitHub/control/source integration with mocked official responses",
+    "CDN read/update-response/refresh-task parsers for confirmed APIs",
+    "failure inventory and dependency pin review"
+  ],
+  "must_wait_for_corresponding_approval_and_real_inputs": [
+    "resource provisioning and IAM/DNS/TLS changes",
+    "actual provider invocation/upload/activation/refresh/public client traffic",
+    "reviewed production publication-control connection and stable activation"
+  ],
+  "production_delivery_complete": false,
+  "cloud_operations_performed": false,
+  "tests_run": false,
+  "working_tree_unchanged": true,
+  "report": "README.md",
+  "failure_matrix": "failure-matrix.md",
+  "official_sources": "official-sources.md",
+  "source_binding": "source-binding.json"
+}
