@@ -514,7 +514,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Preparing/Removing before projection and accepts only exact intent receipts.
   Resume preserves generation/operation; replacement preserves cursors. Counts
   use bounded pages plus parent revision CAS. Parent cancellation is checked
-  synchronously, not only through asynchronous propagation. Projection receipts
+  synchronously through nested subscription/projection/source scopes, including
+  the original caller; each ancestor retains its own Owner gate and deadline.
+  A private scope pointer carries cancellation ancestry without copying business
+  context values or granting authority. Projection receipts
   require a real distributed implementation; controlled test receipts are not proof.
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
