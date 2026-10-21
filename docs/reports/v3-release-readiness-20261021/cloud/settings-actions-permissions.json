@@ -1,0 +1,11 @@
+{
+  "endpoint": "actions/permissions",
+  "observed_at": "2026-10-21T05:01:42.482444+00:00",
+  "exit_code": 0,
+  "data": {
+    "enabled": true,
+    "allowed_actions": "all",
+    "sha_pinning_required": false
+  },
+  "error": ""
+}

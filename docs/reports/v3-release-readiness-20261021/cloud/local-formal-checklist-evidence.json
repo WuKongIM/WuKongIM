@@ -1,0 +1,105 @@
+{
+  "schema": "wukongim.local_formal_checklist/v1",
+  "observed_at": "2026-10-21T04:56:11.308395+00:00",
+  "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-release-recovery",
+  "head": "84cf66c0fb24a561dea8fd8dc4e95a5aaf4453fe",
+  "status": " M .github/workflows/README.md\n M docs/development/PROJECT_KNOWLEDGE.md\n M scripts/github_workflows_test.go\n M test/e2e/AGENTS.md\n M test/e2e/message/AGENTS.md\n?? .github/workflows/v3-candidate-regression.yml\n?? docs/reports/2026-10-21-v3-release-recovery.md\n?? scripts/run-v3-candidate-check.py\n?? scripts/v3_candidate_workflow_contract_test.py\n?? test/e2e/message/self_chat/\n",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "05eedb1a86f01a25ab063ef160158b736477d33759cf63d0eb6fd66f2e073ec2"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "57443e3ee23799bf691ab580808bfca6dfdb0c8f5ce2b00b996e83a7e2904703"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "2181d008be6273e6d8b6c2bf30f77c5934de2bdf515bddf0f24659cbe3c0bb1c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "3b4bcdffd747ba0839b52557849bdc4c9bfc530ad4381f79fffeda3999e5448f"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-stop.yml",
+      "sha256": "452a6aefc66698d9e4fbce338fc22370322721993f0a44459195890edcee2a62"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "sha256": "f67e53fb8490108bcac5bdfdf59c94f08a41904d0fa1f124732021fab7ee4110"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/formal.yaml",
+      "sha256": "731fc8b9d62eda4e8bd7833758d24fa9e88046518e7f1a2eccca50eb370bc573"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "sha256": "db0e076554cc78b2203df272c4aca26024eb2e1b448a1d8d3abf1bb11ed0fb51"
+    },
+    {
+      "path": "scripts/cloud-deployment/FLOW.md",
+      "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a"
+    },
+    {
+      "path": "scripts/chat-lifecycle/release-until-zero.sh",
+      "sha256": "bc8167ac9db7ab632caa372f5e19c1f4bba9872678c6843351c379604feb8b64"
+    },
+    {
+      "path": "scripts/chat-lifecycle/formal-finalize.sh",
+      "sha256": "4d491b6586e5bea66959364820db98e548c36fbd25d6b412083c3456fa504014"
+    },
+    {
+      "path": "docs/superpowers/runbooks/cloud-lease-identity.md",
+      "sha256": "2f8e06ef6b5e400f1a8c56d9bd224589a743ec21ce6c25c8c1e67c1c9daf407a"
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "sha256": "7d971edd64be172ff8e36a170e2defdeec42b0617ec245da17d4f9372f6339a4"
+    }
+  ],
+  "network_called": false,
+  "repo_modified": false,
+  "workflow_dispatched": false,
+  "cloud_operation_performed": false
+}

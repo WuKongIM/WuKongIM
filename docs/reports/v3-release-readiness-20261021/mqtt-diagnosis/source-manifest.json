@@ -1,0 +1,33 @@
+{
+  "head": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "b38814db409920eb7f2c5f53c6a5538f3dc6ac25ff8312c13ed1a2dd4ef40728"
+    },
+    {
+      "path": "docs/specs/mqtt-source-drain.md",
+      "sha256": "d900eefe0191d4989547bf17f2402180b140dfd4d1f4afe7b0e8cfb2f377babb"
+    },
+    {
+      "path": "docs/specs/mqtt-subscription-orchestration.md",
+      "sha256": "2a53089ee9046be3da382cb816593be7bf0be7c6a5d45e62252a326b66808f88"
+    },
+    {
+      "path": "internal/runtime/mqttsession/FLOW.md",
+      "sha256": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98"
+    },
+    {
+      "path": "docs/specs/mqtt-source-drain-contention.md",
+      "sha256": "79c22a6a3da403bb1432452a438c04192c27789adb65c014baa518c0d4f433e8"
+    }
+  ]
+}

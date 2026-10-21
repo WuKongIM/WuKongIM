@@ -1,0 +1,26 @@
+{
+  "source_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "dispatches": [
+    {
+      "workflow": "three-node-chat-lifecycle-regression.yml",
+      "ref": "codex/v3-release-recovery",
+      "inputs": {
+        "diagnose_send": false,
+        "qualify_candidate": true
+      },
+      "run_id": 39548576246
+    },
+    {
+      "workflow": "conversation-qps-diagnose.yml",
+      "ref": "codex/v3-release-recovery",
+      "inputs": {
+        "product_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+        "run_release_matrix": true
+      },
+      "run_id": 39548584710
+    }
+  ],
+  "attempt": 1,
+  "reason": "new candidate after deterministic MQTT cancellation product fix and replication fixture correction",
+  "no_publication_or_cloud_creation": true
+}

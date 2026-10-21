@@ -1,0 +1,1 @@
+go version go1.25.11 darwin/arm64

@@ -1,0 +1,162 @@
+{
+  "run_id": "35720371242",
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 106721604706,
+      "name": "Delete only exact tagged Lease inventory",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-22T11:14:51Z",
+      "completed_at": "2026-09-22T11:15:22Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-22T11:14:52Z",
+          "completed_at": "2026-09-22T11:14:53Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-22T11:14:53Z",
+          "completed_at": "2026-09-22T11:14:58Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-09-22T11:14:58Z",
+          "completed_at": "2026-09-22T11:15:09Z"
+        },
+        {
+          "name": "Validate exact cleanup authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-09-22T11:15:09Z",
+          "completed_at": "2026-09-22T11:15:10Z"
+        },
+        {
+          "name": "Run go build -trimpath -o \"$RUNNER_TEMP/wkcloudlease\" ./cmd/wkcloudlease",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-09-22T11:15:10Z",
+          "completed_at": "2026-09-22T11:15:11Z"
+        },
+        {
+          "name": "Exchange exact Releaser OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-22T11:15:11Z",
+          "completed_at": "2026-09-22T11:15:13Z"
+        },
+        {
+          "name": "Release and retain residual evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-09-22T11:15:13Z",
+          "completed_at": "2026-09-22T11:15:17Z"
+        },
+        {
+          "name": "Upload release or residual proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-09-22T11:15:17Z",
+          "completed_at": "2026-09-22T11:15:19Z"
+        },
+        {
+          "name": "Post Exchange exact Releaser OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-09-22T11:15:19Z",
+          "completed_at": "2026-09-22T11:15:19Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-09-22T11:15:19Z",
+          "completed_at": "2026-09-22T11:15:19Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-09-22T11:15:19Z",
+          "completed_at": "2026-09-22T11:15:19Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-09-22T11:15:19Z",
+          "completed_at": "2026-09-22T11:15:19Z"
+        }
+      ]
+    },
+    {
+      "id": 106721774830,
+      "name": "Disable idle generic Cloud Lease sweep",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-22T11:15:25Z",
+      "completed_at": "2026-09-22T11:15:39Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-22T11:15:26Z",
+          "completed_at": "2026-09-22T11:15:26Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-22T11:15:26Z",
+          "completed_at": "2026-09-22T11:15:31Z"
+        },
+        {
+          "name": "Prove every protected producer is idle before disabling future sweeps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-09-22T11:15:31Z",
+          "completed_at": "2026-09-22T11:15:37Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-22T11:15:37Z",
+          "completed_at": "2026-09-22T11:15:37Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-09-22T11:15:37Z",
+          "completed_at": "2026-09-22T11:15:37Z"
+        }
+      ]
+    }
+  ]
+}

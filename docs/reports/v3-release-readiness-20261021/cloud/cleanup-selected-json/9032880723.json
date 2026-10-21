@@ -1,0 +1,386 @@
+{
+  "artifact_id": 9032880723,
+  "artifact_name": "chat-lifecycle-rehearsal-cleanup-chat-20260809T001130Z-765a662b",
+  "producer_run": {
+    "id": 31285696035,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "4daf86e4a88478ccdecd9675acee8414810413be"
+  },
+  "created_at": "2026-08-09T05:00:15Z",
+  "zip_sha256": "c27db96372c6a7ff0ad82525826f45fc84fe65b162e0cbfb8f2adf2fae8ceefd",
+  "byte_size": 79253,
+  "members": [
+    {
+      "name": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20260809T001130Z-765a662b/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20260809T001130Z-765a662b/receipt.json",
+      "size": 41110
+    },
+    {
+      "name": "attempt-1/attempted-deployment-control-shas",
+      "size": 779
+    },
+    {
+      "name": "attempt-1/bootstrap-access.json",
+      "size": 251
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31286113059/deployment-outcome.json",
+      "size": 289
+    },
+    {
+      "name": "attempt-1/deployment-10-artifact/cloud-deployment-31289059527/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-10-artifact/cloud-deployment-31289059527/deployment-outcome.json",
+      "size": 270
+    },
+    {
+      "name": "attempt-1/deployment-10-artifact/cloud-deployment-31289059527/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-10-artifact/cloud-deployment-31289059527/readiness-snapshot.json",
+      "size": 4101
+    },
+    {
+      "name": "attempt-1/deployment-11-artifact/cloud-deployment-31289418922/deployment-outcome.json",
+      "size": 286
+    },
+    {
+      "name": "attempt-1/deployment-12-artifact/cloud-deployment-31289503449/deployment-outcome.json",
+      "size": 302
+    },
+    {
+      "name": "attempt-1/deployment-12-artifact/cloud-deployment-31289503449/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-12-artifact/cloud-deployment-31289503449/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-12-artifact/cloud-deployment-31289503449/readiness-snapshot.json",
+      "size": 4089
+    },
+    {
+      "name": "attempt-1/deployment-13-artifact/cloud-deployment-31289809393/deployment-outcome.json",
+      "size": 2280
+    },
+    {
+      "name": "attempt-1/deployment-13-artifact/cloud-deployment-31289809393/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-13-artifact/cloud-deployment-31289809393/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-13-artifact/cloud-deployment-31289809393/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-14-artifact/cloud-deployment-31291283513/deployment-outcome.json",
+      "size": 2280
+    },
+    {
+      "name": "attempt-1/deployment-14-artifact/cloud-deployment-31291283513/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-14-artifact/cloud-deployment-31291283513/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-14-artifact/cloud-deployment-31291283513/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-15-artifact/cloud-deployment-31291924142/deployment-outcome.json",
+      "size": 397
+    },
+    {
+      "name": "attempt-1/deployment-15-artifact/cloud-deployment-31291924142/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-15-artifact/cloud-deployment-31291924142/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-16-artifact/cloud-deployment-31292181257/deployment-outcome.json",
+      "size": 2280
+    },
+    {
+      "name": "attempt-1/deployment-16-artifact/cloud-deployment-31292181257/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-16-artifact/cloud-deployment-31292181257/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-17-artifact/cloud-deployment-31292892662/deployment-outcome.json",
+      "size": 2280
+    },
+    {
+      "name": "attempt-1/deployment-16-artifact/cloud-deployment-31292181257/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-17-artifact/cloud-deployment-31292892662/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-17-artifact/cloud-deployment-31292892662/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-17-artifact/cloud-deployment-31292892662/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-18-artifact/cloud-deployment-31293475742/deployment-outcome.json",
+      "size": 2280
+    },
+    {
+      "name": "attempt-1/deployment-18-artifact/cloud-deployment-31293475742/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-18-artifact/cloud-deployment-31293475742/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-18-artifact/cloud-deployment-31293475742/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-19-artifact/cloud-deployment-31294255541/deployment-outcome.json",
+      "size": 2280
+    },
+    {
+      "name": "attempt-1/deployment-19-artifact/cloud-deployment-31294255541/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-19-artifact/cloud-deployment-31294255541/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-19-artifact/cloud-deployment-31294255541/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-2-artifact/cloud-deployment-31286312103/deployment-outcome.json",
+      "size": 303
+    },
+    {
+      "name": "attempt-1/deployment-2-artifact/cloud-deployment-31286312103/deployment-plan.json",
+      "size": 0
+    },
+    {
+      "name": "attempt-1/deployment-3-artifact/cloud-deployment-31286501617/deployment-outcome.json",
+      "size": 343
+    },
+    {
+      "name": "attempt-1/deployment-3-artifact/cloud-deployment-31286501617/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-4-artifact/cloud-deployment-31286694850/deployment-outcome.json",
+      "size": 343
+    },
+    {
+      "name": "attempt-1/deployment-4-artifact/cloud-deployment-31286694850/encrypted-access.json",
+      "size": 0
+    },
+    {
+      "name": "attempt-1/deployment-4-artifact/cloud-deployment-31286694850/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-5-artifact/cloud-deployment-31286910719/deployment-outcome.json",
+      "size": 323
+    },
+    {
+      "name": "attempt-1/deployment-5-artifact/cloud-deployment-31286910719/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-5-artifact/cloud-deployment-31286910719/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-6-artifact/cloud-deployment-31287169478/deployment-outcome.json",
+      "size": 349
+    },
+    {
+      "name": "attempt-1/deployment-6-artifact/cloud-deployment-31287169478/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-6-artifact/cloud-deployment-31287169478/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-7-artifact/cloud-deployment-31287762346/deployment-outcome.json",
+      "size": 335
+    },
+    {
+      "name": "attempt-1/deployment-7-artifact/cloud-deployment-31287762346/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-7-artifact/cloud-deployment-31287762346/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-8-artifact/cloud-deployment-31288065871/deployment-outcome.json",
+      "size": 270
+    },
+    {
+      "name": "attempt-1/deployment-8-artifact/cloud-deployment-31288065871/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-8-artifact/cloud-deployment-31288065871/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-8-artifact/cloud-deployment-31288065871/readiness-snapshot.json",
+      "size": 4101
+    },
+    {
+      "name": "attempt-1/deployment-9-artifact/cloud-deployment-31288385983/deployment-outcome.json",
+      "size": 270
+    },
+    {
+      "name": "attempt-1/deployment-9-artifact/cloud-deployment-31288385983/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-9-artifact/cloud-deployment-31288385983/readiness-snapshot.json",
+      "size": 4101
+    },
+    {
+      "name": "attempt-1/deployment-9-artifact/cloud-deployment-31288385983/encrypted-access.json",
+      "size": 1320
+    },
+    {
+      "name": "attempt-1/deployment-plan.json",
+      "size": 2959
+    },
+    {
+      "name": "attempt-1/deployment-ssh-config",
+      "size": 634
+    },
+    {
+      "name": "attempt-1/preflight-quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/lease-plan.json",
+      "size": 1892
+    },
+    {
+      "name": "attempt-1/quote-artifact/cloud-lease-provision-chat-20260809T001130Z-765a662b/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/receipt-selector.json",
+      "size": 319
+    },
+    {
+      "name": "attempt-1/release-selector.json",
+      "size": 319
+    },
+    {
+      "name": "attempt-1/receipt.json",
+      "size": 41110
+    },
+    {
+      "name": "attempt-1/run-plan.json",
+      "size": 2361
+    },
+    {
+      "name": "cleanup.json",
+      "size": 172
+    },
+    {
+      "name": "deployment-repair-pending.json",
+      "size": 625
+    },
+    {
+      "name": "release-1-1/cloud-lease-release-chat-20260809T001130Z-765a662b/release.json",
+      "size": 661
+    },
+    {
+      "name": "release-selector.json",
+      "size": 319
+    },
+    {
+      "name": "zero-inventory.json",
+      "size": 661
+    }
+  ],
+  "allowlisted_json": {
+    "cleanup.json": {
+      "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+      "request_id": "chat-20260809T001130Z-765a662b",
+      "release_run_id": 31295699325,
+      "zero_inventory": true
+    },
+    "release-selector.json": {
+      "schema": "wukongim.cloud_lease.selector/v1",
+      "selector": {
+        "lease_id": "chat-20260809T001130Z-765a662b-rehearsal-1",
+        "request_id": "chat-20260809T001130Z-765a662b",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "9a8332a07c4deba34c0237b38c7555b63619216c4d0eb9134427b22649f372be"
+      }
+    },
+    "zero-inventory.json": {
+      "schema": "wukongim.cloud_lease.release/v1",
+      "result": {
+        "zero_inventory": {
+          "selector": {
+            "lease_id": "chat-20260809T001130Z-765a662b-rehearsal-1",
+            "request_id": "chat-20260809T001130Z-765a662b",
+            "provider": "alibaba",
+            "region": "cn-hangzhou",
+            "repository": "WuKongIM/WuKongIM",
+            "plan_digest": "9a8332a07c4deba34c0237b38c7555b63619216c4d0eb9134427b22649f372be"
+          },
+          "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+          "observed_at": "2026-08-09T05:00:02.141308322Z",
+          "scopes": [
+            "disk_attachments",
+            "disks",
+            "eip_associations",
+            "eips",
+            "enis",
+            "instances",
+            "nat_gateways",
+            "route_entries",
+            "security_group_rules",
+            "security_groups",
+            "vpcs",
+            "vswitches"
+          ]
+        }
+      }
+    }
+  }
+}

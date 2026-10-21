@@ -1,0 +1,134 @@
+diff --git a/internal/usecase/mqttsession/FLOW.md b/internal/usecase/mqttsession/FLOW.md
+index f2a10769c..c4d38e864 100644
+--- a/internal/usecase/mqttsession/FLOW.md
++++ b/internal/usecase/mqttsession/FLOW.md
+@@ -105,7 +105,8 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery;
+   commits cannot erase an obligation; Will publication scheduling and fenced uncertain-dispatch recovery remain separate.
+ - Subscription counts use bounded pages at one parent revision; its CAS rejects
+   concurrent admissions. Pending/removing rows consume quota; tombstones consume
+-  scan budget. Parent cancellation is checked synchronously at effect boundaries.
++  scan budget. Parent cancellation, including the original caller across nested
++  projection/source scopes, is checked synchronously at effect boundaries.
+ - Projection receipts are trusted-port assertions, not independent source proof.
+   Product wiring requires replicated protection, initialized cursors, inbox future
+   source admission and safe removal. Membership version changes cannot replace
+diff --git a/internal/usecase/mqttsession/source_drain_contention_test.go b/internal/usecase/mqttsession/source_drain_contention_test.go
+index 656ff2b31..f340a5b04 100644
+--- a/internal/usecase/mqttsession/source_drain_contention_test.go
++++ b/internal/usecase/mqttsession/source_drain_contention_test.go
+@@ -13,9 +13,23 @@ import (
+ // Use real subscription/projection/drain/progress and storage transitions, with
+ // one fixed interleaving at the source CAS. Unknown effects never become pending.
+ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
+-	for _, mode := range []string{"progress", "competing-drain", "changed-end", "progress-denied", "progress-with-exchange", "port-conflict", "lost-reply", "unchanged-rejection", "fake-newer-rejection", "changed-owner", "changed-child", "changed-binding", "regressed-binding", "regressed-progress", "changed-cursor", "regressed-parent", "read-unavailable", "canceled"} {
++	for _, mode := range []string{"progress", "competing-drain", "changed-end", "progress-denied", "progress-with-exchange", "port-conflict", "lost-reply", "unchanged-rejection", "fake-newer-rejection", "changed-owner", "changed-child", "changed-binding", "regressed-binding", "regressed-progress", "changed-cursor", "regressed-parent", "read-unavailable", "canceled", "canceled-delayed"} {
+ 		t.Run(mode, func(t *testing.T) {
+-			ctx, cancel := context.WithCancel(context.Background())
++			var ctx context.Context
++			var cancel context.CancelFunc
++			if mode == "canceled-delayed" {
++				// Hold cancellation propagation so nested scopes must observe the
++				// original caller synchronously at the source CAS boundary.
++				parent := &delayedCancellation{done: make(chan struct{})}
++				ctx = parent
++				cancel = func() {
++					if parent.Err() == nil {
++						parent.cancel()
++					}
++				}
++			} else {
++				ctx, cancel = context.WithCancel(context.Background())
++			}
+ 			defer cancel()
+ 			f, s, progress, prepared := progressFixture(t)
+ 			ack := advanceProgressWindow(t, f, prepared)
+@@ -29,6 +43,7 @@ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
+ 			f.project.remove = projection.Remove
+ 			lost := errors.New("source reply unavailable")
+ 			calls := 0
++			postCancelReads := 0
+ 			before := prepared.Binding
+ 			s.write = func(c context.Context, expected uint64, b meta.MQTTSourceBinding) (meta.MQTTSourceBindingResult, error) {
+ 				calls++
+@@ -67,11 +82,14 @@ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
+ 				receipt, e := f.store.CompareAndSwapMQTTSourceBinding(c, expected, b)
+ 				require.NoError(t, e)
+ 				require.Equal(t, meta.MQTTSessionCASConflict, receipt.Status)
+-				if mode == "canceled" {
++				if mode == "canceled" || mode == "canceled-delayed" {
+ 					cancel()
+ 				}
+ 				parentRevision := f.row(t).Revision
+ 				f.store.query = func(c context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {
++					if ctx.Err() != nil {
++						postCancelReads++
++					}
+ 					if mode == "read-unavailable" {
+ 						return meta.MQTTReadResult{}, lost
+ 					}
+@@ -117,8 +135,13 @@ func TestSourceDrainProgressBeforeSealDoesNotClose(t *testing.T) {
+ 				if mode == "lost-reply" || mode == "read-unavailable" {
+ 					require.ErrorIs(t, err, lost)
+ 				}
+-				if mode == "canceled" {
++				if mode == "canceled" || mode == "canceled-delayed" {
+ 					require.ErrorIs(t, err, context.Canceled)
++					require.Zero(t, postCancelReads, "cancellation must stop before contention qualification reads")
++					state, readErr := f.store.ReadMQTT(context.Background(), meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: prepared.Binding.Key})
++					require.NoError(t, readErr)
++					require.Equal(t, []meta.MQTTSourceBinding{before}, state.Bindings, "cancellation cannot seal the progressed source")
++					require.False(t, state.Bindings[0].EndKnown)
+ 				}
+ 				return
+ 			}
+diff --git a/internal/usecase/mqttsession/subscriptions.go b/internal/usecase/mqttsession/subscriptions.go
+index a15a1d14e..22a3b5e56 100644
+--- a/internal/usecase/mqttsession/subscriptions.go
++++ b/internal/usecase/mqttsession/subscriptions.go
+@@ -330,12 +330,23 @@ func (s *Subscriptions) completePrepared(ctx context.Context, op *subscriptionOp
+ type subscriptionOperation struct {
+ 	*runtime.Operation
+ 	parent context.Context
++	// ancestor preserves the same check across nested projection/source scopes,
++	// whose owner contexts do not synchronously inherit the caller's cancellation.
++	ancestor *subscriptionOperation
+ }
+ 
++// subscriptionOperationKey carries only in-process scope ancestry, never authority.
++type subscriptionOperationKey struct{}
++
+ func (o *subscriptionOperation) Check() error {
+ 	if err := o.parent.Err(); err != nil {
+ 		return err
+ 	}
++	if o.ancestor != nil {
++		if err := o.ancestor.Check(); err != nil {
++			return err
++		}
++	}
+ 	return o.Operation.Check()
+ }
+ 
+@@ -343,6 +354,12 @@ func (s *Subscriptions) begin(parent context.Context, o contract.Owner) (*subscr
+ 	if s == nil || parent == nil || o.Validate() != nil {
+ 		return nil, nil, nil, ErrInvalid
+ 	}
++	ancestor, _ := parent.Value(subscriptionOperationKey{}).(*subscriptionOperation)
++	if ancestor != nil {
++		if err := ancestor.Check(); err != nil {
++			return nil, nil, nil, err
++		}
++	}
+ 	op, err := s.options.Owners.Begin(parent, o)
+ 	if err != nil {
+ 		return nil, nil, nil, err
+@@ -352,7 +369,8 @@ func (s *Subscriptions) begin(parent context.Context, o contract.Owner) (*subscr
+ 		deadline = d
+ 	}
+ 	ctx, cancel := context.WithDeadline(op.Context(), deadline)
+-	return &subscriptionOperation{Operation: op, parent: parent}, ctx, cancel, nil
++	scope := &subscriptionOperation{Operation: op, parent: parent, ancestor: ancestor}
++	return scope, context.WithValue(ctx, subscriptionOperationKey{}, scope), cancel, nil
+ }
+ 
+ func finishSubscription(op *subscriptionOperation, cancel context.CancelFunc, err *error) {

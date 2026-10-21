@@ -1,0 +1,131 @@
+{
+  "run_id": "33479692602",
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 99766328333,
+      "name": "Discover handoffs without zero-inventory proof",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-09-01T06:55:10Z",
+      "completed_at": "2026-09-01T06:55:35Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-01T06:55:11Z",
+          "completed_at": "2026-09-01T06:55:12Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-01T06:55:12Z",
+          "completed_at": "2026-09-01T06:55:15Z"
+        },
+        {
+          "name": "Select bounded latest handoffs",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 3,
+          "started_at": "2026-09-01T06:55:15Z",
+          "completed_at": "2026-09-01T06:55:33Z"
+        },
+        {
+          "name": "Validate manual stop boundary",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 4,
+          "started_at": "2026-09-01T06:55:33Z",
+          "completed_at": "2026-09-01T06:55:33Z"
+        },
+        {
+          "name": "Authenticate durable request-scoped stop marker",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-09-01T06:55:33Z",
+          "completed_at": "2026-09-01T06:55:33Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-09-01T06:55:33Z",
+          "completed_at": "2026-09-01T06:55:33Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-09-01T06:55:33Z",
+          "completed_at": "2026-09-01T06:55:33Z"
+        }
+      ]
+    },
+    {
+      "id": 99766433232,
+      "name": "Disable idle rehearsal finalizer schedule",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-09-01T06:55:38Z",
+      "completed_at": "2026-09-01T06:56:07Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-01T06:55:39Z",
+          "completed_at": "2026-09-01T06:55:40Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-01T06:55:40Z",
+          "completed_at": "2026-09-01T06:55:46Z"
+        },
+        {
+          "name": "Prove global idle state before disabling future schedules",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 3,
+          "started_at": "2026-09-01T06:55:46Z",
+          "completed_at": "2026-09-01T06:56:05Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-01T06:56:05Z",
+          "completed_at": "2026-09-01T06:56:05Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-09-01T06:56:05Z",
+          "completed_at": "2026-09-01T06:56:05Z"
+        }
+      ]
+    },
+    {
+      "id": 99766433786,
+      "name": "Finalize ${{ matrix.request_id }} before zero-inventory cleanup",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-09-01T06:55:36Z",
+      "completed_at": "2026-09-01T06:55:36Z",
+      "steps": []
+    }
+  ]
+}

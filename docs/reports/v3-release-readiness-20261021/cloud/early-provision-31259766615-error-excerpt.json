@@ -1,0 +1,7 @@
+{
+  "run_id": "31259766615",
+  "selected_failure_context": [
+    "Quote and optionally acquire one exact Lease\tUNKNOWN STEP\t2026-08-08T13:32:32.1699628Z quote: cloudlease quote: internal/infra/cloudlease/alibaba: unsupported plan",
+    "Quote and optionally acquire one exact Lease\tUNKNOWN STEP\t2026-08-08T13:32:32.1714542Z ##[error]Process completed with exit code 1."
+  ]
+}

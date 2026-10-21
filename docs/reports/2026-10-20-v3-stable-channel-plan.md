@@ -3,6 +3,14 @@
 状态：供审阅；2026-10-21 再次核对当前控制与公网状态。生产 stable 仍禁用，尚未预置资源或发布；独立代码准备进度见[发布复核](2026-10-21-v3-release-readiness.md)。
 结论：stable 需要补齐发布链路，不能仅修改 `enabled` 或存储配置。
 
+## 2026-10-21 阿里云资源补充
+
+用户确认 CDN 由已登录 Chrome 的阿里云账号管理。只读控制台核对见[观察记录](v3-release-readiness-20261021/packages/aliyun-console-observation.json)：账号下有两个 CDN 域名，文档域名 `docs.githubim.com` 正常运行、HTTPS 开启，源站为 `origin-docs.githubim.com`；未见 `packages.githubim.com` 的 CDN 配置。全部 OSS 列表只有四个备份测试/验收 Bucket，没有已指定的包仓库源站。没有读取备份对象、调整配置或创建资源。
+
+因此服务商已明确为阿里云，生产包资源仍待预置。建议为包仓库使用专用私有 OSS Bucket，沿用公共入口 `packages.githubim.com`，按完整快照迁移 preview 与后续 stable；现有文档 CDN 和备份 Bucket 保持各自用途。专用 Bucket 名称/地域、回源域名、最小权限角色、缓存切换策略和预算需要在部署实现及测试后形成精确变更单，再批准外部预置；不得把拥有控制台登录态当作 IAM 变更或付费授权。
+
+包签名使用独立 OpenPGP 信任根，不能由 CDN 的 HTTPS 证书替代。用户已确认有签名密钥和保管方案，将补充负责人；后续需对接具体离线/硬件流程及公开证书/指纹，不能将其描述为已验证的生产 stable signer。已建立的 [PR #67](https://github.com/WuKongIM/packages/pull/67) 仅完成只读来源分类；两项 CI 是既有 preview 兼容演练，不是 stable 发布演练。下面各阶段尚未因此完成。
+
 ## 固定基线与核对范围
 
 - 已通过迁移及 Linux 性能验收的产品候选：`WuKongIM/WuKongIM@ef798352c40a94e57f768f76b2f4713712f827fe`；尚未发布。
@@ -103,4 +111,4 @@ DNS/TLS 切换前保留旧路由、证书与回滚快照；成功读源、CDN �
 main 开启 admin enforcement，要求 `Validate complete Pages snapshot`；当前 API 的 required approving review count 为 0，不能误称平台强制双人审批。
 上述平台事实不撤销 reviewed-control、精确 SHA、不可变身份和签名保管合同；本草案不修改或放宽这些边界。
 实施前读取新的控制 SHA 与运行状态；draft/bind/publish 在途时不得推进包仓库 main，重试只能恢复精确匹配身份。
-本次包渠道调研仅下载只读代码到临时目录并编写此草案；未在包仓库创建 issue/PR、dispatch workflow、购买资源、签名或发布。
+初始 10 月 20 日调研仅下载只读代码并编写草案。10 月 21 日后续已提交上文的来源分类 draft PR #67 并取得其 CI 结果；没有购买资源、生产签名、启用 stable 或发布。

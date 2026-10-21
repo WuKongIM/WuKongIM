@@ -1,0 +1,12 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+  "observed_at": "2026-10-21T04:56:30.180856+00:00",
+  "exit_code": 0,
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+    "value": "acs:ram::50175678:role/cloudleasereleaser",
+    "created_at": "2026-08-08T13:21:35Z",
+    "updated_at": "2026-08-22T11:29:56Z"
+  },
+  "error": null
+}

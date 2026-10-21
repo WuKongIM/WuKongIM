@@ -1,0 +1,12 @@
+{
+  "reproduced": true,
+  "driver_pid": 91179,
+  "driver_exit_code": -9,
+  "surviving_child": {
+    "pid": 91180,
+    "sid": 91179,
+    "pgid": 91180
+  },
+  "old_cleanup_scope": "driver PGID only",
+  "expected": "zero live session members"
+}

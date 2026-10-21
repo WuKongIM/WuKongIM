@@ -1,0 +1,42 @@
+[
+  {
+    "log": "original-count10.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -run '^TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated$' -count=10 -timeout=2m -v",
+    "exit_code": 0
+  },
+  {
+    "log": "instrumented-count50-cpu124.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -run '^TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated$' -count=50 -cpu=1,2,4 -timeout=3m -v",
+    "exit_code": 1
+  },
+  {
+    "log": "coalesced-contract-red.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -run '^TestRuntimeRepairFixture' -count=1 -timeout=30s -v",
+    "exit_code": 1
+  },
+  {
+    "log": "coalesced-contract-red02.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -run '^TestRuntimeRepairFixture' -count=1 -timeout=30s -v",
+    "exit_code": 1
+  },
+  {
+    "log": "coalesced-contract-green.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -run '^TestRuntimeRepairFixture' -count=1 -timeout=30s -v",
+    "exit_code": 0
+  },
+  {
+    "log": "saturation-green-count50-cpu124.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -run '^TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated$' -count=50 -cpu=1,2,4 -timeout=3m -v",
+    "exit_code": 0
+  },
+  {
+    "log": "package-green.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -p=2 ./pkg/channel/replication -count=1 -timeout=3m",
+    "exit_code": 0
+  },
+  {
+    "log": "focused-race-green.log",
+    "command": "GOWORK=off GOCACHE=/tmp/wukongim-v3-readiness-20261021/replication-diagnosis/gocache go test -race -p=2 ./pkg/channel/replication -run '^(TestRuntimeRepairFixture.*|TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated|TestRuntimeRepairsFollowerGapFromLeaderDurableStore|TestRuntimeRepairOwner.*)$' -count=5 -timeout=3m",
+    "exit_code": 0
+  }
+]

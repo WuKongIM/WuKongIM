@@ -1,0 +1,64 @@
+diff --git a/pkg/channel/replication/runtime_test.go b/pkg/channel/replication/runtime_test.go
+index 2a60e6b12..b1e2f3e4b 100644
+--- a/pkg/channel/replication/runtime_test.go
++++ b/pkg/channel/replication/runtime_test.go
+@@ -417,6 +417,14 @@ func TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated(t *testi
+ 		time.Sleep(time.Millisecond)
+ 	}
+ 
++	runtimes[1].repairs.mu.Lock()
++	for _, authority := range authorities {
++		if runtimes[1].repairs.pending[runtimeRepairKey{channel: authority.Key, follower: 2}] == nil {
++			t.Errorf("missing retained repair for exact Channel %s and follower 2", authority.Key)
++		}
++	}
++	runtimes[1].repairs.mu.Unlock()
++
+ 	releaseAll()
+ 	waitForRuntimeReplicaBatchLEO(t, stores[2], authorities, 1)
+ }
+@@ -640,19 +648,36 @@ func (r *runtimeTestRouter) register(node ch.NodeID, server *ExchangeServer) {
+ func (r *runtimeTestRouter) exchange(ctx context.Context, from, target ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
+ 	r.mu.Lock()
+ 	server := r.servers[target]
+-	if len(batch.Items) == 1 && batch.Items[0].Kind == ExchangeReplicate && r.rejectReplicate[target] > 0 {
+-		r.rejectReplicate[target]--
+-		item := batch.Items[0]
+-		r.mu.Unlock()
+-		return ExchangeBatchResult{Version: ExchangeVersion, Items: []ExchangeItemResult{{
+-			RequestID: item.RequestID, Replicate: ReplicateResult{Status: ReplicateBackpressured},
+-		}}}, nil
++	// Faults target replication items, independent of legal peer batch coalescing.
++	result := ExchangeBatchResult{Version: ExchangeVersion, Items: make([]ExchangeItemResult, len(batch.Items))}
++	forward := ExchangeBatch{Version: batch.Version, Priority: batch.Priority}
++	positions := make([]int, 0, len(batch.Items))
++	for index, item := range batch.Items {
++		if item.Kind == ExchangeReplicate && r.rejectReplicate[target] > 0 {
++			r.rejectReplicate[target]--
++			result.Items[index] = ExchangeItemResult{
++				RequestID: item.RequestID, Replicate: ReplicateResult{Status: ReplicateBackpressured},
++			}
++			continue
++		}
++		forward.Items = append(forward.Items, item)
++		positions = append(positions, index)
+ 	}
+ 	r.mu.Unlock()
++	if len(forward.Items) == 0 {
++		return result, nil
++	}
+ 	if server == nil {
+ 		return ExchangeBatchResult{}, ch.ErrNotReady
+ 	}
+-	return server.Handle(ctx, from, batch)
++	forwarded, err := server.Handle(ctx, from, forward)
++	if err != nil {
++		return ExchangeBatchResult{}, err
++	}
++	for index, position := range positions {
++		result.Items[position] = forwarded.Items[index]
++	}
++	return result, nil
+ }
+ 
+ type runtimeTestLink struct {

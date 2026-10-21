@@ -1,0 +1,23 @@
+diff --git a/pkg/channel/replication/runtime_test.go b/pkg/channel/replication/runtime_test.go
+index 2a60e6b12..007122b61 100644
+--- a/pkg/channel/replication/runtime_test.go
++++ b/pkg/channel/replication/runtime_test.go
+@@ -412,6 +412,18 @@ func TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated(t *testi
+ 	deadline := time.Now().Add(2 * time.Second)
+ 	for runtimes[1].repairs.pendingCount() < channelCount {
+ 		if time.Now().After(deadline) {
++			router.mu.RLock()
++			t.Logf("[DEBUG-repair-saturation] unconsumed rejection tokens = %d", router.rejectReplicate[2])
++			router.mu.RUnlock()
++			for _, authority := range authorities {
++				runtimes[1].repairs.mu.Lock()
++				_, pending := runtimes[1].repairs.pending[runtimeRepairKey{channel: authority.Key, follower: 2}]
++				runtimes[1].repairs.mu.Unlock()
++				if !pending {
++					loaded, err := stores[2].Load(context.Background(), LoadBatch{Items: []LoadRequest{{ChannelKey: authority.Key, ChannelID: authority.ChannelID}}})
++					t.Logf("[DEBUG-repair-saturation] missing repair key=%s follower_state=%+v load_error=%v", authority.Key, loaded, err)
++				}
++			}
+ 			t.Fatalf("retained repairs = %d, want %d", runtimes[1].repairs.pendingCount(), channelCount)
+ 		}
+ 		time.Sleep(time.Millisecond)

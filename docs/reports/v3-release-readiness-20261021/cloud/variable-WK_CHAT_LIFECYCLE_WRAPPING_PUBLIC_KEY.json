@@ -1,0 +1,12 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+  "observed_at": "2026-10-21T04:56:30.195018+00:00",
+  "exit_code": 0,
+  "data": {
+    "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+    "value": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFUMTbprU57YSOU/PfLI8EHC/OLFxUZ98A3uU4lq+dsY wukongim-chat-lifecycle-wrapping",
+    "created_at": "2026-08-08T12:30:46Z",
+    "updated_at": "2026-08-08T13:08:51Z"
+  },
+  "error": null
+}

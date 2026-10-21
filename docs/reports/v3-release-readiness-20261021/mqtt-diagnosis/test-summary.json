@@ -1,0 +1,123 @@
+{
+  "base_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+  "classification": "product cancellation propagation gap across nested subscription scopes",
+  "toolchain": "go version go1.25.11 darwin/arm64",
+  "results": [
+    {
+      "log": "logs/baseline-original.jsonl",
+      "sha256": "509bb850311798523757bba5e6089e9a09e18ac6c731ce412958751903f50b03",
+      "package_result": {
+        "Time": "2026-10-21T13:08:50.637249+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 4.726
+      },
+      "failed_tests": [],
+      "expected_red": false
+    },
+    {
+      "log": "logs/green-contention-matrix.jsonl",
+      "sha256": "a731499bdf046ee22a140a6c7794c74b8f9fac8a9e586b27d74b040765007b95",
+      "package_result": {
+        "Time": "2026-10-21T13:10:38.337964+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 9.164
+      },
+      "failed_tests": [],
+      "expected_red": false
+    },
+    {
+      "log": "logs/green-full-package.jsonl",
+      "sha256": "2640e7dd9b5ff563f22a097185bebe85ee21e3d634bc465b79c119fa81aba9e8",
+      "package_result": {
+        "Time": "2026-10-21T13:13:20.081732+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 112.707
+      },
+      "failed_tests": [],
+      "expected_red": false
+    },
+    {
+      "log": "logs/green-race-related.jsonl",
+      "sha256": "3feaa59ffcd96838e76d0461f240b4150e4042d776046fc03e254d9b000b2c5d",
+      "package_result": {
+        "Time": "2026-10-21T13:14:34.132444+08:00",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 14.248
+      },
+      "failed_tests": [],
+      "expected_red": false
+    },
+    {
+      "log": "logs/red-delayed.jsonl",
+      "sha256": "f945a4a3b44baf73c77bf249489ca9f3c2649bf834603436ddbb7d5fd253d80b",
+      "package_result": {
+        "Time": "2026-10-21T13:09:23.525305+08:00",
+        "Action": "fail",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 1.233
+      },
+      "failed_tests": [
+        "TestSourceDrainProgressBeforeSealDoesNotClose/canceled-delayed",
+        "TestSourceDrainProgressBeforeSealDoesNotClose",
+        "TestSourceDrainProgressBeforeSealDoesNotClose/canceled-delayed",
+        "TestSourceDrainProgressBeforeSealDoesNotClose",
+        "TestSourceDrainProgressBeforeSealDoesNotClose/canceled-delayed",
+        "TestSourceDrainProgressBeforeSealDoesNotClose"
+      ],
+      "expected_red": true
+    },
+    {
+      "log": "logs/red-instrumented.jsonl",
+      "sha256": "cdda969bee6483bc63c4d15dbaa67db56653dfdf5d9a06324d9cb0a492c26290",
+      "package_result": {
+        "Time": "2026-10-21T13:09:52.474007+08:00",
+        "Action": "fail",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 0.502
+      },
+      "failed_tests": [
+        "TestSourceDrainProgressBeforeSealDoesNotClose/canceled-delayed",
+        "TestSourceDrainProgressBeforeSealDoesNotClose"
+      ],
+      "expected_red": true
+    },
+    {
+      "log": "logs/red-strict-final.jsonl",
+      "sha256": "3d2473b003d17ff012e729c7ed4e82a9f6026f1056c5bec73297216a2bdee86c",
+      "package_result": {
+        "Time": "2026-10-21T13:11:08.767564+08:00",
+        "Action": "fail",
+        "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+        "Elapsed": 0.481
+      },
+      "failed_tests": [
+        "TestSourceDrainProgressBeforeSealDoesNotClose/canceled-delayed",
+        "TestSourceDrainProgressBeforeSealDoesNotClose"
+      ],
+      "expected_red": true
+    }
+  ],
+  "final_files": [
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "49a7878aa59482dab307f41b19f194162b377bf9c745548660a012502dcd291c"
+    },
+    {
+      "path": "internal/usecase/mqttsession/subscriptions.go",
+      "sha256": "a7f3ac1dc45a37342c4908b51e68a3d16bcc24c9bc22622aafbd7bad91d92daf"
+    },
+    {
+      "path": "internal/usecase/mqttsession/source_drain_contention_test.go",
+      "sha256": "2b3ef447c9aec61125b86668b79a955003b6801272b66f50313d789ab6ac2094"
+    }
+  ],
+  "flow_doc_contracts": "parent-owned, pending here",
+  "changelog": "parent-owned, required Unreleased product fix",
+  "linux_candidate_ci": "not rerun here",
+  "debug_probe_removed": true,
+  "task_cache_removed_after_validation": true
+}

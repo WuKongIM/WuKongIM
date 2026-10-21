@@ -1,0 +1,131 @@
+{
+  "run_id": "33502821176",
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 99839855420,
+      "name": "Discover formal handoffs without zero-inventory proof",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-01T11:30:25Z",
+      "completed_at": "2026-09-01T11:30:49Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-01T11:30:25Z",
+          "completed_at": "2026-09-01T11:30:26Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-01T11:30:26Z",
+          "completed_at": "2026-09-01T11:30:30Z"
+        },
+        {
+          "name": "Select bounded latest formal handoffs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-09-01T11:30:30Z",
+          "completed_at": "2026-09-01T11:30:46Z"
+        },
+        {
+          "name": "Validate manual stop boundary",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 4,
+          "started_at": "2026-09-01T11:30:46Z",
+          "completed_at": "2026-09-01T11:30:46Z"
+        },
+        {
+          "name": "Authenticate durable request-scoped stop marker",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-09-01T11:30:46Z",
+          "completed_at": "2026-09-01T11:30:46Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-09-01T11:30:46Z",
+          "completed_at": "2026-09-01T11:30:47Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-09-01T11:30:47Z",
+          "completed_at": "2026-09-01T11:30:47Z"
+        }
+      ]
+    },
+    {
+      "id": 99839981019,
+      "name": "Disable idle formal finalizer schedule",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-01T11:30:52Z",
+      "completed_at": "2026-09-01T11:31:19Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-01T11:30:53Z",
+          "completed_at": "2026-09-01T11:30:54Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-01T11:30:54Z",
+          "completed_at": "2026-09-01T11:30:58Z"
+        },
+        {
+          "name": "Prove no formal handoff or producer before disabling future schedules",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-09-01T11:30:58Z",
+          "completed_at": "2026-09-01T11:31:17Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-01T11:31:17Z",
+          "completed_at": "2026-09-01T11:31:17Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-09-01T11:31:17Z",
+          "completed_at": "2026-09-01T11:31:17Z"
+        }
+      ]
+    },
+    {
+      "id": 99839981687,
+      "name": "Finalize formal ${{ matrix.request_id }} before exact Release",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-09-01T11:30:49Z",
+      "completed_at": "2026-09-01T11:30:49Z",
+      "steps": []
+    }
+  ]
+}

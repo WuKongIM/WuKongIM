@@ -1,0 +1,11 @@
+{
+  "arguments": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "-c",
+    "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text('ready'); time.sleep(60)",
+    "/tmp/wukongim-v3-readiness-20261021/ci/session-cleanup-probes/candidate-cancel-bhq5ghux/ready"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-release-recovery",
+  "timeout_seconds": 30,
+  "max_output_bytes": 4096
+}

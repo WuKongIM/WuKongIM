@@ -1,0 +1,22 @@
+{
+  "status": "interrupted",
+  "exit_code": -15,
+  "session_id": 92815,
+  "output_bytes": 0,
+  "output_truncated": false,
+  "passed": false,
+  "error": "received signal 15",
+  "cleanup": {
+    "session_id": 92815,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [
+      92815,
+      92816
+    ],
+    "remaining_processes": []
+  },
+  "command_status": "interrupted",
+  "wrapper_exit_code": 143,
+  "elapsed_seconds": 2.182
+}

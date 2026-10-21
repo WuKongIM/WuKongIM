@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim/chat-lifecycle-worker-evidence/v1",
+  "run_id": "local-chat-lifecycle-shakeout",
+  "at": "2026-10-21T05:11:52.948894358Z",
+  "workers": [
+    {
+      "worker_id": 0,
+      "generation": 1,
+      "snapshot_sequence": 134,
+      "evidence": {
+        "classes": []
+      }
+    },
+    {
+      "worker_id": 1,
+      "generation": 1,
+      "snapshot_sequence": 134,
+      "evidence": {
+        "classes": []
+      }
+    },
+    {
+      "worker_id": 2,
+      "generation": 1,
+      "snapshot_sequence": 134,
+      "evidence": {
+        "classes": []
+      }
+    }
+  ]
+}

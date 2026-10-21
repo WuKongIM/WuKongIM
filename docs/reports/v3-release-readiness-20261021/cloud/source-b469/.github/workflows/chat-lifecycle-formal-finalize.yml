@@ -1,0 +1,514 @@
+name: Safety Automation - Finalize Formal Chat Lifecycle Runs
+run-name: Chat Lifecycle Formal Finalizer ${{ inputs.request_id || github.run_id }}
+
+on:
+  schedule:
+    - cron: "9,19,29,39,49,59 * * * *"
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Optional exact formal request; empty scans active handoffs
+        required: false
+        default: ""
+        type: string
+      operation:
+        description: Finalize naturally or request an immediate operator stop
+        required: false
+        default: finalize
+        type: choice
+        options: [finalize, stop]
+      stop_authorization:
+        description: Exact authorization required only for operation=stop
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: chat-lifecycle-formal-finalizer-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover formal handoffs without zero-inventory proof
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUEST_ID: ${{ inputs.request_id || '' }}
+      WK_CHAT_STAGE: formal
+      OPERATION: ${{ github.event_name == 'workflow_dispatch' && inputs.operation || 'finalize' }}
+      STOP_AUTHORIZATION: ${{ inputs.stop_authorization || '' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select bounded latest formal handoffs
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/discover-active-handoffs.sh "$REQUEST_ID" matrix.json
+          echo "matrix=$(cat matrix.json)" >>"$GITHUB_OUTPUT"
+      - name: Validate manual stop boundary
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == stop ]]; then
+            [[ -n "$REQUEST_ID" && "$STOP_AUTHORIZATION" == operator-stop-chat-lifecycle ]]
+          else
+            [[ "$OPERATION" == finalize && -z "$STOP_AUTHORIZATION" ]]
+          fi
+      - name: Authenticate durable request-scoped stop marker
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'stop'
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/operator-stop-requested.sh "$REQUEST_ID" >"$RUNNER_TEMP/operator-stop-observation.json"
+          jq -e --arg request "$REQUEST_ID" '
+            .schema == "wukongim.chat_lifecycle.operator_stop_observation/v1" and .request_id == $request
+          ' "$RUNNER_TEMP/operator-stop-observation.json" >/dev/null
+
+  finalize:
+    name: Finalize formal ${{ matrix.request_id }} before exact Release
+    needs: discover
+    if: fromJSON(needs.discover.outputs.matrix).include[0] != null
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: cloud-deployment
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WK_CHAT_STAGE: formal
+      WK_CHAT_REQUEST_ID: ${{ matrix.request_id }}
+      WK_CHAT_HANDOFF_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
+      WK_CHAT_FINAL_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/final
+      WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/cleanup
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Resolve durable operator-stop intent for this handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          observation="$(scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REQUEST_ID")" || status=$?
+          case "$status" in
+            0)
+              jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+                .schema == "wukongim.chat_lifecycle.operator_stop_observation/v1" and .request_id == $request
+              ' <<<"$observation" >/dev/null
+              echo 'WK_CHAT_OPERATOR_STOP=true' >>"$GITHUB_ENV"
+              ;;
+            1) echo 'WK_CHAT_OPERATOR_STOP=false' >>"$GITHUB_ENV" ;;
+            *) exit "$status" ;;
+          esac
+      - name: Download exact non-secret formal handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-formal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_HANDOFF_DIR }}
+          run-id: ${{ matrix.handoff_run_id }}
+          github-token: ${{ github.token }}
+      - name: Reauthenticate the protected-main formal producer
+        shell: bash
+        run: scripts/chat-lifecycle/authenticate-handoff-producer.sh "${{ matrix.handoff_run_id }}" "$RUNNER_TEMP/handoff-run.json"
+      - name: Classify formal run handoff or cleanup continuation
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$WK_CHAT_HANDOFF_DIR/handoff.json" ]]; then
+            for name in deployment-plan.json run-start.json release-selector.json run-plan.json quote.json receipt.json deployment-outcome.json encrypted-deployment-identity.json; do
+              test -f "$WK_CHAT_HANDOFF_DIR/$name"
+            done
+            for name in transition.json handoff.json run-plan.json quote.json receipt.json final.json rehearsal-result.json finalization.json cleanup.json zero-inventory.json release-selector.json; do
+              test -f "$WK_CHAT_HANDOFF_DIR/rehearsal/$name"
+            done
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_handoff/v1" and .request_id == $request
+            ' "$WK_CHAT_HANDOFF_DIR/handoff.json" >/dev/null
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .request_id == $request and
+              .from_stage == "rehearsal" and .outcome == "rehearsal_pass" and .zero_inventory == true and
+              (.committed_micros | type == "number") and .committed_micros > 0
+            ' "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json" >/dev/null
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.rehearsal_result/v1" and .outcome == "rehearsal_pass"
+            ' "$WK_CHAT_HANDOFF_DIR/rehearsal/rehearsal-result.json" >/dev/null
+            echo 'mode=run' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup.json" && -f "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_cleanup/v1" and
+              .request_id == $request and (.release_run_id | type == "number") and
+              .release_run_id > 0 and .zero_inventory == true
+            ' "$WK_CHAT_HANDOFF_DIR/cleanup.json" >/dev/null
+            jq -e --slurpfile selector "$WK_CHAT_HANDOFF_DIR/release-selector.json" '
+              .schema == "wukongim.cloud_lease.release/v1" and
+              (.result.zero_inventory | type == "object") and
+              .result.zero_inventory.selector == $selector[0].selector and
+              (.result.zero_inventory.account_id_hash | test("^sha256:[0-9a-f]{64}$")) and
+              (.result.zero_inventory.observed_at | type == "string") and
+              (.result.zero_inventory.scopes | type == "array" and length > 0)
+            ' "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" >/dev/null
+            echo 'mode=cleanup_complete' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.cleanup_pending/v1" and .request_id == $request
+            ' "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" >/dev/null
+            echo 'mode=cleanup_pending' >>"$GITHUB_OUTPUT"
+          else
+            echo 'Authenticated formal Artifact has neither a complete run handoff nor typed cleanup evidence.' >&2
+            exit 1
+          fi
+      - name: Download previously uploaded terminal or diagnosis evidence
+        id: previous_download
+        if: steps.handoff.outputs.mode == 'run' && matrix.final_exists == true
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-formal-final-${{ matrix.request_id }}
+          path: ${{ runner.temp }}/previous-final
+          run-id: ${{ matrix.final_run_id }}
+          github-token: ${{ github.token }}
+      - name: Authenticate reusable formal terminal or diagnosis evidence
+        id: previous
+        if: steps.handoff.outputs.mode == 'run' && matrix.final_exists == true
+        shell: bash
+        run: |
+          set -euo pipefail
+          usable=false
+          diagnosis_pending=false
+          if [[ "${{ steps.previous_download.outcome }}" == success ]] &&
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${{ matrix.final_run_id }}" >final-run.json &&
+            jq -e --arg repository "$GITHUB_REPOSITORY" '
+              .repository.full_name == $repository and .head_repository.full_name == $repository and
+              (.event == "schedule" or .event == "workflow_dispatch") and .head_branch == "main" and
+              .status == "completed" and
+              (.path == ".github/workflows/chat-lifecycle-formal-finalize.yml" or
+               .path == ".github/workflows/chat-lifecycle-formal-finalize.yml@refs/heads/main")
+            ' final-run.json >/dev/null &&
+            cmp -s <(jq -S -c . "$RUNNER_TEMP/previous-final/handoff.json")
+              <(jq -S -c . "$WK_CHAT_HANDOFF_DIR/handoff.json") &&
+            jq -e '.schema == "wukongim.chat_lifecycle.terminal_evidence/v1" and .stage == "formal" and
+              (.complete | type == "boolean") and (.capture_failures | type == "number") and (.captures | type == "array")' \
+              "$RUNNER_TEMP/previous-final/evidence/manifest.json" >/dev/null 2>&1; then
+            if jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_finalization/v1" and .request_id == $request and
+              (.outcome | type == "string") and (.cause | type == "string") and (.observed_at | type == "string")
+            ' "$RUNNER_TEMP/previous-final/finalization.json" >/dev/null 2>&1; then
+              usable=true
+            elif jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.diagnosis_window/v1" and .request_id == $request and
+              .stage == "formal" and .state == "diagnosis_pending" and
+              (.started_at | type == "string") and (.deadline_at | type == "string")
+            ' "$RUNNER_TEMP/previous-final/diagnosis-window.json" >/dev/null 2>&1; then
+              diagnosis_pending=true
+            fi
+          fi
+          echo "usable=$usable" >>"$GITHUB_OUTPUT"
+          echo "diagnosis_pending=$diagnosis_pending" >>"$GITHUB_OUTPUT"
+      - name: Preserve authenticated prior diagnosis deadline
+        if: steps.previous.outputs.diagnosis_pending == 'true'
+        shell: bash
+        run: test -s "$RUNNER_TEMP/previous-final/diagnosis-window.json"
+      - name: Build trusted validator and deployment SSH identity
+        id: identity
+        if: steps.handoff.outputs.mode == 'run' && (matrix.final_exists == false || steps.previous.outputs.usable != 'true')
+        continue-on-error: true
+        shell: bash
+        env:
+          WRAPPING_PRIVATE_KEY: ${{ secrets.WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$WRAPPING_PRIVATE_KEY"
+          go build -trimpath -o "$RUNNER_TEMP/wkchatlifecycle" ./cmd/wkchatlifecycle
+          umask 077
+          printf '%s\n' "$WRAPPING_PRIVATE_KEY" >"$RUNNER_TEMP/wrapping-key"
+          chmod 0600 "$RUNNER_TEMP/wrapping-key"
+          "$RUNNER_TEMP/wkchatlifecycle" open-deployment-identity \
+            --envelope "$WK_CHAT_HANDOFF_DIR/encrypted-deployment-identity.json" \
+            --identity "$RUNNER_TEMP/wrapping-key" --request-id "$WK_CHAT_REQUEST_ID" \
+            --lease-id "$(jq -er .receipt.lease_id "$WK_CHAT_HANDOFF_DIR/receipt.json")" \
+            --source-sha "$(jq -er .source_sha "$WK_CHAT_HANDOFF_DIR/handoff.json")" \
+            --plan-digest "$(jq -er .receipt.plan_digest "$WK_CHAT_HANDOFF_DIR/receipt.json")" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output "$RUNNER_TEMP/deployment-key"
+          ssh-keygen -y -f "$RUNNER_TEMP/deployment-key" >/dev/null
+          rm -f "$RUNNER_TEMP/wrapping-key"
+      - name: Collect terminal 72-hour, capacity, and recovery evidence
+        id: collect
+        if: steps.handoff.outputs.mode == 'run' && (matrix.final_exists == false || steps.previous.outputs.usable != 'true') && steps.identity.outcome == 'success'
+        shell: bash
+        env:
+          WK_CHAT_DEPLOYMENT_KEY: ${{ runner.temp }}/deployment-key
+          WK_CHAT_TOOL: ${{ runner.temp }}/wkchatlifecycle
+          WK_CHAT_PREVIOUS_DIAGNOSIS_WINDOW: ${{ runner.temp }}/previous-final/diagnosis-window.json
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/formal-finalize.sh | tee "$RUNNER_TEMP/finalize-status.txt"
+          if [[ -s "$WK_CHAT_FINAL_DIR/finalization.json" ]]; then
+            echo 'ready=true' >>"$GITHUB_OUTPUT"
+            echo 'diagnosis_pending=false' >>"$GITHUB_OUTPUT"
+            if [[ -s "$WK_CHAT_FINAL_DIR/formal-result.json" ]]; then
+              evidence_epoch="$(date -u -d "$(jq -er .end "$WK_CHAT_FINAL_DIR/formal-result.json")" +%s)"
+            elif [[ -s "$WK_CHAT_FINAL_DIR/diagnosis-window.json" ]]; then
+              evidence_epoch="$(date -u -d "$(jq -er .deadline_at "$WK_CHAT_FINAL_DIR/diagnosis-window.json")" +%s)"
+            else
+              evidence_epoch="$(date -u -d "$(jq -er .observed_at "$WK_CHAT_FINAL_DIR/finalization.json")" +%s)"
+            fi
+            echo "report_rescue_deadline_epoch=$(( evidence_epoch + 7200 ))" >>"$GITHUB_OUTPUT"
+          elif [[ -s "$WK_CHAT_FINAL_DIR/diagnosis-window.json" ]]; then
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+            echo 'diagnosis_pending=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+            echo 'diagnosis_pending=false' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Preserve typed evidence when the deployment identity is unavailable
+        id: credential_evidence
+        if: steps.handoff.outputs.mode == 'run' && steps.identity.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$WK_CHAT_FINAL_DIR"
+          for name in handoff.json run-plan.json quote.json receipt.json deployment-plan.json deployment-outcome.json run-start.json; do
+            cp "$WK_CHAT_HANDOFF_DIR/$name" "$WK_CHAT_FINAL_DIR/$name"
+          done
+          observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq -n --arg schema 'wukongim.chat_lifecycle.formal_finalization/v1' \
+            --arg request_id "$WK_CHAT_REQUEST_ID" --arg outcome insufficient_evidence \
+            --arg cause deployment_identity_unavailable --arg observed_at "$observed_at" \
+            '{schema:$schema,request_id:$request_id,outcome:$outcome,cause:$cause,
+              observed_at:$observed_at,systemd_state:"unavailable"}' >"$WK_CHAT_FINAL_DIR/finalization.json"
+          printf 'credential_state=unavailable\ncredential_material=not_exposed\n' >"$WK_CHAT_FINAL_DIR/diagnostics.txt"
+          install -d -m 0700 "$WK_CHAT_FINAL_DIR/evidence"
+          jq -n --arg schema 'wukongim.chat_lifecycle.terminal_evidence/v1' --arg stage formal \
+            --arg observed_at "$observed_at" \
+            '{schema:$schema,stage:$stage,observed_at:$observed_at,max_file_bytes:4194304,
+              capture_failures:1,complete:false,captures:[{class:"credentials",name:"deployment",state:"unavailable",bytes:0}]}' \
+            >"$WK_CHAT_FINAL_DIR/evidence/manifest.json"
+          echo 'ready=true' >>"$GITHUB_OUTPUT"
+          echo "report_rescue_deadline_epoch=$(date -u +%s)" >>"$GITHUB_OUTPUT"
+      - name: Reuse previously uploaded formal terminal evidence
+        id: existing
+        if: steps.handoff.outputs.mode == 'run' && matrix.final_exists == true && steps.previous.outputs.usable == 'true'
+        shell: bash
+        run: echo 'ready=true' >>"$GITHUB_OUTPUT"
+      - name: Upload bounded terminal or diagnosis evidence before any Release
+        id: final_upload
+        if: steps.collect.outputs.ready == 'true' || steps.collect.outputs.diagnosis_pending == 'true' || steps.credential_evidence.outputs.ready == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-final-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_FINAL_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Bound formal report upload rescue
+        id: report_rescue
+        if: steps.collect.outputs.ready == 'true' || steps.credential_evidence.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_rescue_deadline_epoch="${{ steps.collect.outputs.report_rescue_deadline_epoch }}"
+          [[ -n "$report_rescue_deadline_epoch" ]] || report_rescue_deadline_epoch="${{ steps.credential_evidence.outputs.report_rescue_deadline_epoch }}"
+          [[ "$report_rescue_deadline_epoch" =~ ^[1-9][0-9]*$ ]]
+          lease_safety_epoch=$(( $(date -u -d "$(jq -er .receipt.expires_at "$WK_CHAT_HANDOFF_DIR/receipt.json")" +%s) - 1800 ))
+          if [[ "${{ steps.final_upload.outcome }}" == success ]]; then
+            echo 'release=true' >>"$GITHUB_OUTPUT"
+          elif [[ "${{ steps.final_upload.outcome }}" == failure ]] &&
+            (( $(date -u +%s) >= report_rescue_deadline_epoch || $(date -u +%s) >= lease_safety_epoch )); then
+            echo 'release=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'release=false' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Leave terminal evidence queued for the next ten-minute rescue
+        if: steps.final_upload.outcome == 'failure' && steps.report_rescue.outputs.release != 'true'
+        shell: bash
+        run: echo 'Terminal evidence upload remains inside its bounded rescue window.'
+      - name: Confirm terminal evidence survived before normal Release
+        if: steps.final_upload.outcome == 'success'
+        shell: bash
+        run: test "${{ steps.report_rescue.outputs.release }}" = true
+      - name: Release exact formal Lease until zero inventory
+        id: release
+        if: steps.handoff.outputs.mode == 'cleanup_pending' || steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          WK_CHAT_SELECTOR: ${{ env.WK_CHAT_HANDOFF_DIR }}/release-selector.json
+        run: scripts/chat-lifecycle/release-until-zero.sh
+      - name: Classify Release continuation
+        id: cleanup
+        if: steps.handoff.outputs.mode == 'cleanup_complete' || steps.release.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.handoff.outputs.mode }}" == cleanup_complete ]]; then
+            install -d -m 0700 "$WK_CHAT_CLEANUP_DIR"
+            cp "$WK_CHAT_HANDOFF_DIR/cleanup.json" "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" "$WK_CHAT_CLEANUP_DIR/"
+          fi
+          if [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup.json" && -f "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" ]]; then
+            echo 'zero=true' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup-pending.json" && -f "$WK_CHAT_CLEANUP_DIR/release-selector.json" ]]; then
+            echo 'zero=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'Release emitted neither zero proof nor cleanup continuation.' >&2
+            exit 1
+          fi
+      - name: Assemble terminal evidence with exact zero-inventory proof
+        id: complete
+        if: steps.handoff.outputs.mode == 'run' && steps.cleanup.outputs.zero == 'true'
+        shell: bash
+        env:
+          WK_CHAT_COMPLETE_DIR: ${{ runner.temp }}/complete
+        run: |
+          set -euo pipefail
+          final_dir="$WK_CHAT_FINAL_DIR"
+          [[ "${{ steps.existing.outputs.ready }}" == true ]] && final_dir="$RUNNER_TEMP/previous-final"
+          for name in handoff.json run-plan.json quote.json receipt.json deployment-plan.json deployment-outcome.json run-start.json finalization.json; do
+            test -f "$final_dir/$name"
+          done
+          test -f "$final_dir/evidence/manifest.json"
+          for name in cleanup.json zero-inventory.json; do
+            test -f "$WK_CHAT_CLEANUP_DIR/$name"
+          done
+          for name in transition.json rehearsal-result.json cleanup.json zero-inventory.json; do
+            test -f "$WK_CHAT_HANDOFF_DIR/rehearsal/$name"
+          done
+          install -d -m 0700 "$WK_CHAT_COMPLETE_DIR/rehearsal" "$WK_CHAT_COMPLETE_DIR/formal" "$WK_CHAT_COMPLETE_DIR/cleanup"
+          cp -a "$WK_CHAT_HANDOFF_DIR/rehearsal/." "$WK_CHAT_COMPLETE_DIR/rehearsal/"
+          cp -a "$final_dir/." "$WK_CHAT_COMPLETE_DIR/formal/"
+          cp "$WK_CHAT_CLEANUP_DIR/cleanup.json" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" "$WK_CHAT_COMPLETE_DIR/cleanup/"
+          rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
+          formal_quote_micros="$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")"
+          aggregate_conservative_micros=$(( rehearsal_committed_micros + formal_quote_micros ))
+          (( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= 1500000000 ))
+          jq -n --arg schema 'wukongim.chat_lifecycle.complete_evidence/v1' --arg stage formal \
+            --arg request_id "$WK_CHAT_REQUEST_ID" --arg assembled_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson rehearsal_committed_micros "$rehearsal_committed_micros" \
+            --argjson formal_quote_micros "$formal_quote_micros" \
+            --argjson aggregate_conservative_micros "$aggregate_conservative_micros" \
+            '{schema:$schema,stage:$stage,request_id:$request_id,assembled_at:$assembled_at,zero_inventory:true,
+              evidence:{rehearsal_result:"rehearsal/rehearsal-result.json",
+                rehearsal_terminal:"rehearsal/evidence/manifest.json",formal_terminal:"formal/evidence/manifest.json",
+                formal_hour_24:"formal/formal/qualification.json",formal_hour_72:"formal/formal/final.json",
+                capacity_recovery:"formal/capacity/final.json",cleanup:"cleanup/zero-inventory.json"},
+              cost:{rehearsal_committed_micros:$rehearsal_committed_micros,
+                formal_quote_micros:$formal_quote_micros,
+                aggregate_conservative_micros:$aggregate_conservative_micros,
+                provider_reported:{state:"pending_billing_delay",unresolved:true}}}' >"$WK_CHAT_COMPLETE_DIR/manifest.json"
+      - name: Upload complete formal evidence
+        id: complete_upload
+        if: steps.complete.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-complete-${{ matrix.request_id }}
+          path: ${{ runner.temp }}/complete
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload formal zero-inventory proof
+        if: steps.cleanup.outputs.zero == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-cleanup-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload formal cleanup-pending continuation
+        if: steps.cleanup.outputs.pending == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 8
+      - name: Delete released encrypted deployment handoff
+        if: steps.cleanup.outputs.zero == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ matrix.handoff_artifact_id }}" =~ ^[1-9][0-9]*$ ]]
+          gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${{ matrix.handoff_artifact_id }}"
+      - name: Fail after persisting a Release continuation
+        if: steps.release.outcome == 'failure'
+        shell: bash
+        run: exit 1
+      - name: Advance the exact tracking Issue
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=formal_finalizer_pending
+          if [[ "${{ steps.collect.outputs.diagnosis_pending }}" == true || "${{ steps.previous.outputs.diagnosis_pending }}" == true ]]; then
+            state=formal_diagnosis_pending
+          elif [[ "${{ steps.complete_upload.outcome }}" == success ]]; then
+            state=request_complete
+          elif [[ "${{ steps.cleanup.outputs.zero }}" == true ]]; then
+            state=formal_final_artifact_pending
+          elif [[ "${{ steps.cleanup.outputs.pending }}" == true || "${{ steps.release.outcome }}" == failure ]]; then
+            state=formal_cleanup_pending
+          elif [[ "${{ steps.final_upload.outcome }}" == success ]]; then
+            state=formal_terminal_evidence
+          fi
+          detail="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          dedupe="$state"
+          if [[ "$state" == formal_finalizer_pending && -f "$WK_CHAT_HANDOFF_DIR/run-plan.json" ]]; then
+            dedupe="formal_running_$(( $(date -u +%s) / 1800 ))"
+            created_at="$(jq -er .receipt.created_at "$WK_CHAT_HANDOFF_DIR/receipt.json")"
+            if stage_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$WK_CHAT_HANDOFF_DIR/run-plan.json" \
+              "$WK_CHAT_HANDOFF_DIR/quote.json" "$created_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" -1)"; then
+              prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_HANDOFF_DIR/run-plan.json")"
+              detail="${detail} aggregate_conservative_micros=$(( prior + stage_cost ))"
+            fi
+          elif [[ "$state" == request_complete ]]; then
+            detail="${detail} artifact=${{ steps.complete_upload.outputs.artifact-url }}"
+            detail="${detail} aggregate_conservative_micros=$(jq -er .cost.aggregate_conservative_micros "$RUNNER_TEMP/complete/manifest.json")"
+            detail="${detail} terminal_outcome=$(jq -er .outcome "$RUNNER_TEMP/complete/formal/finalization.json")"
+            detail="${detail} terminal_cause=$(jq -er .cause "$RUNNER_TEMP/complete/formal/finalization.json")"
+            detail="${detail} cleanup_proof_sha256=$(sha256sum "$RUNNER_TEMP/complete/cleanup/zero-inventory.json" | awk '{print $1}')"
+          fi
+          export WK_CHAT_ISSUE_STATE="$state"
+          export WK_CHAT_ISSUE_DEDUPE_KEY="$dedupe"
+          export WK_CHAT_ISSUE_BODY="$detail"
+          [[ "$state" != request_complete ]] || export WK_CHAT_ISSUE_CLOSE=true
+          scripts/chat-lifecycle/comment-request-issue.sh
+      - name: Remove plaintext runner identity
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/deployment-key" "$RUNNER_TEMP/wrapping-key"
+
+  disarm:
+    name: Disable idle formal finalizer schedule
+    needs: [discover, finalize]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Prove no formal handoff or producer before disabling future schedules
+        shell: bash
+        run: scripts/chat-lifecycle/formal-workflows-state.sh disable-finalizer-if-idle

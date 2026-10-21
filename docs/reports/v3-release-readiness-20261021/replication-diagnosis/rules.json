@@ -1,0 +1,9 @@
+{
+  "source_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "pkg/channel/FLOW.md": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "docs/development/PROJECT_KNOWLEDGE.md": "4597e77aa391790b12a4e4babc4f592c07f11ce1f87ec95c744342994545213c"
+  }
+}

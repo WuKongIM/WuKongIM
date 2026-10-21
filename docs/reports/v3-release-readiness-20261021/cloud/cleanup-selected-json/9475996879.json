@@ -1,0 +1,67 @@
+{
+  "artifact_id": 9475996879,
+  "artifact_name": "chat-lifecycle-rehearsal-cleanup-chat-20260822T113033Z-8d3c0c7a",
+  "producer_run": {
+    "id": 32573569423,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "1dbe159926bccc63fded3f632c8164ad98345c6f"
+  },
+  "created_at": "2026-08-22T12:42:56Z",
+  "zip_sha256": "87f253d7bc0cbdd45f39e2ddb9e750af828f8d228cfe80bc86ece36cf7e1f153",
+  "byte_size": 1483,
+  "members": [
+    {
+      "name": "attempt-1/cloud-lease-release-chat-20260822T113033Z-8d3c0c7a/release.json",
+      "size": 661
+    },
+    {
+      "name": "cleanup.json",
+      "size": 172
+    },
+    {
+      "name": "zero-inventory.json",
+      "size": 661
+    }
+  ],
+  "allowlisted_json": {
+    "cleanup.json": {
+      "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+      "request_id": "chat-20260822T113033Z-8d3c0c7a",
+      "release_run_id": 32573678253,
+      "zero_inventory": true
+    },
+    "zero-inventory.json": {
+      "schema": "wukongim.cloud_lease.release/v1",
+      "result": {
+        "zero_inventory": {
+          "selector": {
+            "lease_id": "chat-20260822T113033Z-8d3c0c7a-rehearsal-1",
+            "request_id": "chat-20260822T113033Z-8d3c0c7a",
+            "provider": "alibaba",
+            "region": "cn-hangzhou",
+            "repository": "WuKongIM/WuKongIM",
+            "plan_digest": "b259d897f49454aaadc84d3b89b17d6aa0b2cc881f44321ac2f7bff07c1d46b5"
+          },
+          "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+          "observed_at": "2026-08-22T12:42:45.752102731Z",
+          "scopes": [
+            "disk_attachments",
+            "disks",
+            "eip_associations",
+            "eips",
+            "enis",
+            "instances",
+            "nat_gateways",
+            "route_entries",
+            "security_group_rules",
+            "security_groups",
+            "vpcs",
+            "vswitches"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "run_id": "31260469032",
+  "jobs": [
+    {
+      "id": 93110386249,
+      "name": "Quote and optionally acquire one exact Lease",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-08-08T13:49:59Z",
+      "completed_at": "2026-08-08T13:50:26Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-08T13:49:59Z",
+          "completed_at": "2026-08-08T13:50:00Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-08T13:50:00Z",
+          "completed_at": "2026-08-08T13:50:04Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-08T13:50:04Z",
+          "completed_at": "2026-08-08T13:50:13Z"
+        },
+        {
+          "name": "Validate explicit request boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-08T13:50:13Z",
+          "completed_at": "2026-08-08T13:50:13Z"
+        },
+        {
+          "name": "Build trusted Cloud Lease tool",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-08T13:50:13Z",
+          "completed_at": "2026-08-08T13:50:15Z"
+        },
+        {
+          "name": "Exchange exact Provisioner OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-08T13:50:15Z",
+          "completed_at": "2026-08-08T13:50:17Z"
+        },
+        {
+          "name": "Quote exact capacity and budget",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 7,
+          "started_at": "2026-08-08T13:50:17Z",
+          "completed_at": "2026-08-08T13:50:23Z"
+        },
+        {
+          "name": "Acquire explicitly authorized paid Lease",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-08-08T13:50:23Z",
+          "completed_at": "2026-08-08T13:50:23Z"
+        },
+        {
+          "name": "Upload non-secret Quote and Receipt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-08T13:50:23Z",
+          "completed_at": "2026-08-08T13:50:24Z"
+        },
+        {
+          "name": "Post Exchange exact Provisioner OIDC identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-08-08T13:50:24Z",
+          "completed_at": "2026-08-08T13:50:24Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 17,
+          "started_at": "2026-08-08T13:50:24Z",
+          "completed_at": "2026-08-08T13:50:24Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-08-08T13:50:24Z",
+          "completed_at": "2026-08-08T13:50:24Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-08-08T13:50:24Z",
+          "completed_at": "2026-08-08T13:50:24Z"
+        }
+      ]
+    }
+  ]
+}

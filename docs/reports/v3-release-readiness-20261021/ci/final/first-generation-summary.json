@@ -1,0 +1,592 @@
+{
+  "generation": 1,
+  "frozen_at": "2026-10-21T05:16:27.144274+00:00",
+  "pr": 1016,
+  "source": {
+    "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+    "synthetic_merge_sha": "0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89",
+    "head_tree": "f030a2fdd558266bc8f3d87f516b9f73273df93a",
+    "merge_tree": "f030a2fdd558266bc8f3d87f516b9f73273df93a",
+    "identical_tree": true,
+    "merge_parents": [
+      "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "5f3ecdf93e762a1b1551b44977a44f2e63c97802"
+    ]
+  },
+  "runs": [
+    {
+      "run_id": 39546957124,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546957124",
+      "name": "V3 Candidate Regression pull_request 1016 attempt 1",
+      "attempt": 1,
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-10-21T04:58:35Z",
+      "updated_at": "2026-10-21T05:05:56Z",
+      "jobs": [
+        {
+          "id": 119047184216,
+          "name": "Candidate default suite (go-unit)",
+          "conclusion": "failure",
+          "started_at": "2026-10-21T04:58:38Z",
+          "completed_at": "2026-10-21T05:05:55Z"
+        },
+        {
+          "id": 119049325203,
+          "name": "Candidate migration and messaging E2E",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T05:05:56Z",
+          "completed_at": "2026-10-21T05:05:55Z"
+        }
+      ]
+    },
+    {
+      "run_id": 39546956929,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546956929",
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1016 attempt 1",
+      "attempt": 1,
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-10-21T04:58:35Z",
+      "updated_at": "2026-10-21T05:04:07Z",
+      "jobs": [
+        {
+          "id": 119047183755,
+          "name": "PR messaging unit and race",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:37Z",
+          "completed_at": "2026-10-21T05:01:09Z"
+        },
+        {
+          "id": 119047183858,
+          "name": "PR three-node correctness",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:38Z",
+          "completed_at": "2026-10-21T05:03:33Z"
+        },
+        {
+          "id": 119047183935,
+          "name": "PR performance baseline evidence",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:38Z",
+          "completed_at": "2026-10-21T04:58:55Z"
+        },
+        {
+          "id": 119047184769,
+          "name": "Fixed Linux SEND diagnosis",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T04:58:36Z",
+          "completed_at": "2026-10-21T04:58:35Z"
+        },
+        {
+          "id": 119047185159,
+          "name": "Nightly direct 500 QPS qualification",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T04:58:36Z",
+          "completed_at": "2026-10-21T04:58:35Z"
+        },
+        {
+          "id": 119047272385,
+          "name": "PR 500 QPS / tcp-sendack",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:57Z",
+          "completed_at": "2026-10-21T05:03:42Z"
+        },
+        {
+          "id": 119047272480,
+          "name": "PR 500 QPS / mixed-send",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:57Z",
+          "completed_at": "2026-10-21T05:04:00Z"
+        },
+        {
+          "id": 119047272487,
+          "name": "PR 500 QPS / channel-append",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:57Z",
+          "completed_at": "2026-10-21T05:03:46Z"
+        },
+        {
+          "id": 119048765285,
+          "name": "PR three-node regression",
+          "conclusion": "success",
+          "started_at": "2026-10-21T05:04:03Z",
+          "completed_at": "2026-10-21T05:04:07Z"
+        }
+      ]
+    },
+    {
+      "run_id": 39546956856,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546956856",
+      "name": "Safety Automation - EasySDK Released Package Acceptance",
+      "attempt": 1,
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-10-21T04:58:35Z",
+      "updated_at": "2026-10-21T05:07:25Z",
+      "jobs": [
+        {
+          "id": 119047182861,
+          "name": "Android Maven Central 1.0.5",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:37Z",
+          "completed_at": "2026-10-21T05:02:06Z"
+        },
+        {
+          "id": 119047182970,
+          "name": "iOS CocoaPods 1.1.1",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:39Z",
+          "completed_at": "2026-10-21T05:07:23Z"
+        },
+        {
+          "id": 119047183119,
+          "name": "Flutter pub.dev 1.1.0 on iOS",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:38Z",
+          "completed_at": "2026-10-21T05:05:47Z"
+        }
+      ]
+    },
+    {
+      "run_id": 39546956925,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546956925",
+      "name": "Manager Browser Smoke pull_request 1016 attempt 1",
+      "attempt": 1,
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-10-21T04:58:35Z",
+      "updated_at": "2026-10-21T05:00:39Z",
+      "jobs": [
+        {
+          "id": 119047183500,
+          "name": "Real three-node Manager Chromium smoke",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:38Z",
+          "completed_at": "2026-10-21T05:00:39Z"
+        }
+      ]
+    },
+    {
+      "run_id": 39546956829,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546956829",
+      "name": "Safety Automation - Validate Native Package Preview",
+      "attempt": 1,
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-10-21T04:58:35Z",
+      "updated_at": "2026-10-21T05:07:53Z",
+      "jobs": [
+        {
+          "id": 119047182752,
+          "name": "Build and install deb/rpm preview",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:37Z",
+          "completed_at": "2026-10-21T05:05:35Z"
+        },
+        {
+          "id": 119049226453,
+          "name": "Exercise AlmaLinux 9 package lifecycle",
+          "conclusion": "success",
+          "started_at": "2026-10-21T05:05:37Z",
+          "completed_at": "2026-10-21T05:07:52Z"
+        },
+        {
+          "id": 119049226521,
+          "name": "Exercise Rocky Linux 9 package lifecycle",
+          "conclusion": "success",
+          "started_at": "2026-10-21T05:05:38Z",
+          "completed_at": "2026-10-21T05:07:27Z"
+        },
+        {
+          "id": 119049226523,
+          "name": "Exercise Ubuntu 24.04 package lifecycle",
+          "conclusion": "success",
+          "started_at": "2026-10-21T05:05:38Z",
+          "completed_at": "2026-10-21T05:07:31Z"
+        },
+        {
+          "id": 119049226525,
+          "name": "Exercise Debian 12 package lifecycle",
+          "conclusion": "success",
+          "started_at": "2026-10-21T05:05:37Z",
+          "completed_at": "2026-10-21T05:07:21Z"
+        }
+      ]
+    },
+    {
+      "run_id": 39546982565,
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546982565",
+      "name": "Three-Node Chat Lifecycle Regression workflow_dispatch codex/v3-release-recovery attempt 1",
+      "attempt": 1,
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "created_at": "2026-10-21T04:58:53Z",
+      "updated_at": "2026-10-21T05:12:43Z",
+      "jobs": [
+        {
+          "id": 119047268866,
+          "name": "Nightly direct 500 QPS qualification",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:56Z",
+          "completed_at": "2026-10-21T05:12:43Z"
+        },
+        {
+          "id": 119047269330,
+          "name": "PR 500 QPS / mixed-send",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:56Z",
+          "completed_at": "2026-10-21T05:04:16Z"
+        },
+        {
+          "id": 119047269398,
+          "name": "PR 500 QPS / tcp-sendack",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:56Z",
+          "completed_at": "2026-10-21T05:03:37Z"
+        },
+        {
+          "id": 119047269562,
+          "name": "PR 500 QPS / channel-append",
+          "conclusion": "success",
+          "started_at": "2026-10-21T04:58:56Z",
+          "completed_at": "2026-10-21T05:03:43Z"
+        },
+        {
+          "id": 119047270073,
+          "name": "Fixed Linux SEND diagnosis",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T04:58:54Z",
+          "completed_at": "2026-10-21T04:58:54Z"
+        },
+        {
+          "id": 119047270201,
+          "name": "PR three-node correctness",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T04:58:54Z",
+          "completed_at": "2026-10-21T04:58:54Z"
+        },
+        {
+          "id": 119047270482,
+          "name": "PR performance baseline evidence",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T04:58:54Z",
+          "completed_at": "2026-10-21T04:58:54Z"
+        },
+        {
+          "id": 119047270561,
+          "name": "PR messaging unit and race",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T04:58:54Z",
+          "completed_at": "2026-10-21T04:58:54Z"
+        },
+        {
+          "id": 119048845853,
+          "name": "PR three-node regression",
+          "conclusion": "skipped",
+          "started_at": "2026-10-21T05:04:17Z",
+          "completed_at": "2026-10-21T05:04:16Z"
+        }
+      ]
+    }
+  ],
+  "default_first_failure": {
+    "run_id": 39546957124,
+    "attempt": 1,
+    "job_id": 119047184216,
+    "run_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546957124",
+    "artifact_id": 12322262068,
+    "failures": [
+      {
+        "test": "TestSourceDrainProgressBeforeSealDoesNotClose/canceled",
+        "path": "internal/usecase/mqttsession/source_drain_contention_test.go",
+        "line": 116,
+        "error": "Target error should not be in err chain; found mqttsession: source drain pending",
+        "classification": "assertion failure; product vs fixture timing unresolved"
+      },
+      {
+        "test": "TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated",
+        "path": "pkg/channel/replication/runtime_test.go",
+        "line": 415,
+        "error": "retained repairs = 64, want 66",
+        "classification": "assertion failure; product vs fixture timing unresolved"
+      }
+    ],
+    "result": {
+      "status": "failed",
+      "exit_code": 1,
+      "session_id": 2522,
+      "output_bytes": 88269,
+      "output_truncated": false,
+      "passed": false,
+      "cleanup": {
+        "session_id": 2522,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "failed",
+      "wrapper_exit_code": 1,
+      "elapsed_seconds": 412.69
+    },
+    "e2e": "skipped because default suite failed; no migration/cross-node/self-chat evidence from this run",
+    "retry": "none"
+  },
+  "performance_seams": [
+    {
+      "run_id": 39546956929,
+      "artifact_id": 12322735373,
+      "artifact_name": "500qps-tcp-sendack-0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89-1",
+      "source_sha": "0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": 3,
+      "planned": 90000,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "max_window_p99_ms": 178.080198
+    },
+    {
+      "run_id": 39546956929,
+      "artifact_id": 12322491466,
+      "artifact_name": "500qps-channel-append-0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89-1",
+      "source_sha": "0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": 3,
+      "planned": 90000,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "max_window_p99_ms": 6.768573
+    },
+    {
+      "run_id": 39546956929,
+      "artifact_id": 12321982054,
+      "artifact_name": "500qps-mixed-send-0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89-1",
+      "source_sha": "0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": 3,
+      "planned": 90000,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "max_window_p99_ms": 14.154855
+    },
+    {
+      "run_id": 39546982565,
+      "artifact_id": 12322076961,
+      "artifact_name": "500qps-channel-append-5f3ecdf93e762a1b1551b44977a44f2e63c97802-1",
+      "source_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": 3,
+      "planned": 90000,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "max_window_p99_ms": 22.391434
+    },
+    {
+      "run_id": 39546982565,
+      "artifact_id": 12322026134,
+      "artifact_name": "500qps-tcp-sendack-5f3ecdf93e762a1b1551b44977a44f2e63c97802-1",
+      "source_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": 3,
+      "planned": 90000,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "max_window_p99_ms": 178.114328
+    },
+    {
+      "run_id": 39546982565,
+      "artifact_id": 12322016250,
+      "artifact_name": "500qps-mixed-send-5f3ecdf93e762a1b1551b44977a44f2e63c97802-1",
+      "source_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": 3,
+      "planned": 90000,
+      "completed": 90000,
+      "errors": 0,
+      "dropped": 0,
+      "max_window_p99_ms": 19.474579
+    }
+  ],
+  "manual_qualification": {
+    "run_id": 39546982565,
+    "job_id": 119047268866,
+    "artifact_id": 12322901260,
+    "measured_step": {
+      "schema": "wukongim/chat-lifecycle-local-step/v1",
+      "outcome": "clean",
+      "reason": "complete",
+      "offered_rate_per_second": 500,
+      "actual_rate_per_second": 500.84833333333336,
+      "minimum_throughput_percent": 90,
+      "measured_duration_seconds": 600,
+      "qualification_reached": true,
+      "target_connections": 2500,
+      "online_connections": 2500,
+      "sent": 300509,
+      "acknowledged": 300509,
+      "expected": 300000,
+      "minimum_filesystem_free_percent": 56.08082078774985,
+      "storage_evidence_complete": true,
+      "host_io_evidence_complete": true,
+      "product_metrics_complete": true,
+      "product_queue_evidence_complete": true,
+      "product_queues_converged": true,
+      "process_continuity_complete": true,
+      "timeline_evidence_complete": true,
+      "profile_evidence_complete": true,
+      "operator_interrupted": false,
+      "harness_failure_reason": ""
+    },
+    "full_run_window": {
+      "start": "2026-10-21T05:00:51.799384288Z",
+      "warmup_end": "2026-10-21T05:01:51.799384288Z",
+      "qualification_at": "2026-10-21T05:01:51.800384288Z",
+      "final_at": "2026-10-21T05:14:21.799384288Z",
+      "end": "2026-10-21T05:11:52.948894358Z",
+      "elapsed": 661149510060
+    },
+    "full_run_messages": {
+      "sent": 330511,
+      "send_attempts": 330538,
+      "first_attempts": 330511,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 330511,
+      "send_rejected": 0,
+      "received": 426194,
+      "receive_acknowledged": 426194,
+      "receive_ack_failures": 0,
+      "retry_attempts": 27,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "harness": {
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 249,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "queues": {
+      "work_current": 0,
+      "deferred_group_routes": 0,
+      "work_peak": 54487,
+      "work_capacity": 114500,
+      "retry_current": 0,
+      "retry_peak": 18,
+      "retry_capacity": 12288,
+      "inflight_current": 0,
+      "inflight_peak": 500,
+      "inflight_capacity": 12288,
+      "transport_current": 0,
+      "transport_capacity": 0,
+      "transport_rejected": 0
+    },
+    "verdict": {
+      "outcome": "operator_stop",
+      "cause": "operator_requested",
+      "terminal": true,
+      "cleanup_error_count": 0,
+      "latency_warnings": {
+        "hot": 1,
+        "cold": 0,
+        "sync": 0
+      },
+      "latency_anomaly_count": 0,
+      "retention": {
+        "minute_samples": 13,
+        "minute_capacity": 16,
+        "latency_samples": [
+          61,
+          61,
+          61
+        ],
+        "latency_capacity": 64,
+        "heap_samples": [
+          0,
+          0,
+          0
+        ],
+        "heap_capacity": 7,
+        "goroutine_samples": [
+          0,
+          0,
+          0
+        ],
+        "goroutine_capacity": 25
+      }
+    },
+    "hot_latency": {
+      "count": 280873,
+      "mean_ms": 28.59087909906613,
+      "histogram_p99_upper_bound_ms": 400.0,
+      "maximum_ms": 1482.669267
+    },
+    "lifecycle_candidates": 0,
+    "lifecycle_completed": 0,
+    "scope": "600-second local shakeout; not a formal 96-hour or canonical lifecycle/reheat result",
+    "artifact_selection": {
+      "artifact_id": 12322901260,
+      "archive_size": 608004640,
+      "downloaded_range_bytes": 72613,
+      "selected_entries": [
+        "artifacts/local-step.json",
+        "artifacts/report/final.json",
+        "artifacts/report/qualification.json",
+        "artifacts/report/run-start.json",
+        "artifacts/report/worker-evidence.json"
+      ],
+      "validation": "GitHub-authenticated blob byte ranges; ZIP entry CRC checked; entire archive SHA256 not independently checked"
+    }
+  },
+  "readiness": "blocked: full default suite failed; dependent process E2E did not execute",
+  "followup_diagnosis_reported_by_root": {
+    "mqttsession": "nested root cancellation propagation race; reported stable 3/3 reproduction, fix pending",
+    "replication": "test router injected only len==1; batched successful durable writes bypassed the intended failure fixture; deterministic red/green repair pending"
+  },
+  "operations": "read-only observation; no CI retry, dispatch, comments, merge or source edits by this audit"
+}

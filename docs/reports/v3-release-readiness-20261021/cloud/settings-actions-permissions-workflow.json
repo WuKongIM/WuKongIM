@@ -1,0 +1,10 @@
+{
+  "endpoint": "actions/permissions/workflow",
+  "observed_at": "2026-10-21T05:01:42.519017+00:00",
+  "exit_code": 0,
+  "data": {
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": true
+  },
+  "error": ""
+}

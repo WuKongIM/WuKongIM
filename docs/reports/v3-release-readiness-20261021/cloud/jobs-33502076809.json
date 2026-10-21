@@ -1,0 +1,115 @@
+{
+  "run_id": "33502076809",
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 99837490301,
+      "name": "Discover released passing rehearsals awaiting formal procurement",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-01T11:21:36Z",
+      "completed_at": "2026-09-01T11:22:08Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-01T11:21:37Z",
+          "completed_at": "2026-09-01T11:21:38Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-01T11:21:38Z",
+          "completed_at": "2026-09-01T11:21:42Z"
+        },
+        {
+          "name": "Select one authenticated unconsumed transition",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-09-01T11:21:42Z",
+          "completed_at": "2026-09-01T11:22:07Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-01T11:22:07Z",
+          "completed_at": "2026-09-01T11:22:07Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-09-01T11:22:07Z",
+          "completed_at": "2026-09-01T11:22:07Z"
+        }
+      ]
+    },
+    {
+      "id": 99837648713,
+      "name": "Disable idle formal continuation schedule",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-01T11:22:11Z",
+      "completed_at": "2026-09-01T11:22:31Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-09-01T11:22:12Z",
+          "completed_at": "2026-09-01T11:22:12Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-09-01T11:22:12Z",
+          "completed_at": "2026-09-01T11:22:15Z"
+        },
+        {
+          "name": "Prove no transition or transition producer before disabling future schedules",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-09-01T11:22:15Z",
+          "completed_at": "2026-09-01T11:22:30Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-01T11:22:30Z",
+          "completed_at": "2026-09-01T11:22:30Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-09-01T11:22:30Z",
+          "completed_at": "2026-09-01T11:22:30Z"
+        }
+      ]
+    },
+    {
+      "id": 99837649612,
+      "name": "Acquire fresh formal Lease for ${{ matrix.request_id }}",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-09-01T11:22:09Z",
+      "completed_at": "2026-09-01T11:22:09Z",
+      "steps": []
+    }
+  ]
+}

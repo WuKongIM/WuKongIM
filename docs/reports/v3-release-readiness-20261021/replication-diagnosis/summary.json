@@ -1,0 +1,72 @@
+{
+  "classification": "fixture",
+  "root_cause": "single-item-only rejection bypassed by legitimate peer batch coalescing",
+  "source_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+  "host": "Darwin",
+  "product_code_modified": false,
+  "changed_files": [
+    "pkg/channel/replication/runtime_test.go",
+    "pkg/channel/replication/runtime_router_test.go"
+  ],
+  "original_ci_preserved": true,
+  "reproduction": {
+    "runs": 150,
+    "passed": 144,
+    "failed": 6,
+    "retained_counts": [
+      [
+        "64",
+        "66"
+      ],
+      [
+        "64",
+        "66"
+      ],
+      [
+        "64",
+        "66"
+      ],
+      [
+        "62",
+        "66"
+      ],
+      [
+        "64",
+        "66"
+      ],
+      [
+        "64",
+        "66"
+      ]
+    ],
+    "unconsumed_fault_tokens": [
+      "2",
+      "2",
+      "2",
+      "4",
+      "2",
+      "2"
+    ],
+    "missing_repair_observations": 14,
+    "missing_repair_already_durable": 14
+  },
+  "green_saturation_runs": 150,
+  "deterministic_regression": "red02_then_green",
+  "default_package": "pass",
+  "focused_race": "pass",
+  "diff_check": "pass",
+  "flow_update_needed": false,
+  "user_visible_changelog_needed_for_this_fix": false,
+  "no_debug_instrumentation_remaining": true,
+  "commit_push_dispatch_performed": false,
+  "log_sha256": {
+    "original-count10.log": "2e047a65b8f0cf7938f21df0942a3d9c672a74213adbe803fcba40bb970a4b1b",
+    "instrumented-count50-cpu124.log": "d8d95726217595804ba52971b49c3676e7b8797803f6e1a18840f1f2f697fece",
+    "coalesced-contract-red.log": "f0cfaced71edba132f63ef816b6241730c5a42806d0648940c2544405bfee086",
+    "coalesced-contract-red02.log": "5395088c3f5e3626a3e1154083d7d774bfd031dcaf8b9a50cd90e071ecdd2d1f",
+    "coalesced-contract-green.log": "ab3b84b4567eba2f1d4f2f70d774ba5fc59382fce6dc80a581c099dc06bdd58d",
+    "saturation-green-count50-cpu124.log": "1d988053baabc9b28877cd0cb7afa1897ebf86b60485a9da2728b5319af67fc5",
+    "package-green.log": "771500ede289cdd46cebf54f522c2bad987cc5478d933b0f1b16da11bd3a6485",
+    "focused-race-green.log": "87245c05c60117bffc8b100bb1468cb84208e31fcf82499b6662a3ee7dbb3225"
+  }
+}

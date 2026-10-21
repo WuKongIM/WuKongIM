@@ -1,0 +1,18 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/chat-lifecycle-rehearsal.yml",
+  "observed_at": "2026-10-21T04:56:31.909422+00:00",
+  "exit_code": 0,
+  "data": {
+    "id": 329938003,
+    "node_id": "W_kwDOJgfwyc4TqnRT",
+    "name": "Agent Tool - Start Chat Lifecycle Rehearsal",
+    "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "state": "active",
+    "created_at": "2026-08-08T19:52:22.000+08:00",
+    "updated_at": "2026-08-08T19:52:22.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938003",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-rehearsal.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Agent%20Tool%20-%20Start%20Chat%20Lifecycle%20Rehearsal/badge.svg"
+  },
+  "error": null
+}

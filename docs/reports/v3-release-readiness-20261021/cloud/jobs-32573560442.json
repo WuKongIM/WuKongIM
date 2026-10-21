@@ -1,0 +1,88 @@
+{
+  "run_id": "32573560442",
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 97032493058,
+      "name": "Seal stop intent and request coordinated cancellation and finalization",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-08-22T12:39:08Z",
+      "completed_at": "2026-08-22T12:39:21Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-22T12:39:08Z",
+          "completed_at": "2026-08-22T12:39:09Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-22T12:39:09Z",
+          "completed_at": "2026-08-22T12:39:13Z"
+        },
+        {
+          "name": "Validate exact request-scoped stop authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-22T12:39:13Z",
+          "completed_at": "2026-08-22T12:39:13Z"
+        },
+        {
+          "name": "Seal durable stop marker before any cancellation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-22T12:39:13Z",
+          "completed_at": "2026-08-22T12:39:13Z"
+        },
+        {
+          "name": "Upload stop marker that blocks future formal procurement",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-22T12:39:13Z",
+          "completed_at": "2026-08-22T12:39:14Z"
+        },
+        {
+          "name": "Request immediate rehearsal and formal finalization",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-22T12:39:14Z",
+          "completed_at": "2026-08-22T12:39:17Z"
+        },
+        {
+          "name": "Advance the exact tracking Issue",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-22T12:39:17Z",
+          "completed_at": "2026-08-22T12:39:19Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-08-22T12:39:19Z",
+          "completed_at": "2026-08-22T12:39:19Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-22T12:39:19Z",
+          "completed_at": "2026-08-22T12:39:19Z"
+        }
+      ]
+    }
+  ]
+}

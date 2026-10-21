@@ -1,0 +1,408 @@
+{
+  "run_id": "32570381582",
+  "total_count": 5,
+  "jobs": [
+    {
+      "id": 97024908866,
+      "name": "Reconcile repository-owned Alibaba identity",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-08-22T11:28:44Z",
+      "completed_at": "2026-08-22T11:29:05Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-22T11:28:45Z",
+          "completed_at": "2026-08-22T11:28:46Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-22T11:28:46Z",
+          "completed_at": "2026-08-22T11:28:49Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-22T11:28:49Z",
+          "completed_at": "2026-08-22T11:28:59Z"
+        },
+        {
+          "name": "Verify repository OIDC subject contract",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-22T11:28:59Z",
+          "completed_at": "2026-08-22T11:28:59Z"
+        },
+        {
+          "name": "Build trusted identity tool",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-22T11:28:59Z",
+          "completed_at": "2026-08-22T11:29:02Z"
+        },
+        {
+          "name": "Resolve and reconcile identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-22T11:29:02Z",
+          "completed_at": "2026-08-22T11:29:02Z"
+        },
+        {
+          "name": "Upload non-secret identity result",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-22T11:29:02Z",
+          "completed_at": "2026-08-22T11:29:03Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-22T11:29:03Z",
+          "completed_at": "2026-08-22T11:29:03Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-08-22T11:29:03Z",
+          "completed_at": "2026-08-22T11:29:03Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-22T11:29:03Z",
+          "completed_at": "2026-08-22T11:29:03Z"
+        }
+      ]
+    },
+    {
+      "id": 97024948243,
+      "name": "Verify CloudLeaseProvisioner OIDC identity",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-08-22T11:29:08Z",
+      "completed_at": "2026-08-22T11:29:36Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-22T11:29:09Z",
+          "completed_at": "2026-08-22T11:29:10Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-22T11:29:10Z",
+          "completed_at": "2026-08-22T11:29:13Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-22T11:29:13Z",
+          "completed_at": "2026-08-22T11:29:26Z"
+        },
+        {
+          "name": "Run GOWORK=off go build -trimpath -o \"$RUNNER_TEMP/wkcloudleaseoidc\" ./cmd/wkcloudleaseoidc",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-22T11:29:26Z",
+          "completed_at": "2026-08-22T11:29:28Z"
+        },
+        {
+          "name": "Run aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-22T11:29:28Z",
+          "completed_at": "2026-08-22T11:29:30Z"
+        },
+        {
+          "name": "Prove exact role and policy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-22T11:29:30Z",
+          "completed_at": "2026-08-22T11:29:33Z"
+        },
+        {
+          "name": "Post Run aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-22T11:29:33Z",
+          "completed_at": "2026-08-22T11:29:33Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-22T11:29:33Z",
+          "completed_at": "2026-08-22T11:29:33Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-22T11:29:33Z",
+          "completed_at": "2026-08-22T11:29:33Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-22T11:29:33Z",
+          "completed_at": "2026-08-22T11:29:33Z"
+        }
+      ]
+    },
+    {
+      "id": 97024948257,
+      "name": "Verify CloudLeaseReleaser OIDC identity",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-08-22T11:29:07Z",
+      "completed_at": "2026-08-22T11:29:34Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:08Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:12Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-22T11:29:12Z",
+          "completed_at": "2026-08-22T11:29:23Z"
+        },
+        {
+          "name": "Run GOWORK=off go build -trimpath -o \"$RUNNER_TEMP/wkcloudleaseoidc\" ./cmd/wkcloudleaseoidc",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-22T11:29:23Z",
+          "completed_at": "2026-08-22T11:29:25Z"
+        },
+        {
+          "name": "Run aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-22T11:29:25Z",
+          "completed_at": "2026-08-22T11:29:28Z"
+        },
+        {
+          "name": "Prove exact role and policy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-22T11:29:28Z",
+          "completed_at": "2026-08-22T11:29:32Z"
+        },
+        {
+          "name": "Post Run aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-22T11:29:32Z",
+          "completed_at": "2026-08-22T11:29:32Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-22T11:29:32Z",
+          "completed_at": "2026-08-22T11:29:32Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-22T11:29:32Z",
+          "completed_at": "2026-08-22T11:29:32Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-22T11:29:32Z",
+          "completed_at": "2026-08-22T11:29:32Z"
+        }
+      ]
+    },
+    {
+      "id": 97024948263,
+      "name": "Verify CloudLeaseObserver OIDC identity",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-08-22T11:29:07Z",
+      "completed_at": "2026-08-22T11:29:33Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:09Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-22T11:29:09Z",
+          "completed_at": "2026-08-22T11:29:13Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-22T11:29:13Z",
+          "completed_at": "2026-08-22T11:29:21Z"
+        },
+        {
+          "name": "Run GOWORK=off go build -trimpath -o \"$RUNNER_TEMP/wkcloudleaseoidc\" ./cmd/wkcloudleaseoidc",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-22T11:29:21Z",
+          "completed_at": "2026-08-22T11:29:24Z"
+        },
+        {
+          "name": "Run aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-22T11:29:24Z",
+          "completed_at": "2026-08-22T11:29:27Z"
+        },
+        {
+          "name": "Prove exact role and policy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-22T11:29:27Z",
+          "completed_at": "2026-08-22T11:29:31Z"
+        },
+        {
+          "name": "Post Run aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-22T11:29:31Z",
+          "completed_at": "2026-08-22T11:29:31Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-22T11:29:31Z",
+          "completed_at": "2026-08-22T11:29:31Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-22T11:29:31Z",
+          "completed_at": "2026-08-22T11:29:31Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-22T11:29:31Z",
+          "completed_at": "2026-08-22T11:29:32Z"
+        }
+      ]
+    },
+    {
+      "id": 97024948296,
+      "name": "Verify Chat Lifecycle deployment wrapping identity",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-08-22T11:29:07Z",
+      "completed_at": "2026-08-22T11:29:10Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:08Z"
+        },
+        {
+          "name": "Prove the configured wrapping keypair matches",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:08Z"
+        },
+        {
+          "name": "Remove plaintext wrapping identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:08Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-22T11:29:08Z",
+          "completed_at": "2026-08-22T11:29:08Z"
+        }
+      ]
+    }
+  ]
+}

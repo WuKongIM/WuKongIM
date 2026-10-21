@@ -1,0 +1,158 @@
+{
+  "artifact_id": 9040874463,
+  "artifact_name": "chat-lifecycle-rehearsal-cleanup-chat-20260809T142928Z-24d4a8ba",
+  "producer_run": {
+    "id": 31318661618,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "29f76a98bd58914c06cef6d5888b6e2874bb3fcd"
+  },
+  "created_at": "2026-08-09T16:21:45Z",
+  "zip_sha256": "4db32b3cd7d6be9d6fccc17550d207f055590df8a680832d70bfe742f7d73389",
+  "byte_size": 21442,
+  "members": [
+    {
+      "name": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20260809T142928Z-24d4a8ba/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20260809T142928Z-24d4a8ba/receipt.json",
+      "size": 41117
+    },
+    {
+      "name": "attempt-1/attempted-deployment-control-shas",
+      "size": 41
+    },
+    {
+      "name": "attempt-1/bootstrap-access.json",
+      "size": 251
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31319227537/deployment-outcome.json",
+      "size": 2281
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31319227537/deployment-plan.json",
+      "size": 2962
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31319227537/encrypted-access.json",
+      "size": 1316
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31319227537/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-plan.json",
+      "size": 2962
+    },
+    {
+      "name": "attempt-1/deployment-ssh-config",
+      "size": 640
+    },
+    {
+      "name": "attempt-1/lease-plan.json",
+      "size": 1892
+    },
+    {
+      "name": "attempt-1/preflight-quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/quote-artifact/cloud-lease-provision-chat-20260809T142928Z-24d4a8ba/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/receipt-selector.json",
+      "size": 319
+    },
+    {
+      "name": "attempt-1/receipt.json",
+      "size": 41117
+    },
+    {
+      "name": "attempt-1/release-selector.json",
+      "size": 319
+    },
+    {
+      "name": "cleanup.json",
+      "size": 172
+    },
+    {
+      "name": "attempt-1/run-plan.json",
+      "size": 2361
+    },
+    {
+      "name": "pre-clock-terminal.json",
+      "size": 323
+    },
+    {
+      "name": "release-1-1/cloud-lease-release-chat-20260809T142928Z-24d4a8ba/release.json",
+      "size": 661
+    },
+    {
+      "name": "release-selector.json",
+      "size": 319
+    },
+    {
+      "name": "zero-inventory.json",
+      "size": 661
+    }
+  ],
+  "allowlisted_json": {
+    "cleanup.json": {
+      "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+      "request_id": "chat-20260809T142928Z-24d4a8ba",
+      "release_run_id": 31323528169,
+      "zero_inventory": true
+    },
+    "release-selector.json": {
+      "schema": "wukongim.cloud_lease.selector/v1",
+      "selector": {
+        "lease_id": "chat-20260809T142928Z-24d4a8ba-rehearsal-1",
+        "request_id": "chat-20260809T142928Z-24d4a8ba",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "4df6d744aec087e8b9f2b5af2a4a118126e8fb1d78793b6036127707b6bfd32f"
+      }
+    },
+    "zero-inventory.json": {
+      "schema": "wukongim.cloud_lease.release/v1",
+      "result": {
+        "zero_inventory": {
+          "selector": {
+            "lease_id": "chat-20260809T142928Z-24d4a8ba-rehearsal-1",
+            "request_id": "chat-20260809T142928Z-24d4a8ba",
+            "provider": "alibaba",
+            "region": "cn-hangzhou",
+            "repository": "WuKongIM/WuKongIM",
+            "plan_digest": "4df6d744aec087e8b9f2b5af2a4a118126e8fb1d78793b6036127707b6bfd32f"
+          },
+          "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+          "observed_at": "2026-08-09T16:21:37.653649282Z",
+          "scopes": [
+            "disk_attachments",
+            "disks",
+            "eip_associations",
+            "eips",
+            "enis",
+            "instances",
+            "nat_gateways",
+            "route_entries",
+            "security_group_rules",
+            "security_groups",
+            "vpcs",
+            "vswitches"
+          ]
+        }
+      }
+    }
+  }
+}

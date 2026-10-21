@@ -1,0 +1,13 @@
+{
+  "arguments": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "-c",
+    "import json,os,pathlib,subprocess,sys,time\np=subprocess.Popen([sys.executable,'-c',sys.argv[2]],process_group=0)\npathlib.Path(sys.argv[1]).write_text(json.dumps({'pid':p.pid,'sid':os.getsid(p.pid),'pgid':os.getpgid(p.pid)}))\ntime.sleep(.1)\nmode=sys.argv[3]\nif mode=='exit7': sys.exit(7)\nif mode=='pass': sys.exit(0)\nif mode=='output':\n    while True: print('x'*8192,flush=True)\ntime.sleep(60)\n",
+    "/tmp/wukongim-v3-readiness-20261021/ci/session-cleanup-probes/output/child.json",
+    "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(60)",
+    "output"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-release-recovery",
+  "timeout_seconds": 5,
+  "max_output_bytes": 4096
+}

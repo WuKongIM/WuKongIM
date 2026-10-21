@@ -1,0 +1,18 @@
+{
+  "status": "failed",
+  "exit_code": 1,
+  "session_id": 2522,
+  "output_bytes": 88269,
+  "output_truncated": false,
+  "passed": false,
+  "cleanup": {
+    "session_id": 2522,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [],
+    "remaining_processes": []
+  },
+  "command_status": "failed",
+  "wrapper_exit_code": 1,
+  "elapsed_seconds": 412.69
+}

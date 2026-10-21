@@ -1,0 +1,11 @@
+{
+  "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+  "synthetic_merge_sha": "0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89",
+  "head_tree": "f030a2fdd558266bc8f3d87f516b9f73273df93a",
+  "merge_tree": "f030a2fdd558266bc8f3d87f516b9f73273df93a",
+  "identical_tree": true,
+  "merge_parents": [
+    "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "5f3ecdf93e762a1b1551b44977a44f2e63c97802"
+  ]
+}

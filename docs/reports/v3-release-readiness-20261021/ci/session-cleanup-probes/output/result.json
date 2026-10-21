@@ -1,0 +1,21 @@
+{
+  "status": "output_limit",
+  "exit_code": -15,
+  "session_id": 92750,
+  "output_bytes": 131072,
+  "output_truncated": true,
+  "passed": false,
+  "cleanup": {
+    "session_id": 92750,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [
+      92750,
+      92751
+    ],
+    "remaining_processes": []
+  },
+  "command_status": "output_limit",
+  "wrapper_exit_code": 125,
+  "elapsed_seconds": 2.283
+}

@@ -1,0 +1,43 @@
+{
+  "run_id": 39546957124,
+  "attempt": 1,
+  "job_id": 119047184216,
+  "run_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546957124",
+  "artifact_id": 12322262068,
+  "failures": [
+    {
+      "test": "TestSourceDrainProgressBeforeSealDoesNotClose/canceled",
+      "path": "internal/usecase/mqttsession/source_drain_contention_test.go",
+      "line": 116,
+      "error": "Target error should not be in err chain; found mqttsession: source drain pending",
+      "classification": "assertion failure; product vs fixture timing unresolved"
+    },
+    {
+      "test": "TestRuntimeRetainsEveryFollowerRepairWhenExecutionQueueIsSaturated",
+      "path": "pkg/channel/replication/runtime_test.go",
+      "line": 415,
+      "error": "retained repairs = 64, want 66",
+      "classification": "assertion failure; product vs fixture timing unresolved"
+    }
+  ],
+  "result": {
+    "status": "failed",
+    "exit_code": 1,
+    "session_id": 2522,
+    "output_bytes": 88269,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 2522,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 412.69
+  },
+  "e2e": "skipped because default suite failed; no migration/cross-node/self-chat evidence from this run",
+  "retry": "none"
+}

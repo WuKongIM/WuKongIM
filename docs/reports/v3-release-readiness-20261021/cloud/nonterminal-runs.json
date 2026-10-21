@@ -1,0 +1,60 @@
+{
+  "observed_at": "2026-10-21T04:57:36.343475+00:00",
+  "filters": [
+    {
+      "status_filter": "queued",
+      "pages": [
+        {
+          "page": 1,
+          "total_count": 0,
+          "count": 0
+        }
+      ],
+      "runs": []
+    },
+    {
+      "status_filter": "in_progress",
+      "pages": [
+        {
+          "page": 1,
+          "total_count": 0,
+          "count": 0
+        }
+      ],
+      "runs": []
+    },
+    {
+      "status_filter": "waiting",
+      "pages": [
+        {
+          "page": 1,
+          "total_count": 0,
+          "count": 0
+        }
+      ],
+      "runs": []
+    },
+    {
+      "status_filter": "requested",
+      "pages": [
+        {
+          "page": 1,
+          "total_count": 0,
+          "count": 0
+        }
+      ],
+      "runs": []
+    },
+    {
+      "status_filter": "pending",
+      "pages": [
+        {
+          "page": 1,
+          "total_count": 0,
+          "count": 0
+        }
+      ],
+      "runs": []
+    }
+  ]
+}

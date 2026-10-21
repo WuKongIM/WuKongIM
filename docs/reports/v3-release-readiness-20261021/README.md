@@ -21,6 +21,25 @@ regression attempts; it is not a published release or a long-run qualification.
   Repeated real-time frames are distinct from duplicate durable messages.
 - `recovery-checks/`: named local checks, exact commands, source/diff identity and
   logs. CI on the final PR source is recorded independently.
+- `cloud/`: bounded read-only preparation audit, exact public configuration,
+  frozen control sources, historical cleanup payloads and their limitations.
+  This does not establish today's provider inventory or authorize procurement.
+- `ci/session-cleanup-probes/`, `ci/candidate-workflow-validation.json`,
+  `review.md`: original cross-PGID cleanup failure, real-process macOS probes,
+  static validation and independent review. Linux results are separate CI evidence.
+- `audit-archive-manifest.json`: original and archived byte hashes for the cloud
+  and cleanup audit; `.log` files are retained as deterministic gzip streams.
+- `mqtt-diagnosis/`, `replication-diagnosis/`, `diagnosis-archive-manifest.json`:
+  first-candidate CI failures, deterministic red/green investigations and focused
+  regression receipts. MQTT changes product cancellation; replication changes
+  only test fault injection, retaining the original 66-item obligation.
+- `candidate-v2-rules.json`, `candidate-v2-dispatch.json`, `followup-checks/`:
+  updated candidate identity, exact rule digests, first qualification dispatches
+  and the named FLOW check (including the initial stale-index failure).
+- `ci/final/first-generation-summary.md`: all six first-generation CI outcomes,
+  actual executed/skipped steps, source-tree identity and workload numbers.
+  Its allowlist retains bounded reports and logs; archive-level digest claims
+  distinguish full downloads from CRC-checked selected ZIP members.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.

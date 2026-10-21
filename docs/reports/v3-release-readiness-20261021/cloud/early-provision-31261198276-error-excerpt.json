@@ -1,0 +1,7 @@
+{
+  "run_id": "31261198276",
+  "selected_failure_context": [
+    "Quote and optionally acquire one exact Lease\tUNKNOWN STEP\t2026-08-08T14:08:23.5776433Z quote: cloudlease quote: internal/infra/cloudlease/alibaba: discovery unavailable: EIP quota: internal/infra/cloudlease/alibaba: discovery unavailable: ListProductQuotas incomplete quota",
+    "Quote and optionally acquire one exact Lease\tUNKNOWN STEP\t2026-08-08T14:08:23.5794415Z ##[error]Process completed with exit code 1."
+  ]
+}

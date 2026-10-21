@@ -1,0 +1,133 @@
+{
+  "pass": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 92565,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 92565,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        92566
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 2.308
+  },
+  "exit7": {
+    "status": "failed",
+    "exit_code": 7,
+    "session_id": 92631,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 92631,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        92632
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "failed",
+    "wrapper_exit_code": 7,
+    "elapsed_seconds": 2.334
+  },
+  "timeout": {
+    "status": "timeout",
+    "exit_code": -15,
+    "session_id": 92689,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 92689,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        92689,
+        92690
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "timeout",
+    "wrapper_exit_code": 124,
+    "elapsed_seconds": 2.798
+  },
+  "output": {
+    "status": "output_limit",
+    "exit_code": -15,
+    "session_id": 92750,
+    "output_bytes": 131072,
+    "output_truncated": true,
+    "passed": false,
+    "cleanup": {
+      "session_id": 92750,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        92750,
+        92751
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "output_limit",
+    "wrapper_exit_code": 125,
+    "elapsed_seconds": 2.283
+  },
+  "cancel": {
+    "status": "interrupted",
+    "exit_code": -15,
+    "session_id": 92815,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": false,
+    "error": "received signal 15",
+    "cleanup": {
+      "session_id": 92815,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [
+        92815,
+        92816
+      ],
+      "remaining_processes": []
+    },
+    "command_status": "interrupted",
+    "wrapper_exit_code": 143,
+    "elapsed_seconds": 2.182
+  },
+  "enumeration_failure": {
+    "status": "cleanup_failed",
+    "exit_code": 0,
+    "session_id": 92875,
+    "output_bytes": 0,
+    "output_truncated": false,
+    "passed": false,
+    "cleanup": {
+      "session_id": 92875,
+      "verified": false,
+      "complete": false,
+      "initial_processes": null,
+      "remaining_processes": null,
+      "error": "probe denied process enumeration"
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 1,
+    "elapsed_seconds": 0.156
+  },
+  "refuses_caller_session": {
+    "session_id": 92554,
+    "verified": false,
+    "complete": false,
+    "initial_processes": null,
+    "remaining_processes": null,
+    "error": "refusing to clean the orchestrator session"
+  }
+}

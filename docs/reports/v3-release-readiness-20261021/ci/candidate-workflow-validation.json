@@ -1,0 +1,18 @@
+{
+  "source_base": "84cf66c0fb24a561dea8fd8dc4e95a5aaf4453fe",
+  "python_contracts": "7 passed",
+  "actionlint": "v1.7.9 passed (shellcheck unavailable)",
+  "shell_syntax_blocks_passed": 7,
+  "diff_check": "passed",
+  "real_process_probes": "macOS: pass/exit7/timeout/output_limit/SIGTERM/failed enumeration/refuse caller SID; all expected outcomes; unrelated sentinel preserved",
+  "linux_process_validation": "pending hosted runner (local Docker daemon unavailable)",
+  "evidence": "session-cleanup-probes/green-owned-session-cases.json",
+  "go_tests": "not run locally",
+  "files_sha256": {
+    ".github/workflows/v3-candidate-regression.yml": "37a8998cfba6c3c0984eea6d27cd1e0d4563fa90adc585068ce97b8524397016",
+    ".github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    "scripts/v3_candidate_workflow_contract_test.py": "99b8a7a4f8f373e23f9afcad62552fd4fadcf84b735dbd48b2f277270f1cf972",
+    "scripts/github_workflows_test.go": "c8c2b78da950b1007b4bffab8eda931e14a7cb2a94c6c683be642f8ed1e34fee",
+    "scripts/run-v3-candidate-check.py": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+  }
+}

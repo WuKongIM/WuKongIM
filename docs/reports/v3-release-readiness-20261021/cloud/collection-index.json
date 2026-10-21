@@ -1,0 +1,206 @@
+{
+  "method": "GET only",
+  "repository": "WuKongIM/WuKongIM",
+  "results": [
+    {
+      "file": "oidc-subject.json",
+      "exit_code": 0
+    },
+    {
+      "file": "main-ref.json",
+      "exit_code": 0
+    },
+    {
+      "file": "main-protection.json",
+      "exit_code": 0
+    },
+    {
+      "file": "rulesets.json",
+      "exit_code": 0
+    },
+    {
+      "file": "repository-variable-names.json",
+      "exit_code": 0
+    },
+    {
+      "file": "repository-secret-names.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_REGION.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN.json",
+      "exit_code": 0
+    },
+    {
+      "file": "variable-WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-cloud-lease-provision.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-variables-cloud-lease-provision.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-secrets-cloud-lease-provision.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-cloud-lease-observe.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-variables-cloud-lease-observe.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-secrets-cloud-lease-observe.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-cloud-lease-release.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-variables-cloud-lease-release.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-secrets-cloud-lease-release.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-cloud-deployment.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-variables-cloud-deployment.json",
+      "exit_code": 0
+    },
+    {
+      "file": "environment-secrets-cloud-deployment.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-chat-lifecycle-rehearsal.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-chat-lifecycle-rehearsal.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-chat-lifecycle-rehearsal-finalize.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-chat-lifecycle-rehearsal-finalize.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-chat-lifecycle-formal.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-chat-lifecycle-formal.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-chat-lifecycle-formal-finalize.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-chat-lifecycle-formal-finalize.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-chat-lifecycle-stop.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-chat-lifecycle-stop.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-lease-oidc-setup.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-lease-oidc-setup.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-lease-provision.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-lease-provision.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-lease-observe.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-lease-observe.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-lease-release.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-lease-release.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-lease-analyze.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-lease-analyze.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-deployment-bundle.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-deployment-bundle.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "workflow-cloud-deployment-activate.yml.json",
+      "exit_code": 0
+    },
+    {
+      "file": "runs-cloud-deployment-activate.yml.json",
+      "exit_code": 0
+    }
+  ]
+}

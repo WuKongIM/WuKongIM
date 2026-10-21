@@ -1,0 +1,9 @@
+{
+  "run_id": "31261098792",
+  "selected_failure_context": [
+    "Build, quote, deploy, and hand off the remote rehearsal\tUNKNOWN STEP\t2026-08-08T14:05:58.4029234Z https://github.com/WuKongIM/WuKongIM/actions/runs/31261125194",
+    "Build, quote, deploy, and hand off the remote rehearsal\tUNKNOWN STEP\t2026-08-08T14:07:50.9628227Z https://github.com/WuKongIM/WuKongIM/actions/runs/31261198276",
+    "Build, quote, deploy, and hand off the remote rehearsal\tUNKNOWN STEP\t2026-08-08T14:08:35.8152042Z ##[error]Process completed with exit code 1."
+  ],
+  "limitation": "Bounded step failure context, not cloud inventory."
+}

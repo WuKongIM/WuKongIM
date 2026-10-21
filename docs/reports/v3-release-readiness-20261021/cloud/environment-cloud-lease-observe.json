@@ -1,0 +1,18 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/environments/cloud-lease-observe",
+  "observed_at": "2026-10-21T04:56:30.727029+00:00",
+  "exit_code": 0,
+  "data": {
+    "id": 19516668544,
+    "node_id": "EN_kwDOJgfwyc8AAAAEi0i6gA",
+    "name": "cloud-lease-observe",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/environments/cloud-lease-observe",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/deployments/activity_log?environments_filter=cloud-lease-observe",
+    "created_at": "2026-08-08T12:30:43Z",
+    "updated_at": "2026-08-08T12:30:43Z",
+    "can_admins_bypass": true,
+    "protection_rules": [],
+    "deployment_branch_policy": null
+  },
+  "error": null
+}

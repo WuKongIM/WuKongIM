@@ -1,0 +1,18 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/cloud-deployment-bundle.yml",
+  "observed_at": "2026-10-21T04:56:36.955420+00:00",
+  "exit_code": 0,
+  "data": {
+    "id": 329938006,
+    "node_id": "W_kwDOJgfwyc4TqnRW",
+    "name": "Agent Tool - Build Cloud Deployment Bundle",
+    "path": ".github/workflows/cloud-deployment-bundle.yml",
+    "state": "active",
+    "created_at": "2026-08-08T19:52:22.000+08:00",
+    "updated_at": "2026-08-08T19:52:22.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/329938006",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/cloud-deployment-bundle.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Agent%20Tool%20-%20Build%20Cloud%20Deployment%20Bundle/badge.svg"
+  },
+  "error": null
+}

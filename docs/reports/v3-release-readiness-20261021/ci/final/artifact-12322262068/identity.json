@@ -1,0 +1,8 @@
+{
+  "source_sha": "0ab6ea4bad09c76dae8c71f8ca67c00d4e220b89",
+  "policy_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "event": "pull_request",
+  "run_id": "39546957124",
+  "run_attempt": "1"
+}

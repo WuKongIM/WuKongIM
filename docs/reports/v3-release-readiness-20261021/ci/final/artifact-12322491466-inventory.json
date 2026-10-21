@@ -1,0 +1,70 @@
+[
+  {
+    "path": "arrival.json",
+    "size": 57386
+  },
+  {
+    "path": "arrival.warmup.json",
+    "size": 19210
+  },
+  {
+    "path": "benchmark.txt",
+    "size": 2352
+  },
+  {
+    "path": "binary.sha256",
+    "size": 127
+  },
+  {
+    "path": "counters/after.json",
+    "size": 50640
+  },
+  {
+    "path": "counters/before.json",
+    "size": 50397
+  },
+  {
+    "path": "counters/window.json",
+    "size": 576
+  },
+  {
+    "path": "counters.warmup/after.json",
+    "size": 50397
+  },
+  {
+    "path": "counters.warmup/before.json",
+    "size": 21553
+  },
+  {
+    "path": "counters.warmup/window.json",
+    "size": 504
+  },
+  {
+    "path": "data-filesystem.json",
+    "size": 244
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "size": 123
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33
+  },
+  {
+    "path": "host.json",
+    "size": 4783
+  },
+  {
+    "path": "kernel.txt",
+    "size": 113
+  },
+  {
+    "path": "result.json",
+    "size": 18
+  },
+  {
+    "path": "source.sha",
+    "size": 41
+  }
+]

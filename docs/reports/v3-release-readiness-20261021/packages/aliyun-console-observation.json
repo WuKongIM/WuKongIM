@@ -1,0 +1,34 @@
+{
+  "observed_at": "2026-10-21T05:08Z",
+  "method": "Read-only Chrome console UI inspection in user-supplied logged-in Alibaba Cloud account",
+  "raw_console_snapshot_published": false,
+  "privacy": "Only task-relevant service facts retained; account menu, unrelated domains, resource identifiers and object contents omitted.",
+  "cdn": {
+    "url": "https://cdn.console.aliyun.com/domain",
+    "scope": "account all resources",
+    "domain_count": 2,
+    "relevant_domain": "docs.githubim.com",
+    "status": "running",
+    "https": "enabled",
+    "cname": "docs.githubim.com.w.kunlunaq.com",
+    "origin": "origin-docs.githubim.com",
+    "packages_domain_present": false
+  },
+  "oss": {
+    "url": "https://oss.console.aliyun.com/bucket",
+    "scope": "all buckets",
+    "bucket_count": 4,
+    "observed_purposes": "backup test, integration and qualification naming",
+    "regions": [
+      "cn-beijing",
+      "cn-hangzhou"
+    ],
+    "selected_packages_origin": null
+  },
+  "conclusion": "Alibaba Cloud account and existing documentation CDN confirmed. No configured packages CDN domain or designated package OSS origin observed. Existing backup buckets are not selected for reuse.",
+  "limitations": [
+    "This is a bounded observation note, not a provider API receipt or IAM authorization proof.",
+    "Signing custody and stable OpenPGP certificates are not established by CDN access.",
+    "No cloud creation, object read/write, configuration, DNS, permissions, purchase or publication was performed."
+  ]
+}

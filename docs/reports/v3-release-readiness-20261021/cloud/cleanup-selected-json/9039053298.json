@@ -1,0 +1,162 @@
+{
+  "artifact_id": 9039053298,
+  "artifact_name": "chat-lifecycle-rehearsal-cleanup-chat-20260809T123311Z-ae455c06",
+  "producer_run": {
+    "id": 31313605440,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "697a5ab07d187163071dccfe918d24bb37227338"
+  },
+  "created_at": "2026-08-09T13:55:16Z",
+  "zip_sha256": "458a5d0477366d01cf6e94738879eb43cbfa0a436afe14ef2a8941639cd2061e",
+  "byte_size": 21857,
+  "members": [
+    {
+      "name": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20260809T123311Z-ae455c06/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20260809T123311Z-ae455c06/receipt.json",
+      "size": 41079
+    },
+    {
+      "name": "attempt-1/attempted-deployment-control-shas",
+      "size": 41
+    },
+    {
+      "name": "attempt-1/bootstrap-access.json",
+      "size": 251
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31314112328/deployment-outcome.json",
+      "size": 2277
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31314112328/encrypted-access.json",
+      "size": 1316
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31314112328/deployment-plan.json",
+      "size": 2957
+    },
+    {
+      "name": "attempt-1/deployment-1-artifact/cloud-deployment-31314112328/readiness-snapshot.json",
+      "size": 4129
+    },
+    {
+      "name": "attempt-1/deployment-plan.json",
+      "size": 2957
+    },
+    {
+      "name": "attempt-1/deployment-ssh-config",
+      "size": 637
+    },
+    {
+      "name": "attempt-1/lease-plan.json",
+      "size": 1892
+    },
+    {
+      "name": "attempt-1/preflight-quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/quote-artifact/cloud-lease-provision-chat-20260809T123311Z-ae455c06/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/quote.json",
+      "size": 1836
+    },
+    {
+      "name": "attempt-1/receipt-selector.json",
+      "size": 319
+    },
+    {
+      "name": "attempt-1/receipt.json",
+      "size": 41079
+    },
+    {
+      "name": "attempt-1/release-selector.json",
+      "size": 319
+    },
+    {
+      "name": "attempt-1/run-plan.json",
+      "size": 2361
+    },
+    {
+      "name": "cleanup.json",
+      "size": 172
+    },
+    {
+      "name": "deployment-repair-pending.json",
+      "size": 624
+    },
+    {
+      "name": "operator-stop.json",
+      "size": 195
+    },
+    {
+      "name": "release-1-1/cloud-lease-release-chat-20260809T123311Z-ae455c06/release.json",
+      "size": 661
+    },
+    {
+      "name": "release-selector.json",
+      "size": 319
+    },
+    {
+      "name": "zero-inventory.json",
+      "size": 661
+    }
+  ],
+  "allowlisted_json": {
+    "cleanup.json": {
+      "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+      "request_id": "chat-20260809T123311Z-ae455c06",
+      "release_run_id": 31317015553,
+      "zero_inventory": true
+    },
+    "release-selector.json": {
+      "schema": "wukongim.cloud_lease.selector/v1",
+      "selector": {
+        "lease_id": "chat-20260809T123311Z-ae455c06-rehearsal-1",
+        "request_id": "chat-20260809T123311Z-ae455c06",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "13428885d628c2af6548dc5fa0af504680f6b5108bb52a84816484a1a7e8c670"
+      }
+    },
+    "zero-inventory.json": {
+      "schema": "wukongim.cloud_lease.release/v1",
+      "result": {
+        "zero_inventory": {
+          "selector": {
+            "lease_id": "chat-20260809T123311Z-ae455c06-rehearsal-1",
+            "request_id": "chat-20260809T123311Z-ae455c06",
+            "provider": "alibaba",
+            "region": "cn-hangzhou",
+            "repository": "WuKongIM/WuKongIM",
+            "plan_digest": "13428885d628c2af6548dc5fa0af504680f6b5108bb52a84816484a1a7e8c670"
+          },
+          "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+          "observed_at": "2026-08-09T13:55:05.989604643Z",
+          "scopes": [
+            "disk_attachments",
+            "disks",
+            "eip_associations",
+            "eips",
+            "enis",
+            "instances",
+            "nat_gateways",
+            "route_entries",
+            "security_group_rules",
+            "security_groups",
+            "vpcs",
+            "vswitches"
+          ]
+        }
+      }
+    }
+  }
+}

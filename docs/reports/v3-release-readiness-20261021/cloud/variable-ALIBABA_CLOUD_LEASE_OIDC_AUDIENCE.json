@@ -1,0 +1,12 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+  "observed_at": "2026-10-21T04:56:29.323546+00:00",
+  "exit_code": 0,
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+    "value": "wukongim-cloud-lease",
+    "created_at": "2026-08-08T13:21:32Z",
+    "updated_at": "2026-08-22T11:29:51Z"
+  },
+  "error": null
+}

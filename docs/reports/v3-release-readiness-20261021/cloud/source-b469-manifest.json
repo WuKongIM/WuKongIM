@@ -1,0 +1,77 @@
+{
+  "source_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "bbe0d37990902e6039ae339077177c99a1f939219953472efc798030e863f0c3"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "sha256": "57443e3ee23799bf691ab580808bfca6dfdb0c8f5ce2b00b996e83a7e2904703"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "2181d008be6273e6d8b6c2bf30f77c5934de2bdf515bddf0f24659cbe3c0bb1c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "3b4bcdffd747ba0839b52557849bdc4c9bfc530ad4381f79fffeda3999e5448f"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-release.yml",
+      "sha256": "07323081549e65646008ac20779451c9421803f7c8b366f8dd81a2938c435dea"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "sha256": "f67e53fb8490108bcac5bdfdf59c94f08a41904d0fa1f124732021fab7ee4110"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-oidc-setup.yml",
+      "sha256": "7af130a5cc0d8cb7917088d7daac2126ca4da7bed292d12b75732bb3bb8338fe"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/identity_bootstrap.go",
+      "sha256": "87ebc090e7a414d4d9c0bd00770c3edc23ee6933bbc2c0c173ca2b54ef313846"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f"
+    },
+    {
+      "path": "scripts/cloud-deployment/FLOW.md",
+      "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80"
+    },
+    {
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "sha256": "8e3b3c34e345ec5633f698fe73fee248bda6bb1005dc11a9bb52bef1f70b2477"
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-cleanup-artifact.sh",
+      "sha256": "8220b61b85040aed8fc0b8ce66bfcf4741543bea17b952a6c646dcf8d6510722"
+    },
+    {
+      "path": "scripts/chat-lifecycle/cloud-lease-release-state.sh",
+      "sha256": "8bbf18ce1208ab490943c3a8205dce126a3951a413c79de65dfbeaf329dbbd3d"
+    },
+    {
+      "path": "docs/superpowers/runbooks/cloud-lease-identity.md",
+      "sha256": "2f8e06ef6b5e400f1a8c56d9bd224589a743ec21ce6c25c8c1e67c1c9daf407a"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "artifact_id": 9112490141,
+  "artifact_name": "chat-lifecycle-rehearsal-cleanup-chat-20260811T144437Z-9dcd8fb6",
+  "producer_run": {
+    "id": 31519203705,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "168bca71aca9f3412974441de03b37ab1509dae7"
+  },
+  "created_at": "2026-08-11T17:50:52Z",
+  "zip_sha256": "92a5a4626735206860267cda4873636e44f7f3115d1ce5667b752846b1bb7584",
+  "byte_size": 1478,
+  "members": [
+    {
+      "name": "attempt-1/cloud-lease-release-chat-20260811T144437Z-9dcd8fb6/release.json",
+      "size": 660
+    },
+    {
+      "name": "cleanup.json",
+      "size": 172
+    },
+    {
+      "name": "zero-inventory.json",
+      "size": 660
+    }
+  ],
+  "allowlisted_json": {
+    "cleanup.json": {
+      "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+      "request_id": "chat-20260811T144437Z-9dcd8fb6",
+      "release_run_id": 31519612139,
+      "zero_inventory": true
+    },
+    "zero-inventory.json": {
+      "schema": "wukongim.cloud_lease.release/v1",
+      "result": {
+        "zero_inventory": {
+          "selector": {
+            "lease_id": "chat-20260811T144437Z-9dcd8fb6-rehearsal-1",
+            "request_id": "chat-20260811T144437Z-9dcd8fb6",
+            "provider": "alibaba",
+            "region": "cn-hangzhou",
+            "repository": "WuKongIM/WuKongIM",
+            "plan_digest": "ad1f61244581baef8885f6e6f45fca06ceefdcaeeae654f0392853f9a1c9ae67"
+          },
+          "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+          "observed_at": "2026-08-11T17:50:44.93849846Z",
+          "scopes": [
+            "disk_attachments",
+            "disks",
+            "eip_associations",
+            "eips",
+            "enis",
+            "instances",
+            "nat_gateways",
+            "route_entries",
+            "security_group_rules",
+            "security_groups",
+            "vpcs",
+            "vswitches"
+          ]
+        }
+      }
+    }
+  }
+}

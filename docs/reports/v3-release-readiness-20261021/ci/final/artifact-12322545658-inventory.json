@@ -1,0 +1,1697 @@
+[
+  {
+    "path": "artifacts/bin/wkcli",
+    "size": 61524216,
+    "compressed_size": 29666385
+  },
+  {
+    "path": "artifacts/bin/wukongim",
+    "size": 96606632,
+    "compressed_size": 44896836
+  },
+  {
+    "path": "artifacts/chat-lifecycle.yaml",
+    "size": 4340,
+    "compressed_size": 1511
+  },
+  {
+    "path": "artifacts/config/node1.toml",
+    "size": 9123,
+    "compressed_size": 3730
+  },
+  {
+    "path": "artifacts/config/node2.toml",
+    "size": 9123,
+    "compressed_size": 3733
+  },
+  {
+    "path": "artifacts/config/node3.toml",
+    "size": 9123,
+    "compressed_size": 3733
+  },
+  {
+    "path": "artifacts/data/node1/DATA-FORMAT.json",
+    "size": 229,
+    "compressed_size": 151
+  },
+  {
+    "path": "artifacts/data/node1/controller/cluster-state.json",
+    "size": 2849,
+    "compressed_size": 668
+  },
+  {
+    "path": "artifacts/data/node1/controller/raft/meta.json",
+    "size": 293,
+    "compressed_size": 159
+  },
+  {
+    "path": "artifacts/data/node1/controller/raft/wal/0000000000000000-0000000000000001.wal",
+    "size": 79261,
+    "compressed_size": 10598
+  },
+  {
+    "path": "artifacts/data/node1/messages/000004.log",
+    "size": 258635,
+    "compressed_size": 42018
+  },
+  {
+    "path": "artifacts/data/node1/messages/000005.log",
+    "size": 917696,
+    "compressed_size": 137326
+  },
+  {
+    "path": "artifacts/data/node1/messages/000006.log",
+    "size": 1853446,
+    "compressed_size": 281024
+  },
+  {
+    "path": "artifacts/data/node1/messages/000007.log",
+    "size": 3686776,
+    "compressed_size": 588192
+  },
+  {
+    "path": "artifacts/data/node1/messages/000011.log",
+    "size": 59278369,
+    "compressed_size": 10039319
+  },
+  {
+    "path": "artifacts/data/node1/messages/000012.sst",
+    "size": 2107067,
+    "compressed_size": 1218797
+  },
+  {
+    "path": "artifacts/data/node1/messages/000013.sst",
+    "size": 2053999,
+    "compressed_size": 1119944
+  },
+  {
+    "path": "artifacts/data/node1/messages/000014.sst",
+    "size": 2040032,
+    "compressed_size": 1137046
+  },
+  {
+    "path": "artifacts/data/node1/messages/000015.sst",
+    "size": 2037543,
+    "compressed_size": 1145574
+  },
+  {
+    "path": "artifacts/data/node1/messages/000016.sst",
+    "size": 2049558,
+    "compressed_size": 1137276
+  },
+  {
+    "path": "artifacts/data/node1/messages/000017.sst",
+    "size": 2040638,
+    "compressed_size": 1138525
+  },
+  {
+    "path": "artifacts/data/node1/messages/000018.sst",
+    "size": 2048517,
+    "compressed_size": 1148843
+  },
+  {
+    "path": "artifacts/data/node1/messages/000019.sst",
+    "size": 2050385,
+    "compressed_size": 1145511
+  },
+  {
+    "path": "artifacts/data/node1/messages/000020.sst",
+    "size": 4780,
+    "compressed_size": 3606
+  },
+  {
+    "path": "artifacts/data/node1/messages/000021.log",
+    "size": 43327896,
+    "compressed_size": 7334541
+  },
+  {
+    "path": "artifacts/data/node1/messages/000022.sst",
+    "size": 2102596,
+    "compressed_size": 1220604
+  },
+  {
+    "path": "artifacts/data/node1/messages/000023.sst",
+    "size": 1807336,
+    "compressed_size": 1027013
+  },
+  {
+    "path": "artifacts/data/node1/messages/000024.sst",
+    "size": 2054402,
+    "compressed_size": 1192539
+  },
+  {
+    "path": "artifacts/data/node1/messages/000025.sst",
+    "size": 2053208,
+    "compressed_size": 1188058
+  },
+  {
+    "path": "artifacts/data/node1/messages/000026.sst",
+    "size": 169692,
+    "compressed_size": 101658
+  },
+  {
+    "path": "artifacts/data/node1/messages/000027.sst",
+    "size": 2049700,
+    "compressed_size": 1182182
+  },
+  {
+    "path": "artifacts/data/node1/messages/000028.sst",
+    "size": 2048780,
+    "compressed_size": 1167391
+  },
+  {
+    "path": "artifacts/data/node1/messages/000029.sst",
+    "size": 2048880,
+    "compressed_size": 1161769
+  },
+  {
+    "path": "artifacts/data/node1/messages/000030.sst",
+    "size": 2047459,
+    "compressed_size": 1169698
+  },
+  {
+    "path": "artifacts/data/node1/messages/000031.sst",
+    "size": 541433,
+    "compressed_size": 310261
+  },
+  {
+    "path": "artifacts/data/node1/messages/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/messages/MANIFEST-000001",
+    "size": 3540,
+    "compressed_size": 1101
+  },
+  {
+    "path": "artifacts/data/node1/messages/OPTIONS-000003",
+    "size": 2937,
+    "compressed_size": 790
+  },
+  {
+    "path": "artifacts/data/node1/messages/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/messages/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/observability/task-audit/controller-tasks.jsonl",
+    "size": 52175,
+    "compressed_size": 2635
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000004.log",
+    "size": 419221,
+    "compressed_size": 54207
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000005.log",
+    "size": 742246,
+    "compressed_size": 117970
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000006.log",
+    "size": 1387247,
+    "compressed_size": 203349
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000007.log",
+    "size": 2761354,
+    "compressed_size": 362290
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000010.log",
+    "size": 28066899,
+    "compressed_size": 3153650
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000011.sst",
+    "size": 2178855,
+    "compressed_size": 1472385
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000012.sst",
+    "size": 2176831,
+    "compressed_size": 1438513
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000013.sst",
+    "size": 832750,
+    "compressed_size": 555902
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000014.log",
+    "size": 2895416,
+    "compressed_size": 333060
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000015.sst",
+    "size": 1609112,
+    "compressed_size": 1090140
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/000016.sst",
+    "size": 295866,
+    "compressed_size": 204882
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/MANIFEST-000001",
+    "size": 811,
+    "compressed_size": 353
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/OPTIONS-000003",
+    "size": 2937,
+    "compressed_size": 791
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotmeta/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000009.log",
+    "size": 3526204,
+    "compressed_size": 322576
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000012.log",
+    "size": 3419464,
+    "compressed_size": 315806
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000014.log",
+    "size": 3381098,
+    "compressed_size": 320811
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000016.sst",
+    "size": 449714,
+    "compressed_size": 249738
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000017.log",
+    "size": 3979581,
+    "compressed_size": 453700
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/000018.sst",
+    "size": 490713,
+    "compressed_size": 286316
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/MANIFEST-000001",
+    "size": 590,
+    "compressed_size": 358
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/OPTIONS-000003",
+    "size": 2782,
+    "compressed_size": 782
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-1/snap-00000000000007d0-0000000000000002-7f34126d5cc74f09/chunk-000000",
+    "size": 1705176,
+    "compressed_size": 173847
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-10/snap-00000000000007d0-0000000000000002-f29a70099f300fa4/chunk-000000",
+    "size": 943638,
+    "compressed_size": 78939
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-64b8f3dee3d34649/chunk-000000",
+    "size": 8388608,
+    "compressed_size": 1000844
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-64b8f3dee3d34649/chunk-000001",
+    "size": 1750723,
+    "compressed_size": 186289
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-12/snap-00000000000007d0-0000000000000002-63b953f26ba56210/chunk-000000",
+    "size": 1625158,
+    "compressed_size": 165123
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-2/snap-00000000000007d0-0000000000000002-01891e3e4a5dfb05/chunk-000000",
+    "size": 2482160,
+    "compressed_size": 271129
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-3/snap-00000000000007d0-0000000000000002-b0166dd41d92b4af/chunk-000000",
+    "size": 2161776,
+    "compressed_size": 231959
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-4/snap-00000000000007d0-0000000000000002-213763f7f84f40f4/chunk-000000",
+    "size": 2056507,
+    "compressed_size": 219162
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-5/snap-00000000000007d0-0000000000000002-676fd37dbe320474/chunk-000000",
+    "size": 1540639,
+    "compressed_size": 153589
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-6/snap-00000000000007d1-0000000000000002-07af7fe935ea6477/chunk-000000",
+    "size": 1512495,
+    "compressed_size": 150105
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-7/snap-00000000000007d0-0000000000000002-4c6f2b9f7b02b719/chunk-000000",
+    "size": 1857266,
+    "compressed_size": 192520
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-8/snap-00000000000007d0-0000000000000002-d5771ae2de90e09f/chunk-000000",
+    "size": 2042199,
+    "compressed_size": 215104
+  },
+  {
+    "path": "artifacts/data/node1/slotraft-snapshots/slot-9/snap-00000000000007d0-0000000000000002-04b37cdb4463053e/chunk-000000",
+    "size": 1994675,
+    "compressed_size": 210188
+  },
+  {
+    "path": "artifacts/data/node2/DATA-FORMAT.json",
+    "size": 229,
+    "compressed_size": 151
+  },
+  {
+    "path": "artifacts/data/node2/controller/cluster-state.json",
+    "size": 2849,
+    "compressed_size": 668
+  },
+  {
+    "path": "artifacts/data/node2/controller/raft/meta.json",
+    "size": 293,
+    "compressed_size": 159
+  },
+  {
+    "path": "artifacts/data/node2/controller/raft/wal/0000000000000000-0000000000000001.wal",
+    "size": 78941,
+    "compressed_size": 10538
+  },
+  {
+    "path": "artifacts/data/node2/messages/000004.log",
+    "size": 353333,
+    "compressed_size": 53671
+  },
+  {
+    "path": "artifacts/data/node2/messages/000005.log",
+    "size": 921175,
+    "compressed_size": 141495
+  },
+  {
+    "path": "artifacts/data/node2/messages/000006.log",
+    "size": 1843449,
+    "compressed_size": 278611
+  },
+  {
+    "path": "artifacts/data/node2/messages/000007.log",
+    "size": 3686666,
+    "compressed_size": 589834
+  },
+  {
+    "path": "artifacts/data/node2/messages/000011.log",
+    "size": 59293774,
+    "compressed_size": 10044880
+  },
+  {
+    "path": "artifacts/data/node2/messages/000012.sst",
+    "size": 2107013,
+    "compressed_size": 1218089
+  },
+  {
+    "path": "artifacts/data/node2/messages/000013.sst",
+    "size": 2054753,
+    "compressed_size": 1119751
+  },
+  {
+    "path": "artifacts/data/node2/messages/000014.sst",
+    "size": 2048318,
+    "compressed_size": 1141369
+  },
+  {
+    "path": "artifacts/data/node2/messages/000015.sst",
+    "size": 2038938,
+    "compressed_size": 1146330
+  },
+  {
+    "path": "artifacts/data/node2/messages/000016.sst",
+    "size": 2049857,
+    "compressed_size": 1137790
+  },
+  {
+    "path": "artifacts/data/node2/messages/000017.sst",
+    "size": 2042667,
+    "compressed_size": 1139649
+  },
+  {
+    "path": "artifacts/data/node2/messages/000018.sst",
+    "size": 2048840,
+    "compressed_size": 1149105
+  },
+  {
+    "path": "artifacts/data/node2/messages/000019.sst",
+    "size": 2049193,
+    "compressed_size": 1144488
+  },
+  {
+    "path": "artifacts/data/node2/messages/000020.sst",
+    "size": 15304,
+    "compressed_size": 10269
+  },
+  {
+    "path": "artifacts/data/node2/messages/000021.log",
+    "size": 43261561,
+    "compressed_size": 7325728
+  },
+  {
+    "path": "artifacts/data/node2/messages/000023.sst",
+    "size": 1802951,
+    "compressed_size": 1023607
+  },
+  {
+    "path": "artifacts/data/node2/messages/000022.sst",
+    "size": 2102791,
+    "compressed_size": 1222289
+  },
+  {
+    "path": "artifacts/data/node2/messages/000024.sst",
+    "size": 2053908,
+    "compressed_size": 1191949
+  },
+  {
+    "path": "artifacts/data/node2/messages/000025.sst",
+    "size": 2052838,
+    "compressed_size": 1188072
+  },
+  {
+    "path": "artifacts/data/node2/messages/000026.sst",
+    "size": 169094,
+    "compressed_size": 101127
+  },
+  {
+    "path": "artifacts/data/node2/messages/000028.sst",
+    "size": 2048123,
+    "compressed_size": 1166812
+  },
+  {
+    "path": "artifacts/data/node2/messages/000027.sst",
+    "size": 2050020,
+    "compressed_size": 1182798
+  },
+  {
+    "path": "artifacts/data/node2/messages/000030.sst",
+    "size": 2048793,
+    "compressed_size": 1170782
+  },
+  {
+    "path": "artifacts/data/node2/messages/000029.sst",
+    "size": 2048128,
+    "compressed_size": 1160896
+  },
+  {
+    "path": "artifacts/data/node2/messages/000031.sst",
+    "size": 543141,
+    "compressed_size": 311125
+  },
+  {
+    "path": "artifacts/data/node2/messages/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/messages/MANIFEST-000001",
+    "size": 3555,
+    "compressed_size": 1175
+  },
+  {
+    "path": "artifacts/data/node2/messages/OPTIONS-000003",
+    "size": 2937,
+    "compressed_size": 790
+  },
+  {
+    "path": "artifacts/data/node2/messages/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/messages/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/observability/task-audit/controller-tasks.jsonl",
+    "size": 52173,
+    "compressed_size": 2636
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000004.log",
+    "size": 420847,
+    "compressed_size": 54302
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000005.log",
+    "size": 742246,
+    "compressed_size": 117972
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000006.log",
+    "size": 1387247,
+    "compressed_size": 203365
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000007.log",
+    "size": 2761354,
+    "compressed_size": 362295
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000010.log",
+    "size": 28069399,
+    "compressed_size": 3158243
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000011.sst",
+    "size": 2178863,
+    "compressed_size": 1472324
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000012.sst",
+    "size": 2176840,
+    "compressed_size": 1438540
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000013.sst",
+    "size": 832727,
+    "compressed_size": 556219
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000014.log",
+    "size": 2921277,
+    "compressed_size": 334677
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000015.sst",
+    "size": 1606504,
+    "compressed_size": 1089323
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/000016.sst",
+    "size": 296059,
+    "compressed_size": 204934
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/MANIFEST-000001",
+    "size": 811,
+    "compressed_size": 353
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/OPTIONS-000003",
+    "size": 2937,
+    "compressed_size": 791
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotmeta/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000009.log",
+    "size": 3529334,
+    "compressed_size": 322760
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000012.log",
+    "size": 3418456,
+    "compressed_size": 314923
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000014.log",
+    "size": 3380150,
+    "compressed_size": 319258
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000016.sst",
+    "size": 449373,
+    "compressed_size": 249369
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000017.log",
+    "size": 3983374,
+    "compressed_size": 453373
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/000018.sst",
+    "size": 490599,
+    "compressed_size": 286196
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/MANIFEST-000001",
+    "size": 590,
+    "compressed_size": 359
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/OPTIONS-000003",
+    "size": 2782,
+    "compressed_size": 782
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-1/snap-00000000000007d0-0000000000000002-3f3c7b5a35432ef0/chunk-000000",
+    "size": 1705176,
+    "compressed_size": 173847
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-10/snap-00000000000007d0-0000000000000002-f2ac513d3e4867b7/chunk-000000",
+    "size": 943638,
+    "compressed_size": 78939
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-df944fbdce3c749d/chunk-000000",
+    "size": 8388608,
+    "compressed_size": 1000844
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-df944fbdce3c749d/chunk-000001",
+    "size": 1750723,
+    "compressed_size": 186289
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-12/snap-00000000000007d0-0000000000000002-4aa01769e5a4c868/chunk-000000",
+    "size": 1625158,
+    "compressed_size": 165123
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-2/snap-00000000000007d0-0000000000000002-ffc12535c6564012/chunk-000000",
+    "size": 2482160,
+    "compressed_size": 271129
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-3/snap-00000000000007d0-0000000000000002-6cfa8ca9770e0b37/chunk-000000",
+    "size": 2161776,
+    "compressed_size": 231959
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-4/snap-00000000000007d0-0000000000000002-334f818b8f740f49/chunk-000000",
+    "size": 2056507,
+    "compressed_size": 219162
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-5/snap-00000000000007d0-0000000000000002-5cfdda4dfbbf7b08/chunk-000000",
+    "size": 1540639,
+    "compressed_size": 153589
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-6/snap-00000000000007d0-0000000000000002-b900db93626f8eff/chunk-000000",
+    "size": 1511932,
+    "compressed_size": 150057
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-7/snap-00000000000007d0-0000000000000002-856d10bf2b63ac46/chunk-000000",
+    "size": 1857266,
+    "compressed_size": 192520
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-8/snap-00000000000007d0-0000000000000002-e7fbd6c217a82ee5/chunk-000000",
+    "size": 2042199,
+    "compressed_size": 215104
+  },
+  {
+    "path": "artifacts/data/node2/slotraft-snapshots/slot-9/snap-00000000000007d0-0000000000000002-ad819a83eecc9b67/chunk-000000",
+    "size": 1994675,
+    "compressed_size": 210188
+  },
+  {
+    "path": "artifacts/data/node3/DATA-FORMAT.json",
+    "size": 229,
+    "compressed_size": 151
+  },
+  {
+    "path": "artifacts/data/node3/controller/cluster-state.json",
+    "size": 2849,
+    "compressed_size": 668
+  },
+  {
+    "path": "artifacts/data/node3/controller/raft/meta.json",
+    "size": 293,
+    "compressed_size": 161
+  },
+  {
+    "path": "artifacts/data/node3/controller/raft/wal/0000000000000000-0000000000000001.wal",
+    "size": 78941,
+    "compressed_size": 10542
+  },
+  {
+    "path": "artifacts/data/node3/messages/000004.log",
+    "size": 320944,
+    "compressed_size": 51874
+  },
+  {
+    "path": "artifacts/data/node3/messages/000005.log",
+    "size": 919309,
+    "compressed_size": 138224
+  },
+  {
+    "path": "artifacts/data/node3/messages/000006.log",
+    "size": 1843020,
+    "compressed_size": 282417
+  },
+  {
+    "path": "artifacts/data/node3/messages/000007.log",
+    "size": 3678044,
+    "compressed_size": 584950
+  },
+  {
+    "path": "artifacts/data/node3/messages/000011.log",
+    "size": 59311008,
+    "compressed_size": 10050244
+  },
+  {
+    "path": "artifacts/data/node3/messages/000012.sst",
+    "size": 2107650,
+    "compressed_size": 1217074
+  },
+  {
+    "path": "artifacts/data/node3/messages/000013.sst",
+    "size": 2053646,
+    "compressed_size": 1119692
+  },
+  {
+    "path": "artifacts/data/node3/messages/000014.sst",
+    "size": 2043573,
+    "compressed_size": 1138474
+  },
+  {
+    "path": "artifacts/data/node3/messages/000015.sst",
+    "size": 2037342,
+    "compressed_size": 1145668
+  },
+  {
+    "path": "artifacts/data/node3/messages/000016.sst",
+    "size": 2049477,
+    "compressed_size": 1137260
+  },
+  {
+    "path": "artifacts/data/node3/messages/000017.sst",
+    "size": 2041182,
+    "compressed_size": 1138944
+  },
+  {
+    "path": "artifacts/data/node3/messages/000018.sst",
+    "size": 2048938,
+    "compressed_size": 1149408
+  },
+  {
+    "path": "artifacts/data/node3/messages/000019.sst",
+    "size": 2051061,
+    "compressed_size": 1145764
+  },
+  {
+    "path": "artifacts/data/node3/messages/000020.sst",
+    "size": 4793,
+    "compressed_size": 3617
+  },
+  {
+    "path": "artifacts/data/node3/messages/000021.log",
+    "size": 43307123,
+    "compressed_size": 7336750
+  },
+  {
+    "path": "artifacts/data/node3/messages/000022.sst",
+    "size": 2103141,
+    "compressed_size": 1219632
+  },
+  {
+    "path": "artifacts/data/node3/messages/000023.sst",
+    "size": 1808285,
+    "compressed_size": 1026521
+  },
+  {
+    "path": "artifacts/data/node3/messages/000024.sst",
+    "size": 2054774,
+    "compressed_size": 1192486
+  },
+  {
+    "path": "artifacts/data/node3/messages/000025.sst",
+    "size": 2053491,
+    "compressed_size": 1188251
+  },
+  {
+    "path": "artifacts/data/node3/messages/000026.sst",
+    "size": 169654,
+    "compressed_size": 101594
+  },
+  {
+    "path": "artifacts/data/node3/messages/000027.sst",
+    "size": 2049706,
+    "compressed_size": 1182244
+  },
+  {
+    "path": "artifacts/data/node3/messages/000028.sst",
+    "size": 2049507,
+    "compressed_size": 1167791
+  },
+  {
+    "path": "artifacts/data/node3/messages/000030.sst",
+    "size": 2044969,
+    "compressed_size": 1168962
+  },
+  {
+    "path": "artifacts/data/node3/messages/000029.sst",
+    "size": 2048443,
+    "compressed_size": 1160972
+  },
+  {
+    "path": "artifacts/data/node3/messages/000031.sst",
+    "size": 549379,
+    "compressed_size": 314210
+  },
+  {
+    "path": "artifacts/data/node3/messages/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/messages/MANIFEST-000001",
+    "size": 3508,
+    "compressed_size": 1078
+  },
+  {
+    "path": "artifacts/data/node3/messages/OPTIONS-000003",
+    "size": 2937,
+    "compressed_size": 790
+  },
+  {
+    "path": "artifacts/data/node3/messages/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/messages/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/observability/task-audit/controller-tasks.jsonl",
+    "size": 52173,
+    "compressed_size": 2634
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000004.log",
+    "size": 418564,
+    "compressed_size": 53855
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000005.log",
+    "size": 744493,
+    "compressed_size": 118289
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000006.log",
+    "size": 1387247,
+    "compressed_size": 203359
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000007.log",
+    "size": 2761354,
+    "compressed_size": 362308
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000010.log",
+    "size": 28070639,
+    "compressed_size": 3158751
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000011.sst",
+    "size": 2178876,
+    "compressed_size": 1472205
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000012.sst",
+    "size": 2176863,
+    "compressed_size": 1438574
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000013.sst",
+    "size": 832743,
+    "compressed_size": 556185
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000014.log",
+    "size": 2942663,
+    "compressed_size": 336961
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000015.sst",
+    "size": 1607251,
+    "compressed_size": 1089232
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/000016.sst",
+    "size": 295372,
+    "compressed_size": 204760
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/MANIFEST-000001",
+    "size": 811,
+    "compressed_size": 352
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/OPTIONS-000003",
+    "size": 2937,
+    "compressed_size": 791
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotmeta/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000009.log",
+    "size": 3526122,
+    "compressed_size": 322204
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000012.log",
+    "size": 3418673,
+    "compressed_size": 314786
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000014.log",
+    "size": 3380339,
+    "compressed_size": 319400
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000016.sst",
+    "size": 447355,
+    "compressed_size": 248180
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000017.log",
+    "size": 3975474,
+    "compressed_size": 452231
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/000018.sst",
+    "size": 490388,
+    "compressed_size": 286650
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/LOCK",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/MANIFEST-000001",
+    "size": 590,
+    "compressed_size": 357
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/OPTIONS-000003",
+    "size": 2782,
+    "compressed_size": 782
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/marker.format-version.000001.013",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft/marker.manifest.000001.MANIFEST-000001",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-1/snap-00000000000007d0-0000000000000002-722b9ccf26779d5c/chunk-000000",
+    "size": 1705176,
+    "compressed_size": 173847
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-5d0854d50e805a86/chunk-000000",
+    "size": 8388608,
+    "compressed_size": 1000844
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-10/snap-00000000000007d0-0000000000000002-8986db58a545b74b/chunk-000000",
+    "size": 943638,
+    "compressed_size": 78939
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-11/snap-00000000000007d0-0000000000000002-5d0854d50e805a86/chunk-000001",
+    "size": 1750723,
+    "compressed_size": 186289
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-12/snap-00000000000007d0-0000000000000002-d05d04781734f412/chunk-000000",
+    "size": 1625158,
+    "compressed_size": 165123
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-2/snap-00000000000007d0-0000000000000002-46bc85d12e98e343/chunk-000000",
+    "size": 2482160,
+    "compressed_size": 271129
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-3/snap-00000000000007d0-0000000000000002-1ece10b348e21a58/chunk-000000",
+    "size": 2161776,
+    "compressed_size": 231959
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-4/snap-00000000000007d0-0000000000000002-2af0020f9e468dbe/chunk-000000",
+    "size": 2056507,
+    "compressed_size": 219162
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-5/snap-00000000000007d0-0000000000000002-3f7c3106d1a3c8a8/chunk-000000",
+    "size": 1540639,
+    "compressed_size": 153589
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-6/snap-00000000000007d0-0000000000000002-0350fdcedb8928b0/chunk-000000",
+    "size": 1511932,
+    "compressed_size": 150057
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-7/snap-00000000000007d0-0000000000000002-249fe79604af4a5a/chunk-000000",
+    "size": 1857266,
+    "compressed_size": 192520
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-8/snap-00000000000007d0-0000000000000002-dedd8e5219b99cd1/chunk-000000",
+    "size": 2042199,
+    "compressed_size": 215104
+  },
+  {
+    "path": "artifacts/data/node3/slotraft-snapshots/slot-9/snap-00000000000007d0-0000000000000002-a030251faa457def/chunk-000000",
+    "size": 1994675,
+    "compressed_size": 210188
+  },
+  {
+    "path": "artifacts/evidence/checksums.sha256",
+    "size": 9005,
+    "compressed_size": 3514
+  },
+  {
+    "path": "artifacts/evidence/coordinator-worker-cuts.log",
+    "size": 41673,
+    "compressed_size": 2181
+  },
+  {
+    "path": "artifacts/evidence/filesystem-preflight.txt",
+    "size": 123,
+    "compressed_size": 108
+  },
+  {
+    "path": "artifacts/evidence/graceful-stop-status.json",
+    "size": 237,
+    "compressed_size": 160
+  },
+  {
+    "path": "artifacts/evidence/identity.tsv",
+    "size": 1066,
+    "compressed_size": 527
+  },
+  {
+    "path": "artifacts/evidence/measured-host-overlap.tsv",
+    "size": 190,
+    "compressed_size": 136
+  },
+  {
+    "path": "artifacts/evidence/phase-state",
+    "size": 9,
+    "compressed_size": 11
+  },
+  {
+    "path": "artifacts/evidence/process-continuity.tsv",
+    "size": 212,
+    "compressed_size": 88
+  },
+  {
+    "path": "artifacts/evidence/processes-load.prom",
+    "size": 1546,
+    "compressed_size": 297
+  },
+  {
+    "path": "artifacts/evidence/processes-node-1.prom",
+    "size": 1062,
+    "compressed_size": 256
+  },
+  {
+    "path": "artifacts/evidence/processes-node-2.prom",
+    "size": 1062,
+    "compressed_size": 256
+  },
+  {
+    "path": "artifacts/evidence/processes-node-3.prom",
+    "size": 1062,
+    "compressed_size": 257
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/after-node-1.tsv",
+    "size": 1095,
+    "compressed_size": 279
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/after-node-2.tsv",
+    "size": 1095,
+    "compressed_size": 278
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/after-node-3.tsv",
+    "size": 1095,
+    "compressed_size": 276
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/before-node-1.tsv",
+    "size": 1095,
+    "compressed_size": 279
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/before-node-2.tsv",
+    "size": 1095,
+    "compressed_size": 278
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/before-node-3.tsv",
+    "size": 1095,
+    "compressed_size": 276
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/sample-1-node-1.tsv",
+    "size": 1095,
+    "compressed_size": 279
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/sample-1-node-2.tsv",
+    "size": 1095,
+    "compressed_size": 278
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/sample-1-node-3.tsv",
+    "size": 1095,
+    "compressed_size": 276
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/warmup-before-node-1.tsv",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/warmup-before-node-2.tsv",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/evidence/snapshot-inventory/warmup-before-node-3.tsv",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/evidence/storage-overlap.tsv",
+    "size": 2478,
+    "compressed_size": 469
+  },
+  {
+    "path": "artifacts/evidence/threshold-pprof-status.json",
+    "size": 287,
+    "compressed_size": 165
+  },
+  {
+    "path": "artifacts/evidence/timeline.tsv",
+    "size": 1941,
+    "compressed_size": 290
+  },
+  {
+    "path": "artifacts/evidence/unified-timeline.json",
+    "size": 59520,
+    "compressed_size": 3287
+  },
+  {
+    "path": "artifacts/evidence/unified-timeline.tsv",
+    "size": 6280,
+    "compressed_size": 971
+  },
+  {
+    "path": "artifacts/evidence/worker-cut-query.json",
+    "size": 5712,
+    "compressed_size": 1195
+  },
+  {
+    "path": "artifacts/host_io_summary.tsv",
+    "size": 630,
+    "compressed_size": 211
+  },
+  {
+    "path": "artifacts/local-step.json",
+    "size": 835,
+    "compressed_size": 359
+  },
+  {
+    "path": "artifacts/logs/coordinator.log",
+    "size": 41673,
+    "compressed_size": 2181
+  },
+  {
+    "path": "artifacts/logs/host-metrics-1.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/host-metrics-2.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/host-metrics-3.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/host-metrics-load.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/measured-host-overlap.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/node1/app.log",
+    "size": 16634,
+    "compressed_size": 1280
+  },
+  {
+    "path": "artifacts/logs/node1/warn.log",
+    "size": 917,
+    "compressed_size": 469
+  },
+  {
+    "path": "artifacts/logs/node2/app.log",
+    "size": 15525,
+    "compressed_size": 908
+  },
+  {
+    "path": "artifacts/logs/node3/app.log",
+    "size": 15525,
+    "compressed_size": 884
+  },
+  {
+    "path": "artifacts/logs/process-metrics.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/service-1.log",
+    "size": 15967,
+    "compressed_size": 1242
+  },
+  {
+    "path": "artifacts/logs/service-2.log",
+    "size": 14858,
+    "compressed_size": 852
+  },
+  {
+    "path": "artifacts/logs/service-3.log",
+    "size": 14858,
+    "compressed_size": 829
+  },
+  {
+    "path": "artifacts/logs/worker-1.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/worker-2.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/logs/worker-3.log",
+    "size": 0,
+    "compressed_size": 2
+  },
+  {
+    "path": "artifacts/metrics/host-load-after.prom",
+    "size": 2550,
+    "compressed_size": 572
+  },
+  {
+    "path": "artifacts/metrics/host-load-before.prom",
+    "size": 2545,
+    "compressed_size": 572
+  },
+  {
+    "path": "artifacts/metrics/host-load-sample-1.prom",
+    "size": 2550,
+    "compressed_size": 573
+  },
+  {
+    "path": "artifacts/metrics/host-load-warmup-before.prom",
+    "size": 2373,
+    "compressed_size": 549
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-after.prom",
+    "size": 2626,
+    "compressed_size": 604
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-before.prom",
+    "size": 2632,
+    "compressed_size": 607
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-sample-1.prom",
+    "size": 2628,
+    "compressed_size": 606
+  },
+  {
+    "path": "artifacts/metrics/host-node-1-warmup-before.prom",
+    "size": 2617,
+    "compressed_size": 591
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-after.prom",
+    "size": 2010,
+    "compressed_size": 512
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-before.prom",
+    "size": 2009,
+    "compressed_size": 510
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-sample-1.prom",
+    "size": 2010,
+    "compressed_size": 508
+  },
+  {
+    "path": "artifacts/metrics/host-node-2-warmup-before.prom",
+    "size": 2005,
+    "compressed_size": 502
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-after.prom",
+    "size": 2010,
+    "compressed_size": 509
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-before.prom",
+    "size": 2009,
+    "compressed_size": 509
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-sample-1.prom",
+    "size": 2010,
+    "compressed_size": 511
+  },
+  {
+    "path": "artifacts/metrics/host-node-3-warmup-before.prom",
+    "size": 2005,
+    "compressed_size": 511
+  },
+  {
+    "path": "artifacts/metrics/node-1-after.prom",
+    "size": 1041060,
+    "compressed_size": 58515
+  },
+  {
+    "path": "artifacts/metrics/node-1-before.prom",
+    "size": 1029797,
+    "compressed_size": 57840
+  },
+  {
+    "path": "artifacts/metrics/node-1-product-drain-1.prom",
+    "size": 1041055,
+    "compressed_size": 58526
+  },
+  {
+    "path": "artifacts/metrics/node-1-sample-1.prom",
+    "size": 1041048,
+    "compressed_size": 58506
+  },
+  {
+    "path": "artifacts/metrics/node-1-warmup-before.prom",
+    "size": 412518,
+    "compressed_size": 25722
+  },
+  {
+    "path": "artifacts/metrics/node-2-after.prom",
+    "size": 1010472,
+    "compressed_size": 57217
+  },
+  {
+    "path": "artifacts/metrics/node-2-before.prom",
+    "size": 990473,
+    "compressed_size": 56153
+  },
+  {
+    "path": "artifacts/metrics/node-2-product-drain-1.prom",
+    "size": 1010469,
+    "compressed_size": 57204
+  },
+  {
+    "path": "artifacts/metrics/node-2-sample-1.prom",
+    "size": 1010470,
+    "compressed_size": 57254
+  },
+  {
+    "path": "artifacts/metrics/node-2-warmup-before.prom",
+    "size": 397906,
+    "compressed_size": 25247
+  },
+  {
+    "path": "artifacts/metrics/node-3-after.prom",
+    "size": 997616,
+    "compressed_size": 56562
+  },
+  {
+    "path": "artifacts/metrics/node-3-before.prom",
+    "size": 990269,
+    "compressed_size": 56084
+  },
+  {
+    "path": "artifacts/metrics/node-3-product-drain-1.prom",
+    "size": 997615,
+    "compressed_size": 56573
+  },
+  {
+    "path": "artifacts/metrics/node-3-sample-1.prom",
+    "size": 997605,
+    "compressed_size": 56593
+  },
+  {
+    "path": "artifacts/metrics/node-3-warmup-before.prom",
+    "size": 396032,
+    "compressed_size": 25181
+  },
+  {
+    "path": "artifacts/pids/coordinator.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-1.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-2.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-3.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/host-metrics-load.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/measured-host-overlap-monitor.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/process-metrics-collector.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/service-1.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/service-2.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/service-3.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/worker-1.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/worker-2.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/pids/worker-3.pid",
+    "size": 5,
+    "compressed_size": 7
+  },
+  {
+    "path": "artifacts/product_queue_summary.tsv",
+    "size": 212,
+    "compressed_size": 110
+  },
+  {
+    "path": "artifacts/report/diagnostic-status.json",
+    "size": 8799,
+    "compressed_size": 836
+  },
+  {
+    "path": "artifacts/report/final.json",
+    "size": 23510,
+    "compressed_size": 3995
+  },
+  {
+    "path": "artifacts/report/final.md",
+    "size": 23842,
+    "compressed_size": 4124
+  },
+  {
+    "path": "artifacts/report/qualification.json",
+    "size": 23455,
+    "compressed_size": 3967
+  },
+  {
+    "path": "artifacts/report/qualification.md",
+    "size": 23782,
+    "compressed_size": 4091
+  },
+  {
+    "path": "artifacts/report/run-start.json",
+    "size": 387,
+    "compressed_size": 244
+  },
+  {
+    "path": "artifacts/report/worker-evidence.json",
+    "size": 584,
+    "compressed_size": 207
+  },
+  {
+    "path": "artifacts/storage_metrics_summary.tsv",
+    "size": 2303,
+    "compressed_size": 890
+  },
+  {
+    "path": "data-filesystem.json",
+    "size": 244,
+    "compressed_size": 159
+  },
+  {
+    "path": "driver.log",
+    "size": 1925,
+    "compressed_size": 684
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "size": 123,
+    "compressed_size": 109
+  },
+  {
+    "path": "host.json",
+    "size": 4483,
+    "compressed_size": 1178
+  },
+  {
+    "path": "kernel.txt",
+    "size": 128,
+    "compressed_size": 115
+  },
+  {
+    "path": "source.sha",
+    "size": 41,
+    "compressed_size": 42
+  }
+]

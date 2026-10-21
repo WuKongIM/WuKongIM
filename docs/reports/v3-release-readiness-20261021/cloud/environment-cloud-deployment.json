@@ -1,0 +1,18 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/environments/cloud-deployment",
+  "observed_at": "2026-10-21T04:56:31.529117+00:00",
+  "exit_code": 0,
+  "data": {
+    "id": 19516668968,
+    "node_id": "EN_kwDOJgfwyc8AAAAEi0i8KA",
+    "name": "cloud-deployment",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/environments/cloud-deployment",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/deployments/activity_log?environments_filter=cloud-deployment",
+    "created_at": "2026-08-08T12:30:44Z",
+    "updated_at": "2026-08-08T12:30:44Z",
+    "can_admins_bypass": true,
+    "protection_rules": [],
+    "deployment_branch_policy": null
+  },
+  "error": null
+}

@@ -1,0 +1,63 @@
+{
+  "artifact_id": 9291989064,
+  "artifact_name": "chat-lifecycle-rehearsal-cleanup-chat-20260810T011145Z-e654a07e",
+  "producer_run": {
+    "id": 32041131588,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "de10b078223d4b82f8e5da912b116747944cfc5b"
+  },
+  "created_at": "2026-08-17T15:06:14Z",
+  "zip_sha256": "2b0f54d939fbaf712d924e6e9f93654f29b7ae575d11dd96ad9eedfd46d95180",
+  "byte_size": 823,
+  "members": [
+    {
+      "name": "cleanup.json",
+      "size": 172
+    },
+    {
+      "name": "zero-inventory.json",
+      "size": 661
+    }
+  ],
+  "allowlisted_json": {
+    "cleanup.json": {
+      "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+      "request_id": "chat-20260810T011145Z-e654a07e",
+      "release_run_id": 31347685836,
+      "zero_inventory": true
+    },
+    "zero-inventory.json": {
+      "schema": "wukongim.cloud_lease.release/v1",
+      "result": {
+        "zero_inventory": {
+          "selector": {
+            "lease_id": "chat-20260810T011145Z-e654a07e-rehearsal-1",
+            "request_id": "chat-20260810T011145Z-e654a07e",
+            "provider": "alibaba",
+            "region": "cn-hangzhou",
+            "repository": "WuKongIM/WuKongIM",
+            "plan_digest": "ef0ab62caed1c37a532d9eae336a420e89d3b0cb3c4b835e48679d5329f0d7ba"
+          },
+          "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+          "observed_at": "2026-08-10T01:40:56.857194874Z",
+          "scopes": [
+            "disk_attachments",
+            "disks",
+            "eip_associations",
+            "eips",
+            "enis",
+            "instances",
+            "nat_gateways",
+            "route_entries",
+            "security_group_rules",
+            "security_groups",
+            "vpcs",
+            "vswitches"
+          ]
+        }
+      }
+    }
+  }
+}

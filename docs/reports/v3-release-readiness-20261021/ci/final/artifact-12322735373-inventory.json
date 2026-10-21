@@ -1,0 +1,46 @@
+[
+  {
+    "path": "arrival.json",
+    "size": 58100
+  },
+  {
+    "path": "benchmark.txt",
+    "size": 2940
+  },
+  {
+    "path": "arrival.warmup.json",
+    "size": 19445
+  },
+  {
+    "path": "binary.sha256",
+    "size": 124
+  },
+  {
+    "path": "data-filesystem.json",
+    "size": 249
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "size": 123
+  },
+  {
+    "path": "go-version.txt",
+    "size": 33
+  },
+  {
+    "path": "host.json",
+    "size": 4832
+  },
+  {
+    "path": "kernel.txt",
+    "size": 128
+  },
+  {
+    "path": "result.json",
+    "size": 18
+  },
+  {
+    "path": "source.sha",
+    "size": 41
+  }
+]

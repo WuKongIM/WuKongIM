@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/WuKongIM/WuKongIM/pkg/channel/replication
+cpu: Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz
+BenchmarkThreeNodeChannelAppend500QPS-4   	2026/10/21 04:59:40 Found 0 WALs
+2026/10/21 04:59:40 Found 0 WALs
+2026/10/21 04:59:40 Found 0 WALs
+   90000	   2000021 ns/op	         0 append-over-200ms-pct	         0 append-over-400ms-pct	         4.053 append-p99-ms	         1.218 arrival-queue-p99-ms	         8.329 background-items/exchange	         1.008 foreground-items/exchange	         0.4223 physical-commit-ms	         1.993 physical-commits/op	         1.505 records/physical-commit	         6.769 scheduled-p99-ms	         1.005 transport-frames/batch	        99.68 transport-single-batch-pct	  180183 B/op	     501 allocs/op
+--- BENCH: BenchmarkThreeNodeChannelAppend500QPS-4
+    runtime_benchmark_integration_test.go:386: warmup window 1: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:5.276731 QueueP99MS:1.144038 ServiceP99MS:4.149272}
+    runtime_benchmark_integration_test.go:402: arrival window 1: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:4.897817 QueueP99MS:1.173874 ServiceP99MS:4.009684}
+    runtime_benchmark_integration_test.go:402: arrival window 2: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:5.212403 QueueP99MS:1.188477 ServiceP99MS:3.888858}
+    runtime_benchmark_integration_test.go:402: arrival window 3: {Planned:30000 Started:30000 Completed:30000 Errors:0 Dropped:0 TargetPerSecond:500 StartedPerSecond:500 TotalP99MS:6.768573 QueueP99MS:1.217588 ServiceP99MS:4.289382}
+    runtime_benchmark_integration_test.go:413: channel stages: [mailbox_max=4 worker_queue_max=3 inflight_peak=1 append_p99=4.026196ms runtime_append_reserve_wait/ok_p99=4.099µs runtime_append_submit/ok_p99=54.111µs runtime_append_wait/ok_p99=4.048881ms wait_post_store_commit_wait/ok_p99=17.377µs wait_quorum_final_complete_wait/ok_p99=17.377µs wait_quorum_hw_advance_wait/ok_p99=0s wait_store_append_wait/ok_p99=4.018795ms worker_3_wait_p99=9.453µs worker_3_run_p99=7.635µs worker_17_wait_p99=9.855µs worker_17_run_p99=3.504µs worker_18_wait_p99=80.809µs worker_18_run_p99=3.958178ms]
+PASS

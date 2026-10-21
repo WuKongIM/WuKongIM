@@ -1,0 +1,168 @@
+{
+  "run_id": "31261098792",
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 93111901735,
+      "name": "Build, quote, deploy, and hand off the remote rehearsal",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-08-08T14:05:22Z",
+      "completed_at": "2026-08-08T14:08:39Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-08T14:05:22Z",
+          "completed_at": "2026-08-08T14:05:23Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-08T14:05:23Z",
+          "completed_at": "2026-08-08T14:05:30Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-08T14:05:30Z",
+          "completed_at": "2026-08-08T14:05:40Z"
+        },
+        {
+          "name": "Validate the four-input boundary and trusted source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-08T14:05:40Z",
+          "completed_at": "2026-08-08T14:05:40Z"
+        },
+        {
+          "name": "Build trusted Run Plan control tool",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-08T14:05:40Z",
+          "completed_at": "2026-08-08T14:05:43Z"
+        },
+        {
+          "name": "Refuse a second paid scenario while any prior Lease lacks zero proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-08T14:05:43Z",
+          "completed_at": "2026-08-08T14:05:56Z"
+        },
+        {
+          "name": "Orchestrate until remote systemd owns the measured run",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 7,
+          "started_at": "2026-08-08T14:05:56Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Detect publishable handoff or cleanup continuation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Upload non-secret remote handoff or cleanup evidence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Detect immediate zero-inventory proof",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Upload immediate zero-inventory proof",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Release handed-off Lease if handoff publication failed",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 12,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Upload fallback zero-inventory proof",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Retry publication of cleanup-pending continuation evidence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:35Z"
+        },
+        {
+          "name": "Advance the exact tracking Issue",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-08T14:08:35Z",
+          "completed_at": "2026-08-08T14:08:36Z"
+        },
+        {
+          "name": "Remove plaintext runner identities",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-08-08T14:08:36Z",
+          "completed_at": "2026-08-08T14:08:36Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 31,
+          "started_at": "2026-08-08T14:08:36Z",
+          "completed_at": "2026-08-08T14:08:36Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 32,
+          "started_at": "2026-08-08T14:08:36Z",
+          "completed_at": "2026-08-08T14:08:37Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-08-08T14:08:37Z",
+          "completed_at": "2026-08-08T14:08:37Z"
+        }
+      ]
+    }
+  ]
+}

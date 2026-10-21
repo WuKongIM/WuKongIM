@@ -1,0 +1,16 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/git/ref/heads/main",
+  "observed_at": "2026-10-21T04:56:28.395123+00:00",
+  "exit_code": 0,
+  "data": {
+    "ref": "refs/heads/main",
+    "node_id": "REF_kwDOJgfwya9yZWZzL2hlYWRzL21haW4",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/refs/heads/main",
+    "object": {
+      "sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "type": "commit",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+    }
+  },
+  "error": null
+}

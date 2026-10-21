@@ -1,0 +1,148 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 119047184216,
+      "run_id": 39546957124,
+      "workflow_name": "V3 Candidate Regression pull_request 1016 attempt 1",
+      "head_branch": "codex/v3-release-recovery",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39546957124",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbt8PfWA",
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119047184216",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546957124/job/119047184216",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-21T04:58:36Z",
+      "started_at": "2026-10-21T04:58:38Z",
+      "completed_at": "2026-10-21T05:05:55Z",
+      "name": "Candidate default suite (go-unit)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T04:58:39Z",
+          "completed_at": "2026-10-21T04:58:40Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T04:58:40Z",
+          "completed_at": "2026-10-21T04:58:49Z"
+        },
+        {
+          "name": "Freeze source and named-check authority",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T04:58:49Z",
+          "completed_at": "2026-10-21T04:58:50Z"
+        },
+        {
+          "name": "Validate workflow static contracts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T04:58:50Z",
+          "completed_at": "2026-10-21T04:58:50Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T04:58:50Z",
+          "completed_at": "2026-10-21T04:58:58Z"
+        },
+        {
+          "name": "Run frozen go-unit named check once",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 6,
+          "started_at": "2026-10-21T04:58:58Z",
+          "completed_at": "2026-10-21T05:05:51Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T05:05:51Z",
+          "completed_at": "2026-10-21T05:05:51Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T05:05:51Z",
+          "completed_at": "2026-10-21T05:05:52Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-10-21T05:05:52Z",
+          "completed_at": "2026-10-21T05:05:52Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T05:05:52Z",
+          "completed_at": "2026-10-21T05:05:53Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-21T05:05:53Z",
+          "completed_at": "2026-10-21T05:05:53Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119047184216",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024062,
+      "runner_name": "GitHub Actions 1000024062",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 119049325203,
+      "run_id": 39546957124,
+      "workflow_name": "V3 Candidate Regression pull_request 1016 attempt 1",
+      "head_branch": "codex/v3-release-recovery",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39546957124",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAbt-SKkw",
+      "head_sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119049325203",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39546957124/job/119049325203",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-21T05:05:56Z",
+      "started_at": "2026-10-21T05:05:56Z",
+      "completed_at": "2026-10-21T05:05:55Z",
+      "name": "Candidate migration and messaging E2E",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119049325203",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    }
+  ]
+}

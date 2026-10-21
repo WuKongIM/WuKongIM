@@ -1,0 +1,19 @@
+{
+  "status": "cleanup_failed",
+  "exit_code": 0,
+  "session_id": 92875,
+  "output_bytes": 0,
+  "output_truncated": false,
+  "passed": false,
+  "cleanup": {
+    "session_id": 92875,
+    "verified": false,
+    "complete": false,
+    "initial_processes": null,
+    "remaining_processes": null,
+    "error": "probe denied process enumeration"
+  },
+  "command_status": "passed",
+  "wrapper_exit_code": 1,
+  "elapsed_seconds": 0.156
+}

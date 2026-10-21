@@ -1,0 +1,10 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/environments/cloud-deployment/variables?per_page=100",
+  "observed_at": "2026-10-21T04:56:31.950266+00:00",
+  "exit_code": 0,
+  "data": {
+    "total_count": 0,
+    "variables": []
+  },
+  "error": null
+}

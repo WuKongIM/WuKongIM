@@ -1,0 +1,18 @@
+{
+  "endpoint": "repos/WuKongIM/WuKongIM/environments/cloud-lease-provision",
+  "observed_at": "2026-10-21T04:56:30.305931+00:00",
+  "exit_code": 0,
+  "data": {
+    "id": 19516668052,
+    "node_id": "EN_kwDOJgfwyc8AAAAEi0i4lA",
+    "name": "cloud-lease-provision",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/environments/cloud-lease-provision",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/deployments/activity_log?environments_filter=cloud-lease-provision",
+    "created_at": "2026-08-08T12:30:42Z",
+    "updated_at": "2026-08-08T12:30:42Z",
+    "can_admins_bypass": true,
+    "protection_rules": [],
+    "deployment_branch_policy": null
+  },
+  "error": null
+}
