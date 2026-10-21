@@ -1211,6 +1211,11 @@ specification, runbook, report, or module documentation; link to them when neede
   processes, or allocating time-sensitive resources; queue time is not part of
   a process deadline. Output-retention fixtures must observe streamed evidence
   before injecting termination, independently of interpreter startup latency.
+- Local threshold profiling defers HUP/INT/TERM between background request
+  launch and complete PID/file registration, then immediately joins its owned
+  requests and seals interrupted evidence. A successful helper exit alone does
+  not prove HTTP cancellation. Empty cleanup arrays must also work under Bash 3
+  nounset; signal regressions use real requests at fixed registration boundaries.
 - Local repair and the Deployment Action share `scripts/cloud-deployment/deploy.sh`
   for host activation, bounded readiness, and typed outcomes. Behavioral tests
   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts

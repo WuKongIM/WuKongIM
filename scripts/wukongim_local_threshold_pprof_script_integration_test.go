@@ -5,12 +5,14 @@ package scripts_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -439,6 +441,143 @@ func TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata(t *te
 		}
 	}
 	assertNoLocalPprofTemporaryFiles(t, outDir)
+}
+
+// Signals must not outrun ownership registration of an already running request.
+func TestLocalThresholdPprofInterruptDuringRequestRegistration(t *testing.T) {
+	root := repoRoot(t)
+	var evidence []map[string]any
+	defer func() {
+		if path := os.Getenv("LOCAL_THRESHOLD_PPROF_SIGNAL_TEST_ARTIFACT"); path != "" {
+			body, err := json.MarshalIndent(map[string]any{"schema": "wukongim/pprof-registration-signal-test/v1", "fixture_only": true, "cases": evidence}, "", "  ")
+			if err == nil {
+				err = os.WriteFile(path, append(body, '\n'), 0o600)
+			}
+			if err != nil {
+				t.Errorf("write signal regression artifact: %v", err)
+			}
+		}
+	}()
+	for _, node := range []int{0, 1, 2} {
+		for _, signal := range []string{"HUP", "INT", "TERM"} {
+			t.Run(fmt.Sprintf("node%d_%s", node, signal), func(t *testing.T) {
+				registered := 0
+				if node > 0 {
+					registered = (node - 1) * 3
+				}
+				servers := []*localPprofTestServer{
+					newLocalPprofTestServer(t, 10*time.Second, ""),
+					newLocalPprofTestServer(t, 10*time.Second, ""),
+					newLocalPprofTestServer(t, 10*time.Second, ""),
+				}
+				directory := t.TempDir()
+				phasePath := filepath.Join(directory, "phase")
+				writeLocalPprofPhase(t, phasePath, "measurement")
+				outDir := filepath.Join(directory, "capture")
+				boundaryPath := filepath.Join(directory, "boundary")
+				readyPath := filepath.Join(directory, "request-started")
+				hookPath := filepath.Join(directory, "signal-boundary.sh")
+				// DEBUG is inherited by functions, placing the signal at the exact
+				// existing append boundary without changing the production helper.
+				hook := `signal_boundary_fired=0
+set -T
+signal_registration_boundary() {
+  [[ "$signal_boundary_fired" == 0 ]] || return 0
+  if [[ "$SIGNAL_TEST_NODE" == 0 ]]; then
+    [[ "$BASH_COMMAND" == '[[ "$START_PHASE" != "$TRIGGER_OBSERVED_PHASE" ]]' ]] || return 0
+    signal_boundary_fired=1
+    printf '0 %s\n' "${#CAPTURE_PIDS[@]}" >"$SIGNAL_TEST_BOUNDARY"
+    kill -s "$SIGNAL_TEST_SIGNAL" "$$"
+    return
+  fi
+  [[ "$BASH_COMMAND" == 'CAPTURE_PIDS+=("$!")' ]] || return 0
+  [[ ${#CAPTURE_PIDS[@]} == "$SIGNAL_TEST_REGISTERED" ]] || return 0
+  signal_boundary_fired=1
+  local ready=0
+  for ((signal_wait=0; signal_wait<300; signal_wait++)); do
+    if [[ -f "$SIGNAL_TEST_READY" ]]; then ready=1; break; fi
+    sleep .01
+  done
+  [[ "$ready" == 1 ]] || exit 97
+  printf '%s %s\n' "$!" "${#CAPTURE_PIDS[@]}" >"$SIGNAL_TEST_BOUNDARY"
+  kill -s "$SIGNAL_TEST_SIGNAL" "$$"
+}
+trap signal_registration_boundary DEBUG
+`
+				if err := os.WriteFile(hookPath, []byte(hook), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				command := localThresholdPprofCommand(root, "local-threshold-pprof-test-token", localThresholdPprofArgs(outDir, phasePath, "sendack_p99", servers)...)
+				command.Env = append(command.Env, "BASH_ENV="+hookPath, "SIGNAL_TEST_NODE="+strconv.Itoa(node), "SIGNAL_TEST_REGISTERED="+strconv.Itoa(registered), "SIGNAL_TEST_READY="+readyPath, "SIGNAL_TEST_BOUNDARY="+boundaryPath, "SIGNAL_TEST_SIGNAL="+signal)
+				command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+				var output bytes.Buffer
+				command.Stdout, command.Stderr = &output, &output
+				if err := command.Start(); err != nil {
+					t.Fatal(err)
+				}
+				// The failing original helper can orphan curl. Cleanup belongs to
+				// this fixture group only and runs after the lifecycle observations.
+				defer syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+				done := make(chan error, 1)
+				go func() { done <- command.Wait() }()
+				if node > 0 {
+					select {
+					case <-servers[node-1].profileStarted:
+					case <-time.After(3 * time.Second):
+						_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+						<-done
+						t.Fatalf("node %d CPU request did not start: %s", node, output.String())
+					}
+				}
+				started := time.Now()
+				if err := os.WriteFile(readyPath, []byte("ready"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				var waitErr error
+				select {
+				case waitErr = <-done:
+				case <-time.After(3 * time.Second):
+					_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+					waitErr = <-done
+					t.Errorf("interrupt did not join bounded child requests promptly")
+				}
+				elapsed := time.Since(started)
+				boundary := strings.Fields(readFile(t, boundaryPath))
+				if len(boundary) != 2 {
+					t.Fatalf("signal boundary not reached: %q", boundary)
+				}
+				childPID, err := strconv.Atoi(boundary[0])
+				if err != nil || (node > 0 && childPID <= 1) || (node == 0 && childPID != 0) || boundary[1] != strconv.Itoa(registered) {
+					t.Fatalf("unexpected registration boundary: %v", boundary)
+				}
+				deadline := time.Now().Add(2 * time.Second)
+				for time.Now().Before(deadline) {
+					if servers[0].activeRequests.Load()+servers[1].activeRequests.Load()+servers[2].activeRequests.Load() == 0 {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				active := []int64{servers[0].activeRequests.Load(), servers[1].activeRequests.Load(), servers[2].activeRequests.Load()}
+				childAlive := childPID > 1 && syscall.Kill(childPID, 0) == nil
+				metadata := decodeLocalThresholdPprofMetadata(t, readFile(t, filepath.Join(outDir, "metadata.json")))
+				var temporary []string
+				if err := filepath.WalkDir(outDir, func(path string, entry os.DirEntry, err error) error {
+					if err == nil && !entry.IsDir() && strings.Contains(entry.Name(), ".next.") {
+						relative, _ := filepath.Rel(outDir, path)
+						temporary = append(temporary, relative)
+					}
+					return err
+				}); err != nil {
+					t.Fatal(err)
+				}
+				passed := waitErr == nil && elapsed <= 3*time.Second && metadata.Capture.Status == "partial" && !metadata.Capture.Valid && metadata.Capture.Reason == "interrupted" && active[0]+active[1]+active[2] == 0 && !childAlive && len(temporary) == 0
+				evidence = append(evidence, map[string]any{"node": node, "signal": signal, "registered_before_signal": registered, "helper_exit_code": command.ProcessState.ExitCode(), "signal_to_exit_seconds": elapsed.Seconds(), "metadata": metadata, "active_requests": active, "child_alive": childAlive, "temporary_files": temporary, "passed": passed})
+				if !passed {
+					t.Errorf("registration interrupt node=%d signal=%s: exit=%v elapsed=%s reason=%s active=%v child_alive=%v temporary=%v\n%s", node, signal, waitErr, elapsed, metadata.Capture.Reason, active, childAlive, temporary, output.String())
+				}
+			})
+		}
+	}
 }
 
 func localThresholdPprofArgs(outDir, phasePath, trigger string, servers []*localPprofTestServer) []string {

@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Cancel and join local threshold profile requests even when a signal arrives
+  during request startup, preserving interruption metadata and removing partial
+  files. / 本地阈值性能采样在请求启动期间收到信号时也会完整取消并等待请求结束，
+  保留中断元数据并清理临时文件。
+
 - Retain bounded cloud chat-lifecycle worker failure examples and terminal status,
   and collect presence/delivery metrics in fixed partitions anchored to the
   terminal report. Partial collection stays explicit and preserves the original
