@@ -1,0 +1,11 @@
+[detached HEAD dded26a] Add optional OSS/CDN SDK library and fresh input contracts
+ 8 files changed, 1758 insertions(+)
+ create mode 100644 .github/workflows/object-storage-provider-contract.yml
+ create mode 100644 requirements-object-storage-provider.lock
+ create mode 100644 scripts/aliyun-object-storage-provider.py
+ create mode 100644 scripts/verify-object-storage-delivery-inputs.py
+ create mode 100644 tests/provider_sdk/test_aliyun_object_storage_provider.py
+ create mode 100644 tests/test_object_storage_delivery_inputs.py
+
+                                                                                
+Successfully rebased and updated refs/heads/codex/stable-object-provider.

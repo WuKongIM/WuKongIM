@@ -1,0 +1,9 @@
+{
+  "source": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-ci-generation-2",
+  "files": {
+    "read-snapshot.py": "02db39d7b2eb082fe043727db0d404ad0e88f5fcbc8f1af23424d1d8d7f87eb7",
+    "get-public.py": "ce2c9f125483828d3b603639959173dcfef372377688e91c44aecb1a6938cdc1",
+    "collect-small-artifacts.py": "cb44f5993207d1a8133052339a1655d48e6fe363f1986259462abec36e1dfe33"
+  },
+  "changes": "Only output-private path and fixed run IDs adapted. Success/failure verifier will be specific to actual generation-3 terminal receipts."
+}

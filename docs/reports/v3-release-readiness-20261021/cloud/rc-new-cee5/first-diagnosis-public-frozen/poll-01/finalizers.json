@@ -1,0 +1,21 @@
+{
+  "total_count": 1,
+  "complete_page": true,
+  "runs": [
+    {
+      "id": 39642565187,
+      "run_number": 1636,
+      "run_attempt": 1,
+      "event": "schedule",
+      "display_title": "Chat Lifecycle Rehearsal Finalizer 39642565187",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T17:18:04Z",
+      "updated_at": "2026-10-21T17:20:50Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39642565187"
+    }
+  ]
+}

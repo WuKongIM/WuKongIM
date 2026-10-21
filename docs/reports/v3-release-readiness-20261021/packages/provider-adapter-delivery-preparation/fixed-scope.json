@@ -1,0 +1,68 @@
+{
+  "local_commit": "eae1afc593ad70f3259798bcb40e90b3c7878959",
+  "tree": "c22efe91eb3db1abfece8826d0eb5c4e20978765",
+  "parent": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "branch": "codex/stable-object-provider",
+  "files": [
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "changed_from_v1": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "fb4f2956bca59efa93124ee9944eb9fc1906d65e1bcfc7f8cb78c5b4487efe50",
+      "bytes": 3579,
+      "changed_from_v1": true
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60",
+      "bytes": 14213,
+      "changed_from_v1": true
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+      "bytes": 36702,
+      "changed_from_v1": false
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+      "bytes": 24964,
+      "changed_from_v1": true
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "bytes": 11718,
+      "changed_from_v1": false
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+      "bytes": 27245,
+      "changed_from_v1": true
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "bytes": 15586,
+      "changed_from_v1": false
+    }
+  ],
+  "reviewed_freeze_sha256": "55768ada50c4f42fe0f57e72d692d8f2502303dbbb35943a7c96272fdaa88086",
+  "reviewed_full_patch_sha256": "efc866f8754997b850ba2c6b618f1e752b2dec98c6fca6d0e747a7be11382c2e",
+  "other_116_tracked_unchanged": true,
+  "original_v2_evidence_untouched": true,
+  "next_owner": "root",
+  "next_actions_not_performed": [
+    "rebase",
+    "push",
+    "PR",
+    "CI dispatch",
+    "cloud write"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "original_archive_unchanged": true,
+  "clarification": "completed_coverage: 0 is the request starting coverage/cursor, not a count of successfully completed synchronizations. NewConversationSyncRequest deliberately starts every login from zero coverage to request a full sync. RunLoginSync requires CONNECT success, ConversationSync success and ValidateConversationSync success before setting TrafficReady=true/SyncCompleted=true; failed sessions are not admitted to the online pool. Coordinator waits all workers traffic-ready, delivers the first full global grant successfully, then Begin writes run-start. Thus use source-bound startup barrier for configured10000online/2000SEND-per-second; do not call this an independent sustained throughput measurement.",
+  "references": [
+    "configs/wkbench/chat-lifecycle/rehearsal.yaml:8–16",
+    "internal/bench/chatlifecycle/sync.go:119–126,192–229",
+    "internal/bench/chatlifecycle/session.go:456–496",
+    "internal/bench/chatlifecycle/coordinator.go:676–750",
+    "internal/bench/chatlifecycle/production_controller.go:192–201"
+  ],
+  "files": [
+    {
+      "path": "configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/sync.go",
+      "sha256": "0b163a4fed0bc6ba002a54e808c128b80908b5455c4f7a84a93752ea026acdad"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session.go",
+      "sha256": "b51382894de7e306c22bb276d493b8bc605d770109103b65c6ebd6bc494b7e05"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba"
+    }
+  ]
+}

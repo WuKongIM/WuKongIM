@@ -1,0 +1,22 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "bytes": 34715,
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f"
+    }
+  ],
+  "prior_run_start_manifest_sha256": "f1ef1bf9629aa79c385157acb8293885531edb9f286d6ca453fb5f6187ec506b",
+  "full_private_zip_sha256": "a74b828be1a383d34bb8779bba4ed7473e51461ef6826c2d6d1a22afef415ccf"
+}

@@ -1,0 +1,50 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "30dcb81d7c19fccecbe16b99d6e8ece7cf98543f69ed930f625f8e7af5253c65",
+      "bytes": 1337
+    },
+    {
+      "path": "ci-expectations.md",
+      "sha256": "4943239b1bb7d13f14373fc65380308446bdb8857fff5238d15276c9333cd676",
+      "bytes": 1887
+    },
+    {
+      "path": "commit-message.txt",
+      "sha256": "9677c6b1b09919322e20301ac023d1cb53c13e425a0e3eaaca69ca60231e4b36",
+      "bytes": 213
+    },
+    {
+      "path": "commit.log",
+      "sha256": "713bc39b2c1c18c0378da889c34e3f6d2aa8c98eab51792cd37f8c9f6d670642",
+      "bytes": 546
+    },
+    {
+      "path": "fixed-scope.json",
+      "sha256": "a4bd279731490ba338c36d09bde0f6a731f4d6434595c3cfa2a3c2454ef6513f",
+      "bytes": 2315
+    },
+    {
+      "path": "local-commit.json",
+      "sha256": "18f566645ebbe86a6848c0d8d7f1de005fc1d06b571c9e817ba51d72d6bcf364",
+      "bytes": 773
+    },
+    {
+      "path": "pr-body.md",
+      "sha256": "5792db0820ada8e505682807b2a1d266d984b478448db6478832243128d80ffd",
+      "bytes": 1667
+    },
+    {
+      "path": "pr-title.txt",
+      "sha256": "27bf21a5e6d09db6cc8651db84fd07bec5c9798b3bb70bd870eb5a9e0407b77d",
+      "bytes": 68
+    },
+    {
+      "path": "precommit-binding.json",
+      "sha256": "94848e97e787d8b5f6ee155d946621b8cbbda0402ccb5d76520e648b01fd6553",
+      "bytes": 2208
+    }
+  ],
+  "total_bytes": 11014
+}

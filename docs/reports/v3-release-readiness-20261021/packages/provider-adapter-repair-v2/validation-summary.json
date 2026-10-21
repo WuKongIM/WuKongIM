@@ -1,0 +1,29 @@
+{
+  "sdk": {
+    "tests": 22,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "receipt": "sdk-green-receipt.json"
+  },
+  "focused_inputs": {
+    "tests": 10,
+    "exit_code": 0,
+    "receipt": "inputs-final.json"
+  },
+  "default": {
+    "tests": 567,
+    "failures": 0,
+    "errors": 0,
+    "skips": 1,
+    "skip_reason": "existing real RPM build tools unavailable",
+    "receipt": "all-default-final.json"
+  },
+  "source_matches_freeze": true,
+  "git_diff_check": true,
+  "four_python_ast_parses": true,
+  "all_original_public_evidence_unchanged": true,
+  "production_provider_network": false,
+  "new_ci_run": false,
+  "original_standards_process_P2_remains": true
+}

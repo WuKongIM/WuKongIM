@@ -1,0 +1,1 @@
+Add optional OSS/CDN SDK library and fresh delivery input contracts

@@ -1,0 +1,69 @@
+{
+  "base": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "scope": [
+    ".github/workflows/object-storage-provider-contract.yml",
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "requirements-object-storage-provider.lock",
+    "scripts/aliyun-object-storage-provider.py",
+    "scripts/verify-object-storage-delivery-inputs.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/test_object_storage_delivery_inputs.py"
+  ],
+  "prior_frozen_source_verified": true,
+  "original_evidence_must_remain_unchanged": true,
+  "bindings": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/source-freeze.json",
+      "sha256": "0761513c5467cb6956bab292c89b70ecf13e4b7ed5e40fb0685766658908ca83"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/implementation.patch",
+      "sha256": "b0d72c451e879897e4761e630b3615b33b2fbf7e8165daaff535efa9359087a0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/README.md",
+      "sha256": "5e844ce48e58775c3568fc7fbe59cfe024d32b35beea9cf86f09132cc562c183"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/initial-binding.json",
+      "sha256": "bfaa6c6a1f48f08876737aae5b28eea7dbc8fb3464ecef7c814023aa8a72a860"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/source-binding.json",
+      "sha256": "5157d827dca1b8e56c2501961ebfd8694a7abc30b840433f2d35d91cba5b7222"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/report.md",
+      "sha256": "2c7fd5effebd3265b3c2e8fe000530f2dfd78ab1aef9ff6fce6373583dbf8fdc"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/debug-log.txt",
+      "sha256": "aa24fc52510ce3b21776bf8144c56ff84c3ee9b834489e8eb4faead3abe7a0a6"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/probe.json",
+      "sha256": "32cbc7c46ded1008d64dce2de38e5af6fbea8d6130704d3ae4bb1ddd081a8193"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/probe.py",
+      "sha256": "b0a4b7ab67e976b8f1173e40879768fb64be4cd24fdd3ce7ad7ba1b429a3a043"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/probe.stdout",
+      "sha256": "32cbc7c46ded1008d64dce2de38e5af6fbea8d6130704d3ae4bb1ddd081a8193"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/probe.stderr",
+      "sha256": "4b698a16b1a4c101702b808b243a38d720c1da3f21ab86eafa132771a65ec0df"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/spec/SHA256SUMS",
+      "sha256": "e38ce744b29ac455adf5a88b4a006951734a64cdf1b02d27cb40021772262a7d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-review/standards/report.md",
+      "sha256": "1a2c560279307b57b7ddbfe085388a15ca4fe11b73ed1f8e269cc9733b7919ee"
+    }
+  ]
+}

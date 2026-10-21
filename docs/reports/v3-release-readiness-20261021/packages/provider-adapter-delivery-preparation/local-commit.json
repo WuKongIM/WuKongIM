@@ -1,0 +1,27 @@
+{
+  "command": [
+    "git",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-F",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-delivery-preparation/commit-message.txt"
+  ],
+  "exit_code": 0,
+  "terminal": true,
+  "elapsed_seconds": 0.16,
+  "head": "eae1afc593ad70f3259798bcb40e90b3c7878959",
+  "tree": "c22efe91eb3db1abfece8826d0eb5c4e20978765",
+  "parents": [
+    "d824fe37918ee4ef22b1b1745bc02518812563e3"
+  ],
+  "branch": "codex/stable-object-provider",
+  "worktree_clean": true,
+  "committed_exactly_eight_frozen_files": true,
+  "source_hashes_unchanged": true,
+  "unsigned_commit_reason": "No real private signing keys authorized for this task.",
+  "pushed": false,
+  "pr_created": false,
+  "rebased": false,
+  "provider_called": false
+}

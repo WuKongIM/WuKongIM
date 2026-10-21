@@ -1,0 +1,19 @@
+{
+  "command": [
+    "gh",
+    "pr",
+    "merge",
+    "75",
+    "--repo",
+    "WuKongIM/packages",
+    "--rebase",
+    "--match-head-commit",
+    "2368c8745853d7d8ad82e706a6e7980842526241"
+  ],
+  "started_at": "2026-10-21T17:22:20.724977+00:00",
+  "finished_at": "2026-10-21T17:22:25.563407+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "user_authority": "Standing explicit approval to merge this task PRs after review and validation; no new per-PR question."
+}

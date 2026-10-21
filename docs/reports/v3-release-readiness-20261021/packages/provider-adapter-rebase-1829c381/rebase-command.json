@@ -1,0 +1,15 @@
+{
+  "command": [
+    "git",
+    "-c",
+    "commit.gpgsign=false",
+    "rebase",
+    "--onto",
+    "1829c3813d6b21dcfeb1238a640604a4691815bd",
+    "d824fe37918ee4ef22b1b1745bc02518812563e3",
+    "codex/stable-object-provider"
+  ],
+  "exit_code": 1,
+  "terminal": true,
+  "elapsed_seconds": 0.03
+}

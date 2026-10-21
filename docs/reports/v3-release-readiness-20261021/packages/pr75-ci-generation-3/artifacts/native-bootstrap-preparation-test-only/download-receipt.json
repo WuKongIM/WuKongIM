@@ -1,0 +1,39 @@
+{
+  "artifact": {
+    "id": 12363864713,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM2Mzg2NDcxMw==",
+    "name": "native-bootstrap-preparation-test-only",
+    "size_in_bytes": 7151,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12363864713",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12363864713/zip",
+    "expired": false,
+    "digest": "sha256:86de90b4f2b029ba0b21f36ae3e6401703fb58a713316adad29dd0eb5f1bbee6",
+    "created_at": "2026-10-21T17:10:28Z",
+    "updated_at": "2026-10-21T17:10:28Z",
+    "expires_at": "2026-11-20T17:10:27Z",
+    "workflow_run": {
+      "id": 39641288253,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "2368c8745853d7d8ad82e706a6e7980842526241"
+    }
+  },
+  "observed_at": "2026-10-21T17:12:16.493885+00:00",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "downloaded_bytes": 7151,
+  "downloaded_sha256": "86de90b4f2b029ba0b21f36ae3e6401703fb58a713316adad29dd0eb5f1bbee6",
+  "api_digest_verified": true,
+  "all_zip_crc_verified": true,
+  "members": [
+    {
+      "path": "native-bootstrap-preparation.json",
+      "size": 44122,
+      "crc32": "6d849b0c",
+      "retained": true,
+      "sha256": "39a6f21862508ab12eb2736bb24dd18b6c7ce245fb8c2a744aeec23c7e1debbc"
+    }
+  ]
+}

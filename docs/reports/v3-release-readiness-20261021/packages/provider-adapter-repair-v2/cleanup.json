@@ -1,0 +1,10 @@
+{
+  "recorded_at": "2026-10-21T17:16:00.190664+00:00",
+  "all_test_commands_terminal": true,
+  "matching_sdk_processes": [],
+  "source_matches_freeze": true,
+  "original_evidence_unchanged": true,
+  "task_created_resources": [],
+  "prior_locked_environment_retained_for_reproduction": "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv",
+  "worktree_uncommitted_for_review": true
+}

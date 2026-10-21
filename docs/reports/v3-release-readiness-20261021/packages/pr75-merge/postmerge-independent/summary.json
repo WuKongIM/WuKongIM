@@ -1,0 +1,64 @@
+{
+  "branch_deletions_allowed": false,
+  "enforce_admins": true,
+  "force_pushes_allowed": false,
+  "limitations": [
+    "Post-merge run executes contracts/default Python tests only. It is not a new run of the 49 native client cases.",
+    "No native package publication, stable activation, public client release acceptance, cloud health or long-running workload result is asserted.",
+    "Equal Git trees establish equal reviewed contents, not ancestry. Original task tip is not a merge ancestor and was preserved."
+  ],
+  "merge_commit": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "merged_at": "2026-10-21T17:22:24Z",
+  "observed_at": "2026-10-21T17:28:54.151925+00:00",
+  "original_branch_and_worktree_retained": true,
+  "original_tip": "2368c8745853d7d8ad82e706a6e7980842526241",
+  "original_tip_is_ancestor": false,
+  "original_worktree_clean": true,
+  "postmerge_run": {
+    "actual_checkout_confirmed_by_log": true,
+    "attempt": 1,
+    "build_completed_at": "2026-10-21T17:24:43Z",
+    "build_job": 119371905197,
+    "build_started_at": "2026-10-21T17:22:30Z",
+    "checkout_log_lines": [
+      121,
+      122
+    ],
+    "conclusion": "success",
+    "created_at": "2026-10-21T17:22:27Z",
+    "event": "push",
+    "head": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+    "id": 39643213187,
+    "status": "completed",
+    "updated_at": "2026-10-21T17:24:44Z",
+    "url": "https://github.com/WuKongIM/packages/actions/runs/39643213187"
+  },
+  "protection_equal_before_after_and_fresh": true,
+  "pull_request": 75,
+  "required_check": "Validate complete Pages snapshot",
+  "same_tree": true,
+  "scope": "Read-only post-merge verification; no Git or GitHub mutation, branch/worktree cleanup, dispatch, rerun, provider call or publication.",
+  "stable_channel_enabled": false,
+  "strict_required_check": true,
+  "tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "validation": {
+    "artifacts": 0,
+    "configure_pages": "skipped",
+    "contract_shell_passed": true,
+    "contract_tests_passed": 4,
+    "contract_tests_run": 4,
+    "default_python_duration_seconds": 126.816,
+    "default_python_tests_passed": 557,
+    "default_python_tests_run": 557,
+    "default_python_tests_skipped": 0,
+    "deploy_job": "skipped",
+    "log_lines": [
+      164,
+      166,
+      167,
+      174,
+      176
+    ],
+    "upload_pages": "skipped"
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "files": [
+    {
+      "path": "CHANGELOG.conflict.txt",
+      "bytes": 3901,
+      "sha256": "6d730b897b558de3b849b254ceccc744710840f70b375184b3a3e8b535be6e33"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2795,
+      "sha256": "0052c0a28229853060d33baed20d5e6de46781cb4e4b405bebc4340fc048a472"
+    },
+    {
+      "path": "base-context.diff",
+      "bytes": 6765,
+      "sha256": "ae81b89b062d474aeb51f56933f0773db536d171524fa75cab8026f56f8960e0"
+    },
+    {
+      "path": "cleanup.json",
+      "bytes": 234,
+      "sha256": "89f4dfa74e802cfbc1749bfc22db9a8f9d3d2b11fd42bb298a695387cfba2662"
+    },
+    {
+      "path": "fetch.log",
+      "bytes": 88,
+      "sha256": "0081aa3b150bb820813939768571dce57a0a84857e53b6f1125690e8da79ae67"
+    },
+    {
+      "path": "implementation.patch",
+      "bytes": 127544,
+      "sha256": "897260a23ea21cd2f59cfffa0658da87daeeb04b40ec5582025c421315f9edc6"
+    },
+    {
+      "path": "inputs.log",
+      "bytes": 2077,
+      "sha256": "f39906dbc51d822d5044b902a0f69327b6044e565d4840a268071ba538fae50f"
+    },
+    {
+      "path": "main-context.log",
+      "bytes": 8827,
+      "sha256": "8e0dbe10832bd453d03f36fb508661b3ae2c02e0fc56594be3d2c17df95cced8"
+    },
+    {
+      "path": "old-d2.patch",
+      "bytes": 127562,
+      "sha256": "6f325a4053036c3c395d47d23c7b764618eaa7775463c805db1ff3e45e0e2a1a"
+    },
+    {
+      "path": "old-tip-to-new-tip.diff",
+      "bytes": 6867,
+      "sha256": "2ccba54ec3b7f9e41b3547836b0cdabfa6e921ffd4119165b631b79e72655500"
+    },
+    {
+      "path": "pre-rebase-binding.json",
+      "bytes": 2887,
+      "sha256": "6bba0364017b325d3c338b52dd6c29305e8baf6b5fc35488e7389fa797894e79"
+    },
+    {
+      "path": "range-diff.txt",
+      "bytes": 913,
+      "sha256": "0750333008a37d4546c7820f9be03f6e5c351fc5937dbdb3c0af55e5f3327fdd"
+    },
+    {
+      "path": "rebase-command.json",
+      "bytes": 296,
+      "sha256": "0c4012397941481d5f90d37ac874f87a15f95456530ba1a4a88e8352d4b74f62"
+    },
+    {
+      "path": "rebase-continue.log",
+      "bytes": 687,
+      "sha256": "d7a01dc56f69785b39013d9862923bcbceac6ee6ea4cced464cf67bc84e6a43a"
+    },
+    {
+      "path": "rebase.log",
+      "bytes": 562,
+      "sha256": "8336a806570c88ddde2e7f5dfd9548e59dd69a5dc258cdebd250aab2ba8b0ed7"
+    },
+    {
+      "path": "resolution.json",
+      "bytes": 615,
+      "sha256": "e419203bc8963f6b2928e1d71a00b5df49b6e37ab2163126079417ac5b6164d9"
+    },
+    {
+      "path": "sdk-receipt.json",
+      "bytes": 1845,
+      "sha256": "644373f75487a9e463c76eceaef3ecfc3293e5a1a3957f5f22182c4854909525"
+    },
+    {
+      "path": "sdk.log",
+      "bytes": 5212,
+      "sha256": "cd1ae75e4464fd1db8dc4e82697683b62dd57354055d45bd5a114f82cdaee8dd"
+    },
+    {
+      "path": "source/.github/workflows/object-storage-provider-contract.yml",
+      "bytes": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": "source/CHANGELOG.md",
+      "bytes": 3561,
+      "sha256": "a4632a63c52de68e820678a85f1d1e85d2bf765981ded512fd80e4a299288478"
+    },
+    {
+      "path": "source/docs/object-storage-delivery.md",
+      "bytes": 14213,
+      "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60"
+    },
+    {
+      "path": "source/requirements-object-storage-provider.lock",
+      "bytes": 36702,
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+    },
+    {
+      "path": "source/scripts/aliyun-object-storage-provider.py",
+      "bytes": 24964,
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802"
+    },
+    {
+      "path": "source/scripts/verify-object-storage-delivery-inputs.py",
+      "bytes": 11718,
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 27245,
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed"
+    },
+    {
+      "path": "source/tests/test_object_storage_delivery_inputs.py",
+      "bytes": 15586,
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55"
+    },
+    {
+      "path": "source-binding-attempt-1.json",
+      "bytes": 296,
+      "sha256": "e30857f46698340eba497d4a1903cdf9d76f5b3490718fc3b16b7d26726e3f9e"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 2690,
+      "sha256": "391a28e23d16ec436e862f15edcb360deee397692dbdbaad14d133af70ac7ebe"
+    },
+    {
+      "path": "validation-runs.json",
+      "bytes": 1458,
+      "sha256": "a967be5e2d11369451c26f391f2304f9c6641f55ca208f728981a9def7fc9050"
+    },
+    {
+      "path": "validation-summary.json",
+      "bytes": 977,
+      "sha256": "533515865aee4b70ab49bc159c078910e55da10c82b11f5b1f2d737e00d8cd6c"
+    }
+  ],
+  "total_bytes": 440747
+}

@@ -1,0 +1,9 @@
+Auto-merging CHANGELOG.md
+CONFLICT (content): Merge conflict in CHANGELOG.md
+Rebasing (1/1)
+error: could not apply eae1afc... Add optional OSS/CDN SDK library and fresh input contracts
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply eae1afc... Add optional OSS/CDN SDK library and fresh input contracts

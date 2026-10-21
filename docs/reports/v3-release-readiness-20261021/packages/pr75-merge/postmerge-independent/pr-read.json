@@ -1,0 +1,10 @@
+{
+  "endpoint": "repos/WuKongIM/packages/pulls/75",
+  "exit_code": 0,
+  "method": "GET",
+  "observed_at": "2026-10-21T17:27:39.140694+00:00",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 20081,
+  "stdout_sha256": "fefdf1dea4052f000fb8c2ea5196414121c167de769d0cbf361dad819d74b1bf"
+}

@@ -1,0 +1,4 @@
+Add optional OSS/CDN SDK library and fresh input contracts
+
+Keep production activation unsupported; bind full configuration observations
+before writes and reject SDK debug logging before credential-bearing calls.

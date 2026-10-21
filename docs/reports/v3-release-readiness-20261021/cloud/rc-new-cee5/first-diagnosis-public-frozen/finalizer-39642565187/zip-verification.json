@@ -1,0 +1,153 @@
+{
+  "complete_zip_sha256": "a74b828be1a383d34bb8779bba4ed7473e51461ef6826c2d6d1a22afef415ccf",
+  "bytes": 855906,
+  "api_digest_match": true,
+  "crc_pass": true,
+  "members": [
+    {
+      "name": "deployment-outcome.json",
+      "size": 2497,
+      "sha256": "ae586cfe0b0229e6156b339e46afa7a54a3fd52e88183c3b015058d8dde7ae8b"
+    },
+    {
+      "name": "deployment-ssh-config",
+      "size": 849,
+      "sha256": "fc413b9235abb8b30a107767beffee39790a24107ae181fb29dfaf34f3371921"
+    },
+    {
+      "name": "deployment-plan.json",
+      "size": 3172,
+      "sha256": "2815ec2f3999bf54b725b986faf4b91e08f646793f83bb59634cb3d14d3c0543"
+    },
+    {
+      "name": "deployment-ssh-config.known_hosts",
+      "size": 373,
+      "sha256": "273c1c885b6f2e123694ecf6bc2e03af1a685afeefef1669b66861119c0cbb96"
+    },
+    {
+      "name": "diagnosis-window.json",
+      "size": 471,
+      "sha256": "43fd5773e8c8d14172d015319f15d7adc3fcbcea80a1b78b10f661342399159c"
+    },
+    {
+      "name": "evidence/logs/load.log",
+      "size": 56912,
+      "sha256": "f0a564134f69a17463cc71590625cf4fd495869594fb609230c8957ef753c3f5"
+    },
+    {
+      "name": "evidence/logs/service-1.log",
+      "size": 46440,
+      "sha256": "ce2f4576fe5c437b824174a3479d5a4cc3d853399a657b70d9046ade2733d732"
+    },
+    {
+      "name": "evidence/logs/service-2.log",
+      "size": 41541,
+      "sha256": "caaadfc707169f879742d9a37b85c0c25ad5a8a21cb48e60e32baffbc7a38aba"
+    },
+    {
+      "name": "evidence/logs/service-3.log",
+      "size": 41661,
+      "sha256": "c5bbedec9ec4a2d3e62d276eb6f8943d357d79523f26f3bff1d31735d8dfdbce"
+    },
+    {
+      "name": "evidence/manifest.json",
+      "size": 2217,
+      "sha256": "d5a80ac1ab78fdb7cb17ae456731d60b23c2d672d535a745ba6bb545e8812d16"
+    },
+    {
+      "name": "evidence/metrics/prometheus-targets.json",
+      "size": 4693,
+      "sha256": "95590329bea25f1d45a96d8bc235a8401075074eed332f601ca4d2cb74584c66"
+    },
+    {
+      "name": "evidence/profiles/service-1-goroutine.pprof",
+      "size": 11218,
+      "sha256": "f5bf72dc74992f22178fec4620f11341f9b8de60f628b541bfff644a568c645f"
+    },
+    {
+      "name": "evidence/profiles/service-1-heap.pprof",
+      "size": 270529,
+      "sha256": "8418e1ac06761a0e3b743f24294bcb8d11c04642089743f65ef3c98ed0074bec"
+    },
+    {
+      "name": "evidence/profiles/service-2-heap.pprof",
+      "size": 259634,
+      "sha256": "f9d38d76eccf789474534c30caf162e108461615d166fb9d50bd1a4f360bb554"
+    },
+    {
+      "name": "evidence/profiles/service-2-goroutine.pprof",
+      "size": 10895,
+      "sha256": "2713cfd98b9813b18ac5adee88e9f0f13f67aea4deb4b67e55fab4ebe1a9612e"
+    },
+    {
+      "name": "evidence/profiles/service-3-goroutine.pprof",
+      "size": 10892,
+      "sha256": "a8c92dca328efe821b6e02acad57b5fc38689b4808e0d0f7bfc8bfb0fd2cc115"
+    },
+    {
+      "name": "evidence/profiles/service-3-heap.pprof",
+      "size": 257703,
+      "sha256": "0f056e0f277d0036105cdde32adc1819affe5a67284e0e1d6143f562e776a031"
+    },
+    {
+      "name": "evidence/system/load.txt",
+      "size": 1306,
+      "sha256": "7fa5247bf2af0378f997d277c7ac30add09570c9fa036060d0744ae1b1d49647"
+    },
+    {
+      "name": "evidence/system/service-1.txt",
+      "size": 575,
+      "sha256": "e9bff340cbb138ba501bb6896b0488a7fd1448f316e2bd0f0eed246a5bdb3ff2"
+    },
+    {
+      "name": "evidence/system/service-2.txt",
+      "size": 575,
+      "sha256": "e9bff340cbb138ba501bb6896b0488a7fd1448f316e2bd0f0eed246a5bdb3ff2"
+    },
+    {
+      "name": "evidence/system/service-3.txt",
+      "size": 575,
+      "sha256": "e9bff340cbb138ba501bb6896b0488a7fd1448f316e2bd0f0eed246a5bdb3ff2"
+    },
+    {
+      "name": "final.json",
+      "size": 23867,
+      "sha256": "80855a67613686c2860b9982564c516dd88f472537b8487290cd7d48ab966616"
+    },
+    {
+      "name": "final.md",
+      "size": 24203,
+      "sha256": "591cef520b2f4d63b87e796e0f6f18171a2f48f90acaf1325d24ee1d2fe0823e"
+    },
+    {
+      "name": "handoff.json",
+      "size": 499,
+      "sha256": "d5ec0a4eaeafef3276c57dec0fda6aa43a1d95dccb97cc0952a757641bbaff9f"
+    },
+    {
+      "name": "quote.json",
+      "size": 1842,
+      "sha256": "b8d275028df206d86e8f200b4d4014d02e1fcf7d857386a9052b1489ef3ca917"
+    },
+    {
+      "name": "receipt.json",
+      "size": 41130,
+      "sha256": "49d2851054312349017c8e8b8f2734cc16b65861e1b82ccada4165fb5d7b0dbf"
+    },
+    {
+      "name": "rehearsal-result.json",
+      "size": 172,
+      "sha256": "703af77e516698eff6a33bef053cb8b990a4bcff523319fa09222d01ebf8e8ef"
+    },
+    {
+      "name": "run-plan.json",
+      "size": 2361,
+      "sha256": "769d8819a7e29a61a6ce9828b1a34672f48b28fca3e27e03814c89eff5e7302c"
+    },
+    {
+      "name": "run-start.json",
+      "size": 398,
+      "sha256": "dadfba49cf6e0bff7cd5ac704ad9e2b0c6eb7b29b4e2e848861f927e97c02570"
+    }
+  ]
+}

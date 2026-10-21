@@ -1,0 +1,7 @@
+{
+  "exit_code": 1,
+  "terminal": true,
+  "stage": "audit old-tip-to-new-tip raw patch byte equality",
+  "cause": "CHANGELOG D2 insertion shifts diff hunk line offsets; raw patches are not byte-identical even though inherited contents are. No source or test failure.",
+  "tests_started": false
+}

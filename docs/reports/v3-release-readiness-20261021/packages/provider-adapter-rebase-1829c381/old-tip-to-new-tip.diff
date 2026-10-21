@@ -1,0 +1,101 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5e7b405..c0fab7f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,9 +7,9 @@
+   bound before writes and credential logging rejected before SDK entry. Production
+   activation remains unsupported.
+ 
+-- Make TEST ONLY DNF generation-switch acceptance independent of metadata cache
+-  age, with explicit A metadata reuse and verified exact-A delivery through the
+-  planned B mirrorlist and payload prefix. Production client policy is unchanged.
++- Keep TEST ONLY DNF generation-switch metadata selected across makecache
++  shutdown and download, with verified exact-A delivery through the planned B
++  mirrorlist and payload prefix. Production client policy is unchanged.
+ 
+ - Prepare exact preview/composite object-storage deliveries locally and exercise
+   create-only upload, routing and acceptance failures through explicit simulated
+diff --git a/docs/stable-audit-transport.md b/docs/stable-audit-transport.md
+index e6739b5..e20a083 100644
+--- a/docs/stable-audit-transport.md
++++ b/docs/stable-audit-transport.md
+@@ -146,11 +146,13 @@ The four digest-pinned Ubuntu, Debian, Rocky Linux and AlmaLinux download
+ clients use an internal Docker network and an ephemeral CA for the exact
+ `packages.githubim.com` name. A deterministic server switches after serving A's
+ InRelease or mirrorlist. APT retains A's authenticated by-hash indexes. The RPM
+-switch case first runs the normal signed `makecache --refresh`, then sets only
+-that case's second DNF invocation to `wukongim-stable.metadata_expire=-1` so it
+-uses the already authenticated A metadata. With the packaged `metadata_expire=0`,
+-two separate DNF invocations can instead refresh to B as A's cache ages; a
+-request barrier alone does not pin a transaction across those invocations.
++switch case sets `wukongim-stable.metadata_expire=-1` on both DNF invocations.
++The first still runs signed `makecache --refresh` to authenticate fresh A; the
++second reuses that selected metadata. DNF can persist an explicit expired state
++when `makecache` exits under the packaged `metadata_expire=0` policy, causing the
++next command to refresh to B even with its own expiry value set to -1. Holding
++the same test policy across both phases prevents that teardown boundary from
++changing the selected generation. No persisted state or metadata mtime is edited.
+ The explicit second phase keeps the floating mirrorlist and must record B's
+ exact planned mirrorlist response before an exact-A payload response under B's
+ planned prefix, within the same case. An A-only download or another retained
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index 53188dc..77876f7 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -442,7 +442,7 @@ def fixture_user():
+ 
+ 
+ def download_client_command(validator, image, downloads, certificate, family, bootstrap, *, mode):
+-    """Hold selected RPM metadata only during the TEST ONLY switch download phase."""
++    """Hold RPM selection across both TEST ONLY switch phases and DNF teardown."""
+     command = validator.stable_client_command(image, downloads, certificate, family, bootstrap)
+     if family == 'rpm' and mode == 'rpm-switch':
+         first = 'dnf "${dnf_options[@]}" makecache --refresh'
+@@ -451,10 +451,12 @@ def download_client_command(validator, image, downloads, certificate, family, bo
+         require(script.count(first) == 1 and script.count(second) == 1
+                 and script.index(first) < script.index(second), 'ambiguous RPM switch phase boundaries')
+         command = list(command)
+-        # Separate DNF invocations otherwise permit metadata_expire=0 to select
+-        # B after A's response barrier. This explicit phase still downloads via
+-        # the floating mirrorlist; all normal and cache cases keep native policy.
+-        command[-1] = script.replace(second,
++        # DNF can persist explicit expiry when makecache exits. Hold the same
++        # policy in both phases, while --refresh still authenticates fresh A.
++        # The download still uses the floating mirrorlist; other cases keep
++        # native policy and their persistent-cache checks.
++        command[-1] = script.replace(first,
++            'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 makecache --refresh').replace(second,
+             'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 install --downloadonly')
+     return command
+ 
+diff --git a/tests/test_native_stable_clients_drill.py b/tests/test_native_stable_clients_drill.py
+index 565622e..8ea7d6b 100644
+--- a/tests/test_native_stable_clients_drill.py
++++ b/tests/test_native_stable_clients_drill.py
+@@ -181,7 +181,7 @@ class NativeStableClientsTests(unittest.TestCase):
+                          lambda *args: (_ for _ in ()).throw(RuntimeError('interrupted')))
+         self.assertFalse(owned.cleanup()['verified'])
+ 
+-    def test_switch_download_command_preserves_everything_except_second_rpm_phase(self):
++    def test_switch_download_command_holds_both_rpm_phases_with_initial_refresh(self):
+         drill = load()
+         validator = drill.module('scripts/validate-production-package-clients.py')
+         with tempfile.TemporaryDirectory() as tmp:
+@@ -199,9 +199,17 @@ class NativeStableClientsTests(unittest.TestCase):
+                             expected = list(original)
+                             if family == 'rpm' and mode == 'rpm-switch':
+                                 expected[-1] = expected[-1].replace(
++                                    'dnf "${dnf_options[@]}" makecache --refresh',
++                                    'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 makecache --refresh').replace(
+                                     'dnf "${dnf_options[@]}" install --downloadonly',
+                                     'dnf "${dnf_options[@]}" --setopt=wukongim-stable.metadata_expire=-1 install --downloadonly')
+                             self.assertEqual(value, expected)
++                            if family == 'rpm' and mode == 'rpm-switch':
++                                phases = [line for line in value[-1].splitlines() if line.startswith('dnf "${dnf_options[@]}"')]
++                                self.assertEqual(len(phases), 2)
++                                self.assertTrue(phases[0].endswith(' makecache --refresh'))
++                                self.assertIn(' install --downloadonly', phases[1])
++                                self.assertTrue(all(line.count('--setopt=wukongim-stable.metadata_expire=-1') == 1 for line in phases))
+                     self.assertEqual(validator.stable_client_command('fixed-image', root, cert, family, bootstrap), original)
+ 
+     def test_switch_download_command_rejects_ambiguous_phase_boundaries(self):

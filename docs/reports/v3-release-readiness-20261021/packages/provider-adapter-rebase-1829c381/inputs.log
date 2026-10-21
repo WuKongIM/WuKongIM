@@ -1,0 +1,15 @@
+test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time (test_object_storage_delivery_inputs.FreshInputContract.test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time) ... ok
+test_current_historical_candidate_and_seal_controls_remain_distinct (test_object_storage_delivery_inputs.FreshInputContract.test_current_historical_candidate_and_seal_controls_remain_distinct) ... ok
+test_fence_rechecks_exact_fresh_anchors_and_local_digests (test_object_storage_delivery_inputs.FreshInputContract.test_fence_rechecks_exact_fresh_anchors_and_local_digests) ... ok
+test_library_has_no_production_entrypoint_or_history_execution (test_object_storage_delivery_inputs.FreshInputContract.test_library_has_no_production_entrypoint_or_history_execution) ... ok
+test_nonancestor_seal_current_main_and_historical_blob_fail_closed (test_object_storage_delivery_inputs.FreshInputContract.test_nonancestor_seal_current_main_and_historical_blob_fail_closed) ... ok
+test_original_plan_digest_is_checked_before_github_or_any_writer (test_object_storage_delivery_inputs.FreshInputContract.test_original_plan_digest_is_checked_before_github_or_any_writer) ... ok
+test_test_only_composite_and_arbitrary_authority_are_rejected (test_object_storage_delivery_inputs.FreshInputContract.test_test_only_composite_and_arbitrary_authority_are_rejected) ... ok
+test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified (test_object_storage_delivery_inputs.FreshPreviewWire.test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified) ... ok
+test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair (test_object_storage_delivery_inputs.FreshPreviewWire.test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair) ... ok
+test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions (test_object_storage_delivery_inputs.ProviderWorkflowContract.test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.278s
+
+OK

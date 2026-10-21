@@ -1,0 +1,21 @@
+{
+  "head": "2368c8745853d7d8ad82e706a6e7980842526241",
+  "base": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "head_tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "synthetic_checkout": "ad21627263826e7f1e61f965a8a44fa383cd152a",
+  "synthetic_tree": "2119196cef38a159f23a8f5c47f8878e4fde8399",
+  "merge_parents": [
+    "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+    "2368c8745853d7d8ad82e706a6e7980842526241"
+  ],
+  "all_three_job_logs_contain_actual_checkout": [
+    "pages-job.log",
+    "legacy-native-job.log.gz",
+    "stable-job.log"
+  ],
+  "stable_receipt_control": {
+    "checkout_sha": "ad21627263826e7f1e61f965a8a44fa383cd152a",
+    "tree": "2119196cef38a159f23a8f5c47f8878e4fde8399"
+  },
+  "head_unchanged_after_terminal": true
+}

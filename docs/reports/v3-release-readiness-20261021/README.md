@@ -371,3 +371,9 @@ immutable publication and signed native-package public-client acceptance.
 - [D2初稿](packages/provider-adapter-implementation/README.md)与[首审](packages/provider-adapter-review/combined-review-v1.md)：1项历史tests-first过程偏离、2项具体实现P2保留；SDK修复中，未启用生产。
 
 - [新RC部署与真实run-start](cloud/rc-new-cee5/deployment-run-start-public-frozen/README.md)：北京时间01:05:48→03:05:48预演，身份/预算/父链/selector闭合；尚无2h/72h或零库存结论。
+
+- [云预演首个运行时失败](cloud/rc-new-cee5/first-diagnosis-public-frozen/README.md)：61.212秒message_loss、1条采样过期，诊断窗至北京时间03:06:50；metrics/range超4MiB，根因与清理尚待核实。
+- [#75第三代完整首次CI](packages/pr75-ci-generation-3/README.md)：557零skip+4、完整签名仓库与49/49客户端场景全通过；随后正常合并为1829c381，同验收tree。
+- [D2第二版修复](packages/provider-adapter-repair-v2/README.md)、[独立并行复核](packages/provider-adapter-review-v2/combined-review.md)与[原本地提交](packages/provider-adapter-delivery-preparation/README.md)：两项Spec问题关闭，保留历史tests-first过程P2；新head Linux仍待验收，生产激活不支持。
+
+- [#75普通合并与独立后置检查](packages/pr75-merge/README.md)：1829c381同验收tree，557零skip+4再次通过、部署跳过，原非祖先分支/worktree保留。

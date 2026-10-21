@@ -1,0 +1,22 @@
+# D2 Spec repair v2
+
+Eight-file D2 change remains uncommitted at base/head `d824fe37918ee4ef22b1b1745bc02518812563e3` (tree `50e099e7adcda9e205c9862dad7e1071022d2a3c`). This repair changes only provider implementation, its SDK tests, operator documentation and CHANGELOG relative to v1. Input library/tests, lock and new CI are byte-identical. `source-freeze.json` binds the complete patch and source copies; `repair-implementation.diff` isolates the four-file repair. All 116 other tracked files and all original public evidence hashes were verified unchanged.
+
+## Two Spec findings addressed
+
+1. The complete configuration observation now contains exact resource identity digest and domain. Before management interpretation, the library deep-copies the observation, requires its exact complete shape, recomputes the digest over all observed fields, and checks its resource/domain binding. A fresh complete observation must match before any configuration write. Removing unmanaged/unknown rows, rearranging rows, changing domain/resource or supplying incomplete/extra fields cannot use an old digest; re-hashing a hidden row fails the fresh fence. Cross-principal observations fail even with identical CDN configuration. Exact same-resource managed updates remain supported.
+2. SDK debug state is checked before constructing credential-bearing clients and before each controlled RPC/OSS SDK entry; transport retains its additional check. The real Core DEBUG log can no longer receive a token first. Production changes neither global logger/environment nor SDK logger objects. Core has a global module logger: callers must keep debug disabled throughout an operation, including concurrent code. This guard does not claim isolation from concurrent global logger reconfiguration.
+
+## Genuine tests-first repair
+
+Five new SDK test methods and all their negative/positive subcases were written before modifying implementation. `first-red-source/` preserves both exact test bytes and the unchanged v1 provider (`f41d6980…`). `first-red.json/.log` record exit 1: 22 methods, 24 failing subcases covering both actual review probes. The method for legitimate managed updates is a positive control and already passed. No failure was invented by removing implementation. `sdk-green.json/.log` bind unchanged new test bytes to repaired source: 22 passed, zero skips/errors/failures. The debug test covers explicit client DEBUG, inherited package/root DEBUG, environment debug, construction and every public operation, checking zero transport calls, absence of fake credentials from captured logs and unchanged logger state.
+
+The **original Standards process P2 remains**: two v1 HTTP wiring unit tests were written after their corresponding implementation and first ran green. That violated the project's tests-first requirement. Their useful tests and original history are preserved. This repair cannot erase that violation, and the entire D2 change is not described as tests-first.
+
+## Validation and boundaries
+
+The unchanged v1 hash-locked virtual environment executes real official SDK serialization with injected HTTP fixtures; sockets are forbidden and credentials are visibly fake. SDK 22 passed. Focused input 10 passed. The final default suite completed in 124.93 seconds under its 360-second deadline: 567 passed, one existing skip because real RPM build tools are unavailable. All eight source hashes stayed unchanged; its final terminal receipt is `all-default-final.json`. `validation-summary.json` supplies final counts/status. No dependency changes require another installation. `git diff --check` and four Python AST parses pass.
+
+Production `activate()` still unconditionally refuses. Static rewrite candidates are not live PCRE/query/encoding/POP equivalence or release acceptance. No producer/materializer/client-validator changes, production writer, origin/TLS/public-client proof, resource/permission changes, real credentials, private keys, provider requests, commit, push, PR or CI dispatch occurred. Complete production-shaped v2/native-signature positive integration and new Linux CI remain unverified. The old #75 base still needs the parent's eventual accepted-head rebase.
+
+Only the bounded files in `public-evidence-manifest.json` may be published. No dependency environments or test scratch directories are included. The original evidence directory is immutable; the prior hash-locked environment remains there only for reproduction. All process status and final source consistency are recorded in `cleanup.json`.

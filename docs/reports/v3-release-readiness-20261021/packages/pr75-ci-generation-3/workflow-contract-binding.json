@@ -1,0 +1,27 @@
+{
+  "head": "2368c8745853d7d8ad82e706a6e7980842526241",
+  "files": {
+    "README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871
+    },
+    "docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "bytes": 13654
+    },
+    ".github/workflows/pages.yml": {
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "bytes": 3104
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+      "bytes": 15073
+    }
+  },
+  "rules": "No package AGENTS/FLOW/CONTRIBUTING or workflow README; user AGENTS and existing release docs/workflows apply.",
+  "observer_scope": "Read only; no rerun/dispatch/cancel/source/PR/merge/provider operations."
+}

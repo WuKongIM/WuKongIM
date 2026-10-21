@@ -1,0 +1,148 @@
+{
+  "schema": "wukongim.bounded-public-evidence/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4536,
+      "sha256": "2c101bab17811ae163250fd8faa293072ea71e0d327ab59d7c7d7ee4b8739c85"
+    },
+    {
+      "path": "all-default-final.json",
+      "bytes": 1348,
+      "sha256": "94e90e5b06a25cfb2bf1eaa87eba69292ca2c7720738405821a110188e246730"
+    },
+    {
+      "path": "all-default-final.log",
+      "bytes": 104541,
+      "sha256": "4724bfc4fa4d5c8b9e636033120d729d5e5740e3b3b355d1f6dc09ed6e8dd524"
+    },
+    {
+      "path": "cleanup.json",
+      "bytes": 421,
+      "sha256": "602c0f11072aa72f52427d3892d609fc42db8ff03a0bf633f06ac30d8f869c0d"
+    },
+    {
+      "path": "failure-inventory.md",
+      "bytes": 1801,
+      "sha256": "22dafc90260b372f3faf370f16b2e4e4db6642575c73a403b63dc7adb9854e1c"
+    },
+    {
+      "path": "first-red-receipt.json",
+      "bytes": 1846,
+      "sha256": "1687fda80456ad4f9da08d72444f08285a0cfc4b0ef40b4011837b88786014dc"
+    },
+    {
+      "path": "first-red-source/scripts/aliyun-object-storage-provider.py",
+      "bytes": 23486,
+      "sha256": "f41d6980b1c0a02a2f9e0d58e7329d293d349c6605a9a8c4b5a7fe6ddcdf5200"
+    },
+    {
+      "path": "first-red-source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 27245,
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed"
+    },
+    {
+      "path": "first-red.json",
+      "bytes": 828,
+      "sha256": "c3acdc7f5539cd48f0b6bc07f2751e29b8e26755bce56ba16d857cedb8d911ec"
+    },
+    {
+      "path": "first-red.log",
+      "bytes": 32247,
+      "sha256": "7663632d8021353f3fc956d357b765f6ff6033a8e1e52e93aac5616463872f5a"
+    },
+    {
+      "path": "implementation.patch",
+      "bytes": 127562,
+      "sha256": "efc866f8754997b850ba2c6b618f1e752b2dec98c6fca6d0e747a7be11382c2e"
+    },
+    {
+      "path": "initial-binding.json",
+      "bytes": 3207,
+      "sha256": "8eedb9087e961010b5a5c501909d6292078c2c92384ea5d0bc50a357a605e99d"
+    },
+    {
+      "path": "inputs-final.json",
+      "bytes": 1375,
+      "sha256": "2e959507f1ef0b75bd6bfb8a58ea354c8c8d5c628d62101219a83531d48cd46f"
+    },
+    {
+      "path": "inputs-final.log",
+      "bytes": 2077,
+      "sha256": "a582d11c06f57c27e861510c09ef14f531099361c469723c8fb321f88eb24e14"
+    },
+    {
+      "path": "repair-implementation.diff",
+      "bytes": 15586,
+      "sha256": "e6fad33b635068000cf3178422ea0b50f95eff019fa4e1acd3cb40056dffcaca"
+    },
+    {
+      "path": "sdk-green-receipt.json",
+      "bytes": 1845,
+      "sha256": "49ca3705cc83c0d77af4fecae5fbb95229664c2557fe25cd052265ba704e1af9"
+    },
+    {
+      "path": "sdk-green.json",
+      "bytes": 689,
+      "sha256": "063978d44269dc047912766093459890dac70b894a41b6495b70fa2f6563539c"
+    },
+    {
+      "path": "sdk-green.log",
+      "bytes": 5212,
+      "sha256": "624d0eba5775193024d6c4093dae3685c24a1ef86d859b6ffd03ad0a192dfc4b"
+    },
+    {
+      "path": "source/.github/workflows/object-storage-provider-contract.yml",
+      "bytes": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": "source/CHANGELOG.md",
+      "bytes": 3579,
+      "sha256": "fb4f2956bca59efa93124ee9944eb9fc1906d65e1bcfc7f8cb78c5b4487efe50"
+    },
+    {
+      "path": "source/docs/object-storage-delivery.md",
+      "bytes": 14213,
+      "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60"
+    },
+    {
+      "path": "source/requirements-object-storage-provider.lock",
+      "bytes": 36702,
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+    },
+    {
+      "path": "source/scripts/aliyun-object-storage-provider.py",
+      "bytes": 24964,
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802"
+    },
+    {
+      "path": "source/scripts/verify-object-storage-delivery-inputs.py",
+      "bytes": 11718,
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 27245,
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed"
+    },
+    {
+      "path": "source/tests/test_object_storage_delivery_inputs.py",
+      "bytes": 15586,
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 2859,
+      "sha256": "55768ada50c4f42fe0f57e72d692d8f2502303dbbb35943a7c96272fdaa88086"
+    },
+    {
+      "path": "validation-summary.json",
+      "bytes": 676,
+      "sha256": "d4c66b31cb977ffa2f391217be585b4d7a6a99716e06cd497cec55a26cdc057e"
+    }
+  ],
+  "total_bytes": 495054,
+  "excludes_dependency_environments": true,
+  "credentials": "TEST ONLY literals in regressions; no real credentials"
+}

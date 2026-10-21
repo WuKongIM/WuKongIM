@@ -1,0 +1,35 @@
+{
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "parent": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "results": {
+    "sdk": {
+      "tests_run": 22,
+      "passed": 22,
+      "skips": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "inputs": {
+      "tests_run": 10,
+      "passed": 10,
+      "skips": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "main-context": {
+      "tests_run": 44,
+      "passed": 44,
+      "skips": 0,
+      "failures": 0,
+      "errors": 0
+    }
+  },
+  "git_diff_check": true,
+  "worktree_clean": true,
+  "source_unchanged_during_validation": true,
+  "old_evidence_unchanged": true,
+  "full_default_suite_rerun": false,
+  "reason": "D2 executable/test/lock/workflow bytes unchanged; main delta is isolated to the existing native-client test seam, covered by its focused suite. Prior full result remains evidence for the old base only.",
+  "all_commands_terminal": true
+}

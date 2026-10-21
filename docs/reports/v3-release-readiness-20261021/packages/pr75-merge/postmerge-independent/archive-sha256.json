@@ -1,0 +1,137 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "78b3f92d7128fead923cdf47db313f39ace8dbec9631ea4794fd3643e24b47b3",
+      "size": 1683
+    },
+    {
+      "path": "artifacts-read.json",
+      "sha256": "3b7f252a95bfb25bd768fa78decda7dee0cce24b66fb87cc9bb81a067e69e0e0",
+      "size": 399
+    },
+    {
+      "path": "artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "size": 32
+    },
+    {
+      "path": "git-readonly-proof.json",
+      "sha256": "c48f3e35796900b0db98429d19710f5620e3204e68b3af6f6c6f3cac0bd10736",
+      "size": 3995
+    },
+    {
+      "path": "job-119371905197.log",
+      "sha256": "bb8c58d41c12a352bad33bec00f1d0e9449b836cec421347fac4741b7ba5ecdd",
+      "size": 19058
+    },
+    {
+      "path": "job-log-read.json",
+      "sha256": "1541ed10d46fef79c46312e4b53025ce715afa7bcdea4f3602de13b211db4c48",
+      "size": 581
+    },
+    {
+      "path": "jobs-read.json",
+      "sha256": "d0620fb0137b9102e2ca6e60baba9e7bbb9d316dd84f230a0e853e4b547a085b",
+      "size": 407
+    },
+    {
+      "path": "jobs.json",
+      "sha256": "68e03bdfd78b2256fd643522fd62bfba0bb2a52e21567dff17beb2499d71f12a",
+      "size": 3035
+    },
+    {
+      "path": "main-read.json",
+      "sha256": "0f1e71b051179e95bd1859a1d470f4dbae4513564d43521f78106c1b5062d1af",
+      "size": 371
+    },
+    {
+      "path": "main.json",
+      "sha256": "ed37d1d5ac6f532196d312be914e20a1ab6dd29d2231723a6042a2c445832f9b",
+      "size": 332
+    },
+    {
+      "path": "parent-protection-after.json",
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf",
+      "size": 1292
+    },
+    {
+      "path": "parent-protection-before.json",
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf",
+      "size": 1292
+    },
+    {
+      "path": "pr-read.json",
+      "sha256": "a19ee40a39bb8fb1d0fc2004e01dd3b9cd614a203d0e9111974113fa07dc5f0c",
+      "size": 363
+    },
+    {
+      "path": "pr.json",
+      "sha256": "fefdf1dea4052f000fb8c2ea5196414121c167de769d0cbf361dad819d74b1bf",
+      "size": 20081
+    },
+    {
+      "path": "protection-read.json",
+      "sha256": "0318f3f5543cd7c7022dfa5c0fcde827a6ea3e39d7e8ca59169aab9c4fa4d452",
+      "size": 378
+    },
+    {
+      "path": "protection.json",
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf",
+      "size": 1292
+    },
+    {
+      "path": "run-read.json",
+      "sha256": "74665c682b56ed8d089410263482a88bd291d1d9c2f2e41c392507398d65799f",
+      "size": 379
+    },
+    {
+      "path": "run.json",
+      "sha256": "a529d194de8f4764fde6d0ee5023f4e238ce49155543d5c3e39466e3cfa319c6",
+      "size": 11972
+    },
+    {
+      "path": "runs-read.json",
+      "sha256": "3c55b07f54c0d80afb92b82a5ef677782eca379cd4432a4cbcb8b2abb50f2e95",
+      "size": 429
+    },
+    {
+      "path": "runs.json",
+      "sha256": "19b5208e741e5b1d05a64a0797e6b5f3601dbca57884bf8143852fdf487f783a",
+      "size": 12008
+    },
+    {
+      "path": "source/.github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "size": 3104
+    },
+    {
+      "path": "source/README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    {
+      "path": "source/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357
+    },
+    {
+      "path": "source/manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "size": 2579
+    },
+    {
+      "path": "source-binding.json",
+      "sha256": "80bb336617db9b7433bd6bc86d93cb46c6cc3308724c17afd6fca6a2e87f2a21",
+      "size": 1011
+    },
+    {
+      "path": "summary.json",
+      "sha256": "7b97021ab47c62fc8e3c63a5ef16c1e8ef4586f297acd7721883898f84ba6b3a",
+      "size": 2346
+    }
+  ],
+  "payload_bytes": 146647,
+  "payload_count": 26,
+  "schema": "public-evidence-archive/v1"
+}

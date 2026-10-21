@@ -1,0 +1,70 @@
+{
+  "branch": {
+    "argv": [
+      "git",
+      "symbolic-ref",
+      "--short",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "codex/stable-object-delivery\n"
+  },
+  "merge": {
+    "argv": [
+      "git",
+      "show",
+      "-s",
+      "--format=%H%n%T%n%P",
+      "1829c3813d6b21dcfeb1238a640604a4691815bd"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "1829c3813d6b21dcfeb1238a640604a4691815bd\n2119196cef38a159f23a8f5c47f8878e4fde8399\n11739048e27da3ab9279893600ab244cc9158b60\n"
+  },
+  "original_worktree_status": {
+    "argv": [
+      "git",
+      "status",
+      "--porcelain=v1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "tip": {
+    "argv": [
+      "git",
+      "show",
+      "-s",
+      "--format=%H%n%T%n%P",
+      "2368c8745853d7d8ad82e706a6e7980842526241"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "2368c8745853d7d8ad82e706a6e7980842526241\n2119196cef38a159f23a8f5c47f8878e4fde8399\nd824fe37918ee4ef22b1b1745bc02518812563e3\n"
+  },
+  "tip_is_merge_ancestor": {
+    "argv": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "2368c8745853d7d8ad82e706a6e7980842526241",
+      "1829c3813d6b21dcfeb1238a640604a4691815bd"
+    ],
+    "exit_code": 1,
+    "stderr": "",
+    "stdout": ""
+  },
+  "worktrees": {
+    "argv": [
+      "git",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "worktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-beta23\nHEAD feb7f21503d35133cf23df7d7ab250c5d4129e71\nbranch refs/heads/main\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-barrier-second-diagnosis\nHEAD d824fe37918ee4ef22b1b1745bc02518812563e3\nbranch refs/heads/codex/packages-barrier-second-diagnosis\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-barrier-phase\nHEAD eac9d252f13ea201b405825e6303de703af08c16\nbranch refs/heads/codex/packages-native-barrier-phase\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-delivery\nHEAD 2368c8745853d7d8ad82e706a6e7980842526241\nbranch refs/heads/codex/stable-object-delivery\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider\nHEAD dded26afa12188d5f1c036af4b9c06c3cbddb46d\nbranch refs/heads/codex/stable-object-provider\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-storage-plan\nHEAD 09360d07d0bffa3258be252d7730902041026ba8\nbranch refs/heads/codex/object-storage-plan\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-bootstrap-preparation\nHEAD fb62e03bb8ceaf300610becdc1f23ff41558c675\nbranch refs/heads/codex/stable-bootstrap-preparation\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-local-request\nHEAD c21736edcf67bac4b5c1c495d1cd18490b1d154a\nbranch refs/heads/codex/stable-local-request\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-native-clients\nHEAD 983e567f155a982c45ca066e4dc67d33851f0d24\nbranch refs/heads/codex/stable-native-clients\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-offline-candidate\nHEAD c8aae37d13787a0aceceac751d6d35bbc1d89c35\nbranch refs/heads/codex/stable-offline-candidate\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-public-keys\nHEAD 0c26496b624058db813aa1206a7910f0abae6b13\nbranch refs/heads/codex/stable-public-keys\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport\nHEAD 59549efe1074562928b8ae175faeda8778849e0e\nbranch refs/heads/codex/stable-audit-seal-transport\n\nworktree /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-source-classification\nHEAD 0ce7184bbf69472f607159f74a096e9160852843\nbranch refs/heads/codex/stable-source-classification\n\n"
+  }
+}

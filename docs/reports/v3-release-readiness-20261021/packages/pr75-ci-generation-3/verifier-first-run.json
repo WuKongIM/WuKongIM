@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "verify-receipts.py"
+  ],
+  "exit_code": 0,
+  "terminal": true,
+  "observed_at": "2026-10-21T17:20:25.641054+00:00",
+  "source_sha256": "d67e8e1c830daf6fe7f83e424a1efe7b4315b8a17f823488a5353564ccabebc1",
+  "stdout_sha256": "be8dc90463261a3a8f5fddacc716122aac33cea1b06f24b57f192d0e065ab1fd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

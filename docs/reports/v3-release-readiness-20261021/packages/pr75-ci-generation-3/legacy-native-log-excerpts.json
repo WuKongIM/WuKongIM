@@ -1,0 +1,9 @@
+{
+  "actual_checkout": "ad21627263826e7f1e61f965a8a44fa383cd152a",
+  "sha256": "263c03c98c7600b1d3d9570f1939adda16f04382bc8229420f1a0f1a65ad5ebf",
+  "decompressed_bytes": 13475517,
+  "complete_build_sign_verify_install": true,
+  "matched_lines": [
+    "2026-10-21T17:13:57.5824779Z native-package signed repository container validation passed"
+  ]
+}

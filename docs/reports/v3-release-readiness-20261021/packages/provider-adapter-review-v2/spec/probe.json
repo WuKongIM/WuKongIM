@@ -1,0 +1,287 @@
+{
+  "source_sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+  "network_allowed": false,
+  "configuration": [
+    {
+      "mode": "original-unmanaged",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "original-tampered-body",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "tampered-rehashed",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "other-domain-rehashed",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "other-resource-rehashed",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "unknown-row-hidden-rehashed",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "incomplete-observation",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "extra-field",
+      "rejected": true,
+      "write_calls": 0,
+      "state": null
+    },
+    {
+      "mode": "same-resource-managed-positive",
+      "rejected": false,
+      "write_calls": 1,
+      "state": "readback_verified",
+      "exact_managed_id": "90"
+    }
+  ],
+  "logging": [
+    {
+      "mode": "core",
+      "operation": "constructor",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "core",
+      "operation": "original-observe-resource",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "core",
+      "operation": "read-configuration",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "core",
+      "operation": "read-object",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "core",
+      "operation": "put",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "core",
+      "operation": "apply",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "core",
+      "operation": "refresh",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "constructor",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "original-observe-resource",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "read-configuration",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "read-object",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "put",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "apply",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-parent",
+      "operation": "refresh",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "constructor",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "original-observe-resource",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "read-configuration",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "read-object",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "put",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "apply",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "inherited-root",
+      "operation": "refresh",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "constructor",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "original-observe-resource",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "read-configuration",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "read-object",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "put",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "apply",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    },
+    {
+      "mode": "environment",
+      "operation": "refresh",
+      "rejected": true,
+      "adapter_calls": 0,
+      "credential_logged": false,
+      "global_state_unchanged": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "endpoint": "repos/WuKongIM/packages/git/ref/heads/main",
+  "exit_code": 0,
+  "method": "GET",
+  "observed_at": "2026-10-21T17:27:40.109484+00:00",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 332,
+  "stdout_sha256": "ed37d1d5ac6f532196d312be914e20a1ab6dd29d2231723a6042a2c445832f9b"
+}

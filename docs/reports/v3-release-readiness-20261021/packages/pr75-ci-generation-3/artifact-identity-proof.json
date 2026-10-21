@@ -1,0 +1,72 @@
+[
+  {
+    "id": 12363864713,
+    "name": "native-bootstrap-preparation-test-only",
+    "bytes": 7151,
+    "sha256": "86de90b4f2b029ba0b21f36ae3e6401703fb58a713316adad29dd0eb5f1bbee6",
+    "all_crc_verified": true,
+    "source_run": {
+      "id": 39641288253,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "2368c8745853d7d8ad82e706a6e7980842526241"
+    }
+  },
+  {
+    "id": 12365550348,
+    "name": "native-local-signing-test-only",
+    "bytes": 2797,
+    "sha256": "e0f2bfc963f847c4e263e86932270714348f994ce200f4feda8f405c219f09d3",
+    "all_crc_verified": true,
+    "source_run": {
+      "id": 39641288253,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "2368c8745853d7d8ad82e706a6e7980842526241"
+    }
+  },
+  {
+    "id": 12363559900,
+    "name": "native-source-metadata-test-only",
+    "bytes": 1268,
+    "sha256": "7eef5e5ca8c97a4d55559c1c635b1bea9971204d00e6a40c293e42c098dfa8a2",
+    "all_crc_verified": true,
+    "source_run": {
+      "id": 39641288253,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "2368c8745853d7d8ad82e706a6e7980842526241"
+    }
+  },
+  {
+    "id": 12365660307,
+    "name": "native-stable-candidate-test-only",
+    "bytes": 4187,
+    "sha256": "6523ac1152159bb6665b7ac59d366ca78eb9615a554fd6e0e1a24c2d35a65490",
+    "all_crc_verified": true,
+    "source_run": {
+      "id": 39641288253,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "2368c8745853d7d8ad82e706a6e7980842526241"
+    }
+  },
+  {
+    "id": 12365536969,
+    "name": "native-stable-four-clients-test-only",
+    "bytes": 140753,
+    "sha256": "1e60e5d7af551b06e23b8fce701f22de2cf28ca274ceb6779c2bb4b25b3f2554",
+    "all_crc_verified": true,
+    "source_run": {
+      "id": 39641288253,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "2368c8745853d7d8ad82e706a6e7980842526241"
+    }
+  }
+]

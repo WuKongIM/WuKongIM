@@ -1,0 +1,9 @@
+{
+  "id": 329938002,
+  "name": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
+  "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+  "state": "active",
+  "created_at": "2026-08-08T19:52:22.000+08:00",
+  "updated_at": "2026-10-22T00:45:02.000+08:00",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+}

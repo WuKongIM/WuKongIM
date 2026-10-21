@@ -1,0 +1,173 @@
+{
+  "observed_at": "2026-10-21T17:23:58.733761+00:00",
+  "artifact_id": 12365508721,
+  "finalizer_run_id": 39642565187,
+  "top_handoff_run_id": 39637426411,
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "exact_original_handoff_deployment_budget_receipt_bytes": true,
+  "fence_and_window_equal": true,
+  "report_verdict": {
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 12,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "window": {
+    "start": "2026-10-22T01:05:48.909224454+08:00",
+    "warmup_end": "2026-10-22T03:05:48.909224454+08:00",
+    "qualification_at": "2026-10-23T01:05:48.909224454+08:00",
+    "final_at": "2026-10-22T03:05:48.909224454+08:00",
+    "end": "2026-10-22T01:06:50.121277292+08:00",
+    "elapsed": 61212052848
+  },
+  "messages": {
+    "sent": 122002,
+    "send_attempts": 122002,
+    "first_attempts": 122002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 122002,
+    "send_rejected": 0,
+    "received": 158484,
+    "receive_acknowledged": 158484,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 1,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 1339,
+    "delivered": 1338,
+    "expired": 1,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "sync_summary": {
+    "connect_started": 10000,
+    "connect_completed": 10000,
+    "connect_failed": 0,
+    "sync_started": 10000,
+    "sync_completed": 10000,
+    "sync_failed": 0,
+    "failures": 0
+  },
+  "harness": {
+    "classification": "product_failure",
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 109573,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "diagnosis_window": {
+    "schema": "wukongim.chat_lifecycle.diagnosis_window/v1",
+    "request_id": "chat-20261021T163850Z-4ccd7506",
+    "stage": "rehearsal",
+    "state": "diagnosis_pending",
+    "started_at": "2026-10-22T01:06:50.121277292+08:00",
+    "deadline_at": "2026-10-21T19:06:50Z",
+    "observed_at": "2026-10-21T17:20:16Z",
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "aggregate_cost_micros": 20939800,
+    "operational_stop_micros": 1201044800,
+    "analysis_required": true
+  },
+  "terminal_evidence": {
+    "complete": false,
+    "capture_failures": 1,
+    "non_collected": [
+      {
+        "class": "metrics",
+        "name": "range",
+        "state": "oversized",
+        "bytes": 4194305
+      }
+    ]
+  },
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1351044800,
+    "committed_micros": 0,
+    "operational_stop_micros": 1201044800
+  },
+  "release_performed": false,
+  "zero_inventory_observed": false,
+  "root_cause_established": false,
+  "two_hour_rehearsal_pass": false,
+  "formal_started": false,
+  "report_classification_not_independent_causal_diagnosis": true,
+  "public_selected_members": [
+    "diagnosis-window.json",
+    "rehearsal-result.json",
+    "final.json",
+    "final.md",
+    "evidence/manifest.json",
+    "evidence/metrics/prometheus-targets.json",
+    "handoff.json",
+    "run-start.json",
+    "run-plan.json",
+    "deployment-plan.json",
+    "deployment-outcome.json",
+    "quote.json",
+    "receipt.json"
+  ],
+  "raw_log_profile_zip_retained_private": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5-private/remote-progress/final-12365508721.zip"
+}

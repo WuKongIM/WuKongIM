@@ -1,0 +1,26 @@
+[
+  {
+    "name": "native-source-metadata",
+    "cases": 7,
+    "transport_cases": 0,
+    "passed": true
+  },
+  {
+    "name": "native-local-signing",
+    "cases": 10,
+    "transport_cases": 0,
+    "passed": true
+  },
+  {
+    "name": "native-bootstrap-preparation",
+    "cases": 6,
+    "transport_cases": 0,
+    "passed": true
+  },
+  {
+    "name": "native-stable-candidate",
+    "cases": 31,
+    "transport_cases": 8,
+    "passed": true
+  }
+]

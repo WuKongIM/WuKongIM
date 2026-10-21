@@ -1,0 +1,10 @@
+{
+  "endpoint": "repos/WuKongIM/packages/branches/main/protection",
+  "exit_code": 0,
+  "method": "GET",
+  "observed_at": "2026-10-21T17:27:41.060561+00:00",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 1292,
+  "stdout_sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf"
+}

@@ -1,0 +1,77 @@
+{
+  "base": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "parents": [
+    "1829c3813d6b21dcfeb1238a640604a4691815bd"
+  ],
+  "branch": "codex/stable-object-provider",
+  "old_tip": "eae1afc593ad70f3259798bcb40e90b3c7878959",
+  "old_parent": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "worktree_clean": true,
+  "single_replayed_commit": true,
+  "files": [
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "same_as_reviewed_v2": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "a4632a63c52de68e820678a85f1d1e85d2bf765981ded512fd80e4a299288478",
+      "bytes": 3561,
+      "same_as_reviewed_v2": false
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60",
+      "bytes": 14213,
+      "same_as_reviewed_v2": true
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+      "bytes": 36702,
+      "same_as_reviewed_v2": true
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+      "bytes": 24964,
+      "same_as_reviewed_v2": true
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "bytes": 11718,
+      "same_as_reviewed_v2": true
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+      "bytes": 27245,
+      "same_as_reviewed_v2": true
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "bytes": 15586,
+      "same_as_reviewed_v2": true
+    }
+  ],
+  "other_main_files_unchanged": 116,
+  "old_to_new_context_matches_inherited_base_content": true,
+  "changelog_main_bytes_match_after_removing_unchanged_D2_paragraph": true,
+  "context_changed_files": [
+    "CHANGELOG.md",
+    "docs/stable-audit-transport.md",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_stable_clients_drill.py"
+  ],
+  "patch_sha256": "897260a23ea21cd2f59cfffa0658da87daeeb04b40ec5582025c421315f9edc6",
+  "patch_bytes": 127544,
+  "no_push": true,
+  "no_pr": true,
+  "no_cloud": true
+}

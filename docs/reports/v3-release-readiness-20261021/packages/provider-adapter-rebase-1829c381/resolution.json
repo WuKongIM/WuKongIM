@@ -1,0 +1,21 @@
+{
+  "command": [
+    "git",
+    "-c",
+    "commit.gpgsign=false",
+    "-c",
+    "core.editor=true",
+    "rebase",
+    "--continue"
+  ],
+  "exit_code": 0,
+  "terminal": true,
+  "elapsed_seconds": 0.04,
+  "conflicts": [
+    "CHANGELOG.md"
+  ],
+  "resolution": "Exact new-main CHANGELOG plus unchanged D2 Unreleased paragraph; obsolete old-parent #75 wording not copied.",
+  "main_changelog_sha256": "0346dc5634de234ef67d09a24cd88e9c920a04b7b3b06401d3bfe8d0b0cf9abc",
+  "resolved_changelog_sha256": "a4632a63c52de68e820678a85f1d1e85d2bf765981ded512fd80e4a299288478",
+  "other_seven_d2_source_hashes_unchanged": true
+}
