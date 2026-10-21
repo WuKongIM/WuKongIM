@@ -8,5 +8,11 @@
   "private_material_requested_or_read": false,
   "latest_clarification_at": "2026-10-21T05:40:10.441510+00:00",
   "earlier_stable_key_existence_claim_superseded": true,
-  "current_state": "Only existing preview backup is available; independent stable keys not yet created, confirmed by user."
+  "current_state": "Only existing preview backup is available; independent stable keys not yet created, confirmed by user.",
+  "custody_environment_clarification_at": "2026-10-21T06:00:05.195258+00:00",
+  "current_available_environment": "User confirms only the current network-connected workstation and connected ZSpace NAS are available.",
+  "nas_role": "Potential encrypted backup location; not an offline or hardware signing environment.",
+  "offline_or_hardware_signing_environment_available": false,
+  "production_stable_keys_generated": false,
+  "nas_accessed_or_modified": false
 }

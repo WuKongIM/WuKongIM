@@ -1,0 +1,46 @@
+[
+  {
+    "line": 22,
+    "text": "2026-10-21T05:48:24.5209808Z ##[group]GITHUB_TOKEN Permissions"
+  },
+  {
+    "line": 23,
+    "text": "2026-10-21T05:48:24.5211999Z Contents: read"
+  },
+  {
+    "line": 24,
+    "text": "2026-10-21T05:48:24.5212682Z Metadata: read"
+  },
+  {
+    "line": 104,
+    "text": "2026-10-21T05:48:25.9716698Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +782c14602a6b243d893e6abf4d1682b7370736c4:refs/remotes/origin/main"
+  },
+  {
+    "line": 106,
+    "text": "2026-10-21T05:48:26.3676831Z  * [new ref]         782c14602a6b243d893e6abf4d1682b7370736c4 -> origin/main"
+  },
+  {
+    "line": 110,
+    "text": "2026-10-21T05:48:26.3769122Z 782c14602a6b243d893e6abf4d1682b7370736c4"
+  },
+  {
+    "line": 121,
+    "text": "2026-10-21T05:48:26.4099173Z [command]/usr/bin/git log -1 --format=%H"
+  },
+  {
+    "line": 122,
+    "text": "2026-10-21T05:48:26.4137514Z 782c14602a6b243d893e6abf4d1682b7370736c4"
+  },
+  {
+    "line": 164,
+    "text": "2026-10-21T05:48:27.4178608Z Ran 2 tests in 0.001s"
+  },
+  {
+    "line": 167,
+    "text": "2026-10-21T05:48:27.4180684Z package repository contracts passed"
+  },
+  {
+    "line": 170,
+    "text": "2026-10-21T05:49:59.9803593Z Ran 342 tests in 92.229s"
+  }
+]

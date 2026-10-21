@@ -54,6 +54,16 @@ regression attempts; it is not a published release or a long-run qualification.
   clarification confirms independent stable keys are not yet created.
 - `packages/storage-design/`: source-frozen OSS/CDN design and official sources;
   not an implemented transport or cloud authorization.
+- `review-merge/`: product PR #1016 merge evidence. The disabled Review Agent
+  observation remains preserved; the resolution records the user-authorized
+  normal administrator merge, matching source trees and verified cleanup.
+- `packages/merge/`: PR #67 rebase merge, unchanged branch protection, matching
+  source trees, and successful main validation with Pages deployment skipped.
+  The original clean checkout is retained because its pre-rebase tip is not an
+  ancestor of main; no unmerged local branch was force-deleted.
+- `packages/stable-signing-user-confirmation.json`: evolving user statements.
+  NAS availability supplies a potential encrypted-backup location, not an
+  established offline/hardware signing environment or generated stable keys.
 
 Logs and JSONL may be gzip-compressed to retain exact bytes without bloating the
 working copy. Decompress with `gzip -dc FILE.gz`; no rejected attempt is removed.

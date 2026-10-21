@@ -1,0 +1,79 @@
+{
+  "observed_at": "2026-10-21T05:53:07.064737+00:00",
+  "status": "merged_by_ordinary_administrator_path",
+  "pr_url": "https://github.com/WuKongIM/WuKongIM/pull/1016",
+  "head_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "merge_commit_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "merged_at": "2026-10-21T05:48:47Z",
+  "merged_by": "tangtaoit",
+  "merge_parents": [
+    "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+    "7e9da7df100d193330b3d509cfdbe079ea32a6f8"
+  ],
+  "candidate_and_merge_tree": "753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db",
+  "trees_equal": true,
+  "remote_main_sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "formal_reviews": [],
+  "review_agent_verdict_checks": [],
+  "review_agent_note": "The original disabled-workflow blocker was not resolved by enabling Review Agent. No automatic review/verdict was produced. The explicitly authorized ordinary administrator merge resolved the PR instead; pre-merge blocked-summary is retained unchanged.",
+  "merge_execution_provenance": {
+    "reported_by": "root task executing the user-authorized merge",
+    "ordinary_merge_without_admin_or_bypass_flag": true,
+    "read_only_api_limit": "The public merged metadata independently confirms actor, merge time, commit and state; it does not expose the command flags used for the merge."
+  },
+  "local_verification": {
+    "observed_at": "2026-10-21T05:52:31.350451+00:00",
+    "checks": {
+      "main_revisions": {
+        "command": [
+          "git",
+          "rev-parse",
+          "main",
+          "origin/main"
+        ],
+        "exit_code": 0,
+        "stdout": "ed705c0fbffdea485bbb65608d6e340bb049d97e\ned705c0fbffdea485bbb65608d6e340bb049d97e\n",
+        "stderr": ""
+      },
+      "candidate_contained": {
+        "command": [
+          "git",
+          "merge-base",
+          "--is-ancestor",
+          "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+          "origin/main"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "source_trees": {
+        "command": [
+          "git",
+          "rev-parse",
+          "7e9da7df100d193330b3d509cfdbe079ea32a6f8^{tree}",
+          "ed705c0fbffdea485bbb65608d6e340bb049d97e^{tree}"
+        ],
+        "exit_code": 0,
+        "stdout": "753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db\n753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db\n",
+        "stderr": ""
+      },
+      "original_task_branch": {
+        "command": [
+          "git",
+          "branch",
+          "--list",
+          "codex/v3-release-recovery"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "removed_worktree_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-release-recovery",
+    "worktree_directory_exists": false,
+    "worktree_still_registered": false
+  },
+  "original_premerge_checksum_manifest_verified_unchanged": true,
+  "actions_this_audit": "Read-only GitHub and local Git inspection, plus evidence files in /tmp only. No CI invocation, comments, Git mutation, cloud action or evidence-worktree edit."
+}

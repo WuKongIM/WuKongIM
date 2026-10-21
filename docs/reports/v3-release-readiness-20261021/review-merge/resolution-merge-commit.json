@@ -1,0 +1,40 @@
+{
+  "sha": "ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "node_id": "C_kwDOJgfwydoAKGVkNzA1YzBmYmZmZGVhNDg1YmJiNjU2MDhkNmUzNDBiYjA0OWQ5N2U",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/ed705c0fbffdea485bbb65608d6e340bb049d97e",
+  "author": {
+    "name": "WuKongIM",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T05:48:47Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-21T05:48:47Z"
+  },
+  "tree": {
+    "sha": "753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db"
+  },
+  "message": "Merge pull request #1016 from WuKongIM/codex/v3-release-recovery\n\nfix: preserve migration recovery readiness and MQTT cancellation",
+  "parents": [
+    {
+      "sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/b469c6e5e2b4ff65611a8fe3389fb5034de3f152"
+    },
+    {
+      "sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/7e9da7df100d193330b3d509cfdbe079ea32a6f8"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq2FI/CRC1aQ7uu5UhlAAAIzUQADngympOoStJXvFaSzDEFT9r\nY5VmZrEf0fNiWK70xOgJyB51IHkASHvAtPTqsM0WSc6qMGi//QoX2LVJ4h2bIeBh\nog1XXXbg5U/TkObxAuB/MznUXVJvKGV4tZfXc66ck0dqDJ4loH0oFrhMbSobaZqC\nlmcZcUqgvUd0Z7TOv5PV+t4tKJSO8MYrwQTzaXdxfITLE7ODTEd5VlNQxzCqdFiO\njj1iOGAvD+jBymlNjFdCrs/zfDcaNaf+4RtN7AnTu0OLsaSNgsSXqhJBGkOKExWj\n6GI+oaW1KJn87IfZR6qE14eRj6kdSZWk6yPRRUQIwQre0Y1O1MLn0nfpaYB4aOwU\nDODL8QqQRcRnk+byk2gMWgMx/mcrT66aOirWX0o8mdSRvcw9XMZY3qln17IxaNlF\nlZekl7jsMtwSlHrLYZLlw6VtW43PqtWbaVnZ7ixcmouTb4yCnyWzazjU5OB0Ia3Z\nOzsQ39EV7sBGkBFpVEYCkUtDjDxa0fmYUjMpYzK0Z3n8s7pr1XhMlsPKCHgFdE+M\nqtQXgwIVDGR7TrzOVyrsrv2/oZ1122ooIiL7v//SmMcnkWm9d+re9mYzQAxSlPtz\nN7e90JB4fU5ACSPNOCBujg4vcvmxIAnOVlr9VUvVz+6ka97n6AGczoZXWMnJ10Ya\n+QfDoSmVQVTLB88GmTSQ\n=hwbG\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree 753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db\nparent b469c6e5e2b4ff65611a8fe3389fb5034de3f152\nparent 7e9da7df100d193330b3d509cfdbe079ea32a6f8\nauthor WuKongIM <tangtaoit@githubim.com> 1792561727 +0800\ncommitter GitHub <noreply@github.com> 1792561727 +0800\n\nMerge pull request #1016 from WuKongIM/codex/v3-release-recovery\n\nfix: preserve migration recovery readiness and MQTT cancellation",
+    "verified_at": "2026-10-21T05:48:47Z"
+  }
+}

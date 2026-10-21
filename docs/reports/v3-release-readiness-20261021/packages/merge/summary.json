@@ -1,0 +1,55 @@
+{
+  "pr": 67,
+  "url": "https://github.com/WuKongIM/packages/pull/67",
+  "merged": true,
+  "merged_at": "2026-10-21T05:48:18Z",
+  "method": "normal rebase, gh --match-head-commit, no admin or bypass",
+  "approved_head": "0ce7184bbf69472f607159f74a096e9160852843",
+  "base_before": "feb7f21503d35133cf23df7d7ab250c5d4129e71",
+  "merged_main": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "tree": "ccfaa2893b024a61902ce1d3bf6dd35d9f38eb99",
+  "tree_identical_to_accepted_head": true,
+  "branch_protection_unchanged": true,
+  "linear_history": true,
+  "premerge_active_runs": 0,
+  "checks_before_merge": {
+    "snapshot": "success",
+    "test_only_drill": "success",
+    "deploy": "skipped"
+  },
+  "main_push": {
+    "id": 39551632767,
+    "url": "https://github.com/WuKongIM/packages/actions/runs/39551632767",
+    "head_sha": "782c14602a6b243d893e6abf4d1682b7370736c4",
+    "attempt": 1,
+    "conclusion": "success",
+    "tests": [
+      "2026-10-21T05:48:27.4178608Z Ran 2 tests in 0.001s",
+      "2026-10-21T05:49:59.9803593Z Ran 342 tests in 92.229s"
+    ],
+    "permissions": [
+      "Contents: read",
+      "Metadata: read"
+    ],
+    "configure_pages": "skipped",
+    "upload_pages": "skipped",
+    "deploy_job": "skipped"
+  },
+  "preview_enabled": true,
+  "stable_enabled": false,
+  "cleanup": {
+    "original_head": "0ce7184bbf69472f607159f74a096e9160852843",
+    "merged_main": "782c14602a6b243d893e6abf4d1682b7370736c4",
+    "original_tip_is_ancestor": false,
+    "ancestor_check_exit_code": 1,
+    "local_head": "0ce7184bbf69472f607159f74a096e9160852843",
+    "local_branch": "codex/stable-source-classification",
+    "clean": true,
+    "retained_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-source-classification",
+    "branch_deleted": false,
+    "worktree_removed": false,
+    "reason": "Rebase merge changed commit identities; original tip is not an ancestor of main, so cleanup condition is not satisfied."
+  },
+  "no_manual_workflow_dispatch": true,
+  "no_tag_key_resource_permission_or_publication_change": true
+}

@@ -1,0 +1,292 @@
+{
+  "recorded_at": "2026-10-21T06:00:05.194843+00:00",
+  "files": [
+    {
+      "path": "review-merge/blocked-summary.json",
+      "size_bytes": 2141,
+      "sha256": "aae1e8e48cd7f92f87fca40c269e6c5f1eb5735007f839a5a7987ce0dcffe12b"
+    },
+    {
+      "path": "review-merge/blocked-summary.md",
+      "size_bytes": 709,
+      "sha256": "77224fe99f66f56873529a05297255c0ba4b73afb92e135f7a35247f72b4974a"
+    },
+    {
+      "path": "review-merge/check-runs.json",
+      "size_bytes": 171564,
+      "sha256": "6956841d6f5d2b441ccfb260425afe93839bf5d3e04fa790692b9b1cde19fb8d"
+    },
+    {
+      "path": "review-merge/controller-workflow.json",
+      "size_bytes": 607,
+      "sha256": "40c88ff96c3334becdded7763ad8f3438e1a35deb7c404f2adcf7bf731bd1187"
+    },
+    {
+      "path": "review-merge/main.json",
+      "size_bytes": 818632,
+      "sha256": "72a2f9170ae3d92231b14142b732b09cf224c18d965ac2205aa6b0fd822dedcb"
+    },
+    {
+      "path": "review-merge/pr-1016.json",
+      "size_bytes": 24526,
+      "sha256": "726d59df0c05cabc9253ce2c6992cce711596d4bc34abc836caff4597fa4be8d"
+    },
+    {
+      "path": "review-merge/pr-comments.json",
+      "size_bytes": 1956,
+      "sha256": "fddb898e88de4a7a7570f77338b56aab0d4db1e029be9666960561e98a684991"
+    },
+    {
+      "path": "review-merge/resolution-check-runs.json",
+      "size_bytes": 149763,
+      "sha256": "3ab5b14c041b3df2d489e07fa2ffea40629a9f673e4742b3154e0aeddfacb1f0"
+    },
+    {
+      "path": "review-merge/resolution-head-commit.json",
+      "size_bytes": 1648,
+      "sha256": "34e01cae4ba5867a4f6bea30753bb841b450d628490da6cdf9f9f81be1d6e1f9"
+    },
+    {
+      "path": "review-merge/resolution-local-verification.json",
+      "size_bytes": 1365,
+      "sha256": "9fd040f5f6ebe6516faa5c988397a628220f9ee0dfec8d594a2fb2cc345e26f7"
+    },
+    {
+      "path": "review-merge/resolution-main-commit.json",
+      "size_bytes": 137557,
+      "sha256": "eb1e26fb95eb9fa8cc4172400d824c29f5d58c501a0ddfc8dd93400dfdc70f87"
+    },
+    {
+      "path": "review-merge/resolution-merge-commit.json",
+      "size_bytes": 2883,
+      "sha256": "18f52b6a576f0f974f84e1d7cea4395274383b16d248ea5b15b17eb42ee9ff8a"
+    },
+    {
+      "path": "review-merge/resolution-pr-1016.json",
+      "size_bytes": 25621,
+      "sha256": "994c274f3344a443e669564614eb1eb18563696a87ad04df666ecd15a0ed4bcd"
+    },
+    {
+      "path": "review-merge/resolution-reviews.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "review-merge/resolution-summary.json",
+      "size_bytes": 3068,
+      "sha256": "56ec5f0d57d99efa447cc83b8a1263333ac104c31dfee651f7b4cb95c7ed2217"
+    },
+    {
+      "path": "review-merge/resolution-summary.md",
+      "size_bytes": 1334,
+      "sha256": "32e309013aea1461f6a30907e8926221f517b354eba848291bff56ca607d3d98"
+    },
+    {
+      "path": "review-merge/review-agent-pr-signal.yml.runs.json",
+      "size_bytes": 148201,
+      "sha256": "c38c0c4327b3711450e4fb84cbbfa7c8750100ff7229b152491632d19a645590"
+    },
+    {
+      "path": "review-merge/review-agent-run.yml.runs.json",
+      "size_bytes": 191437,
+      "sha256": "58f4146fa0be575b98bf44e814cb76493fd4aaf0da77a1af603c133656abca20"
+    },
+    {
+      "path": "review-merge/review-agent.yml.runs.json",
+      "size_bytes": 189659,
+      "sha256": "0af36cc88db8f380f091d29036f7e02627da97d2e384a8ea62b9b547e51122ab"
+    },
+    {
+      "path": "review-merge/reviews.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "review-merge/runs.json",
+      "size_bytes": 679662,
+      "sha256": "ead0c9bf44e52ea42ade024e66927cb4e9607a5cf0326403a73ce3c1194fb0d0"
+    },
+    {
+      "path": "review-merge/sha256.txt",
+      "size_bytes": 1292,
+      "sha256": "8314aaca294ece8f0fae546877c346e29b0dedaab3f03ed1ca6a63e0b0d66953"
+    },
+    {
+      "path": "review-merge/signal-workflow.json",
+      "size_bytes": 627,
+      "sha256": "81652ffbf2feebbad72ed2574a1b4a73ae0df199c99cee3154bb98afedd0dd83"
+    },
+    {
+      "path": "review-merge/trigger-comment.json",
+      "size_bytes": 1918,
+      "sha256": "0b26bd2b0b6f9f51bde9df761e6281086308dd22b911ebe1860636391bc9ebed"
+    },
+    {
+      "path": "review-merge/worker-workflow.json",
+      "size_bytes": 593,
+      "sha256": "972427398e2fc86e18b9363c0818e5eaa0cbe74f73a8849b2ced630a3c9b2538"
+    },
+    {
+      "path": "review-merge/archive-allowlist.json",
+      "size_bytes": 4372,
+      "sha256": "5feec44bba7f5b208e45180afe0e56e2da8c22ea3e513fc1f493f4c5d82f3713"
+    },
+    {
+      "path": "review-merge/archive-allowlist.txt",
+      "size_bytes": 554,
+      "sha256": "cb5812944bded842dec2a4de7ca54607dfbc064d21427c63f1376790832e75fc"
+    },
+    {
+      "path": "review-merge/archive-sha256.txt",
+      "size_bytes": 2204,
+      "sha256": "06e60d61836f7322a61ec94a0b8d27aa8c6ce451b99ee52abdb094eac6972a8b"
+    },
+    {
+      "path": "packages/merge/README.md",
+      "size_bytes": 2640,
+      "sha256": "126acb4a4cab4a7079f1c7188be4a619b2ce7f59ce8cc72adc16f64865ba1ad7"
+    },
+    {
+      "path": "packages/merge/active-in_progress.json",
+      "size_bytes": 36,
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+    },
+    {
+      "path": "packages/merge/active-pending.json",
+      "size_bytes": 36,
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+    },
+    {
+      "path": "packages/merge/active-queued.json",
+      "size_bytes": 36,
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+    },
+    {
+      "path": "packages/merge/active-requested.json",
+      "size_bytes": 36,
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+    },
+    {
+      "path": "packages/merge/active-waiting.json",
+      "size_bytes": 36,
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+    },
+    {
+      "path": "packages/merge/channel-state.json",
+      "size_bytes": 187,
+      "sha256": "972455ad9bf81b088786c303716ed4b60c2ff877be3b4e83b3b5cbfc75ed742d"
+    },
+    {
+      "path": "packages/merge/cleanup-state.json",
+      "size_bytes": 643,
+      "sha256": "3bbe0c95f56517eca199694f610884b622bb6e2d79e4417fc2fdb8b220be8c23"
+    },
+    {
+      "path": "packages/merge/fetch-main.log",
+      "size_bytes": 135,
+      "sha256": "2a2098857f28064ef5a2f532f872d1bb726d6ea2f64cb0b763cebe4f103a64ec"
+    },
+    {
+      "path": "packages/merge/main-after.json",
+      "size_bytes": 332,
+      "sha256": "e871aeb7d9ace161cc1b72ac60c59703f01087a2ec6a7f1eae6cbdf9b071c9eb"
+    },
+    {
+      "path": "packages/merge/main-before.json",
+      "size_bytes": 332,
+      "sha256": "32d859dfcf28af2a314d0a0fe85a4bf2eadc0b85f2c6a75d530ac09f930cd1b7"
+    },
+    {
+      "path": "packages/merge/main-final.json",
+      "size_bytes": 332,
+      "sha256": "e871aeb7d9ace161cc1b72ac60c59703f01087a2ec6a7f1eae6cbdf9b071c9eb"
+    },
+    {
+      "path": "packages/merge/main-jobs-initial.json",
+      "size_bytes": 1805,
+      "sha256": "469d78c0ff0187050efd03c89af0b146124609c99947befd43f4a5d5555aa78d"
+    },
+    {
+      "path": "packages/merge/main-jobs-latest.json",
+      "size_bytes": 3035,
+      "sha256": "59bfe9d8938ed03625b9283411d865c91b4a841e0c6ee97365efe79ddf7629a0"
+    },
+    {
+      "path": "packages/merge/main-log-excerpts.json",
+      "size_bytes": 1282,
+      "sha256": "28a5ab9ff8928f35ffa45e28dc9ef9f5711e3cc93646c9c16f564c2b14ee5134"
+    },
+    {
+      "path": "packages/merge/main-protection-after.json",
+      "size_bytes": 1292,
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf"
+    },
+    {
+      "path": "packages/merge/main-protection.json",
+      "size_bytes": 1292,
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf"
+    },
+    {
+      "path": "packages/merge/main-run-latest.json",
+      "size_bytes": 11960,
+      "sha256": "7fa3efadac9db45097521f1ff0992bacf633a007121023c04c02d11028f45c54"
+    },
+    {
+      "path": "packages/merge/main-run-logs.zip",
+      "size_bytes": 10289,
+      "sha256": "8c0039868140e35b6e51dd7cae380fdc507832e227a2f9e86580cb33b44bda8c"
+    },
+    {
+      "path": "packages/merge/main-runs-initial.json",
+      "size_bytes": 11993,
+      "sha256": "713b6d7f30563e1f15c3bd9f3303b2054c1371574f20818d94141a3c47a45d1e"
+    },
+    {
+      "path": "packages/merge/merge.log",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/merge/merged-main-commit.json",
+      "size_bytes": 1118,
+      "sha256": "b5d196d79acd773198cfbec333b8014e6b29f09b31cef0b01f3f4fcd06546508"
+    },
+    {
+      "path": "packages/merge/pr-before.json",
+      "size_bytes": 1471,
+      "sha256": "f6b1a4d9279b003f1f7be2dc06edd33777cea896b9310215f456e29eb659e1bf"
+    },
+    {
+      "path": "packages/merge/pr-merged.json",
+      "size_bytes": 349,
+      "sha256": "06ac32057d1b7b4a530ac38e2991972395e6c39311904224d831699d7f7c05bf"
+    },
+    {
+      "path": "packages/merge/pr-ready.json",
+      "size_bytes": 1229,
+      "sha256": "b5a2c7457cd63eade7f5a07343e56967824704d31e356f091000a50ef9dc50ef"
+    },
+    {
+      "path": "packages/merge/ready.log",
+      "size_bytes": 70,
+      "sha256": "56b49ba377cab79a0a0fb3fa8bc7f0cb64b223e2b61417294332c8b8b9386aa2"
+    },
+    {
+      "path": "packages/merge/summary.json",
+      "size_bytes": 2073,
+      "sha256": "477871aeb2ee146baa792ab1f914b96625bf0a19632740714894553c9cd1d289"
+    },
+    {
+      "path": "packages/merge/ARCHIVE_ALLOWLIST.json",
+      "size_bytes": 678,
+      "sha256": "6c017802c5b15c545c3d8c283b2686f558105ad59df34883cbbcb5be608ab4b4"
+    },
+    {
+      "path": "packages/merge/SHA256SUMS",
+      "size_bytes": 2367,
+      "sha256": "0c10ee5d3cd892c6ff6b67dc35bc577a3b9029303038ec9337fe94648877dfc4"
+    }
+  ],
+  "copied_verbatim": true,
+  "scope": "Read-only GitHub merge/check receipts and local cleanup observations; no signing material."
+}

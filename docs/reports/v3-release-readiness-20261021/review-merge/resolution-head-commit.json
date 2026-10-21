@@ -1,0 +1,35 @@
+{
+  "sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "node_id": "C_kwDOJgfwydoAKDdlOWRhN2RmMTAwZDE5MzMzMGIzZDUwOWNmZGJlMDc5ZWEzMmE2Zjg",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "author": {
+    "name": "tt",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T05:15:40Z"
+  },
+  "committer": {
+    "name": "tt",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T05:15:40Z"
+  },
+  "tree": {
+    "sha": "753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/753ddfc8c7813bf0b7a7ec325cb4f81c5a36d4db"
+  },
+  "message": "fix(mqtt): preserve caller cancellation through nested scopes\n\nKeep synchronous caller cancellation and every ancestor Owner gate through nested subscription projection and source cleanup. Deterministic source-drain contention regression rejects post-cancel reads and sealing. Correct replication test fault injection to reject each coalesced item; retain exact repair obligations and durable catch-up assertions.",
+  "parents": [
+    {
+      "sha": "5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/5f3ecdf93e762a1b1551b44977a44f2e63c97802",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/5f3ecdf93e762a1b1551b44977a44f2e63c97802"
+    }
+  ],
+  "verification": {
+    "verified": false,
+    "reason": "unsigned",
+    "signature": null,
+    "payload": null,
+    "verified_at": null
+  }
+}

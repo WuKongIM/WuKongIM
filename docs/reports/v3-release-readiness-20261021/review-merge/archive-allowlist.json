@@ -1,0 +1,132 @@
+{
+  "root": "/tmp/wukongim-v3-readiness-20261021/review-merge",
+  "files": [
+    {
+      "path": "blocked-summary.json",
+      "size_bytes": 2141,
+      "sha256": "aae1e8e48cd7f92f87fca40c269e6c5f1eb5735007f839a5a7987ce0dcffe12b"
+    },
+    {
+      "path": "blocked-summary.md",
+      "size_bytes": 709,
+      "sha256": "77224fe99f66f56873529a05297255c0ba4b73afb92e135f7a35247f72b4974a"
+    },
+    {
+      "path": "check-runs.json",
+      "size_bytes": 171564,
+      "sha256": "6956841d6f5d2b441ccfb260425afe93839bf5d3e04fa790692b9b1cde19fb8d"
+    },
+    {
+      "path": "controller-workflow.json",
+      "size_bytes": 607,
+      "sha256": "40c88ff96c3334becdded7763ad8f3438e1a35deb7c404f2adcf7bf731bd1187"
+    },
+    {
+      "path": "main.json",
+      "size_bytes": 818632,
+      "sha256": "72a2f9170ae3d92231b14142b732b09cf224c18d965ac2205aa6b0fd822dedcb"
+    },
+    {
+      "path": "pr-1016.json",
+      "size_bytes": 24526,
+      "sha256": "726d59df0c05cabc9253ce2c6992cce711596d4bc34abc836caff4597fa4be8d"
+    },
+    {
+      "path": "pr-comments.json",
+      "size_bytes": 1956,
+      "sha256": "fddb898e88de4a7a7570f77338b56aab0d4db1e029be9666960561e98a684991"
+    },
+    {
+      "path": "resolution-check-runs.json",
+      "size_bytes": 149763,
+      "sha256": "3ab5b14c041b3df2d489e07fa2ffea40629a9f673e4742b3154e0aeddfacb1f0"
+    },
+    {
+      "path": "resolution-head-commit.json",
+      "size_bytes": 1648,
+      "sha256": "34e01cae4ba5867a4f6bea30753bb841b450d628490da6cdf9f9f81be1d6e1f9"
+    },
+    {
+      "path": "resolution-local-verification.json",
+      "size_bytes": 1365,
+      "sha256": "9fd040f5f6ebe6516faa5c988397a628220f9ee0dfec8d594a2fb2cc345e26f7"
+    },
+    {
+      "path": "resolution-main-commit.json",
+      "size_bytes": 137557,
+      "sha256": "eb1e26fb95eb9fa8cc4172400d824c29f5d58c501a0ddfc8dd93400dfdc70f87"
+    },
+    {
+      "path": "resolution-merge-commit.json",
+      "size_bytes": 2883,
+      "sha256": "18f52b6a576f0f974f84e1d7cea4395274383b16d248ea5b15b17eb42ee9ff8a"
+    },
+    {
+      "path": "resolution-pr-1016.json",
+      "size_bytes": 25621,
+      "sha256": "994c274f3344a443e669564614eb1eb18563696a87ad04df666ecd15a0ed4bcd"
+    },
+    {
+      "path": "resolution-reviews.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "resolution-summary.json",
+      "size_bytes": 3068,
+      "sha256": "56ec5f0d57d99efa447cc83b8a1263333ac104c31dfee651f7b4cb95c7ed2217"
+    },
+    {
+      "path": "resolution-summary.md",
+      "size_bytes": 1334,
+      "sha256": "32e309013aea1461f6a30907e8926221f517b354eba848291bff56ca607d3d98"
+    },
+    {
+      "path": "review-agent-pr-signal.yml.runs.json",
+      "size_bytes": 148201,
+      "sha256": "c38c0c4327b3711450e4fb84cbbfa7c8750100ff7229b152491632d19a645590"
+    },
+    {
+      "path": "review-agent-run.yml.runs.json",
+      "size_bytes": 191437,
+      "sha256": "58f4146fa0be575b98bf44e814cb76493fd4aaf0da77a1af603c133656abca20"
+    },
+    {
+      "path": "review-agent.yml.runs.json",
+      "size_bytes": 189659,
+      "sha256": "0af36cc88db8f380f091d29036f7e02627da97d2e384a8ea62b9b547e51122ab"
+    },
+    {
+      "path": "reviews.json",
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "runs.json",
+      "size_bytes": 679662,
+      "sha256": "ead0c9bf44e52ea42ade024e66927cb4e9607a5cf0326403a73ce3c1194fb0d0"
+    },
+    {
+      "path": "sha256.txt",
+      "size_bytes": 1292,
+      "sha256": "8314aaca294ece8f0fae546877c346e29b0dedaab3f03ed1ca6a63e0b0d66953"
+    },
+    {
+      "path": "signal-workflow.json",
+      "size_bytes": 627,
+      "sha256": "81652ffbf2feebbad72ed2574a1b4a73ae0df199c99cee3154bb98afedd0dd83"
+    },
+    {
+      "path": "trigger-comment.json",
+      "size_bytes": 1918,
+      "sha256": "0b26bd2b0b6f9f51bde9df761e6281086308dd22b911ebe1860636391bc9ebed"
+    },
+    {
+      "path": "worker-workflow.json",
+      "size_bytes": 593,
+      "sha256": "972427398e2fc86e18b9363c0818e5eaa0cbe74f73a8849b2ced630a3c9b2538"
+    }
+  ],
+  "total_size_bytes": 2556769,
+  "note": "Includes unchanged pre-merge evidence and its original sha256.txt plus post-merge resolution snapshots. No product binaries, artifacts, credentials or signed download URLs. Manifest files are not self-hashed."
+}

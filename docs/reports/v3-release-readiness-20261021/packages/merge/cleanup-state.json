@@ -1,0 +1,13 @@
+{
+  "original_head": "0ce7184bbf69472f607159f74a096e9160852843",
+  "merged_main": "782c14602a6b243d893e6abf4d1682b7370736c4",
+  "original_tip_is_ancestor": false,
+  "ancestor_check_exit_code": 1,
+  "local_head": "0ce7184bbf69472f607159f74a096e9160852843",
+  "local_branch": "codex/stable-source-classification",
+  "clean": true,
+  "retained_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-source-classification",
+  "branch_deleted": false,
+  "worktree_removed": false,
+  "reason": "Rebase merge changed commit identities; original tip is not an ancestor of main, so cleanup condition is not satisfied."
+}

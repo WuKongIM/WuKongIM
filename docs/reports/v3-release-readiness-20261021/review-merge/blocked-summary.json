@@ -1,0 +1,47 @@
+{
+  "observed_at": "2026-10-21T05:48:10.442328+00:00",
+  "status": "blocked_before_signal",
+  "reason": "All three protected Review Agent workflows are disabled_manually. The explicit review comment has no active signal/controller/worker generation.",
+  "pr": 1016,
+  "head_sha": "7e9da7df100d193330b3d509cfdbe079ea32a6f8",
+  "protected_main_sha": "b469c6e5e2b4ff65611a8fe3389fb5034de3f152",
+  "actual_generation_control_sha": null,
+  "trigger_comment": "https://github.com/WuKongIM/WuKongIM/pull/1016#issuecomment-6309033605",
+  "trigger_comment_id": 6309033605,
+  "draft": false,
+  "mergeable": true,
+  "mergeable_state": "clean",
+  "merged": false,
+  "auto_merge": null,
+  "formal_reviews": [],
+  "review_agent_verdict_checks": [],
+  "selected_named_checks": null,
+  "selected_checks_reason": "No worker/context/baseline artifact exists for this requested generation. Do not substitute candidate CI jobs for a Review Agent selection.",
+  "workflows": [
+    {
+      "id": 324186999,
+      "name": "Safety Automation - Review Agent PR Signal",
+      "path": ".github/workflows/review-agent-pr-signal.yml",
+      "state": "disabled_manually",
+      "updated_at": "2026-09-07T15:54:41.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-pr-signal.yml"
+    },
+    {
+      "id": 324187004,
+      "name": "Safety Automation - Review Agent Controller",
+      "path": ".github/workflows/review-agent.yml",
+      "state": "disabled_manually",
+      "updated_at": "2026-09-07T15:54:32.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent.yml"
+    },
+    {
+      "id": 324187001,
+      "name": "Agent Tool - Review Pull Request",
+      "path": ".github/workflows/review-agent-run.yml",
+      "state": "disabled_manually",
+      "updated_at": "2026-09-07T15:54:34.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-run.yml"
+    }
+  ],
+  "actions_taken": "Read-only GitHub API inspection only; no workflow enable, comment, dispatch, retry, cancellation, source change or merge."
+}
