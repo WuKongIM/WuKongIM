@@ -1,0 +1,8 @@
+{
+  "baseRefOid": "cee5d51f325fb84033060f546337d326110adae5",
+  "headRefOid": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "isDraft": true,
+  "state": "OPEN",
+  "title": "fix: retain bounded terminal cloud diagnostics",
+  "url": "https://github.com/WuKongIM/WuKongIM/pull/1024"
+}

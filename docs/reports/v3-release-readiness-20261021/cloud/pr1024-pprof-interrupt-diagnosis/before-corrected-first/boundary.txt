@@ -1,0 +1,3 @@
+helper_pid=94762
+child_pid=94794
+registered=0

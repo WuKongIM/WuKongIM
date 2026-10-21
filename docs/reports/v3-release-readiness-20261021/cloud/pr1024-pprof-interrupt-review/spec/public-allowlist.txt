@@ -1,0 +1,9 @@
+SHA256SUMS
+manifest.json
+public-allowlist.txt
+report.md
+reviewed.diff
+source-binding.json
+verification-receipt.json
+verify-evidence.py
+verify-first.stderr.txt

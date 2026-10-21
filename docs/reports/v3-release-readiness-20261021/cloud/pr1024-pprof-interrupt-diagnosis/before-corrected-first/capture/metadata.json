@@ -1,0 +1,10 @@
+{
+  "schema": "wukongim.local_threshold_pprof/v1",
+  "trigger": {"kind": "sendack_p99", "observed_phase": "measurement", "previous_utc": "2026-08-13T00:00:00.123456789Z", "current_utc": "2026-08-13T00:00:01.5Z"},
+  "capture": {"status": "partial", "valid": false, "reason": "capture_in_progress", "start_phase": "measurement", "end_phase": "measurement", "started_at_utc": "2026-10-21T19:27:10Z", "completed_at_utc": "2026-10-21T19:27:10Z", "cpu_seconds": 1},
+  "nodes": [
+    {"node": "node-1", "cpu": "missing", "heap": "missing", "goroutine": "missing"},
+    {"node": "node-2", "cpu": "missing", "heap": "missing", "goroutine": "missing"},
+    {"node": "node-3", "cpu": "missing", "heap": "missing", "goroutine": "missing"}
+  ]
+}

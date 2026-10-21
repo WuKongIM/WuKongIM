@@ -1,0 +1,45 @@
+{
+  "active_at_end": [
+    0,
+    0,
+    0
+  ],
+  "active_at_helper_exit": [
+    0,
+    0,
+    0
+  ],
+  "active_at_original_two_second_assertion": [
+    0,
+    0,
+    0
+  ],
+  "boundary": {},
+  "child_at_end": "not_recorded",
+  "child_at_helper_exit": "not_recorded",
+  "child_at_two_second_assertion": "not_recorded",
+  "events": [
+    {
+      "seconds": 0.000982375,
+      "kind": "helper_start"
+    },
+    {
+      "seconds": 0.00632025,
+      "kind": "helper_exit"
+    },
+    {
+      "seconds": 0.006355083,
+      "kind": "original_zero_assertion"
+    }
+  ],
+  "group_cleanup_attempted": true,
+  "helper_exit_code": 1,
+  "metadata": null,
+  "mode": "before",
+  "original_contract_pass": false,
+  "repository_edited": false,
+  "signal_hook_only": true,
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "temporary_files_at_assertion": [],
+  "wait_error": "exit status 1"
+}

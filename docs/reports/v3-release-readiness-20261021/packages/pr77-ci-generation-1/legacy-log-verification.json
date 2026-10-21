@@ -1,0 +1,11 @@
+{
+  "legacy_complete_signed_build_verify_install": true,
+  "new_m1_executed_with_init": true,
+  "new_m1_summary_in_log": true,
+  "checkout_log_values": [
+    "e306351985ed3ee0c235bd120de7032c94ad6d86",
+    "ed7e67d8f781b4f92872e42116c11b304fe03b5c"
+  ],
+  "action_warning_error_lines": [],
+  "ci_os_process_inventory": "not collected; no zero-process claim"
+}

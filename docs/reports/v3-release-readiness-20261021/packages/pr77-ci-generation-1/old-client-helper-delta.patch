@@ -1,0 +1,270 @@
+diff --git a/tests/native_stable_candidate_drill.py b/tests/native_stable_candidate_drill.py
+index f9178da..bac038b 100644
+--- a/tests/native_stable_candidate_drill.py
++++ b/tests/native_stable_candidate_drill.py
+@@ -218,6 +218,27 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+                 'client fixture binary generation is missing or linked')
+         payloads[version] = {name: directory / name for name in ('wukongim', 'wkcli')}
+         fixtures.validate_binary_payloads(payloads[version])
++    return _export_generations(output_root=output_root, trusted_root=trusted_root,
++                               product_source_sha=product_source_sha, payloads=payloads)
++
++
++def export_delivery_generations(*, output_root: Path, trusted_root: Path, evidence: dict | None = None) -> dict:
++    """Export data-only native preview/A/B for TEST ONLY offline delivery checks.
++
++    This separate entrypoint never substitutes for export_client_generations:
++    it contains no product binaries and proves neither installed CLI nor source
++    attestation truth. Its explicit test_only descriptor is production-refused.
++    """
++    return _export_generations(output_root=output_root, trusted_root=trusted_root,
++                               product_source_sha=None, payloads={}, include_preview=True, evidence=evidence)
++
++
++def _export_generations(*, output_root: Path, trusted_root: Path,
++                        product_source_sha: str | None, payloads: dict,
++                        include_preview: bool = False, evidence: dict | None = None) -> dict:
++    """Share native construction while keeping client/data-only entrypoints separate."""
++    require(output_root.is_dir() and not output_root.is_symlink() and not any(output_root.iterdir()),
++            'client fixture output directory must exist, be nonlinked and empty')
+     require(sys.platform.startswith('linux') and os.geteuid() != 0,
+             'client fixtures require the isolated non-root Linux container')
+     for tool in ('gpg', 'gpgconf', 'rpm', 'rpmbuild', 'rpmsign', 'rpmkeys', 'createrepo_c',
+@@ -232,6 +253,7 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+     before = {str(path.relative_to(ROOT)): facts(path) for path in controls}
+     previous_environment = dict(os.environ)
+     result = {'test_only': True, 'source_sha': product_source_sha,
++              'data_only': include_preview, 'source_provenance_verified': False,
+               'secret_tree_removed': False, 'generations': {}}
+     exported = []
+     try:
+@@ -239,7 +261,8 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+             scratch = Path(temporary).resolve()
+             env = {'PATH': '/usr/bin:/bin', 'HOME': str(scratch), 'LANG': 'C', 'LC_ALL': 'C', 'TZ': 'UTC'}
+             os.environ.clear(); os.environ.update(env)
+-            evidence = {'cases': [], 'commands': []}
++            if evidence is None:
++                evidence = {'cases': [], 'commands': []}
+             keys = load_fixture('stable_client_test_keys', 'test_validate_signing_material.py')
+             private = scratch / 'private-test-keys'
+             factory = keys.TestKeyFactory(private)
+@@ -256,7 +279,7 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+                     bootstrap_value = json.loads(bootstrap_manifest.read_bytes())
+                     bootstrap_value['version'] = bootstrap_version
+                     bootstrap_manifest.write_bytes(canonical(bootstrap_value))
+-                    source = fixture_source(generation, version=version, binary_payloads=payloads[version])
++                    source = fixture_source(generation, version=version, binary_payloads=payloads.get(version))
+                     shared = common(control, source)
+                     channels = control / 'manifests/channels.json'
+                     plan, inventory, bootstrap = (generation / name for name in
+@@ -291,6 +314,8 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+                            *shared), env)
+                     prepared[label] = (generation, version, bootstrap_version, control, source, plan,
+                                        composed, receipts)
++                if include_preview:
++                    preview = _prepare_delivery_preview(scratch, shared_control, generated, trusted, evidence, env)
+             finally:
+                 try:
+                     factory.close()
+@@ -339,11 +364,13 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+                     exported_paths[name] = f'{label}/{path.name}'
+                 result['generations'][label] = {**exported_paths, 'version': version,
+                                                  'bootstrap_version': bootstrap_version}
++            if include_preview:
++                result['preview'] = _finish_delivery_preview(preview, public, evidence, env)
+             require(before == {str(path.relative_to(ROOT)): facts(path) for path in controls},
+                     'checked-in control changed during client fixture generation')
+             # No output crosses the public boundary until both generations validate
+             # without private material. Clean only directories created by this call.
+-            for label in ('A', 'B'):
++            for label in (('A', 'B', 'preview') if include_preview else ('A', 'B')):
+                 target = output_root / label
+                 require(not target.exists(), 'client fixture export path already exists')
+                 exported.append(target)
+@@ -358,6 +385,127 @@ def export_client_generations(*, output_root: Path, binaries_root: Path,
+         os.environ.clear(); os.environ.update(previous_environment)
+ 
+ 
++def _prepare_delivery_preview(scratch, shared_control, generated, trusted, evidence, env):
++    """Build a native preview using public synthetic source anchors, never GitHub truth."""
++    generation = scratch / 'preview'; generation.mkdir()
++    control = generation / 'control'; shutil.copytree(shared_control, control)
++    signing_path = control / 'manifests/preview-signing.json'
++    signing = json.loads(signing_path.read_bytes())
++    stable_roles = json.loads((control / 'manifests/stable-public-keys.json').read_bytes())
++    for family in ('apt', 'rpm'):
++        shutil.copyfile(control / f'keys/{family}-stable.asc', control / f'keys/{family}-preview.asc')
++        for field in ('primary_fingerprint', 'signing_subkeys'):
++            signing[family][field] = stable_roles[family][field]
++    signing_path.write_bytes(canonical(signing))
++    fixtures = load_fixture('delivery_preview_native_packages', 'native_source_metadata_drill.py')
++    build = generation / 'package-build'; build.mkdir()
++    version = '3.1.0-rc.1'
++    deb, rpm = fixtures.build_packages(build, '3.1.0~rc.1', '3.1.0~rc.1')
++    source = generation / 'source'; source.mkdir()
++    resolution_path, assets = fixtures.fixture_receipt(source, version, deb, rpm)
++    assets.chmod(0o755)
++    resolution = json.loads(resolution_path.read_bytes())
++    release = {'version': version, 'source_sha': resolution['source_sha'],
++        'source_release_id': resolution['release_id'], 'package_release_id': 10,
++        'deb_sha256': facts(deb)['sha256'], 'rpm_sha256': facts(rpm)['sha256'],
++        'state': 'active', 'not_before': None}
++    prepare_assets = generation / 'prepare-assets'
++    shutil.copytree(assets, prepare_assets / str(release['source_release_id']))
++    channels_path = control / 'manifests/channels.json'
++    channels = json.loads(channels_path.read_bytes())
++    channels['channels']['preview'].update(releases=[release],
++        retirement={'phase': 'none', 'version': None, 'not_before': None},
++        publication={'audit_release_id': 10, 'base_audit_release_id': None,
++                     'operation': 'add_release', 'target_version': version})
++    channels_path.write_bytes(canonical(channels))
++    # These JSON files satisfy only the archive's byte-binding contract. They
++    # are conspicuously synthetic, not verified GitHub/Sigstore attestations.
++    attestations = generation / 'source-attestations'; attestations.mkdir()
++    items = []
++    for item in resolution['assets']:
++        name = item['name'] + '.attestation.json'
++        proof = attestations / name
++        proof.write_bytes(canonical({'test_only': True, 'github_verified': False,
++            'asset': item['name'], 'sha256': item['sha256']}))
++        items.append({'asset': item['name'], 'asset_sha256': item['sha256'],
++                      'evidence_file': name, 'evidence_sha256': facts(proof)['sha256']})
++    (attestations / 'source-attestations.json').write_bytes(canonical({
++        'schema': 'wukongim/source-attestation-verification/v1',
++        'repository': 'WuKongIM/WuKongIM', 'release_id': release['source_release_id'],
++        'tag': 'v' + version, 'version': version, 'source_sha': release['source_sha'],
++        'source_ref': 'refs/tags/v' + version,
++        'signer_workflow': 'WuKongIM/WuKongIM/.github/workflows/binary-release-publish.yml',
++        'deny_self_hosted_runners': True, 'asset_count': 7, 'assets': items,
++        'assets_revalidated_after_attestations': True}))
++    plan, inventory, bootstrap = (generation / name for name in ('plan.json', 'inventory.json', 'bootstrap.json'))
++    unsigned, composed = generation / 'unsigned', generation / 'composed'
++    planned = invoke(evidence, 'preview-plan', cli('plan-package-publication.py', '--channels', channels_path,
++                     '--control-sha', 'b' * 40), env)
++    plan.write_bytes(planned.stdout)
++    invoke(evidence, 'preview-prepare', cli('prepare-package-site.py', '--channels', channels_path, '--plan', plan,
++        '--source-assets', prepare_assets, '--bootstrap-manifest', control / 'manifests/bootstrap-packages.json',
++        '--apt-public-cert', control / 'keys/apt-preview.asc', '--rpm-public-cert', control / 'keys/rpm-preview.asc',
++        '--bootstrap-builder', ROOT / 'scripts/build-repository-bootstrap-packages.py',
++        '--builder', trusted / 'scripts/build-native-package-repositories.sh', '--output', unsigned,
++        '--inventory', inventory, '--bootstrap-inventory', bootstrap), env)
++    signed, receipts = {}, {}
++    for family in ('apt', 'rpm'):
++        key, successor = generated[family]
++        signed[family], receipts[family] = sign_family(generation, family, key, successor, control,
++            unsigned, evidence, env, channel='preview')
++    invoke(evidence, 'preview-compose', cli('compose-package-site.py', '--channels', channels_path,
++        '--signing', signing_path, '--signing-toolchain', control / 'manifests/signing-toolchain.json',
++        '--plan', plan, '--inventory', inventory, '--bootstrap-inventory', bootstrap,
++        '--source-attestations', attestations, '--apt-tree', signed['apt'], '--apt-receipt', receipts['apt'],
++        '--apt-public-cert', control / 'keys/apt-preview.asc', '--rpm-tree', signed['rpm'],
++        '--rpm-receipt', receipts['rpm'], '--rpm-public-cert', control / 'keys/rpm-preview.asc',
++        '--output-root', composed), env)
++    for name, path in {'plan.json': plan, 'apt-signing.json': receipts['apt'],
++                       'rpm-signing.json': receipts['rpm']}.items():
++        shutil.copyfile(path, composed / 'audit' / name)
++    return generation, control, source, plan, composed, receipts, attestations
++
++
++def _finish_delivery_preview(preview, public, evidence, env):
++    """Verify with public keys after private-tree removal, then export a canonical archive."""
++    generation, control, source, plan, composed, receipts, attestations = preview
++    anchors = ['--channels', control / 'manifests/channels.json', '--signing',
++        control / 'manifests/preview-signing.json', '--apt-public-cert', control / 'keys/apt-preview.asc',
++        '--rpm-public-cert', control / 'keys/rpm-preview.asc']
++    invoke(evidence, 'preview-verify-after-secret-removal', cli('verify-production-package-site.py',
++        '--site-root', composed / 'site', '--snapshot', composed / 'audit/snapshot.json', *anchors), env)
++    archive = generation / 'wukongim-preview-r10-site.tar'
++    receipt = generation / 'wukongim-preview-r10-receipt.json'
++    invoke(evidence, 'preview-archive', cli('archive-package-snapshot.py', 'create',
++        '--source-dir', composed, '--archive', archive), env)
++    audit = [*anchors, '--signing-toolchain', control / 'manifests/signing-toolchain.json',
++        '--plan', plan, '--apt-receipt', receipts['apt'], '--rpm-receipt', receipts['rpm'],
++        '--source-attestations', attestations, '--archive', archive]
++    invoke(evidence, 'preview-audit-create', cli('package-audit-receipt.py', 'create', *audit, '--output', receipt), env)
++    invoke(evidence, 'preview-audit-verify', cli('package-audit-receipt.py', 'verify', *audit, '--receipt', receipt), env)
++    destination = public / 'preview'; destination.mkdir()
++    exported = {}
++    for name, path in {'control': control, 'source': source, 'plan': plan, 'archive': archive, 'receipt': receipt,
++                       'apt_receipt': receipts['apt'], 'rpm_receipt': receipts['rpm']}.items():
++        target = destination / path.name
++        if path.is_dir():
++            shutil.copytree(path, target)
++        else:
++            shutil.copyfile(path, target)
++        exported[name] = 'preview/' + path.name
++    value = json.loads(receipt.read_bytes())
++    exported['descriptor'] = {'archive': exported['archive'], 'receipt': exported['receipt'],
++        'control_dir': exported['control'], 'audit_release_id': 10, 'control_sha': 'b' * 40,
++        'archive_sha256': facts(archive)['sha256'], 'archive_size': facts(archive)['size'],
++        'receipt_sha256': facts(receipt)['sha256'], 'snapshot_sha256': value['archive']['snapshot_sha256'],
++        'source': {'repository': 'WuKongIM/WuKongIM', 'version': '3.1.0-rc.1',
++                   **{key: value['source'][key] for key in ('release_id', 'source_sha')}},
++        'control_files_sha256': {name: facts(control / name)['sha256'] for name in (
++            'manifests/channels.json', 'manifests/preview-signing.json', 'manifests/signing-toolchain.json',
++            'manifests/bootstrap-packages.json', 'keys/apt-preview.asc', 'keys/rpm-preview.asc')}}
++    return exported
++
++
+ def generate_control(scratch: Path, factory, keys) -> tuple[Path, dict]:
+     control = scratch / 'control'
+     control.mkdir()
+@@ -387,21 +535,24 @@ def generate_control(scratch: Path, factory, keys) -> tuple[Path, dict]:
+ 
+ 
+ def sign_family(scratch: Path, family: str, key, successor: str, control: Path,
+-                unsigned: Path, evidence: dict, env: dict) -> tuple[Path, Path]:
++                unsigned: Path, evidence: dict, env: dict, *, channel: str = 'stable') -> tuple[Path, Path]:
++    require(channel in ('stable', 'preview'), 'TEST ONLY signing channel differs')
++    apt_release = f'dists/{channel}/Release'
++    rpm_repository = f'{channel}/el/9/x86_64'
+     output = scratch / f'signed-{family}'
+     args = cli('sign-package-family.py', '--family', family, '--input-root', unsigned / family,
+-               '--output-root', output, '--public-cert', control / f'keys/{family}-stable.asc',
++               '--output-root', output, '--public-cert', control / f'keys/{family}-{channel}.asc',
+                '--primary-fingerprint', key.primary_fingerprint,
+                '--signing-subkey-fingerprint', key.signing_subkey_fingerprint,
+                '--next-signing-subkey-fingerprint', successor,
+                '--secret-subkey-base64-file', key.selected_secret_base64,
+                '--passphrase-file', key.passphrase_file)
+     if family == 'apt':
+-        args += ['--apt-release', APT_RELEASE]
++        args += ['--apt-release', apt_release]
+     else:
+-        repository = unsigned / family / RPM_REPOSITORY
++        repository = unsigned / family / rpm_repository
+         paths = sorted(p.relative_to(repository).as_posix() for p in (repository / 'Packages').glob('*.rpm'))
+-        require(len(paths) == 2, 'RPM allowlist must cover product and stable bootstrap')
++        require(len(paths) == 2, 'RPM allowlist must cover product and channel bootstrap')
+         for name, value in (
+             ('new', {'schema': 'wukongim/rpm-package-allowlist/v1',
+                      'packages': [{'path': path, **facts(repository / path)} for path in paths]}),
+@@ -411,7 +562,7 @@ def sign_family(scratch: Path, family: str, key, successor: str, control: Path,
+             path = scratch / f'{name}-allowlist.json'
+             path.write_bytes(canonical(value))
+             args += [f'--{name}-rpm-allowlist', str(path)]
+-        args += ['--rpm-repository', RPM_REPOSITORY]
++        args += ['--rpm-repository', rpm_repository]
+     result = invoke(evidence, f'sign-{family}', args, env)
+     receipt = scratch / f'{family}-receipt.json'
+     receipt.write_bytes(result.stdout)
+diff --git a/tests/native_stable_clients_drill.py b/tests/native_stable_clients_drill.py
+index 77876f7..3ca51bd 100644
+--- a/tests/native_stable_clients_drill.py
++++ b/tests/native_stable_clients_drill.py
+@@ -613,12 +613,13 @@ def build_product(args, scratch, evidence):
+     return binaries
+ 
+ 
+-def seal_generations(exports, fixtures, scratch, evidence):
++def seal_generations(exports, fixtures, scratch, evidence, *, preview=None):
+     """Exercise existing writers only against the explicit loopback API substitute."""
+     sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / 'tests'))
+     from stable_audit_fixture import AuditState, serve_audit
+     from test_plan_object_storage_publication import InputSnapshot
+-    preview = InputSnapshot(scratch / 'preview-structural')
++    if preview is None:
++        preview = InputSnapshot(scratch / 'preview-structural')
+     descriptors = {}
+     for label, release_id in (('A', 4242), ('B', 4243)):
+         entry = exports['generations'][label]

@@ -1,0 +1,19 @@
+{
+  "same_source_expression_set": true,
+  "same_source_expression_sequence": true,
+  "changed_targets": [
+    {
+      "source_url": "^/(apt/dists/stable/InRelease|apt/dists/stable/Release|apt/dists/stable/Release\\.gpg|apt/dists/stable/main/binary\\-amd64/Packages|apt/dists/stable/main/binary\\-amd64/Packages\\.gz|keys/apt\\-stable\\.asc|keys/rpm\\-stable\\.asc)\\z",
+      "A_target": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/site/$1",
+      "B_target": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/site/$1"
+    },
+    {
+      "source_url": "^/rpm/stable/el/9/x86_64/mirrorlist\\z",
+      "A_target": "/generated/stable-mirrorlists/1da80648b7fe529144e02c6ea2dfb54d39808c247626391e7be59ce596b9cfc7.txt",
+      "B_target": "/generated/stable-mirrorlists/65db60c40081df6159ea873ed993b788a0d83e21b7e311a87d6dda2dc9f3325c.txt"
+    }
+  ],
+  "A_only_sources": [],
+  "B_only_sources": [],
+  "no_live_config_or_sdk_executed": true
+}

@@ -1,0 +1,12 @@
+{
+  "bytes_checked_on_disk": 1384887,
+  "files_checked": 173,
+  "limitations": "Pattern screening plus bounded source/artifact selection; CI logs are public reviewed GitHub job logs, not raw cloud product logs or private unfiltered stderr. No assertion of zero OS processes.",
+  "regular_files_only": true,
+  "schema": "finite-public-content-check/v1",
+  "scope": "all payload files before checksum envelope, including gzip-decoded reviewed CI log",
+  "secret_material_pattern_hits": [],
+  "symlinks": 0,
+  "unsafe_paths": 0,
+  "utf8_or_lossless_gzip_utf8_only": true
+}

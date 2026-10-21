@@ -1,0 +1,12 @@
+{
+  "endpoint": "repos/WuKongIM/packages/pulls/77",
+  "started_at": "20261021T192132701497Z",
+  "exit_code": 0,
+  "raw_bytes": 17749,
+  "raw_sha256": "71a249e87805a8d5d1704232949c3eb7a4a895155850026d11ad84bcd6069d1e",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "public_bytes": 17798,
+  "public_sha256": "e8ed23d454413cbfc716bf704b7cccd2f8b31fb60609a4b92d340316b9676df8",
+  "redacted": true
+}

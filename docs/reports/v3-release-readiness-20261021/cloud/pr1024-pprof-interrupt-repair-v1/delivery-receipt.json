@@ -1,0 +1,24 @@
+{
+  "source": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "observed_at": "2026-10-21T19:38:12.436460+00:00",
+  "review_source_hashes_unchanged": true,
+  "git_status": " M CHANGELOG.md\n M docs/development/PROJECT_KNOWLEDGE.md\n M scripts/capture-wukongim-local-threshold-pprof.sh\n M scripts/wukongim_local_threshold_pprof_script_integration_test.go\n",
+  "diff_check_exit": 0,
+  "red_orphan_process_groups": [
+    95507,
+    95551,
+    95586,
+    95624,
+    95688,
+    95743
+  ],
+  "remaining_fixture_processes": [],
+  "green_active_requests_all_zero": true,
+  "green_child_alive_all_false": true,
+  "green_temporary_files_all_empty": true,
+  "original_tests_unchanged": true,
+  "committed": false,
+  "pushed": false,
+  "ci_rerun": false,
+  "fullsuite_rerun": false
+}

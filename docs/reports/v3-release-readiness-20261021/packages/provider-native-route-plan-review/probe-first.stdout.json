@@ -1,0 +1,66 @@
+{
+  "source": {
+    "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+    "tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+    "status": ""
+  },
+  "input_manifest_sha256": "fecd657aa0440079faa851f7450893d00aebb872799fda947b1036f7d21e44a6",
+  "verified_input_files": 25,
+  "verified_input_bytes": 739756,
+  "source_files_pre_post_equal": {
+    "tests/native_stable_candidate_drill.py": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+    "tests/native_stable_clients_drill.py": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+    "tests/native_object_delivery_fixture_drill.py": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+    "scripts/plan-object-storage-publication.py": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+    "scripts/prepare-object-storage-delivery.py": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+    "scripts/aliyun-object-storage-provider.py": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+    "scripts/verify-production-package-site.py": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+    "docs/object-storage-delivery.md": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+    "docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "README.md": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+    ".github/workflows/object-storage-provider-contract.yml": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+    "requirements-object-storage-provider.lock": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+  },
+  "generation_results": {
+    "A": {
+      "routes": 178,
+      "objects": 153,
+      "rules": 17,
+      "maximum_expression_bytes": 1017,
+      "baseline_full_set_rejection": "domain rewrite limit exceeded",
+      "legacy_1_49_50_unique_plus_duplicate_byte_comparison": true,
+      "independent_finite_ast_expansion_exact": true,
+      "all_targets_object_facts_equal": true
+    },
+    "B": {
+      "routes": 178,
+      "objects": 153,
+      "rules": 17,
+      "maximum_expression_bytes": 1017,
+      "baseline_full_set_rejection": "domain rewrite limit exceeded",
+      "legacy_1_49_50_unique_plus_duplicate_byte_comparison": true,
+      "independent_finite_ast_expansion_exact": true,
+      "all_targets_object_facts_equal": true
+    }
+  },
+  "a_b_same_sources_and_sequence": true,
+  "a_b_target_changes": [
+    {
+      "source_url_sha256": "1cd608b0eb0de8f71080c98b3ac346022dcb51dea4f7fdffd1819dfeb5f21096",
+      "sequence": "2",
+      "old_target": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/site/$1",
+      "new_target": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/site/$1"
+    },
+    {
+      "source_url_sha256": "36c72823531ac2e595d6488624ba67d1b9b99defc2db8b94d21ff79d8015e072",
+      "sequence": "3",
+      "old_target": "/generated/stable-mirrorlists/1da80648b7fe529144e02c6ea2dfb54d39808c247626391e7be59ce596b9cfc7.txt",
+      "new_target": "/generated/stable-mirrorlists/65db60c40081df6159ea873ed993b788a0d83e21b7e311a87d6dda2dc9f3325c.txt"
+    }
+  ],
+  "sdk_executed": false,
+  "network_used": false,
+  "cloud_or_live_pcre_proven": false,
+  "source_changed": false
+}

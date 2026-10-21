@@ -1,0 +1,3 @@
+/candidate.rpm: OK
+/candidate.rpm: digests signatures OK
+AlmaLinux 9 - AppStream                         110 kB/s |  30 MB     04:37    

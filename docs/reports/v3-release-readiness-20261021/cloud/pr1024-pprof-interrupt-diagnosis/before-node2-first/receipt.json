@@ -1,0 +1,160 @@
+{
+  "active_at_end": [
+    0,
+    0,
+    0
+  ],
+  "active_at_helper_exit": [
+    0,
+    1,
+    0
+  ],
+  "active_at_original_two_second_assertion": [
+    0,
+    1,
+    0
+  ],
+  "boundary": {
+    "child_pid": 95017,
+    "helper_pid": 94976,
+    "registered": 3
+  },
+  "child_at_end": "",
+  "child_at_helper_exit": "95017     1 S    curl",
+  "child_at_two_second_assertion": "95017     1 S    curl",
+  "events": [
+    {
+      "seconds": 0.000690125,
+      "kind": "helper_start"
+    },
+    {
+      "seconds": 0.065434833,
+      "kind": "request_started",
+      "node": 1,
+      "active": 1
+    },
+    {
+      "seconds": 0.067469583,
+      "kind": "request_started",
+      "node": 1,
+      "active": 2
+    },
+    {
+      "seconds": 0.072591167,
+      "kind": "request_started",
+      "node": 1,
+      "active": 3
+    },
+    {
+      "seconds": 0.075280125,
+      "kind": "request_started",
+      "node": 2,
+      "active": 1
+    },
+    {
+      "seconds": 0.088670042,
+      "kind": "context_done",
+      "node": 1,
+      "active": 3
+    },
+    {
+      "seconds": 0.088670542,
+      "kind": "handler_return",
+      "node": 1,
+      "active": 2
+    },
+    {
+      "seconds": 0.0886815,
+      "kind": "context_done",
+      "node": 1,
+      "active": 2
+    },
+    {
+      "seconds": 0.088681583,
+      "kind": "handler_return",
+      "node": 1,
+      "active": 1
+    },
+    {
+      "seconds": 0.088713167,
+      "kind": "context_done",
+      "node": 1,
+      "active": 1
+    },
+    {
+      "seconds": 0.08871325,
+      "kind": "handler_return",
+      "node": 1
+    },
+    {
+      "seconds": 0.105677667,
+      "kind": "helper_exit"
+    },
+    {
+      "seconds": 2.12282525,
+      "kind": "original_zero_assertion",
+      "active": 1
+    },
+    {
+      "seconds": 6.078766417,
+      "kind": "context_done",
+      "node": 2,
+      "active": 1
+    },
+    {
+      "seconds": 6.0787715,
+      "kind": "handler_return",
+      "node": 2
+    }
+  ],
+  "group_cleanup_attempted": true,
+  "helper_exit_code": 0,
+  "metadata": {
+    "capture": {
+      "completed_at_utc": "2026-10-21T19:28:36Z",
+      "cpu_seconds": 1,
+      "end_phase": "measurement",
+      "reason": "interrupted",
+      "start_phase": "measurement",
+      "started_at_utc": "2026-10-21T19:28:35Z",
+      "status": "partial",
+      "valid": false
+    },
+    "nodes": [
+      {
+        "cpu": "missing",
+        "goroutine": "missing",
+        "heap": "missing",
+        "node": "node-1"
+      },
+      {
+        "cpu": "missing",
+        "goroutine": "missing",
+        "heap": "missing",
+        "node": "node-2"
+      },
+      {
+        "cpu": "missing",
+        "goroutine": "missing",
+        "heap": "missing",
+        "node": "node-3"
+      }
+    ],
+    "schema": "wukongim.local_threshold_pprof/v1",
+    "trigger": {
+      "current_utc": "2026-08-13T00:00:01.5Z",
+      "kind": "sendack_p99",
+      "observed_phase": "measurement",
+      "previous_utc": "2026-08-13T00:00:00.123456789Z"
+    }
+  },
+  "mode": "before-node2",
+  "original_contract_pass": false,
+  "repository_edited": false,
+  "signal_hook_only": true,
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "temporary_files_at_assertion": [
+    "profiles/node-2-cpu.pb.gz.next.94976"
+  ],
+  "wait_error": "\u003cnil\u003e"
+}

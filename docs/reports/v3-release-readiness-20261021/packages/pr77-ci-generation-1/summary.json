@@ -1,0 +1,91 @@
+{
+  "actual_checkout": "e306351985ed3ee0c235bd120de7032c94ad6d86",
+  "all_ci_passed": false,
+  "all_observer_processes_terminal": true,
+  "all_runs_terminal": true,
+  "attempt": 1,
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "full_signed_repository_install_passed": true,
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "legacy": [
+    {
+      "cases": 7,
+      "name": "native-source-metadata",
+      "passed": true,
+      "transport_cases": 0
+    },
+    {
+      "cases": 10,
+      "name": "native-local-signing",
+      "passed": true,
+      "transport_cases": 0
+    },
+    {
+      "cases": 6,
+      "name": "native-bootstrap-preparation",
+      "passed": true,
+      "transport_cases": 0
+    },
+    {
+      "cases": 31,
+      "name": "native-stable-candidate",
+      "passed": true,
+      "transport_cases": 8
+    }
+  ],
+  "m1": {
+    "cases": 29,
+    "ci_os_process_inventory": "not captured",
+    "passed": 29,
+    "scratch_removed": true,
+    "secret_tree_removed": true
+  },
+  "observer_reruns_dispatches_cancels": 0,
+  "observer_source_PR_cloud_mutations": 0,
+  "pages": {
+    "actual_checkout": "e306351985ed3ee0c235bd120de7032c94ad6d86",
+    "contract_tests": 4,
+    "default_skips": 0,
+    "default_tests": 572,
+    "deploy_conditionally_skipped": true,
+    "errors": 0,
+    "failures": 0,
+    "job_id": 119432668301,
+    "log_sha256": "1b18e7d4d288725c885ae441b734a0b78a59647aeb20173018a75632719c45bb",
+    "run_id": 39660717776,
+    "test_counts_in_execution_order": [
+      4,
+      572
+    ]
+  },
+  "pr_draft": true,
+  "public_release_or_origin_verified": false,
+  "sdk": {
+    "actual_checkout": "e306351985ed3ee0c235bd120de7032c94ad6d86",
+    "artifact_source_tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+    "errors": 0,
+    "failures": 0,
+    "input_tests": 10,
+    "job_id": 119432668152,
+    "log_sha256": "96551723238aacde03cbae987292b12cfd14a7d0b88b5b36601bd04aef25f2d8",
+    "provider_network_allowed": false,
+    "run_id": 39660717798,
+    "sdk_tests": 22,
+    "skips": 0
+  },
+  "stable": {
+    "barrier_scenarios_reached": 0,
+    "cache_scenarios_reached": 0,
+    "cases_recorded": 1,
+    "cleanup_errors": [],
+    "earlier_successful_installed_subcommands": 3,
+    "failed": 1,
+    "failure_phase": "baseline-A-four-download-and-installed-cli",
+    "installed_identity_receipts_available": 0,
+    "not_reached": 48,
+    "passed": 0,
+    "reader_and_final_owned_inventory_empty": true
+  },
+  "stable_enabled": false,
+  "tree": "8275ccb92c310f488d911b5aa077a962e1faad5c"
+}

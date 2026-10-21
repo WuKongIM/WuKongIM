@@ -1,0 +1,7 @@
+{
+  "source": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "helper_sha256": "cfade919beb172d0aebc5a195e16c900b9876cee7d2406e3083ca7440ee7904c",
+  "test_sha256": "e498f29162340540c7d303ce87427e6f4085fea150bf84f42c8af7aa9e34468f",
+  "phase": "tests written before helper change",
+  "observed_at": "2026-10-21T19:32:35.308498+00:00"
+}

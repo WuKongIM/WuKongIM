@@ -1,0 +1,32 @@
+{
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "build_product_function_ast_identical": true,
+  "client_export_guard_prefix_ast_identical": true,
+  "current_fixture": {
+    "data_only": false,
+    "secret_tree_removed": true,
+    "source_provenance_verified": false,
+    "source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+  },
+  "delta": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr77-ci-generation-1/old-client-helper-delta.patch",
+    "sha256": "59fb82d2304323c21672633b813f52a7aea5888429d023b3f4214cf7320a6f4b",
+    "size": 18045
+  },
+  "exercise_function_ast_identical": true,
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "limits": "This source/default-path check and successful build/sign/download boundary are evidence against a new installer command change, not proof that the CI failure is exclusively infrastructure.",
+  "manual_semantic_checks": [
+    "Original exercise still calls export_client_generations with fixed product binaries and calls seal_generations without preview override.",
+    "Both binary versions are validated before sharing; payloads.get(version) accesses an already-populated A/B key on this path.",
+    "Default include_preview=False creates/exports only A/B and skips both new preview helpers; local evidence=None retains the old private evidence dictionary.",
+    "seal preview=None still constructs the original structural InputSnapshot at the same path.",
+    "Default stable sign_family paths/key filenames/arguments remain exactly the former stable constants.",
+    "Existing result gains data_only=False and source_provenance_verified=False; do not describe the entire helper/result schema as byte-identical.",
+    "New native M1 job is a separate isolated container/output, not a replacement for the 49-case workflow."
+  ],
+  "production_validator_byte_identical": true,
+  "seal_preview_default": null,
+  "shared_export_include_preview_default": false,
+  "sign_family_default_channel": "stable"
+}

@@ -1,0 +1,37 @@
+{
+  "linux_pr1022_gen1": {
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-1/artifacts-public/12357946122/members/stdout-stderr.log",
+    "test": {
+      "action": "pass",
+      "elapsed": 0.04
+    }
+  },
+  "linux_pr1022_gen2": {
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1022-ci-generation-2/artifacts-public/12360127874/members/stdout-stderr.log",
+    "test": {
+      "action": "pass",
+      "elapsed": 0.04
+    }
+  },
+  "linux_pr1024_gen1": {
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-ci-generation-1/candidate/artifacts-public/12371361340/members/stdout-stderr.log",
+    "test": {
+      "action": "pass",
+      "elapsed": 0.04
+    }
+  },
+  "mac_v1": {
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair/full-integration.jsonl",
+    "test": {
+      "action": "pass",
+      "elapsed": 0.09
+    }
+  },
+  "mac_v2": {
+    "source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/full-integration.jsonl",
+    "test": {
+      "action": "pass",
+      "elapsed": 0.07
+    }
+  }
+}

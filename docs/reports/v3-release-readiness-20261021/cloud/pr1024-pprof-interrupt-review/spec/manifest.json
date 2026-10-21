@@ -1,0 +1,41 @@
+{
+  "schema": "wukongim.finite_review_archive/v1",
+  "axis": "Spec",
+  "findings": 0,
+  "files": [
+    {
+      "path": "report.md",
+      "bytes": 796,
+      "sha256": "0ea83e22105ae0efa2de63e1f47bff8fe34149f4fb33dd68fad67cd8bde4cb4a"
+    },
+    {
+      "path": "reviewed.diff",
+      "bytes": 11683,
+      "sha256": "97ac8072697123f29762273b3d979991fdabb0712f94321c8f801d54ecfa1cb2"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 6972,
+      "sha256": "23559a192c3054354797133f4300ce12b4634d394c2da1941daa593f25047eea"
+    },
+    {
+      "path": "verification-receipt.json",
+      "bytes": 304,
+      "sha256": "bfdaf9c1b8031400a76b3e4ef67781ada3f6b0f6d9795a727b154b5459b7176d"
+    },
+    {
+      "path": "verify-evidence.py",
+      "bytes": 6303,
+      "sha256": "51c70a54e6337a4444ee6586e88a174467099a7cd2e91a4e82c43e4ca3939dbc"
+    },
+    {
+      "path": "verify-first.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "file_count": 6,
+  "total_bytes": 26058,
+  "source_unchanged": true,
+  "all_owned_processes_terminal": true
+}

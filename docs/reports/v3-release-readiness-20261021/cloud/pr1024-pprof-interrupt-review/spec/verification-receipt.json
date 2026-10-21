@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-pprof-interrupt-review/spec/verify-evidence.py"
+  ],
+  "exit_code": 0,
+  "stderr_bytes": 0,
+  "source_binding_file": "source-binding.json",
+  "test_execution": false,
+  "all_owned_processes_terminal": true
+}

@@ -1,0 +1,107 @@
+{
+  "active_at_end": [
+    0,
+    0,
+    0
+  ],
+  "active_at_helper_exit": [
+    1,
+    0,
+    0
+  ],
+  "active_at_original_two_second_assertion": [
+    1,
+    0,
+    0
+  ],
+  "boundary": {
+    "child_pid": 94794,
+    "helper_pid": 94762,
+    "registered": 0
+  },
+  "child_at_end": "",
+  "child_at_helper_exit": "94794     1 S    curl",
+  "child_at_two_second_assertion": "94794     1 S    curl",
+  "events": [
+    {
+      "seconds": 0.001461875,
+      "kind": "helper_start"
+    },
+    {
+      "seconds": 0.074356167,
+      "kind": "request_started",
+      "node": 1,
+      "active": 1
+    },
+    {
+      "seconds": 0.085245667,
+      "kind": "helper_exit"
+    },
+    {
+      "seconds": 2.10060675,
+      "kind": "original_zero_assertion",
+      "active": 1
+    },
+    {
+      "seconds": 6.0801835,
+      "kind": "context_done",
+      "node": 1,
+      "active": 1
+    },
+    {
+      "seconds": 6.080191167,
+      "kind": "handler_return",
+      "node": 1
+    }
+  ],
+  "group_cleanup_attempted": true,
+  "helper_exit_code": 1,
+  "metadata": {
+    "capture": {
+      "completed_at_utc": "2026-10-21T19:27:10Z",
+      "cpu_seconds": 1,
+      "end_phase": "measurement",
+      "reason": "capture_in_progress",
+      "start_phase": "measurement",
+      "started_at_utc": "2026-10-21T19:27:10Z",
+      "status": "partial",
+      "valid": false
+    },
+    "nodes": [
+      {
+        "cpu": "missing",
+        "goroutine": "missing",
+        "heap": "missing",
+        "node": "node-1"
+      },
+      {
+        "cpu": "missing",
+        "goroutine": "missing",
+        "heap": "missing",
+        "node": "node-2"
+      },
+      {
+        "cpu": "missing",
+        "goroutine": "missing",
+        "heap": "missing",
+        "node": "node-3"
+      }
+    ],
+    "schema": "wukongim.local_threshold_pprof/v1",
+    "trigger": {
+      "current_utc": "2026-08-13T00:00:01.5Z",
+      "kind": "sendack_p99",
+      "observed_phase": "measurement",
+      "previous_utc": "2026-08-13T00:00:00.123456789Z"
+    }
+  },
+  "mode": "before",
+  "original_contract_pass": false,
+  "repository_edited": false,
+  "signal_hook_only": true,
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-evidence",
+  "temporary_files_at_assertion": [
+    "profiles/node-1-cpu.pb.gz.next.94762"
+  ],
+  "wait_error": "exit status 1"
+}

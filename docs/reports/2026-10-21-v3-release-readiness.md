@@ -1,12 +1,12 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 19:27Z（北京时间10月22日03:27）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 19:57Z（北京时间10月22日03:57）**；后续状态须绑定新的提交和收据。
 
 结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
 产品 #1016/#1017/#1019–#1022及packages #67–#76已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z通过，49/49场景和清理已独立核验；18:17:48Z普通rebase合并为be32eb37，同验收tree e319ee72，合并后默认/SDK检查也首次通过且部署跳过。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
 
-两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1，原因正在诊断。两代原失败均保留，#1024仍未合并。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1。已复现spawn与登记之间取消竞态，44de9452修复后九项确定性回归及相关15顶层测试首次通过、两轴零发现；新head默认及性能首次通过，完整scripts/E2E仍待终态。两代原失败均保留，#1024仍未合并。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -311,6 +311,18 @@ scripts原命名检查仍是9分钟测试时限/parallel2、600秒外层/8MiB，
 packages [#77](https://github.com/WuKongIM/packages/pull/77)已创建为draft，head19ce29fb/tree8275ccb9。[M1实现与首次结果](v3-release-readiness-20261021/packages/provider-preview-fixture-implementation/README.md)通过真实签名preview及stable A/B公开导出走原planner/materializer，每代153对象/178路由；29场景通过。首个CI等额资源本地容器曾25/29后失败，证据确认124个孤儿gpg-agent僵尸耗尽128 PID上限；仅新增容器`--init`后同1CPU/512MiB/128PID/512MiBtmp/15分钟约束29/29通过，原失败保留。双轴复核无开放发现；末次仅重命名两个夹具别名，独立字节归一化与AST核验一致。新head首次Linux已见29/29、572默认测试+4合同、SDK22+10、原签名演练通过，49客户端仍待终态，尚未合并。全部是TEST ONLY数据包，未声称installed CLI、生产来源或公网激活通过。
 
 [M2只读接缝计划](v3-release-readiness-20261021/packages/provider-after-m1-plan/README.md)记录真实178路由超过当前逐条映射及阿里云每域50条改写上限。下一步先从公开夹具重建实际路由明细，再评估有限精确分组；目前未实现、未操作云或启用stable。
+
+## 19:57Z 取消竞态修复与包安装诊断
+
+[pprof中断只读诊断](v3-release-readiness-20261021/cloud/pr1024-pprof-interrupt-diagnosis/README.md)在真实HTTP上复现了与Linux同模式的失败：node2 CPU请求启动、尚未加入PID数组时发TERM，helper在0.1057秒正常exit0并写partial/interrupted，node2 curl成为PPID1孤儿；原2秒观察仍active=[0,1,0]，直到6.0788秒自身deadline才取消，handler立即归零并留下未登记tmp。登记后对照能立即取消；原focused偶然通过不作为修复证明。原CI没有指令/PID跟踪，因此不能声称证明其当时精确指令位置。首次诊断钩子不兼容Mac Bash3及首child空数组差异均保留。
+
+[修复与首红首绿](v3-release-readiness-20261021/cloud/pr1024-pprof-interrupt-repair-v1/README.md)先新增九个真实进程用例：零child、首child、node2登记边界各HUP/INT/TERM。原脚本6+3项首次均失败；再以窄guard延后启动登记期间的信号，完整登记后立即调用原cleanup，并修复Bash3 nounset空数组。首轮相关15顶层/38 PASS全部通过，原随机interrupt用例及全部既有测试正文保留。四文件经过[双轴独立复核](v3-release-readiness-20261021/cloud/pr1024-pprof-interrupt-delivery/combined-review.md)，Standards/Spec均0发现，已提交44de9452/treeb69a44af；产品及依赖对象未变。首次新head CI正在运行，没有同源失败job重跑，也没有改门限。
+
+[#77首轮完整CI](v3-release-readiness-20261021/packages/pr77-ci-generation-1/README.md)绑定19ce29fb及实际checkout e306351/tree8275。新增M1为29/29；旧7/10/6/31+8、完整签名仓库、Pages572零skip+4、SDK22+10均通过。但原49客户端首case失败：0通过、1失败、48未到；Alma installed-client命令在600.151秒exit124，driver自身未timeout。校验和及RPM签名已通过，最后输出为AppStream30MB下载耗时4:37。CLI stdout重定向到未上传的单客户端文件，因此不能凭无stdout断言CLI未开始；宿主的精确CLI身份收据检查确实未执行。四个产品二进制SHA/size与#76首失败一致；默认路径核对保留shared helper返回形状变化，不冒称所有helper字节不变。资源cleanup errors=[]、containers/network remaining=[]；缓存场景尚未执行。
+
+同边界超时曾在#76发生，仍没有唯一根因。选择[五文件阶段诊断方案](v3-release-readiness-20261021/packages/pr77-ci-generation-1/phase-diagnostics-plan.md)：固定8事件枚举，APT不报告RPM签名事件，从原有界输出中保序保重复保留最多16项、显式truncated，仅用于诊断。先执行真实generated-shell失败/超时/超过4096B噪声的回归，再加记录；不改变通过判定、签验合同、命令、资源、600秒限制或49场景。未重跑原失败，#77仍draft未合并。
+
+[M2a真实路由读回](v3-release-readiness-20261021/packages/provider-native-route-readback/README.md)首次在原固定资源约束下通过并清理，A/B各178路由/153对象可精确表达为17条候选、最大1017字节。[独立方案审查](v3-release-readiness-20261021/packages/provider-native-route-plan-review/report.md)0阻塞发现；17仅在该固定分组内达到下界，不是全局最优证明，真实Alibaba PCRE尚未验证。M2a源码实施暂停至#77完成验收和合并，未操作云。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

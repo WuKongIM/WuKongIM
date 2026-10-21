@@ -1,0 +1,23 @@
+{
+  "source": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "observed_at": "2026-10-21T19:36:24.073152+00:00",
+  "files": {
+    "CHANGELOG.md": "6933c326cccd407769a18e32c1c09f254bca585090d587e887e112f917a07a29",
+    "docs/development/PROJECT_KNOWLEDGE.md": "ca8b02ea80ffd161c339b9cff262b0239b81c3d4981e0435ca1780ef9cf1b7ff",
+    "scripts/capture-wukongim-local-threshold-pprof.sh": "b17347aea7acdfc6320c7db547065893814b105b7fbe5b6f9655b8b044b0780a",
+    "scripts/wukongim_local_threshold_pprof_script_integration_test.go": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311"
+  },
+  "rules": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "applicable_FLOW": null
+  },
+  "original_integration_tests_unchanged": true,
+  "added_regressions": 9,
+  "red_first_registration_cases": 6,
+  "red_first_prelaunch_cases": 3,
+  "green_first_exit": 0,
+  "green_pass_records": 38,
+  "green_top_level_tests": 15,
+  "package_seconds": 2.2560000000000002,
+  "no_fullsuite_or_ci_rerun": true
+}

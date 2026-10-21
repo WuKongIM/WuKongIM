@@ -1,0 +1,7 @@
+{
+  "helper_sha256": "cfade919beb172d0aebc5a195e16c900b9876cee7d2406e3083ca7440ee7904c",
+  "test_sha256": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311",
+  "red_registration_cases": 6,
+  "red_prelaunch_cases": 3,
+  "all_expected_failed": true
+}

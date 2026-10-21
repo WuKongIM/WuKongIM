@@ -1,0 +1,161 @@
+{
+  "analysis_only": true,
+  "provider_implemented": false,
+  "live_pcre_verified": false,
+  "source_routes_sha256": "57d2d676d463e9bc6faca14ab670873aa5b30755e235f48d503ff6ce6e634877",
+  "rules": [
+    {
+      "first_original_route": 0,
+      "source_url": "^/(apt/dists/preview/InRelease|apt/dists/preview/Release|apt/dists/preview/Release\\.gpg|apt/dists/preview/main/binary\\-amd64/Packages|apt/dists/preview/main/binary\\-amd64/Packages\\.gz|bootstrap/manifest\\.json|index\\.html|keys/apt\\-preview\\.asc|keys/rpm\\-preview\\.asc|repo|rpm/preview/el/9/x86_64/repodata/filelists\\.xml\\.gz|rpm/preview/el/9/x86_64/repodata/other\\.xml\\.gz|rpm/preview/el/9/x86_64/repodata/primary\\.xml\\.gz|rpm/preview/el/9/x86_64/repodata/repomd\\.xml|rpm/preview/el/9/x86_64/repodata/repomd\\.xml\\.asc|signing\\-manifest\\.txt|status\\.json)\\z",
+      "target_url": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/site/$1",
+      "flag": "break",
+      "members": 17,
+      "sequence": "1",
+      "expression_bytes": 555
+    },
+    {
+      "first_original_route": 5,
+      "source_url": "^/(apt/dists/stable/InRelease|apt/dists/stable/Release|apt/dists/stable/Release\\.gpg|apt/dists/stable/main/binary\\-amd64/Packages|apt/dists/stable/main/binary\\-amd64/Packages\\.gz|keys/apt\\-stable\\.asc|keys/rpm\\-stable\\.asc)\\z",
+      "target_url": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/site/$1",
+      "flag": "break",
+      "members": 7,
+      "sequence": "2",
+      "expression_bytes": 225
+    },
+    {
+      "first_original_route": 22,
+      "source_url": "^/rpm/stable/el/9/x86_64/mirrorlist\\z",
+      "target_url": "/generated/stable-mirrorlists/65db60c40081df6159ea873ed993b788a0d83e21b7e311a87d6dda2dc9f3325c.txt",
+      "flag": "break",
+      "members": 1,
+      "sequence": "3",
+      "expression_bytes": 37
+    },
+    {
+      "first_original_route": 25,
+      "source_url": "^/\\z",
+      "target_url": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/site/index.html",
+      "flag": "break",
+      "members": 1,
+      "sequence": "4",
+      "expression_bytes": 4
+    },
+    {
+      "first_original_route": 26,
+      "source_url": "^/(apt/dists/preview/main/binary\\-amd64/by\\-hash/SHA256/dd48dbd9127db9fad4b4e79e206af51e4c5a437c0d0248d500c310b7ba642190|apt/dists/preview/main/binary\\-amd64/by\\-hash/SHA256/f93e0f7b42b0283e5c7c9d14d719067aedfe87f999b7d678e3bac9df4e0217f5|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA512/1400ffabbea1a6099e1520048009709f1b35ddeed8d31ab0119e3a038f13b4ae475b32b6e5a57f3c5fe2beab256744f2f5a501350030df07c1b137298a853267)\\z",
+      "target_url": "/public/$1",
+      "flag": "break",
+      "members": 7,
+      "sequence": "5",
+      "expression_bytes": 890
+    },
+    {
+      "first_original_route": 33,
+      "source_url": "^/(apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA512/512a29269c8d8133e982d1366c2ebc0971f9531d5fe07c7355ed98d115f87c964ec9fe62ed17684e7ef4ba580ec9a8470dd5bba3c6fdc9d5e087d48578479bb3|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA512/65caa6619b99ac504f3ae7cf59e94887eca02c37bc3adaedb39934f7a8e10da5cecdd9334a8176d28407ade4d876a9c0ecc70e6951767333ff2f45a9ecd46a1c|apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA512/8b2b65fbc12f28afec4f06f03a16a7f34793e034acd924c4e33004ddbfbd3f2761e2878a3f47b5479b466a8ebcd3595c09e41716c31620d38e186d07f1b026be|apt/pool/main/w/wukongim/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.1_all\\.deb|apt/pool/main/w/wukongim/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.2_all\\.deb|apt/pool/main/w/wukongim/wukongim\\-archive\\-keyring_1\\.1\\.0_all\\.deb|apt/pool/main/w/wukongim/wukongim_3\\.0\\.0_linux_amd64\\.deb|apt/pool/main/w/wukongim/wukongim_3\\.0\\.1_linux_amd64\\.deb|apt/pool/main/w/wukongim/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.deb|bootstrap/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.1_all\\.deb)\\z",
+      "target_url": "/public/$1",
+      "flag": "break",
+      "members": 10,
+      "sequence": "6",
+      "expression_bytes": 1017
+    },
+    {
+      "first_original_route": 43,
+      "source_url": "^/(bootstrap/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.2_all\\.deb|bootstrap/wukongim\\-archive\\-keyring_1\\.1\\.0_all\\.deb|bootstrap/wukongim\\-release\\-1\\.1\\.0\\-1\\.noarch\\.rpm|bootstrap/wukongim\\-release\\-stable\\-1\\.1\\.1\\-1\\.noarch\\.rpm|bootstrap/wukongim\\-release\\-stable\\-1\\.1\\.2\\-1\\.noarch\\.rpm|rpm/preview/el/9/x86_64/Packages/wukongim\\-release\\-1\\.1\\.0\\-1\\.noarch\\.rpm|rpm/preview/el/9/x86_64/Packages/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.rpm|rpm/stable/el/9/x86_64/Packages/wukongim\\-release\\-stable\\-1\\.1\\.1\\-1\\.noarch\\.rpm|rpm/stable/el/9/x86_64/Packages/wukongim\\-release\\-stable\\-1\\.1\\.2\\-1\\.noarch\\.rpm|rpm/stable/el/9/x86_64/Packages/wukongim_3\\.0\\.0_linux_amd64\\.rpm|rpm/stable/el/9/x86_64/Packages/wukongim_3\\.0\\.1_linux_amd64\\.rpm|snapshots/stable/r4242\\-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/site/rpm/stable/el/9/x86_64/Packages/wukongim\\-release\\-stable\\-1\\.1\\.2\\-1\\.noarch\\.rpm)\\z",
+      "target_url": "/public/$1",
+      "flag": "break",
+      "members": 12,
+      "sequence": "7",
+      "expression_bytes": 921
+    },
+    {
+      "first_original_route": 55,
+      "source_url": "^/(snapshots/stable/r4242\\-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/site/rpm/stable/el/9/x86_64/Packages/wukongim_3\\.0\\.1_linux_amd64\\.rpm|snapshots/stable/r4243\\-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/site/rpm/stable/el/9/x86_64/Packages/wukongim\\-release\\-stable\\-1\\.1\\.1\\-1\\.noarch\\.rpm|snapshots/stable/r4243\\-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/site/rpm/stable/el/9/x86_64/Packages/wukongim_3\\.0\\.0_linux_amd64\\.rpm)\\z",
+      "target_url": "/public/$1",
+      "flag": "break",
+      "members": 3,
+      "sequence": "8",
+      "expression_bytes": 502
+    },
+    {
+      "first_original_route": 58,
+      "source_url": "^/snapshots/preview/r10\\-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/(audit/apt\\-signing\\.json|audit/plan\\.json|audit/rpm\\-signing\\.json|audit/signing\\-toolchain\\.json|audit/snapshot\\.json|audit/source\\-attestations/source\\-attestations\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_checksums\\.txt\\.attestation\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_darwin_amd64\\.tar\\.gz\\.attestation\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_darwin_arm64\\.tar\\.gz\\.attestation\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.deb\\.attestation\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.rpm\\.attestation\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.tar\\.gz\\.attestation\\.json|audit/source\\-attestations/wukongim_3\\.1\\.0\\-rc\\.1_linux_arm64\\.tar\\.gz\\.attestation\\.json|site/apt/dists/preview/InRelease|site/apt/dists/preview/Release|site/apt/dists/preview/Release\\.gpg)\\z",
+      "target_url": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/$1",
+      "flag": "break",
+      "members": 16,
+      "sequence": "9",
+      "expression_bytes": 991
+    },
+    {
+      "first_original_route": 74,
+      "source_url": "^/snapshots/preview/r10\\-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/(site/apt/dists/preview/main/binary\\-amd64/Packages|site/apt/dists/preview/main/binary\\-amd64/Packages\\.gz|site/apt/dists/preview/main/binary\\-amd64/by\\-hash/SHA256/dd48dbd9127db9fad4b4e79e206af51e4c5a437c0d0248d500c310b7ba642190|site/apt/dists/preview/main/binary\\-amd64/by\\-hash/SHA256/f93e0f7b42b0283e5c7c9d14d719067aedfe87f999b7d678e3bac9df4e0217f5|site/apt/pool/main/w/wukongim/wukongim\\-archive\\-keyring_1\\.1\\.0_all\\.deb|site/apt/pool/main/w/wukongim/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.deb|site/bootstrap/manifest\\.json|site/bootstrap/wukongim\\-archive\\-keyring_1\\.1\\.0_all\\.deb|site/bootstrap/wukongim\\-release\\-1\\.1\\.0\\-1\\.noarch\\.rpm|site/index\\.html|site/keys/apt\\-preview\\.asc|site/keys/rpm\\-preview\\.asc|site/repo|site/rpm/preview/el/9/x86_64/Packages/wukongim\\-release\\-1\\.1\\.0\\-1\\.noarch\\.rpm|site/rpm/preview/el/9/x86_64/Packages/wukongim_3\\.1\\.0\\-rc\\.1_linux_amd64\\.rpm)\\z",
+      "target_url": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/$1",
+      "flag": "break",
+      "members": 15,
+      "sequence": "10",
+      "expression_bytes": 980
+    },
+    {
+      "first_original_route": 89,
+      "source_url": "^/snapshots/preview/r10\\-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/(site/rpm/preview/el/9/x86_64/repodata/filelists\\.xml\\.gz|site/rpm/preview/el/9/x86_64/repodata/other\\.xml\\.gz|site/rpm/preview/el/9/x86_64/repodata/primary\\.xml\\.gz|site/rpm/preview/el/9/x86_64/repodata/repomd\\.xml|site/rpm/preview/el/9/x86_64/repodata/repomd\\.xml\\.asc|site/signing\\-manifest\\.txt|site/status\\.json)\\z",
+      "target_url": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/$1",
+      "flag": "break",
+      "members": 7,
+      "sequence": "11",
+      "expression_bytes": 409
+    },
+    {
+      "first_original_route": 96,
+      "source_url": "^/snapshots/stable/r4242\\-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/(audit/apt\\-signing\\.json|audit/control/keys/apt\\-preview\\.asc|audit/control/keys/apt\\-stable\\.asc|audit/control/keys/rpm\\-preview\\.asc|audit/control/keys/rpm\\-stable\\.asc|audit/control/manifests/bootstrap\\-packages\\.json|audit/control/manifests/channels\\.json|audit/control/manifests/preview\\-signing\\.json|audit/control/manifests/signing\\-toolchain\\.json|audit/control/manifests/stable\\-public\\-keys\\.json|audit/control/manifests/trusted\\-toolchain\\.json|audit/plan\\.json|audit/rpm\\-signing\\.json|audit/signing\\-toolchain\\.json|audit/snapshot\\.json|audit/source/resolution\\.json|site/apt/dists/stable/InRelease|site/apt/dists/stable/Release|site/apt/dists/stable/Release\\.gpg|site/apt/dists/stable/main/binary\\-amd64/Packages|site/apt/dists/stable/main/binary\\-amd64/Packages\\.gz|site/apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd)\\z",
+      "target_url": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/$1",
+      "flag": "break",
+      "members": 22,
+      "sequence": "12",
+      "expression_bytes": 997
+    },
+    {
+      "first_original_route": 118,
+      "source_url": "^/snapshots/stable/r4242\\-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/(site/apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010|site/apt/pool/main/w/wukongim/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.1_all\\.deb|site/apt/pool/main/w/wukongim/wukongim_3\\.0\\.0_linux_amd64\\.deb|site/bootstrap/manifest\\.json|site/bootstrap/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.1_all\\.deb|site/bootstrap/wukongim\\-release\\-stable\\-1\\.1\\.1\\-1\\.noarch\\.rpm|site/index\\.html|site/keys/apt\\-stable\\.asc|site/keys/rpm\\-stable\\.asc|site/repo|site/rpm/stable/el/9/x86_64/Packages/wukongim\\-release\\-stable\\-1\\.1\\.1\\-1\\.noarch\\.rpm|site/rpm/stable/el/9/x86_64/Packages/wukongim_3\\.0\\.0_linux_amd64\\.rpm|site/rpm/stable/el/9/x86_64/repodata/filelists\\.xml\\.gz|site/rpm/stable/el/9/x86_64/repodata/other\\.xml\\.gz|site/rpm/stable/el/9/x86_64/repodata/primary\\.xml\\.gz|site/rpm/stable/el/9/x86_64/repodata/repomd\\.xml)\\z",
+      "target_url": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/$1",
+      "flag": "break",
+      "members": 16,
+      "sequence": "13",
+      "expression_bytes": 976
+    },
+    {
+      "first_original_route": 134,
+      "source_url": "^/snapshots/stable/r4242\\-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/(site/rpm/stable/el/9/x86_64/repodata/repomd\\.xml\\.asc|site/signing\\-manifest\\.txt|site/status\\.json)\\z",
+      "target_url": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/$1",
+      "flag": "break",
+      "members": 3,
+      "sequence": "14",
+      "expression_bytes": 194
+    },
+    {
+      "first_original_route": 137,
+      "source_url": "^/snapshots/stable/r4243\\-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/(audit/apt\\-signing\\.json|audit/control/keys/apt\\-preview\\.asc|audit/control/keys/apt\\-stable\\.asc|audit/control/keys/rpm\\-preview\\.asc|audit/control/keys/rpm\\-stable\\.asc|audit/control/manifests/bootstrap\\-packages\\.json|audit/control/manifests/channels\\.json|audit/control/manifests/preview\\-signing\\.json|audit/control/manifests/signing\\-toolchain\\.json|audit/control/manifests/stable\\-public\\-keys\\.json|audit/control/manifests/trusted\\-toolchain\\.json|audit/plan\\.json|audit/rpm\\-signing\\.json|audit/signing\\-toolchain\\.json|audit/snapshot\\.json|audit/source/resolution\\.json|site/apt/dists/stable/InRelease|site/apt/dists/stable/Release|site/apt/dists/stable/Release\\.gpg|site/apt/dists/stable/main/binary\\-amd64/Packages|site/apt/dists/stable/main/binary\\-amd64/Packages\\.gz|site/apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f)\\z",
+      "target_url": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/$1",
+      "flag": "break",
+      "members": 22,
+      "sequence": "15",
+      "expression_bytes": 997
+    },
+    {
+      "first_original_route": 159,
+      "source_url": "^/snapshots/stable/r4243\\-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/(site/apt/dists/stable/main/binary\\-amd64/by\\-hash/SHA256/e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1|site/apt/pool/main/w/wukongim/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.2_all\\.deb|site/apt/pool/main/w/wukongim/wukongim_3\\.0\\.1_linux_amd64\\.deb|site/bootstrap/manifest\\.json|site/bootstrap/wukongim\\-archive\\-keyring\\-stable_1\\.1\\.2_all\\.deb|site/bootstrap/wukongim\\-release\\-stable\\-1\\.1\\.2\\-1\\.noarch\\.rpm|site/index\\.html|site/keys/apt\\-stable\\.asc|site/keys/rpm\\-stable\\.asc|site/repo|site/rpm/stable/el/9/x86_64/Packages/wukongim\\-release\\-stable\\-1\\.1\\.2\\-1\\.noarch\\.rpm|site/rpm/stable/el/9/x86_64/Packages/wukongim_3\\.0\\.1_linux_amd64\\.rpm|site/rpm/stable/el/9/x86_64/repodata/filelists\\.xml\\.gz|site/rpm/stable/el/9/x86_64/repodata/other\\.xml\\.gz|site/rpm/stable/el/9/x86_64/repodata/primary\\.xml\\.gz|site/rpm/stable/el/9/x86_64/repodata/repomd\\.xml)\\z",
+      "target_url": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/$1",
+      "flag": "break",
+      "members": 16,
+      "sequence": "16",
+      "expression_bytes": 976
+    },
+    {
+      "first_original_route": 175,
+      "source_url": "^/snapshots/stable/r4243\\-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/(site/rpm/stable/el/9/x86_64/repodata/repomd\\.xml\\.asc|site/signing\\-manifest\\.txt|site/status\\.json)\\z",
+      "target_url": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/$1",
+      "flag": "break",
+      "members": 3,
+      "sequence": "17",
+      "expression_bytes": 194
+    }
+  ]
+}

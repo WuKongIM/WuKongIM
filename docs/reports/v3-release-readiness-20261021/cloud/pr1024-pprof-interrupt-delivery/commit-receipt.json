@@ -1,0 +1,28 @@
+{
+  "recorded_at": "2026-10-21T19:48:06.008856+00:00",
+  "head": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "tree": "b69a44af04f20143b690e7a3860cc45caa95a0f4",
+  "parent": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "reviewed_files": {
+    "CHANGELOG.md": "6933c326cccd407769a18e32c1c09f254bca585090d587e887e112f917a07a29",
+    "docs/development/PROJECT_KNOWLEDGE.md": "ca8b02ea80ffd161c339b9cff262b0239b81c3d4981e0435ca1780ef9cf1b7ff",
+    "scripts/capture-wukongim-local-threshold-pprof.sh": "b17347aea7acdfc6320c7db547065893814b105b7fbe5b6f9655b8b044b0780a",
+    "scripts/wukongim_local_threshold_pprof_script_integration_test.go": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311"
+  },
+  "rules": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "applicable_FLOW": null
+  },
+  "review_freeze_sha256": "b7c7cc4c1ea841a8f97b0998760c739291f85d5414eabefa38756fcc2d54a351",
+  "standards_findings": 0,
+  "spec_findings": 0,
+  "product_objects_unchanged": {
+    "cmd": "a667d96681bd972d0e839e67103652791587a9b6",
+    "internal": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+    "pkg": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+    "go.mod": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+    "go.sum": "1692c2bb1806d016e62aa440142582d0b1aa54a6"
+  },
+  "new_ci_required": true,
+  "prior_failures_retained": true
+}

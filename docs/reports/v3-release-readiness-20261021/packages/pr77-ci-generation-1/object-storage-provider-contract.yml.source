@@ -1,0 +1,44 @@
+name: Safety Automation - Verify Object Storage SDK Contracts
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/object-storage-provider-contract.yml'
+      - 'requirements-object-storage-provider.lock'
+      - 'scripts/**'
+      - 'tests/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/object-storage-provider-contract.yml'
+      - 'requirements-object-storage-provider.lock'
+      - 'scripts/**'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  provider-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install exact optional SDK dependencies
+        run: |
+          python3 -m venv /tmp/provider-contract-venv
+          timeout 240 /tmp/provider-contract-venv/bin/python -m pip install --only-binary=:all: --require-hashes -r requirements-object-storage-provider.lock
+      - name: Run mandatory offline SDK contracts
+        run: |
+          timeout 120 /tmp/provider-contract-venv/bin/python -B tests/provider_sdk/test_aliyun_object_storage_provider.py --receipt /tmp/provider-contract-receipt.json
+          timeout 120 python3 -B -m unittest discover -s tests -p test_object_storage_delivery_inputs.py -v
+      - name: Retain bounded no-credential contract receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: object-storage-sdk-contract
+          path: /tmp/provider-contract-receipt.json
+          if-no-files-found: error
+          retention-days: 7

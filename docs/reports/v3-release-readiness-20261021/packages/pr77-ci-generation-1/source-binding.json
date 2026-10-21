@@ -1,0 +1,56 @@
+{
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "head_tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "reviewed_alias_source_freeze_sha256": "3cb9a49dc9387961364af9e0ebc85a0108e2c1d0a9d66419f31500124a18dccc",
+  "exact_reviewed_seven_files": [
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "size": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "size": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "size": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "size": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "size": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24"
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "size": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "tests/test_native_object_delivery_fixture_workflow.py",
+      "size": 4180,
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066"
+    }
+  ],
+  "changed_paths": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "tests/native_object_delivery_fixture_drill.py",
+    "tests/native_stable_candidate_drill.py",
+    "tests/native_stable_clients_drill.py",
+    "tests/test_native_object_delivery_fixture_workflow.py"
+  ],
+  "stable_enabled": false,
+  "preview_enabled": true,
+  "channels_sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+  "source_retrieval": "git show exact local commit; hosted Git commit GET tree independently recorded"
+}

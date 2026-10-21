@@ -1,0 +1,1 @@
+mode=before helper_exit=1 registered=0 active_at_exit=[1 0 0] active_at_2s=[1 0 0] final_active=[0 0 0] temporary=[profiles/node-1-cpu.pb.gz.next.94762] contract_pass=false

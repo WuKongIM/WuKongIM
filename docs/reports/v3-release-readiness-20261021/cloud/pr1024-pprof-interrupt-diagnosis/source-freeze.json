@@ -1,0 +1,20 @@
+{
+  "source": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "tree": "85f578ba19135892c3d4f5e18db37329cd515cf7",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "scripts/capture-wukongim-local-threshold-pprof.sh": "cfade919beb172d0aebc5a195e16c900b9876cee7d2406e3083ca7440ee7904c",
+    "scripts/wukongim_local_threshold_pprof_script_integration_test.go": "95d641c8bbfe353229b6422169492f838e94612df8fa18fb0e2e694fe359e418",
+    "scripts/wukongim_local_threshold_pprof_script_test.go": "75f692b9046d39cd2c72c72335342de000a079fe9a3efefa78841efbda35d679"
+  },
+  "applicable_flow": "none for scripts root; no more-specific AGENTS",
+  "observed_at": "2026-10-21T19:24:19.162918+00:00",
+  "unchanged_from_previous_c91": {
+    "AGENTS.md": true,
+    "CONTEXT.md": true,
+    "scripts/capture-wukongim-local-threshold-pprof.sh": true,
+    "scripts/wukongim_local_threshold_pprof_script_integration_test.go": true,
+    "scripts/wukongim_local_threshold_pprof_script_test.go": true
+  }
+}

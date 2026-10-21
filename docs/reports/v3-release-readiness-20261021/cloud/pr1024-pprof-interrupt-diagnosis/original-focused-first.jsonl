@@ -1,0 +1,12 @@
+{"Time":"2026-10-22T03:24:44.39686+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts"}
+{"Time":"2026-10-22T03:24:45.286174+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata"}
+{"Time":"2026-10-22T03:24:45.286238+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata","Output":"=== RUN   TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata\n"}
+{"Time":"2026-10-22T03:24:45.286266+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata","Output":"=== PAUSE TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata\n"}
+{"Time":"2026-10-22T03:24:45.286272+08:00","Action":"pause","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata"}
+{"Time":"2026-10-22T03:24:45.286277+08:00","Action":"cont","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata"}
+{"Time":"2026-10-22T03:24:45.286281+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata","Output":"=== CONT  TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata\n"}
+{"Time":"2026-10-22T03:24:45.356666+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata","Output":"--- PASS: TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata (0.07s)\n"}
+{"Time":"2026-10-22T03:24:45.356687+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata","Elapsed":0.07}
+{"Time":"2026-10-22T03:24:45.356703+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"PASS\n"}
+{"Time":"2026-10-22T03:24:45.358257+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t0.961s\n"}
+{"Time":"2026-10-22T03:24:45.358289+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Elapsed":0.961}

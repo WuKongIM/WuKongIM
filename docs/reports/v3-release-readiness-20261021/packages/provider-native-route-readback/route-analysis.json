@@ -1,0 +1,154 @@
+{
+  "A": {
+    "routes": 178,
+    "objects": 153,
+    "kind_counts": {
+      "entrypoint": 26,
+      "alias": 32,
+      "snapshot": 120
+    },
+    "groups": [
+      {
+        "kind": "current-entrypoint",
+        "source_prefix": "/",
+        "target_prefix": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/site/",
+        "routes": 17,
+        "escaped_suffix_plus_separator_bytes": 550,
+        "fixed_group_size_lower_bound": 1,
+        "lexicographic_next_fit_rules": 1
+      },
+      {
+        "kind": "current-entrypoint",
+        "source_prefix": "/",
+        "target_prefix": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/site/",
+        "routes": 7,
+        "escaped_suffix_plus_separator_bytes": 220,
+        "fixed_group_size_lower_bound": 1,
+        "lexicographic_next_fit_rules": 1
+      },
+      {
+        "kind": "public-alias",
+        "source_prefix": "/",
+        "target_prefix": "/public/",
+        "routes": 32,
+        "escaped_suffix_plus_separator_bytes": 3310,
+        "fixed_group_size_lower_bound": 4,
+        "lexicographic_next_fit_rules": 4
+      },
+      {
+        "kind": "snapshot-identity",
+        "source_prefix": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/",
+        "target_prefix": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/",
+        "routes": 38,
+        "escaped_suffix_plus_separator_bytes": 2101,
+        "fixed_group_size_lower_bound": 3,
+        "lexicographic_next_fit_rules": 3
+      },
+      {
+        "kind": "snapshot-identity",
+        "source_prefix": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/",
+        "target_prefix": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/",
+        "routes": 41,
+        "escaped_suffix_plus_separator_bytes": 1885,
+        "fixed_group_size_lower_bound": 3,
+        "lexicographic_next_fit_rules": 3
+      },
+      {
+        "kind": "snapshot-identity",
+        "source_prefix": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/",
+        "target_prefix": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/",
+        "routes": 41,
+        "escaped_suffix_plus_separator_bytes": 1885,
+        "fixed_group_size_lower_bound": 3,
+        "lexicographic_next_fit_rules": 3
+      }
+    ],
+    "literal_exceptions": [
+      "/rpm/stable/el/9/x86_64/mirrorlist",
+      "/"
+    ],
+    "candidate_rules": 17,
+    "fixed_partition_size_lower_bound": 17,
+    "maximum_expression_bytes": 1017,
+    "finite_inverse_exact_set_and_target_equality": true,
+    "all_route_object_byte_cache_facts_bound": true,
+    "neighbor_nonmatches": 1602,
+    "python_regex_only_not_live_pcre": true
+  },
+  "B": {
+    "routes": 178,
+    "objects": 153,
+    "kind_counts": {
+      "entrypoint": 26,
+      "alias": 32,
+      "snapshot": 120
+    },
+    "groups": [
+      {
+        "kind": "current-entrypoint",
+        "source_prefix": "/",
+        "target_prefix": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/site/",
+        "routes": 17,
+        "escaped_suffix_plus_separator_bytes": 550,
+        "fixed_group_size_lower_bound": 1,
+        "lexicographic_next_fit_rules": 1
+      },
+      {
+        "kind": "current-entrypoint",
+        "source_prefix": "/",
+        "target_prefix": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/site/",
+        "routes": 7,
+        "escaped_suffix_plus_separator_bytes": 220,
+        "fixed_group_size_lower_bound": 1,
+        "lexicographic_next_fit_rules": 1
+      },
+      {
+        "kind": "public-alias",
+        "source_prefix": "/",
+        "target_prefix": "/public/",
+        "routes": 32,
+        "escaped_suffix_plus_separator_bytes": 3310,
+        "fixed_group_size_lower_bound": 4,
+        "lexicographic_next_fit_rules": 4
+      },
+      {
+        "kind": "snapshot-identity",
+        "source_prefix": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/",
+        "target_prefix": "/snapshots/preview/r10-5522cd01443ad50af5da99d1c976de10be71c845132a4f1d7aecc8111df599d5/",
+        "routes": 38,
+        "escaped_suffix_plus_separator_bytes": 2101,
+        "fixed_group_size_lower_bound": 3,
+        "lexicographic_next_fit_rules": 3
+      },
+      {
+        "kind": "snapshot-identity",
+        "source_prefix": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/",
+        "target_prefix": "/snapshots/stable/r4242-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b/",
+        "routes": 41,
+        "escaped_suffix_plus_separator_bytes": 1885,
+        "fixed_group_size_lower_bound": 3,
+        "lexicographic_next_fit_rules": 3
+      },
+      {
+        "kind": "snapshot-identity",
+        "source_prefix": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/",
+        "target_prefix": "/snapshots/stable/r4243-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5/",
+        "routes": 41,
+        "escaped_suffix_plus_separator_bytes": 1885,
+        "fixed_group_size_lower_bound": 3,
+        "lexicographic_next_fit_rules": 3
+      }
+    ],
+    "literal_exceptions": [
+      "/rpm/stable/el/9/x86_64/mirrorlist",
+      "/"
+    ],
+    "candidate_rules": 17,
+    "fixed_partition_size_lower_bound": 17,
+    "maximum_expression_bytes": 1017,
+    "finite_inverse_exact_set_and_target_equality": true,
+    "all_route_object_byte_cache_facts_bound": true,
+    "neighbor_nonmatches": 1602,
+    "python_regex_only_not_live_pcre": true
+  }
+}

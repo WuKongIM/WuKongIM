@@ -1,0 +1,342 @@
+{
+  "cases": [
+    {
+      "active_requests": [
+        1,
+        0,
+        0
+      ],
+      "child_alive": true,
+      "helper_exit_code": 1,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "capture_in_progress",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:32:38Z",
+          "completed_at_utc": "2026-10-21T19:32:38Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 1,
+      "passed": false,
+      "registered_before_signal": 0,
+      "signal": "HUP",
+      "signal_to_exit_seconds": 0.006124583,
+      "temporary_files": [
+        "profiles/node-1-cpu.pb.gz.next.95507"
+      ]
+    },
+    {
+      "active_requests": [
+        1,
+        0,
+        0
+      ],
+      "child_alive": true,
+      "helper_exit_code": 1,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "capture_in_progress",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:32:40Z",
+          "completed_at_utc": "2026-10-21T19:32:40Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 1,
+      "passed": false,
+      "registered_before_signal": 0,
+      "signal": "INT",
+      "signal_to_exit_seconds": 0.010953167,
+      "temporary_files": [
+        "profiles/node-1-cpu.pb.gz.next.95551"
+      ]
+    },
+    {
+      "active_requests": [
+        1,
+        0,
+        0
+      ],
+      "child_alive": true,
+      "helper_exit_code": 1,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "capture_in_progress",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:32:42Z",
+          "completed_at_utc": "2026-10-21T19:32:42Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 1,
+      "passed": false,
+      "registered_before_signal": 0,
+      "signal": "TERM",
+      "signal_to_exit_seconds": 0.01161525,
+      "temporary_files": [
+        "profiles/node-1-cpu.pb.gz.next.95586"
+      ]
+    },
+    {
+      "active_requests": [
+        0,
+        1,
+        0
+      ],
+      "child_alive": true,
+      "helper_exit_code": 0,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "interrupted",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:32:44Z",
+          "completed_at_utc": "2026-10-21T19:32:44Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 2,
+      "passed": false,
+      "registered_before_signal": 3,
+      "signal": "HUP",
+      "signal_to_exit_seconds": 0.028058,
+      "temporary_files": [
+        "profiles/node-2-cpu.pb.gz.next.95624"
+      ]
+    },
+    {
+      "active_requests": [
+        0,
+        1,
+        0
+      ],
+      "child_alive": true,
+      "helper_exit_code": 0,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "interrupted",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:32:46Z",
+          "completed_at_utc": "2026-10-21T19:32:46Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 2,
+      "passed": false,
+      "registered_before_signal": 3,
+      "signal": "INT",
+      "signal_to_exit_seconds": 0.026921667,
+      "temporary_files": [
+        "profiles/node-2-cpu.pb.gz.next.95688"
+      ]
+    },
+    {
+      "active_requests": [
+        0,
+        1,
+        0
+      ],
+      "child_alive": true,
+      "helper_exit_code": 0,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "interrupted",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:32:48Z",
+          "completed_at_utc": "2026-10-21T19:32:48Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 2,
+      "passed": false,
+      "registered_before_signal": 3,
+      "signal": "TERM",
+      "signal_to_exit_seconds": 0.026991375,
+      "temporary_files": [
+        "profiles/node-2-cpu.pb.gz.next.95743"
+      ]
+    }
+  ],
+  "fixture_only": true,
+  "schema": "wukongim/pprof-registration-signal-test/v1"
+}

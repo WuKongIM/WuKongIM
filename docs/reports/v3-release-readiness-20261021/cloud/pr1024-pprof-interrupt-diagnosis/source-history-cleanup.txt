@@ -1,0 +1,34 @@
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 305) }
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 306) 
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 307) terminate_children() {
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 308)   local pid
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 309)   for pid in "${CAPTURE_PIDS[@]}"; do
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 310)     [[ -n "$pid" ]] || continue
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 311)     kill "$pid" 2>/dev/null || true
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 312)   done
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 313)   for pid in "${CAPTURE_PIDS[@]}"; do
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 314)     [[ -n "$pid" ]] || continue
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 315)     wait "$pid" 2>/dev/null || true
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 316)   done
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 317) }
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 318) 
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 319) remove_temporary_files() {
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 320)   local temporary
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 321)   for temporary in "${CAPTURE_TMP_FILES[@]}"; do
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 322)     [[ -n "$temporary" ]] || continue
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 323)     rm -f "$temporary"
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 324)   done
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 325) }
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 326) 
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 327) handle_signal() {
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 328)   trap - HUP INT TERM
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 329)   terminate_children
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 330)   remove_temporary_files
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 331)   END_PHASE="$(read_phase_state)"
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 332)   COMPLETED_AT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 333)   OVERALL_STATUS=partial
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 334)   OVERALL_REASON=interrupted
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 335)   VALID=false
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 336)   write_metadata || true
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 337)   FINALIZED=1
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 338)   exit 0

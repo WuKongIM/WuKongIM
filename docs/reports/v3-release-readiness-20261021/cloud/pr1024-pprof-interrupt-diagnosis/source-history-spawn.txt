@@ -1,0 +1,14 @@
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 382) start_profile_request() {
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 383)   local node_index="$1" kind="$2" url="$3" destination="$4" max_time="$5"
+26af490c92 (tt 2026-09-20 12:51:18 +0800 384)   local temporary="$destination.next.$$" max_bytes=8388608
+26af490c92 (tt 2026-09-20 12:51:18 +0800 385)   case "$kind" in heap) max_bytes=16777216 ;; goroutine|context-*) max_bytes=4194304 ;; esac
+26af490c92 (tt 2026-09-20 12:51:18 +0800 386)   CAPTURE_STARTED+=("$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+26af490c92 (tt 2026-09-20 12:51:18 +0800 387)   curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" --max-filesize "$max_bytes" \
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 388)     --header @<(write_authorization_header) \
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 389)     -H 'X-WK-Bench-Evidence: local-threshold-pprof' "$url" >"$temporary" 2>/dev/null &
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 390)   CAPTURE_PIDS+=("$!")
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 391)   CAPTURE_TMP_FILES+=("$temporary")
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 392)   CAPTURE_FINAL_FILES+=("$destination")
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 393)   CAPTURE_NODE_INDEXES+=("$node_index")
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 394)   CAPTURE_KINDS+=("$kind")
+7cacad8e97 (tt 2026-08-14 09:21:53 +0800 395) }

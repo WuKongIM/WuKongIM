@@ -1,0 +1,16 @@
+{
+  "run_id": 39660717776,
+  "job_id": 119432668301,
+  "actual_checkout": "e306351985ed3ee0c235bd120de7032c94ad6d86",
+  "test_counts_in_execution_order": [
+    4,
+    572
+  ],
+  "default_tests": 572,
+  "contract_tests": 4,
+  "default_skips": 0,
+  "failures": 0,
+  "errors": 0,
+  "deploy_conditionally_skipped": true,
+  "log_sha256": "1b18e7d4d288725c885ae441b734a0b78a59647aeb20173018a75632719c45bb"
+}

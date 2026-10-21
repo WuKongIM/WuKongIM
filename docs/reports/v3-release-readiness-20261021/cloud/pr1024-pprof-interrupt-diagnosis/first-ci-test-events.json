@@ -1,0 +1,62 @@
+[
+  {
+    "Time": "2026-10-21T19:15:00.186074835Z",
+    "Action": "run",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata"
+  },
+  {
+    "Time": "2026-10-21T19:15:00.186080156Z",
+    "Action": "output",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+    "Output": "=== RUN   TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata\n"
+  },
+  {
+    "Time": "2026-10-21T19:15:00.186084982Z",
+    "Action": "output",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+    "Output": "=== PAUSE TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata\n"
+  },
+  {
+    "Time": "2026-10-21T19:15:00.186087931Z",
+    "Action": "pause",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata"
+  },
+  {
+    "Time": "2026-10-21T19:20:44.398641795Z",
+    "Action": "cont",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata"
+  },
+  {
+    "Time": "2026-10-21T19:20:44.398644781Z",
+    "Action": "output",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+    "Output": "=== CONT  TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata\n"
+  },
+  {
+    "Time": "2026-10-21T19:20:46.439800941Z",
+    "Action": "output",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+    "Output": "    wukongim_local_threshold_pprof_script_integration_test.go:438: server 2 still has 1 active request(s) after helper exit\n"
+  },
+  {
+    "Time": "2026-10-21T19:20:50.432278651Z",
+    "Action": "output",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+    "Output": "--- FAIL: TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata (6.03s)\n"
+  },
+  {
+    "Time": "2026-10-21T19:20:50.432306791Z",
+    "Action": "fail",
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+    "Elapsed": 6.03
+  }
+]

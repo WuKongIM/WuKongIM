@@ -1,0 +1,8 @@
+{
+  "baseRefOid": "cee5d51f325fb84033060f546337d326110adae5",
+  "headRefOid": "44de9452d94edae16129b5781d794f8c1c6c7c57",
+  "isDraft": true,
+  "state": "OPEN",
+  "title": "fix(scripts): retain terminal diagnostics and join cancelled profiles",
+  "url": "https://github.com/WuKongIM/WuKongIM/pull/1024"
+}

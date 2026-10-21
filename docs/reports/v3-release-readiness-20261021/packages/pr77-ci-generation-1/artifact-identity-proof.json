@@ -1,0 +1,65 @@
+[
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12374141389,
+    "member_count": 1,
+    "name": "native-bootstrap-preparation-test-only",
+    "size": 7151,
+    "zip_sha256": "e860b8ca726314aad2fca18fea63f157323af606573c4eb93bc0a876712b91df"
+  },
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12373971778,
+    "member_count": 1,
+    "name": "native-local-signing-test-only",
+    "size": 2801,
+    "zip_sha256": "6c3f96452fe35c0713e166212259fe6fb9f2f5899aa4e8a22ac9a36539790649"
+  },
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12373712091,
+    "member_count": 2,
+    "name": "native-object-delivery-fixture-test-only",
+    "size": 8391,
+    "zip_sha256": "e0dd357a07655950fdb5f751bd7df8cc5973dc46e58bbe86e47398cf19632af3"
+  },
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12373726818,
+    "member_count": 1,
+    "name": "native-source-metadata-test-only",
+    "size": 1268,
+    "zip_sha256": "8179df661a147e28603072aa5065cdccba4b4420504db60d77b10809a5048e7a"
+  },
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12374066594,
+    "member_count": 1,
+    "name": "native-stable-candidate-test-only",
+    "size": 4198,
+    "zip_sha256": "95091ba9fcf74fdfe6e0ce94a26cfc3f25f56f035f91a45e0c9c9b609e39ff67"
+  },
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12374675883,
+    "member_count": 2,
+    "name": "native-stable-four-clients-test-only",
+    "size": 50949,
+    "zip_sha256": "29a18b5553bd3c34d3c16334200b34bfe4d62b7c175ccc856338c9a5cb40eeaa"
+  },
+  {
+    "API_digest_verified": true,
+    "all_CRC_verified": true,
+    "id": 12374505364,
+    "member_count": 1,
+    "name": "object-storage-sdk-contract",
+    "size": 1032,
+    "zip_sha256": "ff69dc87246c6d9ad9d788dc2dd2e904655a7c755fbc820e3d0422c8f6dac01d"
+  }
+]

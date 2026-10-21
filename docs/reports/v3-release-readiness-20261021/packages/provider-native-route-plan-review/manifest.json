@@ -1,0 +1,44 @@
+{
+  "schema": "wukongim.finite_public_archive/v1",
+  "files": [
+    {
+      "path": "probe-first.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "probe-first.stdout.json",
+      "bytes": 3512,
+      "sha256": "59dbb5eecc36b7cd18790b14a7b999788f24ce08d5884cb6f2bdc3a49bdadd31"
+    },
+    {
+      "path": "probe.py",
+      "bytes": 7763,
+      "sha256": "b3ac26a9003f80405295f252d84e08a6d23fe689d59ccdbebe80d80e63d11e7d"
+    },
+    {
+      "path": "report.md",
+      "bytes": 802,
+      "sha256": "516a7e354ea822c55ce3904087149dabdf2306a86eda6e582bfa0164f6880db9"
+    },
+    {
+      "path": "review.json",
+      "bytes": 2466,
+      "sha256": "bdca53181ce2197e9c211c3d9f9435aa927413550c2ac4c38d5c0932bdea8c68"
+    },
+    {
+      "path": "reviewed-plan.md",
+      "bytes": 8836,
+      "sha256": "34908f697987f96ada73e999a9c851ad72b15f8d4540709134f3c4c66e8cfc8a"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 3097,
+      "sha256": "d2a037176634af0ef6c4e6072cc472dd8c38c470e000c540935096b1b0f85e3c"
+    }
+  ],
+  "file_count": 7,
+  "total_bytes": 26476,
+  "all_owned_processes_terminal": true,
+  "source_unchanged": true
+}

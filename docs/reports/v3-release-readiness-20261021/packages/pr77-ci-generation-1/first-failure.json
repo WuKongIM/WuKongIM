@@ -1,0 +1,215 @@
+{
+  "actual_checkout": "e306351985ed3ee0c235bd120de7032c94ad6d86",
+  "boundaries": {
+    "Alma_download_only_previous_command_exit": 0,
+    "candidate_sha_and_signature_verified": true,
+    "container_python_acceptance_started": "unknown; stdout redirected, per-client file absent from artifact",
+    "dnf_dependencies_resolved_observed": false,
+    "dnf_internal_phase_at_timeout": "unknown",
+    "dnf_transaction_completion_observed": false,
+    "dns_network_resource_metrics": "not captured",
+    "host_installed_cli_receipt_validation_reached": false,
+    "last_visible_external_repository_line": "AlmaLinux 9 - AppStream                         110 kB/s |  30 MB     04:37    ",
+    "selected_external_mirror_url": "unknown"
+  },
+  "cache_cleanup": [],
+  "cleanup": {
+    "creation_attempts": {
+      "containers": [
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-1",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-10",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-2",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-3",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-4",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-5",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-6",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-7",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-8",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-9"
+      ],
+      "networks": [
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a"
+      ]
+    },
+    "discovered": {
+      "containers": [],
+      "networks": []
+    },
+    "errors": [],
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "container_creation": {
+    "command": [
+      "docker",
+      "create",
+      "--name",
+      "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-10",
+      "--label",
+      "wk-stable-client-run=7fb70635d3bb4a4c82bb6b3038282d1a",
+      "--platform",
+      "linux/amd64",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
+      "--pids-limit",
+      "128",
+      "--memory",
+      "768m",
+      "--cpus",
+      "2",
+      "--ulimit",
+      "fsize=134217728:134217728",
+      "--tmpfs",
+      "/tmp:rw,noexec,nosuid,nodev,size=256m",
+      "--cap-add",
+      "CHOWN",
+      "--cap-add",
+      "DAC_OVERRIDE",
+      "--cap-add",
+      "FOWNER",
+      "--cap-add",
+      "FSETID",
+      "--cap-add",
+      "SETGID",
+      "--cap-add",
+      "SETUID",
+      "--cap-add",
+      "SETFCAP",
+      "--volume",
+      "/tmp/wk-stable-clients-fanzudw4/alma-linux-9/wukongim_3.0.0_linux_amd64.rpm:/candidate.rpm:ro",
+      "--volume",
+      "/tmp/wk-stable-clients-fanzudw4/installed-alma-linux-9:/evidence:rw",
+      "--volume",
+      "/tmp/wk-scl-ge8bb_wf/fixtures/A/control/keys/rpm-stable.asc:/reviewed-key.asc:ro",
+      "--volume",
+      "/home/runner/work/packages/packages/scripts/validate-installed-wkcli.py:/acceptance.py:ro",
+      "--volume",
+      "/home/runner/work/packages/packages/tests/fixtures/wkcli-acceptance:/fixtures:ro",
+      "--env",
+      "WK_EXPECTED_VERSION=3.0.0",
+      "--env",
+      "WK_EXPECTED_COMMIT=fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "--env",
+      "WK_PACKAGE_SHA256=33c87beadd3ec58da93bee83013a4462993871add67a9a595d224ccd1b79a8b8",
+      "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+      "timeout",
+      "--kill-after=10s",
+      "600s",
+      "bash",
+      "-euc",
+      "\nprintf '%s  %s\n' \"$WK_PACKAGE_SHA256\" /candidate.rpm | sha256sum --check --strict\nrpm --import /reviewed-key.asc\nrpm --checksig /candidate.rpm\ndnf --setopt=localpkg_gpgcheck=1 --setopt=timeout=60 install -y python3 /candidate.rpm\n\npython3 /acceptance.py --fixtures /fixtures --version \"$WK_EXPECTED_VERSION\"   --commit \"$WK_EXPECTED_COMMIT\" >/evidence/installed-cli.json\n"
+    ],
+    "elapsed_seconds": 0.018,
+    "exit_code": 0,
+    "output_limit": false,
+    "output_sha256": "b05026a559afa2acf8609262c17c0774ff43d0068290a660a7648cd3bc07b26e",
+    "output_size": 65,
+    "output_tail": "466ff102fc6d3d63bb2939a1722b6f5f44efbf15fcf8a4b57e9c0a526a6ab4f5\n",
+    "stage": "create-container",
+    "timed_out": false
+  },
+  "counts": {
+    "expected": 49,
+    "failed": 1,
+    "not_reached": 48,
+    "passed": 0,
+    "recorded": 1
+  },
+  "failure": "stable client verification failed: real installed client failed",
+  "first_failed_command": {
+    "command": [
+      "docker",
+      "start",
+      "--attach",
+      "466ff102fc6d3d63bb2939a1722b6f5f44efbf15fcf8a4b57e9c0a526a6ab4f5"
+    ],
+    "elapsed_seconds": 600.151,
+    "exit_code": 124,
+    "output_limit": false,
+    "output_sha256": "82a34075d15f68cf3af4d7a6c3d6c5075596df426f864bbf47c2a6385f5b0401",
+    "output_size": 137,
+    "output_tail": "/candidate.rpm: OK\n/candidate.rpm: digests signatures OK\nAlmaLinux 9 - AppStream                         110 kB/s |  30 MB     04:37    \n",
+    "stage": "installed-client",
+    "timed_out": false
+  },
+  "first_failed_command_index": 66,
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "job_id": 119432670192,
+  "phase": "baseline-A-four-download-and-installed-cli",
+  "reader_cleanup": {
+    "creation_attempts": {
+      "containers": [
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-1",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-10",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-2",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-3",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-4",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-5",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-6",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-7",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-8",
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a-9"
+      ],
+      "networks": [
+        "wk-scl-7fb70635d3bb4a4c82bb6b3038282d1a"
+      ]
+    },
+    "discovered": {
+      "containers": [
+        "466ff102fc6d3d63bb2939a1722b6f5f44efbf15fcf8a4b57e9c0a526a6ab4f5",
+        "9e1a18460e8c505c3d219f336e665108ff09c6de260e80eefa6e013e8bc55e12",
+        "28719003cda740ff2a41963a5ec7962715ad10f8c6e267b393ad88a073c10401",
+        "d92c0903faf17836d8b723082d226a418b9dad3ed03f9a968d3511ce256ec9ad",
+        "f20c07740ab68ee89ec1b20b441a645d841e2b7a84b4857250dd6c7c74bef68a",
+        "96599fe0715763ac4ded8209a5b3f07212053c68af73aee160bde76501b76955",
+        "fe7ea3bd5a6c083dd1efb4cad8015c485c0e8ceef15035902bb300b36fa1fe6a",
+        "4d533e83d5ea6a92cacc669d0a563be8b48a6b443b818427b4dc345d3c05a194",
+        "8b7b9b6bf6d5e411db21d93d617151178e25fee25ed1b103ad68361f148b04c6",
+        "2cc26c1ad4a0404adee54e5fe16778afe882215bf291e11947dd8ea52b60e4b5"
+      ],
+      "networks": [
+        "a06fe528524739806d74eb1a304bb4a22d73ed6d1369368a202822da2906e054"
+      ]
+    },
+    "errors": [],
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "verified": true
+  },
+  "receipt": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr77-ci-generation-1/artifacts/native-stable-four-clients-test-only/native-stable-clients.json",
+    "sha256": "828c874843094eac944782740ef92b819280c6ff83f1da132fb2aa01f4408928",
+    "size": 247813
+  },
+  "requests": {
+    "all_response_write_completed": true,
+    "all_status_200": true,
+    "count": 33,
+    "external_Alma_requests_in_fixture_log": false,
+    "serial": 2
+  },
+  "run_attempt": 1,
+  "run_id": 39660717995,
+  "shell_execution_order": [
+    "sha256sum --check --strict",
+    "rpm --import /reviewed-key.asc",
+    "rpm --checksig /candidate.rpm",
+    "dnf --setopt=localpkg_gpgcheck=1 --setopt=timeout=60 install -y python3 /candidate.rpm",
+    "python3 /acceptance.py"
+  ],
+  "timeout": {
+    "container_seconds": 600,
+    "driver_seconds": 650,
+    "driver_timeout_fired": false,
+    "interpretation": "Exit 124 at 600.151 seconds is consistent with the explicit inner timeout; exact blocked operation is not recorded.",
+    "kill_after_seconds": 10
+  },
+  "tree": "8275ccb92c310f488d911b5aa077a962e1faad5c"
+}

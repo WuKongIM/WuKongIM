@@ -1,0 +1,135 @@
+{
+  "read_only_inventory_at": "2026-10-21T19:39:48.986422+00:00",
+  "exact_red_process_groups": [
+    95507,
+    95551,
+    95586,
+    95624,
+    95688,
+    95743
+  ],
+  "remaining_exact_red_group_processes": [],
+  "author_remaining_fixture_processes": [],
+  "green_cases": [
+    {
+      "node": 0,
+      "signal": "HUP",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 0,
+      "signal": "INT",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 0,
+      "signal": "TERM",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 1,
+      "signal": "HUP",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 1,
+      "signal": "INT",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 1,
+      "signal": "TERM",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 2,
+      "signal": "HUP",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 2,
+      "signal": "INT",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    },
+    {
+      "node": 2,
+      "signal": "TERM",
+      "helper_exit_code": 0,
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "temporary_files": null,
+      "passed": true
+    }
+  ],
+  "green_package_terminal": "pass",
+  "red_registration_package_terminal": "fail (expected original failure)",
+  "red_prelaunch_package_terminal": "fail (expected original failure)"
+}

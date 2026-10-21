@@ -1,0 +1,45 @@
+{
+  "artifact": {
+    "id": 12374675883,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM3NDY3NTg4Mw==",
+    "name": "native-stable-four-clients-test-only",
+    "size_in_bytes": 50949,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12374675883",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12374675883/zip",
+    "expired": false,
+    "digest": "sha256:29a18b5553bd3c34d3c16334200b34bfe4d62b7c175ccc856338c9a5cb40eeaa",
+    "created_at": "2026-10-21T19:35:20Z",
+    "updated_at": "2026-10-21T19:35:20Z",
+    "expires_at": "2026-11-20T19:35:19Z",
+    "workflow_run": {
+      "id": 39660717995,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-preview-fixture",
+      "head_sha": "19ce29fb2233b3039e29c503963e27bd1fab972a"
+    }
+  },
+  "get_exit_code": 0,
+  "zip_size": 50949,
+  "zip_sha256_recomputed": "29a18b5553bd3c34d3c16334200b34bfe4d62b7c175ccc856338c9a5cb40eeaa",
+  "stderr_size": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "all_members_crc_verified": true,
+  "members": [
+    {
+      "path": "https-requests.jsonl",
+      "size": 14233,
+      "sha256": "3790f116586094562e5bd33beec173eb0f7200ba96d63c1cf5332362af8fb1a8",
+      "crc32": "27a508fd",
+      "crc_verified": true
+    },
+    {
+      "path": "native-stable-clients.json",
+      "size": 247813,
+      "sha256": "828c874843094eac944782740ef92b819280c6ff83f1da132fb2aa01f4408928",
+      "crc32": "b5a17d5d",
+      "crc_verified": true
+    }
+  ],
+  "whole_zip_verified_against_api_digest": true
+}

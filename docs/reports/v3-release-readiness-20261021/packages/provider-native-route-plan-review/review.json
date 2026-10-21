@@ -1,0 +1,79 @@
+{
+  "schema": "wukongim.provider_native_route_plan_review/v1",
+  "findings": [],
+  "blocking_findings": 0,
+  "decision": "five-file implementation scope is feasible with existing fail-closed semantics",
+  "evidence": {
+    "input_manifest_sha256": "fecd657aa0440079faa851f7450893d00aebb872799fda947b1036f7d21e44a6",
+    "manifest_members_verified": 25,
+    "independent_probe": "probe-first.stdout.json",
+    "first_probe_exit_code": 0,
+    "first_probe_stderr_bytes": 0,
+    "sdk_execution": false,
+    "network": false,
+    "live_pcre_proven": false,
+    "crypto_or_materialization_rerun": false
+  },
+  "nonblocking_test_precision": [
+    {
+      "requirement": "threshold after exact duplicate elimination: 51 rows / 50 unique must retain old literal bytes/order",
+      "plan_lines": [
+        38,
+        51,
+        54
+      ],
+      "source_lines": {
+        "scripts/aliyun-object-storage-provider.py": [
+          79,
+          91
+        ]
+      }
+    },
+    {
+      "requirement": "source_url remains first functionArgs entry; current update binding directly indexes entry 0",
+      "plan_lines": [
+        56
+      ],
+      "source_lines": {
+        "scripts/aliyun-object-storage-provider.py": [
+          321,
+          325
+        ]
+      }
+    },
+    {
+      "requirement": "old literals to finite groups and altered chunk source sets requiring deletion must reject before writes; do not generalize fixed A/B same-source behavior",
+      "plan_lines": [
+        32,
+        46,
+        61
+      ],
+      "source_lines": {
+        "scripts/aliyun-object-storage-provider.py": [
+          321,
+          328
+        ]
+      }
+    }
+  ],
+  "maintainability": "No generalized regex optimizer, new schema or authority is needed. Keep the closed fixed layouts and existing SDK primitives.",
+  "ci_admission": {
+    "workflow": ".github/workflows/object-storage-provider-contract.yml",
+    "trigger_lines": [
+      8,
+      9,
+      15,
+      16
+    ],
+    "mandatory_runner_lines": [
+      33,
+      36
+    ],
+    "runner_fails_any_skip_line": 388
+  },
+  "limitations": [
+    "Finite Python AST expansion proves a closed local literal set only, not Alibaba PCRE substitution, query normalization, POP atomicity or public availability.",
+    "No SDK mock-contract suite or native suite was rerun during this read-only review.",
+    "Existing raw route provider compiler rejection confirms the scope gap, not the implementation tests-first red phase."
+  ]
+}

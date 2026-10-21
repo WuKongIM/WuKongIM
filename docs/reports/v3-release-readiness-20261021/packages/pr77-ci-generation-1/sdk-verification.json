@@ -1,0 +1,13 @@
+{
+  "run_id": 39660717798,
+  "job_id": 119432668152,
+  "actual_checkout": "e306351985ed3ee0c235bd120de7032c94ad6d86",
+  "sdk_tests": 22,
+  "input_tests": 10,
+  "skips": 0,
+  "failures": 0,
+  "errors": 0,
+  "provider_network_allowed": false,
+  "artifact_source_tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "log_sha256": "96551723238aacde03cbae987292b12cfd14a7d0b88b5b36601bd04aef25f2d8"
+}

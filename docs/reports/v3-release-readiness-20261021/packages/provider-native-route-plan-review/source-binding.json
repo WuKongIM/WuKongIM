@@ -1,0 +1,51 @@
+{
+  "schema": "wukongim.read_only_review_source_binding/v1",
+  "created_at_utc": "2026-10-21T19:35:46.520657+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "worktree_status_before": "clean",
+  "worktree_status_after": "clean",
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    }
+  ],
+  "packages_tracked_AGENTS_or_FLOW": [],
+  "user_working_agreements": "Provided in task; reviewed work is read-only and preserves explicit approvals/protected-resource requirements.",
+  "input_directory": "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-readback",
+  "input_manifest_sha256": "fecd657aa0440079faa851f7450893d00aebb872799fda947b1036f7d21e44a6",
+  "input_manifest_members": 25,
+  "input_manifest_bytes": 739756,
+  "reviewed_plan_sha256": "34908f697987f96ada73e999a9c851ad72b15f8d4540709134f3c4c66e8cfc8a",
+  "source_files_pre_post_equal": {
+    "tests/native_stable_candidate_drill.py": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+    "tests/native_stable_clients_drill.py": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+    "tests/native_object_delivery_fixture_drill.py": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+    "scripts/plan-object-storage-publication.py": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+    "scripts/prepare-object-storage-delivery.py": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+    "scripts/aliyun-object-storage-provider.py": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+    "scripts/verify-production-package-site.py": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+    "docs/object-storage-delivery.md": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+    "docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "README.md": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+    ".github/workflows/object-storage-provider-contract.yml": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+    "requirements-object-storage-provider.lock": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+  },
+  "execution": {
+    "command": [
+      "python3",
+      "-B",
+      "/tmp/wukongim-v3-readiness-20261021/packages/provider-native-route-plan-review/probe.py"
+    ],
+    "exit_code": 0,
+    "stdout": "probe-first.stdout.json",
+    "stderr": "probe-first.stderr.txt",
+    "source_changed": false,
+    "network_or_cloud_used": false,
+    "all_owned_processes_terminal": true
+  },
+  "input_manifest_member_hashes_before_after_equal": true
+}

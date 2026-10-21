@@ -1,0 +1,137 @@
+{
+  "schema": "wukongim/finite-native-route-readback/v1",
+  "files": [
+    {
+      "path": "A-B-candidate-delta.json",
+      "bytes": 1021,
+      "sha256": "39495127efa3a36bc1ba53599957e2825c3c57fede6e2ac149647f680ba24f89"
+    },
+    {
+      "path": "README.md",
+      "bytes": 8836,
+      "sha256": "34908f697987f96ada73e999a9c851ad72b15f8d4540709134f3c4c66e8cfc8a"
+    },
+    {
+      "path": "analyze-routes.py",
+      "bytes": 5887,
+      "sha256": "9b8f0f07887de8e928d3b0ae9ec1e7eb9c281b7df3d338406a4c7b7bd154d6e0"
+    },
+    {
+      "path": "candidate-rules-A.json",
+      "bytes": 16094,
+      "sha256": "1b5daf67b552373048ef94a6ea4e5808024069ebd1d4c73ded5d83d9a8d2ec1a"
+    },
+    {
+      "path": "candidate-rules-B.json",
+      "bytes": 16094,
+      "sha256": "965db0b55226b8f671b2dc2ce20e60a49f9c2a45517f1d84dbc2657cda1c925b"
+    },
+    {
+      "path": "first-command.json",
+      "bytes": 1967,
+      "sha256": "b5db1a796bdb8f6853aa54ab157bc584718211b63f16446f249e52dab7ba5c7c"
+    },
+    {
+      "path": "first-run/A/delivery.json",
+      "bytes": 157521,
+      "sha256": "39f72fa851e7d5bc677df36bdcbedc3bcc82c631b2f0005660f54bf67af3bcb8"
+    },
+    {
+      "path": "first-run/A/inputs.json",
+      "bytes": 4423,
+      "sha256": "e0ae0eea3f1c344bdba18b6200463fa1dede29cfece25298ad274ce488f8e8c7"
+    },
+    {
+      "path": "first-run/A/resolution.json",
+      "bytes": 1968,
+      "sha256": "995ef0e88e9f8930fe07c8046298b642384ff5265a5658b192c5e7663595b683"
+    },
+    {
+      "path": "first-run/A/routes.json",
+      "bytes": 74804,
+      "sha256": "0be50097e61cbe976640377e7a2b41befb076d4b8df668c8bf1c17c24c0adf80"
+    },
+    {
+      "path": "first-run/A/transport-plan.json",
+      "bytes": 75560,
+      "sha256": "03f1eca406c2cef1f43192dca0331d25cf632daa54d0de2157829c3192bf47ed"
+    },
+    {
+      "path": "first-run/B/delivery.json",
+      "bytes": 157521,
+      "sha256": "347c3b311477667414befa9196b10ae1a8117f4f399721ba42a078a5377dcece"
+    },
+    {
+      "path": "first-run/B/inputs.json",
+      "bytes": 4423,
+      "sha256": "522cdb7380e06473ef14ba09efc89decda41488523aa36d239ff6df36cb6cd8e"
+    },
+    {
+      "path": "first-run/B/resolution.json",
+      "bytes": 1968,
+      "sha256": "2a8f7e58441a83aa0855d75377b668e2be0e2a65e8d829a2caf678f05d25f84d"
+    },
+    {
+      "path": "first-run/B/routes.json",
+      "bytes": 74804,
+      "sha256": "57d2d676d463e9bc6faca14ab670873aa5b30755e235f48d503ff6ce6e634877"
+    },
+    {
+      "path": "first-run/B/transport-plan.json",
+      "bytes": 75560,
+      "sha256": "ac5784370093e3903a0dc6447cbef57621c3ccba9615b615892d83692bb5917f"
+    },
+    {
+      "path": "first-run/descriptors.json",
+      "bytes": 2980,
+      "sha256": "8b30422d31fb98e888f0f72d8216cd93248e479368d078e625b7085df0c0362d"
+    },
+    {
+      "path": "first-run/resource.json",
+      "bytes": 124,
+      "sha256": "0ddbb86632ae77ee74ed385d1a399e047d0143b86728673e994f0ae65304c2b9"
+    },
+    {
+      "path": "first-run/result.json",
+      "bytes": 18571,
+      "sha256": "21f3f4aa22d86383387a1a30a483bdd51df66495388c5494e0353ee6c19844af"
+    },
+    {
+      "path": "governing-binding.json",
+      "bytes": 419,
+      "sha256": "58c62e02e5377d1227ebbb4c0bf00af15f02e8c50369b4deb62e9c2dfa7a61d5"
+    },
+    {
+      "path": "readback.py",
+      "bytes": 5077,
+      "sha256": "b90ba3889a4b1777f1062e8b2830296c5ed295a885d139165ec845bd738b6938"
+    },
+    {
+      "path": "route-analysis.json",
+      "bytes": 5823,
+      "sha256": "bf8f281031cd9179958cfcaec15682e39ec81a44160e7dca0e9ba16b2c20fc11"
+    },
+    {
+      "path": "run.py",
+      "bytes": 2075,
+      "sha256": "85ae7aa4830893b089b026abb3674ef01c15e9ee37fee55344287c6fdd06a64f"
+    },
+    {
+      "path": "sourcebinding.json",
+      "bytes": 26022,
+      "sha256": "0d84637423a45d27ced5c92327fc5e2026bd5314bf4227ea609791b8e8fe6ca5"
+    },
+    {
+      "path": "terminal-check.json",
+      "bytes": 214,
+      "sha256": "bc4a5e8631ec09f07d91d2da89cbeb1c590768387983c2762b1e4c1014dc5702"
+    }
+  ],
+  "file_count": 25,
+  "total_bytes": 739756,
+  "source_commit": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "source_tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "all_commands_terminal": true,
+  "implementation_changed": false,
+  "created_at_utc": "2026-10-21T19:30:40.649189+00:00"
+}

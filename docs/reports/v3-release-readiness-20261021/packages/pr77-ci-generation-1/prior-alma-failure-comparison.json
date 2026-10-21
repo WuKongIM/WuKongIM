@@ -1,0 +1,71 @@
+{
+  "binary_sha_size_comparison": {
+    "3.0.0/wkcli": {
+      "current": {
+        "sha256": "7292c8b284825159c7f7534daca3528e2c1377d84be11a640379055fdbab13de",
+        "size": 42950840
+      },
+      "old": {
+        "sha256": "7292c8b284825159c7f7534daca3528e2c1377d84be11a640379055fdbab13de",
+        "size": 42950840
+      },
+      "same_sha_size": true
+    },
+    "3.0.0/wukongim": {
+      "current": {
+        "sha256": "c7702baff5ac6c9c5f791ad4d4f5b733dff2463cbad386e637885248c5742425",
+        "size": 68182200
+      },
+      "old": {
+        "sha256": "c7702baff5ac6c9c5f791ad4d4f5b733dff2463cbad386e637885248c5742425",
+        "size": 68182200
+      },
+      "same_sha_size": true
+    },
+    "3.0.1/wkcli": {
+      "current": {
+        "sha256": "6fe74a480e1d1482e3e44f3d4524a8f2e4dd3cd4f63bb416c7383af1ed9cc225",
+        "size": 42950840
+      },
+      "old": {
+        "sha256": "6fe74a480e1d1482e3e44f3d4524a8f2e4dd3cd4f63bb416c7383af1ed9cc225",
+        "size": 42950840
+      },
+      "same_sha_size": true
+    },
+    "3.0.1/wukongim": {
+      "current": {
+        "sha256": "7e03adaef078ad19379dcc6b4c8540344898f07cf2665e8567623e1cc2bb15b1",
+        "size": 68182200
+      },
+      "old": {
+        "sha256": "7e03adaef078ad19379dcc6b4c8540344898f07cf2665e8567623e1cc2bb15b1",
+        "size": 68182200
+      },
+      "same_sha_size": true
+    }
+  },
+  "both_complete_output_hashes_recomputed": true,
+  "current_complete_output": "/candidate.rpm: OK\n/candidate.rpm: digests signatures OK\nAlmaLinux 9 - AppStream                         110 kB/s |  30 MB     04:37    \n",
+  "current_elapsed_seconds": 600.151,
+  "current_exit": 124,
+  "inference_limit": "Repeated boundary and slow public AppStream progress are consistent with external dependency delay. They do not identify the selected mirror or prove the exact later DNF wait/unique cause. Prior success on a different attempt does not pass this run.",
+  "prior_complete_output": "/candidate.rpm: OK\n/candidate.rpm: digests signatures OK\nAlmaLinux 9 - AppStream                          85 kB/s |  30 MB     05:59    \n",
+  "prior_elapsed_seconds": 600.218,
+  "prior_exit": 124,
+  "prior_first_failure_source": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/first-failure.json",
+    "sha256": "f2a60c4bdebf5bbb61fc0036d65e401ead541554d6bb37cffd78f0dc5cefb216",
+    "size": 8648
+  },
+  "prior_native_receipt": {
+    "path": "/private/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/artifacts/native-stable-four-clients-test-only/native-stable-clients.json",
+    "sha256": "486873aa8505d5e1cce4298bd0a0250ac2d38e62210c667cc2ce7514f4834b08",
+    "size": 248365
+  },
+  "prior_run_id": 39644526993,
+  "same_600_second_deadline": true,
+  "same_case": true,
+  "same_pinned_image": "almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e",
+  "same_shell_bytes": true
+}

@@ -1,0 +1,168 @@
+{
+  "cases": [
+    {
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "helper_exit_code": 1,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "capture_in_progress",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:34:07Z",
+          "completed_at_utc": "2026-10-21T19:34:07Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 0,
+      "passed": false,
+      "registered_before_signal": 0,
+      "signal": "HUP",
+      "signal_to_exit_seconds": 0.042318541,
+      "temporary_files": null
+    },
+    {
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "helper_exit_code": 1,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "capture_in_progress",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:34:07Z",
+          "completed_at_utc": "2026-10-21T19:34:07Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 0,
+      "passed": false,
+      "registered_before_signal": 0,
+      "signal": "INT",
+      "signal_to_exit_seconds": 0.040595708,
+      "temporary_files": null
+    },
+    {
+      "active_requests": [
+        0,
+        0,
+        0
+      ],
+      "child_alive": false,
+      "helper_exit_code": 1,
+      "metadata": {
+        "schema": "wukongim.local_threshold_pprof/v1",
+        "trigger": {
+          "kind": "sendack_p99",
+          "observed_phase": "measurement",
+          "previous_utc": "2026-08-13T00:00:00.123456789Z",
+          "current_utc": "2026-08-13T00:00:01.5Z"
+        },
+        "capture": {
+          "status": "partial",
+          "valid": false,
+          "reason": "capture_in_progress",
+          "start_phase": "measurement",
+          "end_phase": "measurement",
+          "started_at_utc": "2026-10-21T19:34:07Z",
+          "completed_at_utc": "2026-10-21T19:34:07Z",
+          "cpu_seconds": 1
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-2",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          },
+          {
+            "node": "node-3",
+            "cpu": "missing",
+            "heap": "missing",
+            "goroutine": "missing"
+          }
+        ]
+      },
+      "node": 0,
+      "passed": false,
+      "registered_before_signal": 0,
+      "signal": "TERM",
+      "signal_to_exit_seconds": 0.039736583,
+      "temporary_files": null
+    }
+  ],
+  "fixture_only": true,
+  "schema": "wukongim/pprof-registration-signal-test/v1"
+}
