@@ -50,6 +50,7 @@ esac
 
 install -d -m 0700 "$WK_CHAT_OUTPUT_DIR"
 install -d -m 0700 "$WK_CHAT_WORK_DIR"
+scripts/chat-lifecycle/comment-request-issue.sh --preflight >"$WK_CHAT_OUTPUT_DIR/issue-preflight.json"
 active_selector=''
 keep_active=false
 release_generation=0
@@ -60,6 +61,62 @@ operator_stop_requested=false
 operator_stop_authority_failed=false
 orchestration_started_epoch="$(date -u +%s)"
 orchestration_deadline_epoch=$(( orchestration_started_epoch + 17100 ))
+
+# Capture the original command status independently of diagnostic writes. Stderr
+# is drained into a constant-memory digest; no raw stream enters an artifact.
+capture_pre_clock_step() {
+  local step="$1" status=0
+  shift
+  pre_clock_step_output="$(
+    command_status=0
+    fifo="$pre_clock_directory/$step-stderr.fifo"
+    if mkfifo -m 600 "$fifo" 2>/dev/null; then
+      trap 'rm -f -- "$fifo"' EXIT
+      python3 scripts/chat-lifecycle/pre-clock-diagnostic.py stderr \
+        "$pre_clock_directory/$step-stderr.json" <"$fifo" 2>/dev/null &
+      collector_pid=$!
+      "$@" 2>"$fifo" || command_status=$?
+      wait "$collector_pid" || true
+    else
+      "$@" 2>/dev/null || command_status=$?
+    fi
+    exit "$command_status"
+  )" || status=$?
+  { printf '%s' "$pre_clock_step_output" | python3 scripts/chat-lifecycle/pre-clock-diagnostic.py digest \
+    >"$pre_clock_directory/$step-stdout.json"; } 2>/dev/null || true
+  return "$status"
+}
+
+# This receipt is diagnostic only: neither serialization nor unknown additional
+# unit properties can change the original stage decision or prevent Release.
+record_pre_clock_diagnostic() {
+  local branch="$1" unit summary start_stderr state_stderr summary_command
+  unit="$(jq -c . "$pre_clock_directory/unit.json" 2>/dev/null)" || unit='{"available":false}'
+  summary="$(jq -c . "$pre_clock_directory/summary.json" 2>/dev/null)" || summary='{"available":false}'
+  start_stderr="$(jq -c . "$pre_clock_directory/start-stderr.json" 2>/dev/null)" || start_stderr='{"available":false}'
+  state_stderr="$(jq -c . "$pre_clock_directory/state-stderr.json" 2>/dev/null)" || state_stderr='{"available":false}'
+  summary_command="$(jq -c . "$pre_clock_directory/summary-command.json" 2>/dev/null)" || summary_command='{"available":false}'
+  jq -n --arg schema wukongim.chat_lifecycle.pre_clock_diagnostic/v1 \
+    --arg request_id "$WK_CHAT_REQUEST_ID" --arg source_sha "$WK_CHAT_SOURCE_SHA" \
+    --arg control_sha "$deployment_control_sha" --arg bundle_digest "$bundle_digest" \
+    --arg stage "$chat_stage" --argjson generation "$deployment_generation" --arg branch "$branch" \
+    --arg state "${state:-unobserved}" --argjson start_status "${pre_clock_start_status:-null}" \
+    --argjson state_status "${pre_clock_state_status:-null}" --argjson classifier_status "${pre_clock_classifier_status:-null}" \
+    --argjson summary_status "${pre_clock_summary_status:-null}" \
+    --argjson observed_epoch "$(date -u +%s)" --argjson deadline_epoch "${readiness_deadline:-null}" \
+    --argjson readiness_started_epoch "${readiness_started_epoch:-null}" --argjson deadline_checked_epoch "${deadline_checked_epoch:-null}" \
+    --argjson unit "$unit" --argjson summary "$summary" \
+    --argjson start_stderr "$start_stderr" --argjson state_stderr "$state_stderr" --argjson summary_command "$summary_command" \
+    '{schema:$schema,request_id:$request_id,source_sha:$source_sha,control_sha:$control_sha,
+      bundle_digest:$bundle_digest,stage:$stage,generation:$generation,branch:$branch,
+      state:$state,start_command_exit:$start_status,state_command_exit:$state_status,
+      state_classifier_exit:$classifier_status,summary_classifier_exit:$summary_status,
+      observed_epoch:$observed_epoch,readiness_deadline_epoch:$deadline_epoch,before_kill:true,
+      readiness_started_epoch:$readiness_started_epoch,deadline_checked_epoch:$deadline_checked_epoch,
+      stdout_normalization:"shell_command_substitution_removes_trailing_newlines",
+      unit:$unit,summary:$summary,start_stderr:$start_stderr,state_stderr:$state_stderr,summary_command:$summary_command}' \
+    2>/dev/null >"$pre_clock_directory/diagnostic.json" || true
+}
 
 check_operator_stop() {
   local marker status=0
@@ -305,17 +362,24 @@ release_failed_attempt() {
 
 read_pre_clock_terminal_code() {
   local journal_cursor="$1"
-  local summary terminal_code
+  local summary terminal_code command_status=0 classifier_status=0
   [[ "$journal_cursor" =~ ^[A-Za-z0-9_=\;:.-]{1,512}$ ]] || return 1
-  summary="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-    "sudo journalctl -u '$stage_service' --after-cursor='$journal_cursor' --no-pager -o cat | grep '^chat-lifecycle outcome=' | tail -n 1 | head -c 1025" \
-    2>/dev/null)" || return 1
-  (( ${#summary} <= 1024 )) || return 1
-  terminal_code="$(scripts/chat-lifecycle/classify-pre-clock-summary.sh "$summary")" || return 1
+  capture_pre_clock_step summary timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    "sudo journalctl -u '$stage_service' --after-cursor='$journal_cursor' --no-pager -o cat | grep '^chat-lifecycle outcome=' | tail -n 1 | head -c 1025" || command_status=$?
+  summary="$pre_clock_step_output"
+  scripts/chat-lifecycle/classify-pre-clock-summary.sh --diagnostic-json "$summary" \
+    2>/dev/null >"$pre_clock_directory/summary.json" || true
+  jq -n --argjson status "$command_status" '{command_exit:$status}' \
+    2>/dev/null >"$pre_clock_directory/summary-command.json" || true
+  (( command_status == 0 && ${#summary} <= 1024 )) || return 1
+  terminal_code="$(scripts/chat-lifecycle/classify-pre-clock-summary.sh "$summary")" || classifier_status=$?
+  jq -n --argjson status "$classifier_status" '{classifier_exit:$status}' \
+    2>/dev/null >"$pre_clock_directory/summary-classifier.json" || true
+  (( classifier_status == 0 )) || return 1
   jq -n --arg schema 'wukongim.chat_lifecycle.pre_clock_terminal/v1' \
     --arg request_id "$WK_CHAT_REQUEST_ID" --arg stage "$chat_stage" \
-    --arg summary "$summary" --arg coordinator_code "$terminal_code" \
-    '{schema:$schema,request_id:$request_id,stage:$stage,summary:$summary,
+    --arg coordinator_code "$terminal_code" \
+    '{schema:$schema,request_id:$request_id,stage:$stage,
       coordinator_code:$coordinator_code}' \
     >"$WK_CHAT_OUTPUT_DIR/pre-clock-terminal.json"
   printf '%s\n' "$terminal_code"
@@ -658,6 +722,16 @@ for attempt in 1; do
     export WK_CLOUD_SSH_CONFIG="$attempt_dir/deployment-ssh-config"
     scripts/cloud-deployment/write-ssh-config.sh
     rm -f "$attempt_dir/run-start.json"
+    pre_clock_directory="$attempt_dir/pre-clock-generation-$deployment_generation"
+    install -d -m 0700 "$pre_clock_directory" || true
+    pre_clock_start_status=null
+    pre_clock_state_status=null
+    pre_clock_classifier_status=null
+    pre_clock_summary_status=null
+    state=unobserved
+    readiness_deadline=null
+    readiness_started_epoch=null
+    deadline_checked_epoch=null
     if ! stage_journal_cursor="$(scripts/chat-lifecycle/capture-stage-journal-cursor.sh \
       "$WK_CLOUD_SSH_CONFIG" wukong-load)"; then
       release_failed_attempt "$attempt_dir/quote.json" \
@@ -665,25 +739,29 @@ for attempt in 1; do
     fi
     stage_terminal_code=''
     stage_readiness_failure_code='stage_start_failed'
-    if ! timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    pre_clock_start_status=0
+    if capture_pre_clock_step start timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
       "sudo rm -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && (sudo systemctl reset-failed '$stage_service' || true) && sudo systemctl start --no-block '$stage_service'"; then
-      deployment_failed=true
-    else
-      stage_readiness_failure_code='stage_readiness_timeout'
       deployment_failed=false
+    else
+      pre_clock_start_status=$?
+      deployment_failed=true
     fi
-    readiness_deadline=$(( $(date -u +%s) + readiness_timeout ))
+    readiness_started_epoch="$(date -u +%s)"
+    readiness_deadline=$(( readiness_started_epoch + readiness_timeout ))
     while [[ "$deployment_failed" != true ]]; do
       stop_status=0
       check_operator_stop || stop_status=$?
       case "$stop_status" in
         0)
+          record_pre_clock_diagnostic operator_stop
           timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
             "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
           exit 130
           ;;
         1) ;;
         *)
+          record_pre_clock_diagnostic operator_stop_authority_failed
           timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
             "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
           operator_stop_authority_failed=true
@@ -752,22 +830,47 @@ for attempt in 1; do
         fi
       fi
       state=unreachable
-      if stage_service_snapshot="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-        "sudo systemctl show '$stage_service' --property=ActiveState --property=Job --no-pager" 2>/dev/null)"; then
+      pre_clock_state_status=0
+      pre_clock_classifier_status=null
+      if capture_pre_clock_step state timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        "sudo systemctl show '$stage_service' --property=ActiveState --property=Job --property=LoadState --property=SubState --property=Result --property=ExecMainCode --property=ExecMainStatus --no-pager"; then
+        stage_service_snapshot="$pre_clock_step_output"
+        pre_clock_classifier_status=0
         state="$(printf '%s\n' "$stage_service_snapshot" | \
-          scripts/chat-lifecycle/classify-stage-service-state.sh 2>/dev/null || printf unreachable)"
+          sed -E '/^(LoadState|SubState|Result|ExecMainCode|ExecMainStatus)=/d' | \
+          scripts/chat-lifecycle/classify-stage-service-state.sh 2>/dev/null)" || {
+            pre_clock_classifier_status=$?
+            state=unreachable
+          }
+      else
+        pre_clock_state_status=$?
       fi
+      { printf '%s' "$pre_clock_step_output" | python3 scripts/chat-lifecycle/pre-clock-diagnostic.py state \
+        >"$pre_clock_directory/unit.json"; } 2>/dev/null || true
       if [[ "$state" == terminal ]]; then
+        stage_readiness_failure_code='stage_terminal_before_run_start'
         stage_terminal_code="$(read_pre_clock_terminal_code "$stage_journal_cursor")" || true
+        pre_clock_summary_status="$(jq -er .classifier_exit "$pre_clock_directory/summary-classifier.json" 2>/dev/null)" || pre_clock_summary_status=null
         deployment_failed=true
         break
       fi
-      if [[ "$state" == unreachable || "$(date -u +%s)" -ge "$readiness_deadline" ]]; then
+      if [[ "$state" != unreachable ]]; then
+        deadline_checked_epoch="$(date -u +%s)"
+      fi
+      if [[ "$state" == unreachable || "$deadline_checked_epoch" -ge "$readiness_deadline" ]]; then
+        if [[ "$state" != unreachable ]]; then
+          stage_readiness_failure_code='stage_readiness_deadline_elapsed'
+        elif (( pre_clock_state_status != 0 )); then
+          stage_readiness_failure_code='stage_state_read_failed'
+        else
+          stage_readiness_failure_code='stage_state_parse_failed'
+        fi
         deployment_failed=true
         break
       fi
       sleep 10
     done
+    record_pre_clock_diagnostic "$stage_readiness_failure_code"
     timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
       "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
     if [[ -n "$stage_terminal_code" ]]; then

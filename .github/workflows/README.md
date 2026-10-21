@@ -1017,8 +1017,18 @@ See
 
 `chat-lifecycle-rehearsal.yml` is the paid top-level Agent Tool. Invoke it only
 after the user gives the exact paid-run authorization and required cloud
-identity/deployment credentials are configured. Its complete operator surface
-is exactly `source_sha`, fixed operator `tangtaoit`, one request-scoped Codex
+identity/deployment credentials are configured. Create exactly one open, unlocked
+`[chat-lifecycle] <request_id>` Issue before dispatch. Before bundle construction,
+Quote, key generation or Acquire, orchestration calls the read-only
+`comment-request-issue.sh --preflight` and retains `issue-preflight.json`. A
+missing, ambiguous, closed, locked or incompletely observed Issue stops startup
+without buying resources. This check does not prove future comment-write access
+or prevent concurrent Issue edits; runtime failure cleanup remains required.
+Both startup workflows attempt to retain that single receipt for eight days in
+an independent preflight Artifact. A missing receipt creates no Artifact; an
+upload failure is visible but cannot change the original orchestration outcome.
+Preflight Artifacts never establish a handoff or authorize further procurement.
+The complete operator surface is exactly `source_sha`, fixed operator `tangtaoit`, one request-scoped Codex
 diagnostic Ed25519 public key, and `request_id`; infrastructure, budget,
 duration, workload, and retry values come only from the reviewed repository Run
 Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
@@ -1048,6 +1058,17 @@ summary after the cursor. The summary carries the closed observer reason when
 observation caused termination: recognized non-preflight coordinator codes are
 runtime/correctness failures and release immediately, while preflight or
 unrecognized evidence remains in the bounded deployment/readiness repair path.
+Before terminating a unit after preparation fails, orchestration writes a
+per-generation `pre-clock-generation-*/diagnostic.json` with the actual exit
+branch, command/classifier statuses and observed deadline instants. Additional
+systemd properties and closed summary codes are diagnostic only; the original
+ActiveState/Job and summary classifiers still decide control flow. Unknown or
+missing fields remain unverified. Raw summaries, stdout and stderr are not
+archived: `summary.json` and `unit.json` expose only fixed fields plus byte counts
+and hashes; shell-captured stdout has its trailing newlines removed. Stderr is
+drained with constant memory and a 65-second collector bound around the original
+60-second SSH command. Diagnostic write failures cannot prevent cleanup. The
+existing terminal receipt retains the coordinator code without the raw summary.
 Runtime or correctness failure is never retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
 uploads a terminal report or bounded failure diagnostics, and only then invokes
 Release until `zero_inventory == true`; a cleanup Artifact is the terminal
