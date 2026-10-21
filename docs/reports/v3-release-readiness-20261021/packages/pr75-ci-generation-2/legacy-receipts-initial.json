@@ -1,0 +1,42 @@
+[
+  {
+    "name": "native-bootstrap-preparation-test-only",
+    "artifact_id": 12360899088,
+    "artifact_sha256": "89e9c60a5616cbc33274905cc7bb88538f03a4722aa3fce48986bfb250b0c683",
+    "sha_verified": true,
+    "crc_verified": true,
+    "passed": true,
+    "cases": 6,
+    "transport_cases": 0
+  },
+  {
+    "name": "native-local-signing-test-only",
+    "artifact_id": 12361955905,
+    "artifact_sha256": "966b0b7ac3a9232d4b2c006b3591d247cb5b165e00fc6d76cc3f20cc4b1f3593",
+    "sha_verified": true,
+    "crc_verified": true,
+    "passed": true,
+    "cases": 10,
+    "transport_cases": 0
+  },
+  {
+    "name": "native-source-metadata-test-only",
+    "artifact_id": 12360818247,
+    "artifact_sha256": "926cb3b400c4c3beae5efe9d5999bbcf6cc84958b1b2bb259f9d32749f45a65d",
+    "sha_verified": true,
+    "crc_verified": true,
+    "passed": true,
+    "cases": 7,
+    "transport_cases": 0
+  },
+  {
+    "name": "native-stable-candidate-test-only",
+    "artifact_id": 12360978489,
+    "artifact_sha256": "feb17e78bcdaafa684180879966d3fa51054c5f10c80ba8fb6ecdcb4d844d2df",
+    "sha_verified": true,
+    "crc_verified": true,
+    "passed": true,
+    "cases": 31,
+    "transport_cases": 8
+  }
+]

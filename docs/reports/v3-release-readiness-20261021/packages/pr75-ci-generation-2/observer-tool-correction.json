@@ -1,0 +1,7 @@
+{
+  "operation": "prepare offline failure-specific verifier",
+  "first_attempt": "relative Path parent resolved to cwd, causing FileNotFoundError before adapting the draft; subsequent success-only draft rejected the actual CI failure at conclusion assertion",
+  "exit_code": 1,
+  "effect": "No source/API/workflow mutation and no success claim. Only local evidence verifier adjusted to expected recorded failure.",
+  "draft_verifier_sha256": "6f7946fe8ac5937355b62886b82c0f12f15abdddf3a062eae6505803de8231bf"
+}

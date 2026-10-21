@@ -1,0 +1,29 @@
+{
+  "head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "synthetic_checkout": "ecc8012ea3a600d94da3bc94320018203e35f295",
+  "files": {
+    "README.md": {
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "size": 10871
+    },
+    "docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "size": 47357
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "0b4aa1ad6c730ca4512927300912740632f092da324f23367d75e4a35ff3702c",
+      "size": 13487
+    },
+    ".github/workflows/pages.yml": {
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "size": 3104
+    },
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+      "size": 15073
+    }
+  },
+  "repository_rules": "No package AGENTS/FLOW/CONTRIBUTING or workflow README; user AGENTS and existing workflows/release docs apply.",
+  "observer_scope": "GET only; no dispatch/retry/cancel/ready/merge/cloud; secrets and signed URLs excluded."
+}

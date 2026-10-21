@@ -1,0 +1,147 @@
+{
+  "main_evidence": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-ci-generation-2",
+  "main_manifest_sha256": "4b2dd362e8bfc130708bc60cabb7419959c5fb240d6ce15e093552f1de46fbee",
+  "case": "rocky-linux-9-A-to-B-request-barrier",
+  "request_serial": 24,
+  "download_command_index_zero_based": 161,
+  "whole_container_arguments": "first-failure.json:container_create.command",
+  "both_DNF_commands": "Both original makecache and second install invocation (including metadata_expire=-1) appear in the complete shell string in container_create.command.",
+  "combined_stdout_stderr": {
+    "path": "first-failure.json:download_command.output_tail",
+    "size": 1070,
+    "sha256": "9862e575fd7c11f313eb6f2952d38b8f71bf2d7f8248406c558be8ad0fbb256d",
+    "matches_full_recorded_output_size_and_sha256": true,
+    "separate_per_invocation_or_stdout_stderr_streams": false,
+    "note": "The entire recorded combined output is retained (1070 bytes), but it has no per-DNF phase timestamps and cannot separate the streams."
+  },
+  "cache_clock_evidence": {
+    "primary_mtime_present": false,
+    "repomd_mtime_present": false,
+    "response_last_modified_recorded": false,
+    "request_if_modified_since_present": true,
+    "all_request_if_modified_since_values_null": true,
+    "note": "No retrospective metadata age or GPG/config age clock can be reconstructed from this artifact."
+  },
+  "raw_repository_metadata_bytes_retained": false,
+  "artifact_members": [
+    "clients-A.json",
+    "clients-B.json",
+    "https-requests.jsonl",
+    "native-stable-clients.json"
+  ],
+  "metadata_response_facts": [
+    {
+      "path": "/snapshots/stable/r4242-237e012e53a1722d3539b4a008ffbd864f886ed2e7b075ea9b29baca5c6f0ef6/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "sha256": "6925ab15dd23b42dc9636482c45ac569130d659768e6f53032c79c819a2c2722",
+      "size": 1352,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"6925ab15dd23b42dc9636482c45ac569130d659768e6f53032c79c819a2c2722\""
+    },
+    {
+      "path": "/snapshots/stable/r4242-237e012e53a1722d3539b4a008ffbd864f886ed2e7b075ea9b29baca5c6f0ef6/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "sha256": "d1d174206abf9c76821f5a2e842dcf3b02402e624fb85cd467d8b9be161380bb",
+      "size": 659,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"d1d174206abf9c76821f5a2e842dcf3b02402e624fb85cd467d8b9be161380bb\""
+    },
+    {
+      "path": "/snapshots/stable/r4242-237e012e53a1722d3539b4a008ffbd864f886ed2e7b075ea9b29baca5c6f0ef6/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "sha256": "6925ab15dd23b42dc9636482c45ac569130d659768e6f53032c79c819a2c2722",
+      "size": 1352,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"6925ab15dd23b42dc9636482c45ac569130d659768e6f53032c79c819a2c2722\""
+    },
+    {
+      "path": "/snapshots/stable/r4242-237e012e53a1722d3539b4a008ffbd864f886ed2e7b075ea9b29baca5c6f0ef6/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "sha256": "d1d174206abf9c76821f5a2e842dcf3b02402e624fb85cd467d8b9be161380bb",
+      "size": 659,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"d1d174206abf9c76821f5a2e842dcf3b02402e624fb85cd467d8b9be161380bb\""
+    },
+    {
+      "path": "/snapshots/stable/r4242-237e012e53a1722d3539b4a008ffbd864f886ed2e7b075ea9b29baca5c6f0ef6/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "sha256": "162f830f31d257f1434b8b3e6116ce3ad58f1a0a89729c28561b16fec0c7dc8c",
+      "size": 1003,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"162f830f31d257f1434b8b3e6116ce3ad58f1a0a89729c28561b16fec0c7dc8c\""
+    },
+    {
+      "path": "/snapshots/stable/r4242-237e012e53a1722d3539b4a008ffbd864f886ed2e7b075ea9b29baca5c6f0ef6/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "sha256": "6b44cb8a9f10d0ab1b1296e6b40e082203759c9224770197a4c42dcf2a024390",
+      "size": 404,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"6b44cb8a9f10d0ab1b1296e6b40e082203759c9224770197a4c42dcf2a024390\""
+    },
+    {
+      "path": "/snapshots/stable/r4243-5865fa18f3f272cecd7c0a1986b6de31751bc4990f123e3a6e2d91b59244e0fb/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "sha256": "7940afe881efd6b56971d71dded104b81a32ae362239aa2f1f621586db7aeb4e",
+      "size": 1352,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"7940afe881efd6b56971d71dded104b81a32ae362239aa2f1f621586db7aeb4e\""
+    },
+    {
+      "path": "/snapshots/stable/r4243-5865fa18f3f272cecd7c0a1986b6de31751bc4990f123e3a6e2d91b59244e0fb/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "sha256": "f8113c6f46ed920bb84fd84af9764126bf895ab89f6b96d99d8c0755ed4cab99",
+      "size": 659,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"f8113c6f46ed920bb84fd84af9764126bf895ab89f6b96d99d8c0755ed4cab99\""
+    },
+    {
+      "path": "/snapshots/stable/r4243-5865fa18f3f272cecd7c0a1986b6de31751bc4990f123e3a6e2d91b59244e0fb/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "sha256": "7940afe881efd6b56971d71dded104b81a32ae362239aa2f1f621586db7aeb4e",
+      "size": 1352,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"7940afe881efd6b56971d71dded104b81a32ae362239aa2f1f621586db7aeb4e\""
+    },
+    {
+      "path": "/snapshots/stable/r4243-5865fa18f3f272cecd7c0a1986b6de31751bc4990f123e3a6e2d91b59244e0fb/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "sha256": "f8113c6f46ed920bb84fd84af9764126bf895ab89f6b96d99d8c0755ed4cab99",
+      "size": 659,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"f8113c6f46ed920bb84fd84af9764126bf895ab89f6b96d99d8c0755ed4cab99\""
+    },
+    {
+      "path": "/snapshots/stable/r4243-5865fa18f3f272cecd7c0a1986b6de31751bc4990f123e3a6e2d91b59244e0fb/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "sha256": "ec04fa2ad8aa54e6a5d603008f0e22276a977784667fe35a87856ae3dc75537d",
+      "size": 404,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"ec04fa2ad8aa54e6a5d603008f0e22276a977784667fe35a87856ae3dc75537d\""
+    },
+    {
+      "path": "/snapshots/stable/r4243-5865fa18f3f272cecd7c0a1986b6de31751bc4990f123e3a6e2d91b59244e0fb/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "sha256": "dbe116951250b00f8284eb06059aacc090e934a486a5baa59a0c008b00f5b273",
+      "size": 1000,
+      "status": 200,
+      "response_write_completed": true,
+      "if_modified_since": null,
+      "etag": "\"dbe116951250b00f8284eb06059aacc090e934a486a5baa59a0c008b00f5b273\""
+    }
+  ],
+  "baseline_identity_receipt": "eight-baseline-identities.json",
+  "cleanup": "Reader/final owned container+network empty; only Ubuntu/Debian/Rocky caches created, all three empty after cleanup. Alma cache uncreated.",
+  "api_reads_after_terminal_summary": 0,
+  "load_or_CI_reruns": 0,
+  "all_local_tool_processes_terminal": true
+}

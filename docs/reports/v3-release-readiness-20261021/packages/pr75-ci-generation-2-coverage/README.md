@@ -1,0 +1,1 @@
+Read-only coverage supplement to frozen generation 2. No new remote reads or workload. The full combined command161 output is retained; per-phase clocks, cache metadata mtimes, response Last-Modified, and raw repomd bytes are absent. These omissions preclude retrospective cache-age attribution.

@@ -1,0 +1,9 @@
+{
+  "original": "/tmp/wukongim-v3-readiness-20261021/packages/pr75-ci-generation-1",
+  "files": {
+    "get-public.py": "f6a6bab01477c3effe2f8ad8fb15735fcecf676c9d12c82c4a780c80c7f0a68b",
+    "read-snapshot.py": "c91b64bba2e2e34f1504d1f4f42d2ef9e49ae16be95cd1b71f6abe0248bb3dc4",
+    "collect-small-artifacts.py": "f9e71647f030afb28812fd33f02efcd183a776ac78bc8a4beac2241569bfaf9d",
+    "verify-receipts.py": "2ac64342d4fcf1b84e004c09e21dc306b9bbbbee9b040601abc20ec34dda4ed4"
+  }
+}

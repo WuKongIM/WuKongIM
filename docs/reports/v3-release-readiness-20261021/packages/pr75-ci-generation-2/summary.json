@@ -1,0 +1,148 @@
+{
+  "pr": "https://github.com/WuKongIM/packages/pull/75",
+  "head": "d824fe37918ee4ef22b1b1745bc02518812563e3",
+  "base": "620bdfa1804c732dc1b3b072bb64dbe6f0ae0475",
+  "tree": "50e099e7adcda9e205c9862dad7e1071022d2a3c",
+  "attempt": 1,
+  "pr_draft": true,
+  "all_runs_terminal": true,
+  "all_observed_checks_passed": false,
+  "pages": {
+    "run": 39636511642,
+    "conclusion": "success",
+    "python_tests": 557,
+    "skipped": 0,
+    "publication_control_tests": 4,
+    "configure_upload_deploy": "skipped"
+  },
+  "native": {
+    "run": 39636512103,
+    "conclusion": "failure",
+    "actual_suites": [
+      {
+        "name": "native-source-metadata",
+        "cases": 7,
+        "transport_cases": 0,
+        "cleanup": {}
+      },
+      {
+        "name": "native-local-signing",
+        "cases": 10,
+        "transport_cases": 0,
+        "cleanup": {
+          "secret_tree_removed_before_verification": true,
+          "source_inputs_unchanged": true
+        }
+      },
+      {
+        "name": "native-bootstrap-preparation",
+        "cases": 6,
+        "transport_cases": 0,
+        "cleanup": {
+          "scratch_removed": true
+        }
+      },
+      {
+        "name": "native-stable-candidate",
+        "cases": 31,
+        "transport_cases": 8,
+        "cleanup": {
+          "checked_in_control_unchanged": true,
+          "secret_tree_removed_before_verification": true,
+          "scratch_removed": true
+        }
+      }
+    ],
+    "complete_signed_repository_build_verify_install_passed": true
+  },
+  "stable": {
+    "planned_cases": 49,
+    "executed_cases": 23,
+    "passed_cases": 22,
+    "failed_cases": 1,
+    "not_reached": 26,
+    "failed_case_number": 23,
+    "failed_case": "rocky-linux-9-A-to-B-request-barrier",
+    "failure": "downloaded rpm package is absent from the indexed snapshot",
+    "new_metadata_override_present": true,
+    "download_process_exit": 0,
+    "downloaded_version": "3.0.1",
+    "expected_barrier_snapshot": "A/3.0.0",
+    "http_serial": 24,
+    "command_index_zero_based": 161,
+    "baseline_installations_verified": 8,
+    "product_source": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+    "reader_cleanup": {
+      "verified": true,
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "cleanup": {
+      "verified": true,
+      "remaining": {
+        "containers": [],
+        "networks": []
+      },
+      "errors": []
+    },
+    "cache_cleanup": [
+      {
+        "cache": "cache-ubuntu-24.04",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-debian-13",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      },
+      {
+        "cache": "cache-rocky-linux-9",
+        "result": {
+          "remaining": []
+        },
+        "verified": true
+      }
+    ],
+    "fourth_cache_not_created": true,
+    "jobs": [
+      {
+        "id": 119348375251,
+        "name": "TEST ONLY signed APT/RPM repository",
+        "conclusion": "success",
+        "started_at": "2026-10-21T16:38:03Z",
+        "completed_at": "2026-10-21T16:46:17Z"
+      },
+      {
+        "id": 119348375411,
+        "name": "TEST ONLY stable four clients and A/B",
+        "conclusion": "failure",
+        "started_at": "2026-10-21T16:38:03Z",
+        "completed_at": "2026-10-21T16:46:06Z"
+      }
+    ],
+    "command_bound_seconds": 3300,
+    "kill_after_seconds": 45,
+    "job_bound_minutes": 60
+  },
+  "test_only": true,
+  "published": false,
+  "public_origin_verified": false,
+  "source_provenance_verified": false,
+  "reruns_dispatched": 0,
+  "production_mutations": 0,
+  "limits": [
+    "Generation 1 failure remains retained unchanged.",
+    "Both RPM switch acceptances are unverified: Rocky failed, Alma not reached.",
+    "No public package publication or public-origin/source-provenance acceptance.",
+    "No unique cause attributed; observed second-generation metadata/payload selection contradicts exact-A acceptance."
+  ],
+  "observer_exec_sessions": "all completed before sealing"
+}

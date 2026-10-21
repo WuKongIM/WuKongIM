@@ -1,0 +1,12 @@
+{
+  "python_tests": 557,
+  "python_skips": 0,
+  "publication_control_tests": 4,
+  "log_sha256": "5f51f0a0a7254aec276248de3aeadf9d3edc1bc259387dc29d17d5498e537316",
+  "actual_checkout": "ecc8012ea3a600d94da3bc94320018203e35f295",
+  "skipped_steps": [
+    "Configure Pages",
+    "Upload complete Pages artifact"
+  ],
+  "deploy_job_skipped": true
+}

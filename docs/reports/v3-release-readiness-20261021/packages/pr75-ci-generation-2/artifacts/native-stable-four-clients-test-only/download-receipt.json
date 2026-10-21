@@ -1,0 +1,60 @@
+{
+  "artifact": {
+    "id": 12363126221,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM2MzEyNjIyMQ==",
+    "name": "native-stable-four-clients-test-only",
+    "size_in_bytes": 106095,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12363126221",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12363126221/zip",
+    "expired": false,
+    "digest": "sha256:6b2b98c63b2e6e179fced6f7314ec9de77617140f4813a15db3f2798677924fe",
+    "created_at": "2026-10-21T16:46:03Z",
+    "updated_at": "2026-10-21T16:46:03Z",
+    "expires_at": "2026-11-20T16:46:02Z",
+    "workflow_run": {
+      "id": 39636512103,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-object-delivery",
+      "head_sha": "d824fe37918ee4ef22b1b1745bc02518812563e3"
+    }
+  },
+  "observed_at": "2026-10-21T16:47:49.110715+00:00",
+  "exit_code": 0,
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_stderr_bytes": 0,
+  "downloaded_bytes": 106095,
+  "downloaded_sha256": "6b2b98c63b2e6e179fced6f7314ec9de77617140f4813a15db3f2798677924fe",
+  "api_digest_verified": true,
+  "all_zip_crc_verified": true,
+  "members": [
+    {
+      "path": "clients-A.json",
+      "size": 6925,
+      "crc32": "56e5fd1a",
+      "retained": true,
+      "sha256": "d6ea66984f1f0c0a29407c5b6e4c1b9b97c6de958dbb600f21dc0c7cf4d3426a"
+    },
+    {
+      "path": "clients-B.json",
+      "size": 6925,
+      "crc32": "55994972",
+      "retained": true,
+      "sha256": "59deaf61738706264e4cab7163a76968a71bf6eb30fa2c636917c9c62026e6b6"
+    },
+    {
+      "path": "https-requests.jsonl",
+      "size": 57099,
+      "crc32": "5e5d288b",
+      "retained": true,
+      "sha256": "3833274df80a7081be04a97202de30cdc042e9048679dd671fc49fec87882c95"
+    },
+    {
+      "path": "native-stable-clients.json",
+      "size": 634468,
+      "crc32": "e6a61bb5",
+      "retained": true,
+      "sha256": "82a81342e862b3ce8911bd4d2963c132b7b2628ddabbcee7d155ae6e770e7d39"
+    }
+  ]
+}

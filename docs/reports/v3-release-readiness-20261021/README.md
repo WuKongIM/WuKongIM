@@ -363,3 +363,5 @@ immutable publication and signed native-package public-client acceptance.
 - [新云RC单次启动](cloud/rc-new-cee5/execution/README.md)：用户另行批准后run39637426411/#34/attempt1启动，新request/Issue1023和降额保留历史reserve；负载与资格待核。
 - [#75有界屏障修复](packages/pr75-client-barrier-diagnosis/README.md)与[独审](packages/pr75-barrier-review/combined-review.md)：d824fe37，明确阶段缓存语义，严格B地址下载exact-A，首次完整Linux仍执行。
 - [真实provider下一切片](packages/provider-adapter-next-slice/README.md)及[官方wire/CI补查](packages/provider-adapter-next-slice/wire-followup/README.md)：只读设计已完成，开始独立测试先行实现；未配置真实资源或启用stable。
+
+- [#75第二代首次CI](packages/pr75-ci-generation-2/README.md)与[诊断覆盖边界](packages/pr75-ci-generation-2-coverage/README.md)：557零skip+4及旧native通过；Rocky第23项仍获取B而被精确A拒绝，22通过/26未执行，资源清零；不合并、不重跑旧head。

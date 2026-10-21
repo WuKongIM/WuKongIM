@@ -1,0 +1,6 @@
+{
+  "endpoint": "repos/WuKongIM/packages/actions/runs/39636511642/artifacts?per_page=100",
+  "exit_code": 1,
+  "stderr_bytes": 106,
+  "stderr_sha256": "2fbc55dca3070da42fbf279e770f12ef5ddc8cad0a88cc0b00eba9a30fdde740"
+}

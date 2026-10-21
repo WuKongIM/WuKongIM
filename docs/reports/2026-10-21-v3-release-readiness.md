@@ -1,8 +1,8 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 16:46Z（北京时间10月22日00:46）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 16:55Z（北京时间10月22日00:55）**；后续状态须绑定新的提交和收据。
 
-结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类；b3fdb777 的本地及首次 Linux 验收均通过，已按长期授权合并为 cee5d51f，同完整代码树。原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，其首次客户端验收在Alma A→B切换中未满足精确A目标；四文件窄修已双轴复核并通过557项本地测试（1既有skip）/4合同，新head d824fe37的完整原生49场景正在首次Linux验证。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
+结论：**NO-GO，当前仍不能发布正式 v3。** 产品 #1016/#1017/#1019/#1020/#1021、packages #67–#74 已合并。#1022 已加入协议就绪夹具修复及 NeedFrom-only 恢复屏障错误分类；b3fdb777 的本地及首次 Linux 验收均通过，已按长期授权合并为 cee5d51f，同完整代码树。原两次迁移失败原因未被追溯证明。对象存储离线核心的两项P2已关闭并提交#75，其首次客户端验收在Alma A→B切换中未满足精确A目标；四文件窄修虽已双轴复核并通过本地相关检查，新head d824fe37首次Linux的557项Python（零skip）及4合同通过，原生验收仍在第23项Rocky切换失败：22通过、26未执行，仍阻塞合并。完整云预演及72小时长稳、生产stable公网交付尚未完成；没有正式tag或正式发布。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -229,7 +229,9 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 
 [新RC授权准备](v3-release-readiness-20261021/cloud/rc-new-cee5/README.md)完成source/31项规则、身份变量hash/subject和新诊断公私匹配；只创建一次Issue #1023并确认open/unlocked/搜索唯一。首次API EOF、过严idle release guard及Issue索引尚不可见均原样保留，按现有arm-owner合同修正本地guard，无IAM或schedule修改。[单次启动收据](v3-release-readiness-20261021/cloud/rc-new-cee5/execution/README.md)确认16:44:07Z的run39637426411、number34/attempt1、cee5产品/控制与已批准输入完全一致。已进入远端编排，尚未证明负载run-start、2小时或72小时通过；后续由受审workflow执行Quote/Acquire前准入和清理责任。
 
-[packages #75屏障修复](v3-release-readiness-20261021/packages/pr75-client-barrier-diagnosis/README.md)用固定Rocky/Alma镜像验证metadata_expire=0的整秒年龄依赖；有界真实签名探针保留旧跨秒选B行为，并证明只在第二个切换阶段显式复用A元数据时，B mirrorlist和B前缀仍可下载已验签精确A，fresh-B仍B。原CI未记录mtime，不能声称唯一追溯其跨秒/GPG原因。四文件全测试先红后绿，44相关/557本地（1既有Mac工具skip）/4合同通过，[双轴独审](v3-release-readiness-20261021/packages/pr75-barrier-review/combined-review.md)无发现，production validator与其他114文件不变。新head d824fe37918ee4ef22b1b1745bc02518812563e3、tree50e099e7的首次Pages39636511642已557零skip+4通过；native39636512103仍运行，不提前认定49全绿。
+[packages #75屏障修复](v3-release-readiness-20261021/packages/pr75-client-barrier-diagnosis/README.md)用固定Rocky/Alma镜像验证metadata_expire=0的整秒年龄依赖；有界真实签名探针保留旧跨秒选B行为，并证明只在第二个切换阶段显式复用A元数据时，B mirrorlist和B前缀仍可下载已验签精确A，fresh-B仍B。原CI未记录mtime，不能声称唯一追溯其跨秒/GPG原因。四文件全测试先红后绿，44相关/557本地（1既有Mac工具skip）/4合同通过，[双轴独审](v3-release-readiness-20261021/packages/pr75-barrier-review/combined-review.md)无发现，production validator与其他114文件不变。新head d824fe37918ee4ef22b1b1745bc02518812563e3、tree50e099e7的首次Pages39636511642已557零skip+4通过；native39636512103随后终态失败，具体完整证据见下一段；这次小型探针未覆盖实际失败，不能替代49场景验收。
+
+[#75第二代首次CI完整封存](v3-release-readiness-20261021/packages/pr75-ci-generation-2/README.md)绑定d824fe37、synthetic ecc8012ea3a600d94da3bc94320018203e35f295及相同tree50e099e7。Pages557零skip+4合同和旧完整签名仓库演练通过；stable客户端22通过，第23项Rocky A→B失败，26项未到达。命令161已含metadata_expire=-1，却在serial24取得B元数据和已验签B/3.0.1，host精确A守卫正确拒绝。八项A/B基线身份通过，所有所属容器、网络、三个已创建缓存清零，Alma缓存未创建。五个小制品均完成全量API SHA/ZIP CRC核验；[覆盖补充](v3-release-readiness-20261021/packages/pr75-ci-generation-2-coverage/README.md)确认1070B合并输出完整，但缺mtime、原始repomd及分阶段日志，不能追溯唯一根因。保留首次失败，不重跑旧CI、不合并红检查；固定镜像的第二轮有界诊断进行中。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

@@ -1,0 +1,4 @@
+diagnostic-coverage.json
+README.md
+SHA256SUMS
+ARCHIVE_ALLOWLIST.txt
