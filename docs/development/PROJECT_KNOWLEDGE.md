@@ -1221,6 +1221,11 @@ specification, runbook, report, or module documentation; link to them when neede
   terminal unit state, SSH failure and deadline expiry must remain distinguishable,
   with diagnostic evidence captured before terminating the unit. Missing evidence
   leaves the original cause unknown.
+- `systemctl show --property=Job` can render the uint32 zero job ID as `Job=`.
+  Both pre-clock parsers treat that explicitly present empty value as zero while
+  preserving its raw digest; missing/duplicate fields remain invalid. Nonempty
+  IDs are bounded decimal uint32, including leading zeros. Shell rejection uses
+  explicit exits so Bash 3 and Bash 5 make the same decision.
 - Released pre-clock continuation is an explicit single new start, not a runtime
   retry. Its original first rehearsal must be the immediately preceding run of
   the same numeric protected Workflow, both attempt 1, with exact authenticated

@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Accept systemd's empty `Job=` as no queued job during cloud chat-lifecycle
+  startup, while rejecting missing or malformed state fields consistently on
+  Bash 3 and Bash 5. / 云端聊天生命周期启动兼容 systemd 用空 `Job=` 表示无排队
+  任务，避免误停正常运行的服务；Bash 3/5 均明确拒绝缺失或畸形状态字段。
+
 - Preserve the full prior cloud Quote reserve when explicitly restarting a
   released pre-clock rehearsal, authenticate its cleanup and producer evidence,
   and carry that reserve through formal qualification without blocking cleanup.
