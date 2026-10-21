@@ -1,0 +1,700 @@
+﻿2026-10-21T17:31:21.0751107Z Current runner version: '2.338.0'
+2026-10-21T17:31:21.0775033Z ##[group]Runner Image Provisioner
+2026-10-21T17:31:21.0775968Z Hosted Compute Agent
+2026-10-21T17:31:21.0776544Z Version: 20261015.610
+2026-10-21T17:31:21.0777156Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-21T17:31:21.0777902Z Build Date: 2026-10-14T17:06:54Z
+2026-10-21T17:31:21.0778618Z Worker ID: {1cc588a8-a5ea-4095-98a8-81242984113d}
+2026-10-21T17:31:21.0779299Z Region: westus3
+2026-10-21T17:31:21.0779835Z Cloud: Azure
+2026-10-21T17:31:21.0780350Z ##[endgroup]
+2026-10-21T17:31:21.0782403Z ##[group]Operating System
+2026-10-21T17:31:21.0783015Z Ubuntu
+2026-10-21T17:31:21.0783493Z 24.04.5
+2026-10-21T17:31:21.0784020Z LTS
+2026-10-21T17:31:21.0784555Z ##[endgroup]
+2026-10-21T17:31:21.0785139Z ##[group]Runner Image
+2026-10-21T17:31:21.0785791Z Image: ubuntu-24.04
+2026-10-21T17:31:21.0786317Z Version: 20261018.339.1
+2026-10-21T17:31:21.0787565Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T17:31:21.0789072Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T17:31:21.0789990Z ##[endgroup]
+2026-10-21T17:31:21.0791307Z ##[group]GITHUB_TOKEN Permissions
+2026-10-21T17:31:21.0793466Z Contents: read
+2026-10-21T17:31:21.0793998Z Metadata: read
+2026-10-21T17:31:21.0794623Z ##[endgroup]
+2026-10-21T17:31:21.0796574Z Secret source: Actions
+2026-10-21T17:31:21.0797495Z Cache mode: write
+2026-10-21T17:31:21.0798152Z Prepare workflow directory
+2026-10-21T17:31:21.1123925Z Prepare all required actions
+2026-10-21T17:31:21.1174715Z Getting action download info
+2026-10-21T17:31:21.4551524Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-21T17:31:21.5893151Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-21T17:31:22.2394796Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-10-21T17:31:22.4923678Z Complete job name: TEST ONLY stable four clients and A/B
+2026-10-21T17:31:22.5658373Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-21T17:31:22.5659455Z with:
+2026-10-21T17:31:22.5659966Z   persist-credentials: false
+2026-10-21T17:31:22.5660556Z   repository: WuKongIM/packages
+2026-10-21T17:31:22.5665163Z   token: ***
+2026-10-21T17:31:22.5665675Z   ssh-strict: true
+2026-10-21T17:31:22.5666215Z   ssh-user: git
+2026-10-21T17:31:22.5666694Z   clean: true
+2026-10-21T17:31:22.5667218Z   sparse-checkout-cone-mode: true
+2026-10-21T17:31:22.5667811Z   fetch-depth: 1
+2026-10-21T17:31:22.5668327Z   fetch-tags: false
+2026-10-21T17:31:22.5668856Z   show-progress: true
+2026-10-21T17:31:22.5669413Z   lfs: false
+2026-10-21T17:31:22.5669914Z   submodules: false
+2026-10-21T17:31:22.5670438Z   set-safe-directory: true
+2026-10-21T17:31:22.5671210Z   allow-unsafe-pr-checkout: false
+2026-10-21T17:31:22.5672032Z ##[endgroup]
+2026-10-21T17:31:22.6712417Z Syncing repository: WuKongIM/packages
+2026-10-21T17:31:22.6714853Z ##[group]Getting Git version info
+2026-10-21T17:31:22.6715810Z Working directory is '/home/runner/work/packages/packages'
+2026-10-21T17:31:22.6717089Z [command]/usr/bin/git version
+2026-10-21T17:31:22.6766769Z git version 2.55.0
+2026-10-21T17:31:22.6785463Z ##[endgroup]
+2026-10-21T17:31:22.6794620Z Temporarily overriding HOME='/home/runner/work/_temp/d7497f56-8f8c-439e-a384-513f2835a77d' before making global git config changes
+2026-10-21T17:31:22.6796988Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T17:31:22.6800397Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-21T17:31:22.6853895Z Deleting the contents of '/home/runner/work/packages/packages'
+2026-10-21T17:31:22.6865686Z ##[group]Determining repository object format
+2026-10-21T17:31:22.6873111Z ##[endgroup]
+2026-10-21T17:31:22.6874775Z ##[group]Initializing the repository
+2026-10-21T17:31:22.6875920Z [command]/usr/bin/git init /home/runner/work/packages/packages
+2026-10-21T17:31:22.7025538Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T17:31:22.7027484Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T17:31:22.7029167Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T17:31:22.7030686Z hint: call:
+2026-10-21T17:31:22.7031670Z hint:
+2026-10-21T17:31:22.7032852Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T17:31:22.7033950Z hint:
+2026-10-21T17:31:22.7035006Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T17:31:22.7036556Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T17:31:22.7037738Z hint:
+2026-10-21T17:31:22.7039031Z hint: 	git branch -m <name>
+2026-10-21T17:31:22.7039871Z hint:
+2026-10-21T17:31:22.7040795Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T17:31:22.7042179Z Initialized empty Git repository in /home/runner/work/packages/packages/.git/
+2026-10-21T17:31:22.7045568Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/packages
+2026-10-21T17:31:22.7085153Z ##[endgroup]
+2026-10-21T17:31:22.7087756Z ##[group]Disabling automatic garbage collection
+2026-10-21T17:31:22.7088922Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T17:31:22.7124107Z ##[endgroup]
+2026-10-21T17:31:22.7125321Z ##[group]Setting up auth
+2026-10-21T17:31:22.7126052Z Removing SSH command configuration
+2026-10-21T17:31:22.7126911Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:31:22.7155184Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:31:22.7464861Z Removing HTTP extra header
+2026-10-21T17:31:22.7472809Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:31:22.7506307Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:31:22.7721784Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:31:22.7728405Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:31:22.7764107Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:31:22.7979991Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T17:31:22.8015737Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git.path /home/runner/work/_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:22.8052092Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:22.8085283Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:22.8116346Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:22.8145631Z ##[endgroup]
+2026-10-21T17:31:22.8146679Z ##[group]Fetching the repository
+2026-10-21T17:31:22.8152281Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3e4b7945206faffc18d6023f2b50311d93bd4348:refs/remotes/pull/76/merge
+2026-10-21T17:31:23.5167330Z From https://github.com/WuKongIM/packages
+2026-10-21T17:31:23.5169874Z  * [new ref]         3e4b7945206faffc18d6023f2b50311d93bd4348 -> pull/76/merge
+2026-10-21T17:31:23.5175449Z ##[endgroup]
+2026-10-21T17:31:23.5177894Z ##[group]Determining the checkout info
+2026-10-21T17:31:23.5180622Z ##[endgroup]
+2026-10-21T17:31:23.5182453Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T17:31:23.5293523Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T17:31:23.5329887Z ##[group]Checking out the ref
+2026-10-21T17:31:23.5332926Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/76/merge
+2026-10-21T17:31:23.5518950Z Note: switching to 'refs/remotes/pull/76/merge'.
+2026-10-21T17:31:23.5520068Z 
+2026-10-21T17:31:23.5521152Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T17:31:23.5523424Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T17:31:23.5526529Z state without impacting any branches by switching back to a branch.
+2026-10-21T17:31:23.5528224Z 
+2026-10-21T17:31:23.5529694Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T17:31:23.5533505Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T17:31:23.5535746Z 
+2026-10-21T17:31:23.5536892Z   git switch -c <new-branch-name>
+2026-10-21T17:31:23.5538305Z 
+2026-10-21T17:31:23.5539197Z Or undo this operation with:
+2026-10-21T17:31:23.5540414Z 
+2026-10-21T17:31:23.5541381Z   git switch -
+2026-10-21T17:31:23.5542402Z 
+2026-10-21T17:31:23.5543970Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T17:31:23.5546521Z 
+2026-10-21T17:31:23.5548369Z HEAD is now at 3e4b794 Merge dded26afa12188d5f1c036af4b9c06c3cbddb46d into 1829c3813d6b21dcfeb1238a640604a4691815bd
+2026-10-21T17:31:23.5554297Z ##[endgroup]
+2026-10-21T17:31:23.5585954Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T17:31:23.5613788Z 3e4b7945206faffc18d6023f2b50311d93bd4348
+2026-10-21T17:31:23.5623914Z ##[group]Removing auth
+2026-10-21T17:31:23.5626626Z Removing SSH command configuration
+2026-10-21T17:31:23.5630328Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:31:23.5665504Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:31:23.5878867Z Removing HTTP extra header
+2026-10-21T17:31:23.5882502Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:31:23.5915946Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:31:23.6107268Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:31:23.6110783Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:31:23.6137981Z includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-21T17:31:23.6141660Z includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-21T17:31:23.6144784Z includeif.gitdir:/github/workspace/.git.path
+2026-10-21T17:31:23.6147367Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T17:31:23.6153703Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-21T17:31:23.6170531Z /home/runner/work/_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:23.6184638Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-1b046625\-da7f\-4f8f\-954d\-b5bca034fa83\.config
+2026-10-21T17:31:23.6220284Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-21T17:31:23.6243395Z /home/runner/work/_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:23.6289040Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-1b046625\-da7f\-4f8f\-954d\-b5bca034fa83\.config
+2026-10-21T17:31:23.6322251Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-21T17:31:23.6343392Z /github/runner_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:23.6351961Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-1b046625\-da7f\-4f8f\-954d\-b5bca034fa83\.config
+2026-10-21T17:31:23.6388306Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-21T17:31:23.6412284Z /github/runner_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config
+2026-10-21T17:31:23.6419623Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-1b046625\-da7f\-4f8f\-954d\-b5bca034fa83\.config
+2026-10-21T17:31:23.6451797Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:31:23.6638109Z Removing credentials config '/home/runner/work/_temp/git-credentials-1b046625-da7f-4f8f-954d-b5bca034fa83.config'
+2026-10-21T17:31:23.6697143Z ##[endgroup]
+2026-10-21T17:31:23.7069744Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-21T17:31:23.7071510Z with:
+2026-10-21T17:31:23.7072507Z   repository: WuKongIM/WuKongIM
+2026-10-21T17:31:23.7073740Z   ref: ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T17:31:23.7075082Z   path: .trusted/wukongim
+2026-10-21T17:31:23.7076188Z   persist-credentials: false
+2026-10-21T17:31:23.7085647Z   token: ***
+2026-10-21T17:31:23.7086663Z   ssh-strict: true
+2026-10-21T17:31:23.7087616Z   ssh-user: git
+2026-10-21T17:31:23.7088566Z   clean: true
+2026-10-21T17:31:23.7089570Z   sparse-checkout-cone-mode: true
+2026-10-21T17:31:23.7090759Z   fetch-depth: 1
+2026-10-21T17:31:23.7091907Z   fetch-tags: false
+2026-10-21T17:31:23.7092894Z   show-progress: true
+2026-10-21T17:31:23.7093978Z   lfs: false
+2026-10-21T17:31:23.7094923Z   submodules: false
+2026-10-21T17:31:23.7095920Z   set-safe-directory: true
+2026-10-21T17:31:23.7097076Z   allow-unsafe-pr-checkout: false
+2026-10-21T17:31:23.7098360Z ##[endgroup]
+2026-10-21T17:31:23.7954221Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T17:31:23.7958720Z ##[group]Getting Git version info
+2026-10-21T17:31:23.7961978Z Working directory is '/home/runner/work/packages/packages/.trusted/wukongim'
+2026-10-21T17:31:23.8012485Z [command]/usr/bin/git version
+2026-10-21T17:31:23.8052690Z git version 2.55.0
+2026-10-21T17:31:23.8077637Z ##[endgroup]
+2026-10-21T17:31:23.8086144Z Temporarily overriding HOME='/home/runner/work/_temp/ea162a4c-8b1c-4f28-ae0b-24051c875c7d' before making global git config changes
+2026-10-21T17:31:23.8089545Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T17:31:23.8093616Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-21T17:31:23.8124429Z ##[group]Determining repository object format
+2026-10-21T17:31:23.8127083Z ##[endgroup]
+2026-10-21T17:31:23.8128829Z ##[group]Initializing the repository
+2026-10-21T17:31:23.8131294Z [command]/usr/bin/git init /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-21T17:31:23.8173685Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T17:31:23.8176478Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T17:31:23.8179880Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T17:31:23.8182085Z hint: call:
+2026-10-21T17:31:23.8183554Z hint:
+2026-10-21T17:31:23.8184764Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T17:31:23.8186061Z hint:
+2026-10-21T17:31:23.8187334Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T17:31:23.8189339Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T17:31:23.8192044Z hint:
+2026-10-21T17:31:23.8193237Z hint: 	git branch -m <name>
+2026-10-21T17:31:23.8194626Z hint:
+2026-10-21T17:31:23.8196769Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T17:31:23.8200176Z Initialized empty Git repository in /home/runner/work/packages/packages/.trusted/wukongim/.git/
+2026-10-21T17:31:23.8206034Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T17:31:23.8225471Z ##[endgroup]
+2026-10-21T17:31:23.8227348Z ##[group]Disabling automatic garbage collection
+2026-10-21T17:31:23.8229541Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T17:31:23.8262143Z ##[endgroup]
+2026-10-21T17:31:23.8264008Z ##[group]Setting up auth
+2026-10-21T17:31:23.8265370Z Removing SSH command configuration
+2026-10-21T17:31:23.8268536Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:31:23.8302420Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:31:23.8530095Z Removing HTTP extra header
+2026-10-21T17:31:23.8537858Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:31:23.8569036Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:31:23.8787480Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:31:23.8791984Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:31:23.8825393Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:31:23.9078314Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T17:31:23.9094774Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path /home/runner/work/_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:23.9130467Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:23.9168617Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git.path /github/runner_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:23.9205230Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path /github/runner_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:23.9235055Z ##[endgroup]
+2026-10-21T17:31:23.9236953Z ##[group]Fetching the repository
+2026-10-21T17:31:23.9242514Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T17:31:27.2061374Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T17:31:27.2062454Z  * branch            ed7e67d8f781b4f92872e42116c11b304fe03b5c -> FETCH_HEAD
+2026-10-21T17:31:27.2070773Z [command]/usr/bin/git rev-parse --verify --quiet ed7e67d8f781b4f92872e42116c11b304fe03b5c^{object}
+2026-10-21T17:31:27.2098858Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T17:31:27.2108578Z ##[endgroup]
+2026-10-21T17:31:27.2109528Z ##[group]Determining the checkout info
+2026-10-21T17:31:27.2110409Z ##[endgroup]
+2026-10-21T17:31:27.2110843Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T17:31:27.2159537Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T17:31:27.2192335Z ##[group]Checking out the ref
+2026-10-21T17:31:27.2197133Z [command]/usr/bin/git checkout --progress --force ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T17:31:27.7455420Z Note: switching to 'ed7e67d8f781b4f92872e42116c11b304fe03b5c'.
+2026-10-21T17:31:27.7456002Z 
+2026-10-21T17:31:27.7456498Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T17:31:27.7457326Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T17:31:27.7459810Z state without impacting any branches by switching back to a branch.
+2026-10-21T17:31:27.7461568Z 
+2026-10-21T17:31:27.7462347Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T17:31:27.7463467Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T17:31:27.7463867Z 
+2026-10-21T17:31:27.7464199Z   git switch -c <new-branch-name>
+2026-10-21T17:31:27.7464521Z 
+2026-10-21T17:31:27.7464745Z Or undo this operation with:
+2026-10-21T17:31:27.7464987Z 
+2026-10-21T17:31:27.7465278Z   git switch -
+2026-10-21T17:31:27.7465542Z 
+2026-10-21T17:31:27.7465794Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T17:31:27.7466159Z 
+2026-10-21T17:31:27.7466742Z HEAD is now at ed7e67d Merge pull request #861 from WuKongIM/codex/native-package-release-assets
+2026-10-21T17:31:27.7473771Z ##[endgroup]
+2026-10-21T17:31:27.7511037Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T17:31:27.7538028Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-21T17:31:27.7551317Z ##[group]Removing auth
+2026-10-21T17:31:27.7551897Z Removing SSH command configuration
+2026-10-21T17:31:27.7552581Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:31:27.7583188Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:31:27.7782758Z Removing HTTP extra header
+2026-10-21T17:31:27.7786198Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:31:27.7820061Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:31:27.8021591Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:31:27.8024490Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:31:27.8048523Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-21T17:31:27.8049233Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:27.8050072Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-21T17:31:27.8051190Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:27.8058017Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-21T17:31:27.8083103Z /home/runner/work/_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:27.8092132Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-9bdec638\-ca34\-46fa\-bd00\-f28a892130ba\.config
+2026-10-21T17:31:27.8127929Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:27.8150201Z /home/runner/work/_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:27.8158050Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-9bdec638\-ca34\-46fa\-bd00\-f28a892130ba\.config
+2026-10-21T17:31:27.8189045Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-21T17:31:27.8219371Z /github/runner_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:27.8222267Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path \/github\/runner_temp\/git\-credentials\-9bdec638\-ca34\-46fa\-bd00\-f28a892130ba\.config
+2026-10-21T17:31:27.8261931Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:27.8284963Z /github/runner_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config
+2026-10-21T17:31:27.8290397Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-9bdec638\-ca34\-46fa\-bd00\-f28a892130ba\.config
+2026-10-21T17:31:27.8344306Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:31:27.8536206Z Removing credentials config '/home/runner/work/_temp/git-credentials-9bdec638-ca34-46fa-bd00-f28a892130ba.config'
+2026-10-21T17:31:27.8548049Z ##[endgroup]
+2026-10-21T17:31:27.8750252Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-21T17:31:27.8750743Z with:
+2026-10-21T17:31:27.8751356Z   repository: WuKongIM/WuKongIM
+2026-10-21T17:31:27.8751754Z   ref: fc18221282f289088ec9b4282fda8e0bfc67a3b8
+2026-10-21T17:31:27.8752218Z   path: .product/wukongim
+2026-10-21T17:31:27.8752608Z   persist-credentials: false
+2026-10-21T17:31:27.8755318Z   token: ***
+2026-10-21T17:31:27.8755639Z   ssh-strict: true
+2026-10-21T17:31:27.8755955Z   ssh-user: git
+2026-10-21T17:31:27.8756295Z   clean: true
+2026-10-21T17:31:27.8756620Z   sparse-checkout-cone-mode: true
+2026-10-21T17:31:27.8757025Z   fetch-depth: 1
+2026-10-21T17:31:27.8757352Z   fetch-tags: false
+2026-10-21T17:31:27.8757670Z   show-progress: true
+2026-10-21T17:31:27.8758025Z   lfs: false
+2026-10-21T17:31:27.8758317Z   submodules: false
+2026-10-21T17:31:27.8758619Z   set-safe-directory: true
+2026-10-21T17:31:27.8759001Z   allow-unsafe-pr-checkout: false
+2026-10-21T17:31:27.8759471Z ##[endgroup]
+2026-10-21T17:31:27.9648094Z Syncing repository: WuKongIM/WuKongIM
+2026-10-21T17:31:27.9648788Z ##[group]Getting Git version info
+2026-10-21T17:31:27.9649291Z Working directory is '/home/runner/work/packages/packages/.product/wukongim'
+2026-10-21T17:31:27.9650088Z [command]/usr/bin/git version
+2026-10-21T17:31:27.9676211Z git version 2.55.0
+2026-10-21T17:31:27.9698795Z ##[endgroup]
+2026-10-21T17:31:27.9704156Z Temporarily overriding HOME='/home/runner/work/_temp/b2fb074e-a878-4137-8381-b3b8eefba1f0' before making global git config changes
+2026-10-21T17:31:27.9705525Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T17:31:27.9708680Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.product/wukongim
+2026-10-21T17:31:27.9740707Z ##[group]Determining repository object format
+2026-10-21T17:31:27.9742500Z ##[endgroup]
+2026-10-21T17:31:27.9743063Z ##[group]Initializing the repository
+2026-10-21T17:31:27.9746678Z [command]/usr/bin/git init /home/runner/work/packages/packages/.product/wukongim
+2026-10-21T17:31:27.9785769Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T17:31:27.9786726Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T17:31:27.9787937Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T17:31:27.9788731Z hint: call:
+2026-10-21T17:31:27.9789178Z hint:
+2026-10-21T17:31:27.9789706Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T17:31:27.9790302Z hint:
+2026-10-21T17:31:27.9790998Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T17:31:27.9791928Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T17:31:27.9792646Z hint:
+2026-10-21T17:31:27.9793090Z hint: 	git branch -m <name>
+2026-10-21T17:31:27.9793571Z hint:
+2026-10-21T17:31:27.9794202Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T17:31:27.9795319Z Initialized empty Git repository in /home/runner/work/packages/packages/.product/wukongim/.git/
+2026-10-21T17:31:27.9797219Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-21T17:31:27.9828341Z ##[endgroup]
+2026-10-21T17:31:27.9828955Z ##[group]Disabling automatic garbage collection
+2026-10-21T17:31:27.9831594Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T17:31:27.9868529Z ##[endgroup]
+2026-10-21T17:31:27.9869552Z ##[group]Setting up auth
+2026-10-21T17:31:27.9870539Z Removing SSH command configuration
+2026-10-21T17:31:27.9873194Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:31:27.9902393Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:31:28.0109314Z Removing HTTP extra header
+2026-10-21T17:31:28.0114370Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:31:28.0182963Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:31:28.0367667Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:31:28.0374063Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:31:28.0408837Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:31:28.0630241Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T17:31:28.0668893Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git.path /home/runner/work/_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:28.0703302Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:28.0737429Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.product/wukongim/.git.path /github/runner_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:28.0770065Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.product/wukongim/.git/worktrees/*.path /github/runner_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:28.0800359Z ##[endgroup]
+2026-10-21T17:31:28.0800770Z ##[group]Fetching the repository
+2026-10-21T17:31:28.0807289Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin fc18221282f289088ec9b4282fda8e0bfc67a3b8
+2026-10-21T17:31:32.3264988Z From https://github.com/WuKongIM/WuKongIM
+2026-10-21T17:31:32.3265457Z  * branch            fc18221282f289088ec9b4282fda8e0bfc67a3b8 -> FETCH_HEAD
+2026-10-21T17:31:32.3276132Z [command]/usr/bin/git rev-parse --verify --quiet fc18221282f289088ec9b4282fda8e0bfc67a3b8^{object}
+2026-10-21T17:31:32.3304761Z fc18221282f289088ec9b4282fda8e0bfc67a3b8
+2026-10-21T17:31:32.3308772Z ##[endgroup]
+2026-10-21T17:31:32.3309468Z ##[group]Determining the checkout info
+2026-10-21T17:31:32.3310168Z ##[endgroup]
+2026-10-21T17:31:32.3315439Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T17:31:32.3358915Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T17:31:32.3389781Z ##[group]Checking out the ref
+2026-10-21T17:31:32.3395235Z [command]/usr/bin/git checkout --progress --force fc18221282f289088ec9b4282fda8e0bfc67a3b8
+2026-10-21T17:31:33.0961803Z Note: switching to 'fc18221282f289088ec9b4282fda8e0bfc67a3b8'.
+2026-10-21T17:31:33.0962451Z 
+2026-10-21T17:31:33.0963199Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T17:31:33.0963913Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T17:31:33.0964608Z state without impacting any branches by switching back to a branch.
+2026-10-21T17:31:33.0964986Z 
+2026-10-21T17:31:33.0965251Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T17:31:33.0965879Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T17:31:33.0966204Z 
+2026-10-21T17:31:33.0966355Z   git switch -c <new-branch-name>
+2026-10-21T17:31:33.0966591Z 
+2026-10-21T17:31:33.0966724Z Or undo this operation with:
+2026-10-21T17:31:33.0966938Z 
+2026-10-21T17:31:33.0967043Z   git switch -
+2026-10-21T17:31:33.0967273Z 
+2026-10-21T17:31:33.0967571Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T17:31:33.0968011Z 
+2026-10-21T17:31:33.0968703Z HEAD is now at fc18221 Merge pull request #1017 from WuKongIM/codex/v3-shakeout-grant-repair
+2026-10-21T17:31:33.0980282Z ##[endgroup]
+2026-10-21T17:31:33.1023406Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T17:31:33.1051671Z fc18221282f289088ec9b4282fda8e0bfc67a3b8
+2026-10-21T17:31:33.1060680Z ##[group]Removing auth
+2026-10-21T17:31:33.1061133Z Removing SSH command configuration
+2026-10-21T17:31:33.1065657Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:31:33.1101706Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:31:33.1307584Z Removing HTTP extra header
+2026-10-21T17:31:33.1311850Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:31:33.1342492Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:31:33.1542709Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:31:33.1546622Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:31:33.1571386Z includeif.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git.path
+2026-10-21T17:31:33.1572331Z includeif.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:33.1572982Z includeif.gitdir:/github/workspace/.product/wukongim/.git.path
+2026-10-21T17:31:33.1573429Z includeif.gitdir:/github/workspace/.product/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:33.1584645Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git.path
+2026-10-21T17:31:33.1607560Z /home/runner/work/_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:33.1616713Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-d5c45987\-1055\-4cc1\-83c1\-732a1b16db9e\.config
+2026-10-21T17:31:33.1656557Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:33.1679219Z /home/runner/work/_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:33.1686460Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.product/wukongim/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-d5c45987\-1055\-4cc1\-83c1\-732a1b16db9e\.config
+2026-10-21T17:31:33.1719294Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.product/wukongim/.git.path
+2026-10-21T17:31:33.1747316Z /github/runner_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:33.1752437Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.product/wukongim/.git.path \/github\/runner_temp\/git\-credentials\-d5c45987\-1055\-4cc1\-83c1\-732a1b16db9e\.config
+2026-10-21T17:31:33.1792446Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.product/wukongim/.git/worktrees/*.path
+2026-10-21T17:31:33.1814982Z /github/runner_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config
+2026-10-21T17:31:33.1822123Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.product/wukongim/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-d5c45987\-1055\-4cc1\-83c1\-732a1b16db9e\.config
+2026-10-21T17:31:33.1854847Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:31:33.2055308Z Removing credentials config '/home/runner/work/_temp/git-credentials-d5c45987-1055-4cc1-83c1-732a1b16db9e.config'
+2026-10-21T17:31:33.2065337Z ##[endgroup]
+2026-10-21T17:31:33.2218542Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-21T17:31:33.2219012Z with:
+2026-10-21T17:31:33.2219333Z   go-version: 1.25.11
+2026-10-21T17:31:33.2219758Z   cache-dependency-path: .product/wukongim/go.sum
+2026-10-21T17:31:33.2220140Z   cache: true
+2026-10-21T17:31:33.2220431Z   check-latest: false
+2026-10-21T17:31:33.2223424Z   token: ***
+2026-10-21T17:31:33.2223748Z ##[endgroup]
+2026-10-21T17:31:33.3449783Z Setup go version spec 1.25.11
+2026-10-21T17:31:33.3469694Z Attempting to download 1.25.11...
+2026-10-21T17:31:34.3208258Z matching 1.25.11...
+2026-10-21T17:31:34.3257817Z Acquiring 1.25.11 from https://github.com/actions/go-versions/releases/download/1.25.11-26891828414/go-1.25.11-linux-x64.tar.gz
+2026-10-21T17:31:34.8443327Z Extracting Go...
+2026-10-21T17:31:34.8548800Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/5ec138e6-696a-417f-801b-e572768e2475 -f /home/runner/work/_temp/3e14dec3-8aa4-4918-8a88-c43c70f8b0d3
+2026-10-21T17:31:36.5870174Z Successfully extracted go to /home/runner/work/_temp/5ec138e6-696a-417f-801b-e572768e2475
+2026-10-21T17:31:36.5870839Z Adding to the cache ...
+2026-10-21T17:31:43.4005264Z Successfully cached go to /opt/hostedtoolcache/go/1.25.11/x64
+2026-10-21T17:31:43.4006544Z Added go to the path
+2026-10-21T17:31:43.4009158Z Successfully set up Go version 1.25.11
+2026-10-21T17:31:43.4205686Z [command]/opt/hostedtoolcache/go/1.25.11/x64/bin/go env GOMODCACHE
+2026-10-21T17:31:43.4237421Z [command]/opt/hostedtoolcache/go/1.25.11/x64/bin/go env GOCACHE
+2026-10-21T17:31:43.4267985Z /home/runner/go/pkg/mod
+2026-10-21T17:31:43.4286021Z /home/runner/.cache/go-build
+2026-10-21T17:31:43.6382099Z Cache is not found
+2026-10-21T17:31:43.6410380Z go version go1.25.11 linux/amd64
+2026-10-21T17:31:43.6410607Z 
+2026-10-21T17:31:43.6411430Z ##[group]go env
+2026-10-21T17:31:43.7642821Z AR='ar'
+2026-10-21T17:31:43.7643194Z CC='gcc'
+2026-10-21T17:31:43.7643533Z CGO_CFLAGS='-O2 -g'
+2026-10-21T17:31:43.7643821Z CGO_CPPFLAGS=''
+2026-10-21T17:31:43.7644041Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T17:31:43.7644272Z CGO_ENABLED='1'
+2026-10-21T17:31:43.7644478Z CGO_FFLAGS='-O2 -g'
+2026-10-21T17:31:43.7644926Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T17:31:43.7645146Z CXX='g++'
+2026-10-21T17:31:43.7645342Z GCCGO='gccgo'
+2026-10-21T17:31:43.7645540Z GO111MODULE=''
+2026-10-21T17:31:43.7645737Z GOAMD64='v1'
+2026-10-21T17:31:43.7645929Z GOARCH='amd64'
+2026-10-21T17:31:43.7646121Z GOAUTH='netrc'
+2026-10-21T17:31:43.7646311Z GOBIN=''
+2026-10-21T17:31:43.7646536Z GOCACHE='/home/runner/.cache/go-build'
+2026-10-21T17:31:43.7646898Z GOCACHEPROG=''
+2026-10-21T17:31:43.7647146Z GODEBUG=''
+2026-10-21T17:31:43.7647414Z GOENV='/home/runner/.config/go/env'
+2026-10-21T17:31:43.7647712Z GOEXE=''
+2026-10-21T17:31:43.7647967Z GOEXPERIMENT=''
+2026-10-21T17:31:43.7648258Z GOFIPS140='off'
+2026-10-21T17:31:43.7648535Z GOFLAGS=''
+2026-10-21T17:31:43.7649463Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build4107026204=/tmp/go-build -gno-record-gcc-switches'
+2026-10-21T17:31:43.7650093Z GOHOSTARCH='amd64'
+2026-10-21T17:31:43.7650302Z GOHOSTOS='linux'
+2026-10-21T17:31:43.7650510Z GOINSECURE=''
+2026-10-21T17:31:43.7650703Z GOMOD='/dev/null'
+2026-10-21T17:31:43.7651153Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-10-21T17:31:43.7651492Z GONOPROXY=''
+2026-10-21T17:31:43.7651783Z GONOSUMDB=''
+2026-10-21T17:31:43.7651995Z GOOS='linux'
+2026-10-21T17:31:43.7652328Z GOPATH='/home/runner/go'
+2026-10-21T17:31:43.7652570Z GOPRIVATE=''
+2026-10-21T17:31:43.7652901Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T17:31:43.7653230Z GOROOT='/opt/hostedtoolcache/go/1.25.11/x64'
+2026-10-21T17:31:43.7653525Z GOSUMDB='sum.golang.org'
+2026-10-21T17:31:43.7653761Z GOTELEMETRY='local'
+2026-10-21T17:31:43.7654026Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-10-21T17:31:43.7654318Z GOTMPDIR=''
+2026-10-21T17:31:43.7654517Z GOTOOLCHAIN='local'
+2026-10-21T17:31:43.7655042Z GOTOOLDIR='/opt/hostedtoolcache/go/1.25.11/x64/pkg/tool/linux_amd64'
+2026-10-21T17:31:43.7655394Z GOVCS=''
+2026-10-21T17:31:43.7655614Z GOVERSION='go1.25.11'
+2026-10-21T17:31:43.7655904Z GOWORK=''
+2026-10-21T17:31:43.7656145Z PKG_CONFIG='pkg-config'
+2026-10-21T17:31:43.7656288Z 
+2026-10-21T17:31:43.7656704Z ##[endgroup]
+2026-10-21T17:31:43.7825115Z ##[group]Run set -euo pipefail
+2026-10-21T17:31:43.7825532Z [36;1mset -euo pipefail[0m
+2026-10-21T17:31:43.7825793Z [36;1msudo apt-get update[0m
+2026-10-21T17:31:43.7826221Z [36;1msudo apt-get install --yes --no-install-recommends gnupg gpgv rpm dpkg zstd[0m
+2026-10-21T17:31:43.7826635Z [36;1m./tests/contract.sh[0m
+2026-10-21T17:31:43.7827092Z [36;1mtest "$(git -C .trusted/wukongim rev-parse HEAD)" = "$(jq -r .commit manifests/trusted-toolchain.json)"[0m
+2026-10-21T17:31:43.7827655Z [36;1mjq -r '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \[0m
+2026-10-21T17:31:43.7828115Z [36;1m  manifests/trusted-toolchain.json | sha256sum --check --strict[0m
+2026-10-21T17:31:43.7828559Z [36;1mpython3 - <<'PY' > "$RUNNER_TEMP/stable-client-images.txt"[0m
+2026-10-21T17:31:43.7828909Z [36;1mimport importlib.util,json[0m
+2026-10-21T17:31:43.7829429Z [36;1mspec=importlib.util.spec_from_file_location('clients','scripts/validate-production-package-clients.py')[0m
+2026-10-21T17:31:43.7830068Z [36;1mclients=importlib.util.module_from_spec(spec);spec.loader.exec_module(clients)[0m
+2026-10-21T17:31:43.7830546Z [36;1msigning=json.load(open('manifests/signing-toolchain.json'))[0m
+2026-10-21T17:31:43.7831187Z [36;1massert signing['enabled'] is True[0m
+2026-10-21T17:31:43.7831553Z [36;1mprint(signing['image']+'@'+signing['digest'])[0m
+2026-10-21T17:31:43.7831961Z [36;1mfor _,image in clients.APT_CLIENTS+clients.RPM_CLIENTS: print(image)[0m
+2026-10-21T17:31:43.7832332Z [36;1mPY[0m
+2026-10-21T17:31:43.7832786Z [36;1mwhile IFS= read -r image; do docker pull --platform linux/amd64 "$image"; done < "$RUNNER_TEMP/stable-client-images.txt"[0m
+2026-10-21T17:31:43.7957836Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T17:31:43.7958257Z env:
+2026-10-21T17:31:43.7958491Z   GOTOOLCHAIN: local
+2026-10-21T17:31:43.7958732Z ##[endgroup]
+2026-10-21T17:31:43.8667384Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-10-21T17:31:43.9264177Z Hit:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease
+2026-10-21T17:31:43.9265486Z Get:6 https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease [3600 B]
+2026-10-21T17:31:43.9272419Z Get:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+2026-10-21T17:31:43.9312278Z Get:4 http://azure.archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+2026-10-21T17:31:43.9327927Z Get:5 http://azure.archive.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+2026-10-21T17:31:44.0531429Z Get:7 https://packages.microsoft.com/ubuntu/24.04/prod noble/main amd64 Packages [630 kB]
+2026-10-21T17:31:44.1328982Z Get:8 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1400 kB]
+2026-10-21T17:31:44.1351474Z Get:12 https://packages.microsoft.com/ubuntu/24.04/prod noble/main arm64 Packages [567 kB]
+2026-10-21T17:31:44.2063484Z Get:9 http://azure.archive.ubuntu.com/ubuntu noble-updates/main Translation-en [309 kB]
+2026-10-21T17:31:44.2076954Z Get:10 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1706 kB]
+2026-10-21T17:31:44.2155084Z Get:11 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe Translation-en [342 kB]
+2026-10-21T17:31:44.2258820Z Get:13 http://azure.archive.ubuntu.com/ubuntu noble-security/main amd64 Packages [1145 kB]
+2026-10-21T17:31:44.2322325Z Get:14 http://azure.archive.ubuntu.com/ubuntu noble-security/main Translation-en [231 kB]
+2026-10-21T17:31:44.2341222Z Get:15 http://azure.archive.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1222 kB]
+2026-10-21T17:31:48.4891474Z Fetched 7934 kB in 1s (7951 kB/s)
+2026-10-21T17:31:49.5256041Z Reading package lists...
+2026-10-21T17:31:49.5641581Z Reading package lists...
+2026-10-21T17:31:49.7899078Z Building dependency tree...
+2026-10-21T17:31:49.7907574Z Reading state information...
+2026-10-21T17:31:50.0032365Z gnupg is already the newest version (2.4.4-2ubuntu17.6).
+2026-10-21T17:31:50.0032961Z gpgv is already the newest version (2.4.4-2ubuntu17.6).
+2026-10-21T17:31:50.0033591Z gpgv set to manually installed.
+2026-10-21T17:31:50.0033911Z rpm is already the newest version (4.18.2+dfsg-2.1build2).
+2026-10-21T17:31:50.0034267Z dpkg is already the newest version (1.22.6ubuntu6.6).
+2026-10-21T17:31:50.0034621Z zstd is already the newest version (1.5.5+dfsg2-2build1.1).
+2026-10-21T17:31:50.0034942Z zstd set to manually installed.
+2026-10-21T17:31:50.0035258Z 0 upgraded, 0 newly installed, 0 to remove and 52 not upgraded.
+2026-10-21T17:31:50.1476165Z publication control validation passed
+2026-10-21T17:31:50.2669468Z ....
+2026-10-21T17:31:50.2669997Z ----------------------------------------------------------------------
+2026-10-21T17:31:50.2670404Z Ran 4 tests in 0.001s
+2026-10-21T17:31:50.2670544Z 
+2026-10-21T17:31:50.2670638Z OK
+2026-10-21T17:31:50.7421119Z package repository contracts passed
+2026-10-21T17:31:50.7486402Z .trusted/wukongim/scripts/build-native-package-repositories.sh: OK
+2026-10-21T17:31:50.7487413Z .trusted/wukongim/scripts/generate-native-package-test-keyring.sh: OK
+2026-10-21T17:31:50.7488365Z .trusted/wukongim/scripts/sign-native-package-repositories.sh: OK
+2026-10-21T17:31:50.7489354Z .trusted/wukongim/scripts/validate-native-package-repositories-container.sh: OK
+2026-10-21T17:31:50.7490317Z .trusted/wukongim/scripts/verify-native-package-metadata.py: OK
+2026-10-21T17:31:50.7491296Z .trusted/wukongim/scripts/verify-native-package-repositories.sh: OK
+2026-10-21T17:31:51.5792466Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922: Pulling from wukongim/native-package-signing-toolchain
+2026-10-21T17:31:51.5798553Z 0926a8eb0e60: Pulling fs layer
+2026-10-21T17:31:51.5798957Z fdddbe2d915d: Pulling fs layer
+2026-10-21T17:31:51.5799245Z 0e4446c3a96e: Pulling fs layer
+2026-10-21T17:31:51.8872528Z 0e4446c3a96e: Verifying Checksum
+2026-10-21T17:31:51.8873031Z 0e4446c3a96e: Download complete
+2026-10-21T17:31:51.9132719Z 0926a8eb0e60: Verifying Checksum
+2026-10-21T17:31:51.9133222Z 0926a8eb0e60: Download complete
+2026-10-21T17:31:52.7966737Z 0926a8eb0e60: Pull complete
+2026-10-21T17:31:53.1768761Z fdddbe2d915d: Verifying Checksum
+2026-10-21T17:31:53.1769233Z fdddbe2d915d: Download complete
+2026-10-21T17:31:59.1705185Z fdddbe2d915d: Pull complete
+2026-10-21T17:31:59.1802557Z 0e4446c3a96e: Pull complete
+2026-10-21T17:31:59.1842599Z Digest: sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-21T17:31:59.1853159Z Status: Downloaded newer image for ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-21T17:31:59.1864803Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-21T17:31:59.7677294Z docker.io/library/ubuntu@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316: Pulling from library/ubuntu
+2026-10-21T17:31:59.7678126Z 0926a8eb0e60: Already exists
+2026-10-21T17:31:59.9508686Z Digest: sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316
+2026-10-21T17:31:59.9516414Z Status: Downloaded newer image for ubuntu@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316
+2026-10-21T17:31:59.9526778Z docker.io/library/ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316
+2026-10-21T17:32:00.5507761Z docker.io/library/debian@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f: Pulling from library/debian
+2026-10-21T17:32:00.5509041Z 6310eb16bf42: Pulling fs layer
+2026-10-21T17:32:00.8056195Z 6310eb16bf42: Verifying Checksum
+2026-10-21T17:32:01.6252724Z 6310eb16bf42: Download complete
+2026-10-21T17:32:01.6253137Z 6310eb16bf42: Pull complete
+2026-10-21T17:32:01.6283171Z Digest: sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f
+2026-10-21T17:32:01.6291766Z Status: Downloaded newer image for debian@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f
+2026-10-21T17:32:01.6302428Z docker.io/library/debian:13-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f
+2026-10-21T17:32:02.3422154Z quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5: Pulling from rockylinux/rockylinux
+2026-10-21T17:32:02.3423187Z 879404da0799: Pulling fs layer
+2026-10-21T17:32:02.3423591Z e3bd828ab2a7: Pulling fs layer
+2026-10-21T17:32:02.9541641Z e3bd828ab2a7: Verifying Checksum
+2026-10-21T17:32:02.9542012Z e3bd828ab2a7: Download complete
+2026-10-21T17:32:03.6224834Z 879404da0799: Verifying Checksum
+2026-10-21T17:32:03.6225203Z 879404da0799: Download complete
+2026-10-21T17:32:06.1489506Z 879404da0799: Pull complete
+2026-10-21T17:32:08.8877161Z e3bd828ab2a7: Pull complete
+2026-10-21T17:32:08.8906980Z Digest: sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5
+2026-10-21T17:32:08.8915223Z Status: Downloaded newer image for quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5
+2026-10-21T17:32:08.8927270Z quay.io/rockylinux/rockylinux@sha256:aa1303868c5fad2c780735de874d9dafefe6743b701579eb7acd9bd8bdc523b5
+2026-10-21T17:32:09.4552787Z docker.io/library/almalinux@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e: Pulling from library/almalinux
+2026-10-21T17:32:09.4553788Z ef088ccc1026: Pulling fs layer
+2026-10-21T17:32:09.8344560Z ef088ccc1026: Verifying Checksum
+2026-10-21T17:32:09.8345058Z ef088ccc1026: Download complete
+2026-10-21T17:32:11.8334471Z ef088ccc1026: Pull complete
+2026-10-21T17:32:11.8368023Z Digest: sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e
+2026-10-21T17:32:11.8376421Z Status: Downloaded newer image for almalinux@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e
+2026-10-21T17:32:11.8386588Z docker.io/library/almalinux:9@sha256:28db580abb508f7ccbc0ac6d53e1d8da9d42a26c77fa3dcc26ac2726673fbe3e
+2026-10-21T17:32:11.8438128Z ##[group]Run set -euo pipefail
+2026-10-21T17:32:11.8438603Z [36;1mset -euo pipefail[0m
+2026-10-21T17:32:11.8438892Z [36;1moutput="$RUNNER_TEMP/stable-clients-native"[0m
+2026-10-21T17:32:11.8439203Z [36;1mmkdir "$output"[0m
+2026-10-21T17:32:11.8439483Z [36;1mtimeout --signal=TERM --kill-after=45s 55m \[0m
+2026-10-21T17:32:11.8439840Z [36;1m  python3 -B tests/native_stable_clients_drill.py \[0m
+2026-10-21T17:32:11.8440302Z [36;1m    --output-dir "$output" --product-root "$GITHUB_WORKSPACE/.product/wukongim" \[0m
+2026-10-21T17:32:11.8440782Z [36;1m    --product-sha fc18221282f289088ec9b4282fda8e0bfc67a3b8 \[0m
+2026-10-21T17:32:11.8441737Z [36;1m    --trusted-root "$GITHUB_WORKSPACE/.trusted/wukongim"[0m
+2026-10-21T17:32:11.8442354Z [36;1mjq -e '.test_only == true and .passed == true and .cleanup.verified == true and (.cases | length) == 49 and all(.cases[]; .passed == true)' \[0m
+2026-10-21T17:32:11.8443291Z [36;1m  "$output/native-stable-clients.json" >/dev/null[0m
+2026-10-21T17:32:11.8478346Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T17:32:11.8478686Z env:
+2026-10-21T17:32:11.8478894Z   GOTOOLCHAIN: local
+2026-10-21T17:32:11.8479117Z ##[endgroup]
+2026-10-21T17:51:59.5315715Z ##[error]Process completed with exit code 1.
+2026-10-21T17:51:59.5403874Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-21T17:51:59.5404276Z with:
+2026-10-21T17:51:59.5404578Z   name: native-stable-four-clients-test-only
+2026-10-21T17:51:59.5405150Z   path: /home/runner/work/_temp/stable-clients-native/*.json
+/home/runner/work/_temp/stable-clients-native/https-requests.jsonl
+
+2026-10-21T17:51:59.5405684Z   if-no-files-found: warn
+2026-10-21T17:51:59.5405913Z   retention-days: 30
+2026-10-21T17:51:59.5406136Z   compression-level: 6
+2026-10-21T17:51:59.5406383Z   overwrite: false
+2026-10-21T17:51:59.5406599Z   include-hidden-files: false
+2026-10-21T17:51:59.5406837Z   archive: true
+2026-10-21T17:51:59.5407035Z env:
+2026-10-21T17:51:59.5407225Z   GOTOOLCHAIN: local
+2026-10-21T17:51:59.5407447Z ##[endgroup]
+2026-10-21T17:51:59.6833276Z With the provided path, there will be 2 files uploaded
+2026-10-21T17:51:59.6838697Z Artifact name is valid!
+2026-10-21T17:51:59.6839293Z Root directory input is valid!
+2026-10-21T17:52:00.0545578Z Uploading artifact: native-stable-four-clients-test-only.zip
+2026-10-21T17:52:00.0583044Z Beginning upload of artifact content to blob storage
+2026-10-21T17:52:00.4016993Z Uploaded bytes 51141
+2026-10-21T17:52:00.4582643Z Finished uploading artifact content to blob storage!
+2026-10-21T17:52:00.4583449Z SHA256 digest of uploaded artifact is 89149bff0ac43ada196bce83b996f5588ae0fd7bc25c0ac72eeef47026b9fbdd
+2026-10-21T17:52:00.4584050Z Finalizing artifact upload
+2026-10-21T17:52:00.8741518Z Artifact native-stable-four-clients-test-only successfully finalized. Artifact ID 12367537938
+2026-10-21T17:52:00.8742755Z Artifact native-stable-four-clients-test-only has been successfully uploaded! Final size is 51141 bytes. Artifact ID is 12367537938
+2026-10-21T17:52:00.8752287Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39644526993/artifacts/12367537938
+2026-10-21T17:52:00.8878623Z ##[group]Run git diff --exit-code HEAD -- . ':!.trusted' ':!.product'
+2026-10-21T17:52:00.8879397Z [36;1mgit diff --exit-code HEAD -- . ':!.trusted' ':!.product'[0m
+2026-10-21T17:52:00.8926763Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T17:52:00.8927282Z env:
+2026-10-21T17:52:00.8927600Z   GOTOOLCHAIN: local
+2026-10-21T17:52:00.8927942Z ##[endgroup]
+2026-10-21T17:52:00.9186403Z Post job cleanup.
+2026-10-21T17:52:01.0053119Z [command]/usr/bin/git version
+2026-10-21T17:52:01.0095276Z git version 2.55.0
+2026-10-21T17:52:01.0129037Z Temporarily overriding HOME='/home/runner/work/_temp/2a59af6a-4d55-4255-ab3c-c099df7ab04a' before making global git config changes
+2026-10-21T17:52:01.0130378Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T17:52:01.0134569Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.product/wukongim
+2026-10-21T17:52:01.0179203Z Removing SSH command configuration
+2026-10-21T17:52:01.0179742Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:52:01.0215204Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:52:01.0450099Z Removing HTTP extra header
+2026-10-21T17:52:01.0455931Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:52:01.0486431Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:52:01.0705371Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:52:01.0711935Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:52:01.0744601Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:52:01.1174808Z Post job cleanup.
+2026-10-21T17:52:01.2018456Z [command]/usr/bin/git version
+2026-10-21T17:52:01.2062507Z git version 2.55.0
+2026-10-21T17:52:01.2094393Z Temporarily overriding HOME='/home/runner/work/_temp/9ee5a3b0-2881-4955-9de7-3f0407cd40f3' before making global git config changes
+2026-10-21T17:52:01.2095625Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T17:52:01.2098692Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-21T17:52:01.2134741Z Removing SSH command configuration
+2026-10-21T17:52:01.2143416Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:52:01.2181484Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:52:01.2428045Z Removing HTTP extra header
+2026-10-21T17:52:01.2436167Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:52:01.2473518Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:52:01.2678274Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:52:01.2685339Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:52:01.2719371Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:52:01.3099442Z Post job cleanup.
+2026-10-21T17:52:01.3974248Z [command]/usr/bin/git version
+2026-10-21T17:52:01.4016085Z git version 2.55.0
+2026-10-21T17:52:01.4062547Z Temporarily overriding HOME='/home/runner/work/_temp/880012e0-0a54-48d1-a021-eae458b5da43' before making global git config changes
+2026-10-21T17:52:01.4064087Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T17:52:01.4065978Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-21T17:52:01.4114818Z Removing SSH command configuration
+2026-10-21T17:52:01.4123907Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T17:52:01.4181666Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T17:52:01.4489489Z Removing HTTP extra header
+2026-10-21T17:52:01.4496318Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T17:52:01.4534175Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T17:52:01.4753264Z Removing includeIf entries pointing to credentials config files
+2026-10-21T17:52:01.4758781Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T17:52:01.4794647Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T17:52:01.5166935Z Cleaning up orphan processes

@@ -1,0 +1,14 @@
+{
+  "head": "cee5d51f325fb84033060f546337d326110adae5",
+  "tree": "ae5a4175337f10f521a13a6c704c1b3040cf2bd2",
+  "tracked_product_source_unchanged": true,
+  "original_live_analysis_worktree_clean": true,
+  "probe_worktree_only_untracked": "internal/bench/chatlifecycle/offline_recv_probe_test.go",
+  "probe_sha256": "098394ba124c20d42a30a4d6bf3fdca0365ac04a805c1d4b7789d31057c8901d",
+  "normal_cases_passed": 8,
+  "race_cases_passed": 8,
+  "first_environment_failure_preserved": true,
+  "probe_only_admission_race_preserved_and_corrected": true,
+  "all_exec_processes_terminal": true,
+  "cloud_network_product_processes_invoked": false
+}

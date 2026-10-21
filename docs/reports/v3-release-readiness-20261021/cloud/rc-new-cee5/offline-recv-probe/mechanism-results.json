@@ -1,0 +1,319 @@
+{
+  "cases": [
+    {
+      "case": "timely_enqueue_timely_processing",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 9000000000,
+      "recv_processed_nanos": 9000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 1,
+      "expired": 0,
+      "losses": 0,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "timely_enqueue_delayed_processing",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 9000000000,
+      "recv_processed_nanos": 11000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 1,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "actual_late_ingress",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 11000000000,
+      "recv_processed_nanos": 11000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "no_recv",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": null,
+      "recv_processed_nanos": null,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 0,
+      "receive_acknowledged": 0,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "boundary_recv_before_expiry",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 10000000000,
+      "recv_processed_nanos": 10000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 1,
+      "expired": 0,
+      "losses": 0,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "boundary_expiry_before_recv",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 10000000000,
+      "recv_processed_nanos": 10000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 1,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "recv_before_positive_ack",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 11000000000,
+      "recv_enqueued_nanos": 9000000000,
+      "recv_processed_nanos": 9000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 1,
+      "expired": 0,
+      "losses": 0,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "no_observed_positive_ack",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": null,
+      "recv_enqueued_nanos": null,
+      "recv_processed_nanos": null,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 0,
+      "losses": 0,
+      "received": 0,
+      "receive_acknowledged": 0,
+      "send_acknowledged": 0,
+      "outstanding": 1,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    }
+  ],
+  "delayed_processing_and_late_ingress_retained_fields_identical": true,
+  "mechanism_proven": "With a RECV deliberately queued in the existing fake-client transport at +9s and its actual SessionPool drain gated until +11s, Engine expiration at +10s records one loss which later RECV does not reverse.",
+  "limits": [
+    "Fake SessionClient queue ingress is controlled, not real socket decode or server delivery.",
+    "No historical cee5 sample identity or ingress/processing times were recovered.",
+    "No product verdict or threshold changed."
+  ]
+}

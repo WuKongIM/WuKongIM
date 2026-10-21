@@ -1,0 +1,63 @@
+[
+  {
+    "artifact": "native-bootstrap-preparation-test-only",
+    "receipt_path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+    "sha256": "25473f51a5b91247dce8a866d9c25d74f2c89fb8d3fc624308f80c74152ae295",
+    "tests": 6,
+    "passed": true,
+    "control_files_bound": [],
+    "receipt_source_sha": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+    "test_only": true
+  },
+  {
+    "artifact": "native-local-signing-test-only",
+    "receipt_path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+    "sha256": "9c1848e2280743b306fe82e5a9d9f1192f9e92b890a8858fbe47308f6adc072b",
+    "tests": 10,
+    "passed": true,
+    "control_files_bound": [
+      "manifests/signing-toolchain.json",
+      "scripts/sign-package-family.py",
+      "scripts/validate-signing-material.py",
+      "tests/native_local_signing_drill.py",
+      "tests/native_source_metadata_drill.py",
+      "tests/test_validate_signing_material.py"
+    ],
+    "receipt_source_sha": null,
+    "test_only": true
+  },
+  {
+    "artifact": "native-source-metadata-test-only",
+    "receipt_path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+    "sha256": "56095019b1c2c448ebb41fb763d01a276b4fe68e5416a5e3173c8bb12f280f09",
+    "tests": 7,
+    "passed": true,
+    "control_files_bound": [],
+    "receipt_source_sha": null,
+    "test_only": true
+  },
+  {
+    "artifact": "native-stable-candidate-test-only",
+    "receipt_path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+    "sha256": "89422195611d6316f18d2e9b8759b9afdb19c0fc050dfe4c0d9ca9677a25599c",
+    "tests": 31,
+    "passed": true,
+    "control_files_bound": [
+      "keys/README.md",
+      "keys/apt-preview.asc",
+      "keys/apt-stable.asc",
+      "keys/rpm-preview.asc",
+      "keys/rpm-stable.asc",
+      "manifests/audit-access.json",
+      "manifests/bootstrap-packages.json",
+      "manifests/channels.json",
+      "manifests/preview-signing.json",
+      "manifests/signing-toolchain.json",
+      "manifests/source-read.json",
+      "manifests/stable-public-keys.json",
+      "manifests/trusted-toolchain.json"
+    ],
+    "receipt_source_sha": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+    "test_only": true
+  }
+]

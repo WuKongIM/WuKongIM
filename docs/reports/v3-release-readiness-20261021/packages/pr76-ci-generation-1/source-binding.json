@@ -1,0 +1,46 @@
+{
+  "recorded_at": "2026-10-21T17:57:55.413815+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider",
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "parent": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "worktree_clean": true,
+  "checkout_proof": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/checkout-source-binding.json",
+    "bytes": 852,
+    "sha256": "d4ea8d082419a0c9957aca830927f7d55b59cc02f25161899d78e0d962a5f6aa"
+  },
+  "first_failure": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/first-failure.json",
+    "bytes": 8648,
+    "sha256": "f2a60c4bdebf5bbb61fc0036d65e401ead541554d6bb37cffd78f0dc5cefb216"
+  },
+  "comparison": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/pr75-comparison.json",
+    "bytes": 35596,
+    "sha256": "1f2b3cae176726c3bccb2355ab003e3b41b367c763ba5a9bec4a714172c64945"
+  },
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md",
+      "bytes": 77878,
+      "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-provider/docs/stable-audit-transport.md",
+      "bytes": 13654,
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb"
+    }
+  ],
+  "packages_tracked_AGENTS_FLOW": []
+}

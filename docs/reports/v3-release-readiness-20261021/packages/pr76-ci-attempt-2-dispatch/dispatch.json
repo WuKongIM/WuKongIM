@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-21T17:59:57.846129+00:00",
+  "finished_at": "2026-10-21T18:00:00.017080+00:00",
+  "command": [
+    "gh",
+    "run",
+    "rerun",
+    "39644526993",
+    "--repo",
+    "WuKongIM/packages",
+    "--failed"
+  ],
+  "exit_status": 0,
+  "automatic_retry": false
+}

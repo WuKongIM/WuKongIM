@@ -1,0 +1,671 @@
+{
+  "review_method": "Independent local read-only source and archived JSONL analysis. No test rerun, build, network, cloud or source edits.",
+  "archive_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/archive-sha256.json",
+    "size": 5850,
+    "sha256": "1a0031922614b91edc912127fd66488dd4384eca05757e1d148ec370758d33ba"
+  },
+  "verified_archive_entries": 30,
+  "verified_archive_bytes": 192651,
+  "all_entry_size_sha256_crc32_match": true,
+  "attempts": [
+    {
+      "attempt": "attempt-1",
+      "execution": {
+        "command": [
+          "go",
+          "test",
+          "-run",
+          "^TestOfflineRecvQueueExpiryProbe$",
+          "-count=1",
+          "-timeout=45s",
+          "-json",
+          "./internal/bench/chatlifecycle"
+        ],
+        "env_overrides": {
+          "GOWORK": "off",
+          "GOTOOLCHAIN": "local",
+          "GOPROXY": "off",
+          "GOSUMDB": "off"
+        },
+        "exit_code": 1,
+        "elapsed_seconds": 0.012,
+        "source_sha256": "236d0cf6de32b404bbe8e2ac53e478349c2326d241be2606f26e56f2efb8e4f8",
+        "go_version": "go version go1.23.4 darwin/arm64",
+        "product_changes": false
+      },
+      "subcases_passed": 0,
+      "subcases_failed": [],
+      "package_terminal": [],
+      "structured_receipt_count": 0,
+      "race_warning_count": 0,
+      "stderr": "go: go.mod requires go >= 1.25.0 (running go 1.23.4; GOTOOLCHAIN=local)\n",
+      "files": [
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-1/execution.json",
+          "size": 515,
+          "sha256": "de3ebb57bd4746a30418d0efe852bfd37c202febdd58aa7815310a7f12bb2336"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-1/stdout.jsonl",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-1/stderr.txt",
+          "size": 72,
+          "sha256": "abe676432a1358cb8dbd1cc048fc390daf581224c447e235229534716833c6d3"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-1/offline_recv_probe_test.go",
+          "size": 10527,
+          "sha256": "236d0cf6de32b404bbe8e2ac53e478349c2326d241be2606f26e56f2efb8e4f8"
+        }
+      ]
+    },
+    {
+      "attempt": "attempt-2",
+      "execution": {
+        "command": [
+          "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+          "test",
+          "-run",
+          "^TestOfflineRecvQueueExpiryProbe$",
+          "-count=1",
+          "-timeout=45s",
+          "-json",
+          "./internal/bench/chatlifecycle"
+        ],
+        "env_overrides": {
+          "GOWORK": "off",
+          "GOTOOLCHAIN": "local",
+          "GOPROXY": "off",
+          "GOSUMDB": "off"
+        },
+        "exit_code": 0,
+        "outer_timed_out": false,
+        "elapsed_seconds": 8.186,
+        "source_sha256": "236d0cf6de32b404bbe8e2ac53e478349c2326d241be2606f26e56f2efb8e4f8",
+        "go_version": "go version go1.25.11 darwin/arm64",
+        "product_changes": false
+      },
+      "subcases_passed": 8,
+      "subcases_failed": [],
+      "package_terminal": [
+        "pass"
+      ],
+      "structured_receipt_count": 8,
+      "race_warning_count": 0,
+      "stderr": "",
+      "files": [
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-2/execution.json",
+          "size": 620,
+          "sha256": "16c88c3a3434b60cef3dd6db92457f914923e303ff65d8663898a8d4641523ef"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-2/stdout.jsonl",
+          "size": 15939,
+          "sha256": "3b8cb7d3a8929ecf44ee3535291cd5268b86343df49ce58b681c7905e6257da4"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-2/stderr.txt",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-2/offline_recv_probe_test.go",
+          "size": 10527,
+          "sha256": "236d0cf6de32b404bbe8e2ac53e478349c2326d241be2606f26e56f2efb8e4f8"
+        }
+      ]
+    },
+    {
+      "attempt": "attempt-3-race",
+      "execution": {
+        "command": [
+          "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+          "test",
+          "-race",
+          "-run",
+          "^TestOfflineRecvQueueExpiryProbe$",
+          "-count=1",
+          "-timeout=45s",
+          "-json",
+          "./internal/bench/chatlifecycle"
+        ],
+        "env_overrides": {
+          "GOWORK": "off",
+          "GOTOOLCHAIN": "local",
+          "GOPROXY": "off",
+          "GOSUMDB": "off"
+        },
+        "exit_code": 1,
+        "outer_timed_out": false,
+        "elapsed_seconds": 31.349,
+        "source_sha256": "236d0cf6de32b404bbe8e2ac53e478349c2326d241be2606f26e56f2efb8e4f8",
+        "go_version": "go version go1.25.11 darwin/arm64",
+        "product_changes": false
+      },
+      "subcases_passed": 7,
+      "subcases_failed": [
+        "TestOfflineRecvQueueExpiryProbe/timely_enqueue_timely_processing"
+      ],
+      "package_terminal": [
+        "fail"
+      ],
+      "structured_receipt_count": 8,
+      "race_warning_count": 1,
+      "stderr": "",
+      "files": [
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-3-race/execution.json",
+          "size": 634,
+          "sha256": "e9891871a1de433ad8c6593ddc9a16d1c06ca81bcebedb9d6de4456c716f8432"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-3-race/stdout.jsonl",
+          "size": 31100,
+          "sha256": "9d64dfbb64ed424e2d9f571311bfb4e4dc1a8c50876f2437189092c20d9c3de2"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-3-race/stderr.txt",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-3-race/offline_recv_probe_test.go",
+          "size": 10527,
+          "sha256": "236d0cf6de32b404bbe8e2ac53e478349c2326d241be2606f26e56f2efb8e4f8"
+        }
+      ]
+    },
+    {
+      "attempt": "attempt-4-corrected",
+      "execution": {
+        "command": [
+          "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+          "test",
+          "-run",
+          "^TestOfflineRecvQueueExpiryProbe$",
+          "-count=1",
+          "-timeout=45s",
+          "-json",
+          "./internal/bench/chatlifecycle"
+        ],
+        "env_overrides": {
+          "GOWORK": "off",
+          "GOTOOLCHAIN": "local",
+          "GOPROXY": "off",
+          "GOSUMDB": "off"
+        },
+        "exit_code": 0,
+        "outer_timed_out": false,
+        "elapsed_seconds": 3.336,
+        "source_sha256": "098394ba124c20d42a30a4d6bf3fdca0365ac04a805c1d4b7789d31057c8901d",
+        "go_version": "go version go1.25.11 darwin/arm64",
+        "product_changes": false
+      },
+      "subcases_passed": 8,
+      "subcases_failed": [],
+      "package_terminal": [
+        "pass"
+      ],
+      "structured_receipt_count": 8,
+      "race_warning_count": 0,
+      "stderr": "",
+      "files": [
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-4-corrected/execution.json",
+          "size": 620,
+          "sha256": "305c48f700ed3355af1697194ba64d37fa2fc91c9bb804e33cd07e9816edfa5b"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-4-corrected/stdout.jsonl",
+          "size": 15943,
+          "sha256": "07289f764c260fbb5302c902cc3cff869ee6fe4c421ff70f06480d087fd9d8b6"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-4-corrected/stderr.txt",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-4-corrected/offline_recv_probe_test.go",
+          "size": 10582,
+          "sha256": "098394ba124c20d42a30a4d6bf3fdca0365ac04a805c1d4b7789d31057c8901d"
+        }
+      ]
+    },
+    {
+      "attempt": "attempt-5-corrected-race",
+      "execution": {
+        "command": [
+          "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+          "test",
+          "-race",
+          "-run",
+          "^TestOfflineRecvQueueExpiryProbe$",
+          "-count=1",
+          "-timeout=45s",
+          "-json",
+          "./internal/bench/chatlifecycle"
+        ],
+        "env_overrides": {
+          "GOWORK": "off",
+          "GOTOOLCHAIN": "local",
+          "GOPROXY": "off",
+          "GOSUMDB": "off"
+        },
+        "exit_code": 0,
+        "outer_timed_out": false,
+        "elapsed_seconds": 7.337,
+        "source_sha256": "098394ba124c20d42a30a4d6bf3fdca0365ac04a805c1d4b7789d31057c8901d",
+        "go_version": "go version go1.25.11 darwin/arm64",
+        "product_changes": false
+      },
+      "subcases_passed": 8,
+      "subcases_failed": [],
+      "package_terminal": [
+        "pass"
+      ],
+      "structured_receipt_count": 8,
+      "race_warning_count": 0,
+      "stderr": "",
+      "files": [
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-5-corrected-race/execution.json",
+          "size": 633,
+          "sha256": "eabe1107ac3c7409c4c4c68d15509f2d1aec2131a8660ca062668b6eb83d4c2b"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-5-corrected-race/stdout.jsonl",
+          "size": 16358,
+          "sha256": "35f0e1976b6441e518c46cd09a114a64105f4da5eb195b5d3932853a6c7b53fe"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-5-corrected-race/stderr.txt",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/attempt-5-corrected-race/offline_recv_probe_test.go",
+          "size": 10582,
+          "sha256": "098394ba124c20d42a30a4d6bf3fdca0365ac04a805c1d4b7789d31057c8901d"
+        }
+      ]
+    }
+  ],
+  "final_cases": [
+    {
+      "case": "timely_enqueue_timely_processing",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 9000000000,
+      "recv_processed_nanos": 9000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 1,
+      "expired": 0,
+      "losses": 0,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "timely_enqueue_delayed_processing",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 9000000000,
+      "recv_processed_nanos": 11000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 1,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "actual_late_ingress",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 11000000000,
+      "recv_processed_nanos": 11000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "no_recv",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": null,
+      "recv_processed_nanos": null,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 0,
+      "receive_acknowledged": 0,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "boundary_recv_before_expiry",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 10000000000,
+      "recv_processed_nanos": 10000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 1,
+      "expired": 0,
+      "losses": 0,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "boundary_expiry_before_recv",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 0,
+      "recv_enqueued_nanos": 10000000000,
+      "recv_processed_nanos": 10000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 1,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 1,
+      "losses": 1,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 26,
+                "fingerprint": [
+                  30,
+                  136,
+                  206,
+                  156,
+                  217,
+                  234,
+                  208,
+                  105,
+                  67,
+                  113,
+                  104,
+                  14,
+                  29,
+                  9,
+                  172,
+                  237
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "recv_before_positive_ack",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": 11000000000,
+      "recv_enqueued_nanos": 9000000000,
+      "recv_processed_nanos": 9000000000,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 1,
+      "expired": 0,
+      "losses": 0,
+      "received": 1,
+      "receive_acknowledged": 1,
+      "send_acknowledged": 1,
+      "outstanding": 0,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    },
+    {
+      "case": "no_observed_positive_ack",
+      "deadline_nanos": 10000000000,
+      "ack_observed_nanos": null,
+      "recv_enqueued_nanos": null,
+      "recv_processed_nanos": null,
+      "expiration_advance_nanos": 10000000000,
+      "queue_depth_at_expiry": 0,
+      "sampled": 1,
+      "delivered": 0,
+      "expired": 0,
+      "losses": 0,
+      "received": 0,
+      "receive_acknowledged": 0,
+      "send_acknowledged": 0,
+      "outstanding": 1,
+      "evidence": {
+        "classes": []
+      },
+      "sessions_after_stop": 0,
+      "active_read_calls_after_stop": 0
+    }
+  ],
+  "normal_race_and_final_projection_equal": true,
+  "delayed_vs_late_equal_except_case_enqueue_time_and_queue_depth": true,
+  "all_canonical_cases_zero_online_and_active_reads_after_stop": true,
+  "anchors": [
+    {
+      "path": "internal/bench/chatlifecycle/offline_recv_probe_test.go",
+      "lines": "14-45,75-80,169-222",
+      "reason": "Permits gate fake transport; next-read entry joins previous synchronous drain; owner admission result uses channel."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine_test.go",
+      "lines": "7068-7220,7469-7528",
+      "reason": "Real Engine/SessionPool/Verifier wiring; fake TrySend enqueues actual matching ACK."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session.go",
+      "lines": "1246-1313",
+      "reason": "Actual drain handles ACK/RECV through verifier."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "lines": "2753-2760",
+      "reason": "Advance calls actual expiry logic."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verifier.go",
+      "lines": "898-915,962-1006",
+      "reason": "Expiry removes correlation/counts loss; later RECV cannot reverse it."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session_test.go",
+      "lines": "1228-1243",
+      "reason": "Fake clock mutex guards reads/writes."
+    },
+    {
+      "path": "internal/bench/wkproto/client.go",
+      "lines": "695-771",
+      "reason": "Real adapter RECV currently has empty FrameTiming; source fact, not a wire measurement."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "lines": "1088-1134",
+      "reason": "Stop cancels and joins generation and CloseAll."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session.go",
+      "lines": "1055-1128",
+      "reason": "Cancellation/close then drain and heartbeat join."
+    },
+    {
+      "path": "internal/bench/chatlifecycle/offline_recv_probe_test.go",
+      "lines": "255-287",
+      "reason": "Actual verifier assertions and zero sessions/active reads after Stop."
+    }
+  ],
+  "findings": [],
+  "limits": [
+    "Fake transport queue and ACK observation clock; no real socket/decoder/server/full-load reproduction.",
+    "Mechanism and ordering evidence cannot establish historical cee5 cloud cause.",
+    "Owned sessions/read calls and actual Stop join path are verified; no global goroutine census claim.",
+    "Historical product_failure/message_loss remains unchanged."
+  ]
+}

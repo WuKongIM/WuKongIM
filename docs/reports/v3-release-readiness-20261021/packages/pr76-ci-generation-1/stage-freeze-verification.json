@@ -1,0 +1,10 @@
+{
+  "verified_at": "2026-10-21T17:57:55.413815+00:00",
+  "original_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/stage-freeze-1.json",
+    "bytes": 6784,
+    "sha256": "cebe6bf9818b39767fa8e3725b2e5f2758ebd801f9bf793a695c5465b91323c8"
+  },
+  "files": 40,
+  "all_unchanged": true
+}

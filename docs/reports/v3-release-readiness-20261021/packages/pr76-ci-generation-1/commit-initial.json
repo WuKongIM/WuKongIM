@@ -1,0 +1,35 @@
+{
+  "sha": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "node_id": "C_kwDOUJ8YLtoAKGRkZWQyNmFmYTEyMTg4ZDVmMWMwMzZhZjRiOWMwNmMzY2JkZGI0NmQ",
+  "url": "https://api.github.com/repos/WuKongIM/packages/git/commits/dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "html_url": "https://github.com/WuKongIM/packages/commit/dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "author": {
+    "name": "tt",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T17:20:33Z"
+  },
+  "committer": {
+    "name": "tt",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T17:27:29Z"
+  },
+  "tree": {
+    "sha": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+    "url": "https://api.github.com/repos/WuKongIM/packages/git/trees/e319ee72e8d30f012fd5e6206d131e2b75c47a09"
+  },
+  "message": "Add optional OSS/CDN SDK library and fresh input contracts\n\nKeep production activation unsupported; bind full configuration observations\nbefore writes and reject SDK debug logging before credential-bearing calls.",
+  "parents": [
+    {
+      "sha": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+      "url": "https://api.github.com/repos/WuKongIM/packages/git/commits/1829c3813d6b21dcfeb1238a640604a4691815bd",
+      "html_url": "https://github.com/WuKongIM/packages/commit/1829c3813d6b21dcfeb1238a640604a4691815bd"
+    }
+  ],
+  "verification": {
+    "verified": false,
+    "reason": "unsigned",
+    "signature": null,
+    "payload": null,
+    "verified_at": null
+  }
+}

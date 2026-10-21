@@ -1,0 +1,100 @@
+{
+  "source_execution": "Only imported pure validation/main logic; network capture functions replaced with deterministic no-I/O functions. No source modification.",
+  "results": [
+    {
+      "case": "report_nanosecond_anchor",
+      "accepted": false
+    },
+    {
+      "case": "millisecond_control",
+      "accepted": true,
+      "coverage": {
+        "series_count": 1,
+        "sample_count": 2,
+        "observed_start": "1792601510.121",
+        "observed_end": "1792602410.121"
+      }
+    },
+    {
+      "case": "formal_without_capacity",
+      "outcome": "product_failure",
+      "capacity_attempted": false,
+      "captures": [
+        {
+          "class": "workload",
+          "name": "capacity-documents",
+          "state": "not_applicable",
+          "bytes": 0,
+          "reason": "formal_failed_before_capacity",
+          "report_sha256": "4dafc614cda1e71a221a1762e082e2da73f356489331840981732f59f92a8a38"
+        },
+        {
+          "class": "workload",
+          "name": "formal-worker-evidence",
+          "state": "collected",
+          "bytes": 1
+        },
+        {
+          "class": "workload",
+          "name": "formal-diagnostic-status",
+          "state": "collected",
+          "bytes": 1
+        }
+      ]
+    },
+    {
+      "case": "formal_without_capacity",
+      "outcome": "passed_with_capacity_warning",
+      "capacity_attempted": false,
+      "captures": [
+        {
+          "class": "workload",
+          "name": "capacity-documents",
+          "state": "not_applicable",
+          "bytes": 0,
+          "reason": "formal_failed_before_capacity",
+          "report_sha256": "0bda7f90e7bad0f5bbf25f83b1d82f583ba9f8ed3025166eeab2f7d52eefeb84"
+        },
+        {
+          "class": "workload",
+          "name": "formal-worker-evidence",
+          "state": "collected",
+          "bytes": 1
+        },
+        {
+          "class": "workload",
+          "name": "formal-diagnostic-status",
+          "state": "collected",
+          "bytes": 1
+        }
+      ]
+    },
+    {
+      "case": "formal_without_capacity",
+      "outcome": "not_a_valid_outcome",
+      "capacity_attempted": false,
+      "captures": [
+        {
+          "class": "workload",
+          "name": "capacity-documents",
+          "state": "not_applicable",
+          "bytes": 0,
+          "reason": "formal_failed_before_capacity",
+          "report_sha256": "61bdac2842a151b9c832a1decc21c1ab0563a31500d0150ab6937feda1990877"
+        },
+        {
+          "class": "workload",
+          "name": "formal-worker-evidence",
+          "state": "collected",
+          "bytes": 1
+        },
+        {
+          "class": "workload",
+          "name": "formal-diagnostic-status",
+          "state": "collected",
+          "bytes": 1
+        }
+      ]
+    }
+  ]
+}

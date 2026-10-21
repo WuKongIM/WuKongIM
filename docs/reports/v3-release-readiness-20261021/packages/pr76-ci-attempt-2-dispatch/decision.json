@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-21T17:59:44.793672+00:00",
+  "action": "one failed-job-only re-run of unchanged PR76; no further automatic retry",
+  "reason": "First failure is inner600s expiry during normal Alma distro DNF phase before CLI, with identical tested controls/images/product bytes. This bounded distinguishing experiment does not prove external network root cause. Original attempt1 preserved and verified locally; no timeouts, fresh-sandbox contract or zero-failure expectations relaxed.",
+  "first_attempt_manifest_sha256": "e886bc88254f70e7d1cf60842a20199ec1b00711f75dfd3a57df0374dad94bbf",
+  "authority": "Continue authorized validation/delivery of PR76; no paid cloud, protected permissions, publication, or merge.",
+  "documentation": "https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs",
+  "maximum_additional_attempts": 1
+}

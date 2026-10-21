@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-race",
+    "-run",
+    "^TestOfflineRecvQueueExpiryProbe$",
+    "-count=1",
+    "-timeout=45s",
+    "-json",
+    "./internal/bench/chatlifecycle"
+  ],
+  "env_overrides": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off"
+  },
+  "exit_code": 0,
+  "outer_timed_out": false,
+  "elapsed_seconds": 7.337,
+  "source_sha256": "098394ba124c20d42a30a4d6bf3fdca0365ac04a805c1d4b7789d31057c8901d",
+  "go_version": "go version go1.25.11 darwin/arm64",
+  "product_changes": false
+}

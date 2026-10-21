@@ -1,0 +1,1 @@
+go: go.mod requires go >= 1.25.0 (running go 1.23.4; GOTOOLCHAIN=local)

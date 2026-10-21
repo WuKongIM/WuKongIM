@@ -381,3 +381,7 @@ immutable publication and signed native-package public-client acceptance.
 - [精确Stop与零库存](cloud/rc-new-cee5/stop-release/readonly-observation/README.md)：17:43:09Z十二scope清零，正式租约未启动；原message_loss终态逐字保留。
 - [离线终态盘点](cloud/rc-new-cee5/offline-evidence-inventory/README.md)、[产品路径](cloud/rc-new-cee5/offline-product-analysis/README.md)、[压测关联](cloud/rc-new-cee5/offline-benchmark-analysis/README.md)：实际10秒期限，47条presence timeout无样本身份可关联，worker证据缺档、历史根因未知。
 - [#76首次CI失败快照](packages/pr76-ci-root-observation/pr76.json)：默认/SDK/原签名演练通过，四客户端失败；draft保留，未重跑或合并。
+
+- [RECV队列机制探针](cloud/rc-new-cee5/offline-recv-probe/README.md)及[独立复核](cloud/rc-new-cee5/offline-recv-probe-review/report.md)：最终8普通/8race通过，保留首工具链/race失败，不能归因历史云端样本。
+- [采集缺口复现](cloud/rc-new-cee5/offline-collector-analysis/README.md)与[修复首轮双轴审查](cloud/rc-new-cee5/terminal-evidence-review-v1/combined-review.md)：Spec两项P2待修；完整integration还暴露fixture WK_变量冲突，未计通过。
+- [#76首失败完整封存](packages/pr76-ci-generation-1/README.md)及[唯一受限复验决定](packages/pr76-ci-attempt-2-dispatch/decision.json)：原Alma600秒超时永久保留，同SHA失败job第二次状态success，完整终态收据待核。

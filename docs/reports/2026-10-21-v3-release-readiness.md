@@ -1,12 +1,12 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 17:55Z（北京时间10月22日01:55）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 18:15Z（北京时间10月22日02:15）**；后续状态须绑定新的提交和收据。
 
 结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
-产品 #1016/#1017/#1019–#1022及packages #67–#75已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过，但四客户端检查失败，保持draft且未重跑。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
+产品 #1016/#1017/#1019–#1022及packages #67–#75已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z显示success，完整场景及清理收据仍在核对，尚未合并。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
 
-两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，正在按先测试后实现修复诊断能力；47条presence超时日志尚不能与那条过期样本建立因果关系。
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复首轮定向回归通过，但独审发现毫秒边界和容量阶段判断两项P2，正在先补失败回归再修复。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -46,7 +46,7 @@
 | 条件 | 依据级别 | 当前状态 |
 | --- | --- | --- |
 | 修复整合、候选自己的默认测试及相关 Linux E2E/SDK/Manager/原生包回归 | 候选交付与验证 | 已完成：[PR #1016](https://github.com/WuKongIM/WuKongIM/pull/1016) 于 2026-10-21 05:48:47Z 合并为 `ed705c0fb`；更新候选 `7e9da7df1` 的七项 CI 全部首次通过，合并树与之相同；原首次失败保留 |
-| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 两次云请求均在计时前结束并清零，尚未完成预演/长稳。run32原始原因未知；run33已证实控制脚本空Job误判，修复#1021已批准合并。原一次续跑资格已使用；再次执行需要保留¥148.9552历史报价reserve的向下预算能力及含该守卫的新产品候选。实际费用未知；新方案另获批准后已单次启动run39637426411，测量61.212秒后message_loss失败，现场诊断和清理待完成。该RC计划不是RELEASING对所有发行的通用机械门禁 |
+| 本地 30m 预检 → 2h 预演 → 新 Lease 72h Soak → 同老化数据容量 → 30m 恢复 | 本次已制定的 RC 验收计划 | 两次云请求均在计时前结束并清零，尚未完成预演/长稳。run32原始原因未知；run33已证实控制脚本空Job误判，修复#1021已批准合并。原一次续跑资格已使用；再次执行需要保留¥148.9552历史报价reserve的向下预算能力及含该守卫的新产品候选。实际费用未知；新方案另获批准后已单次启动run39637426411，测量61.212秒后message_loss失败；已停止并在17:43:09Z验证十二scope清零，现场MCP未连通，原始产品根因仍未知。该RC计划不是RELEASING对所有发行的通用机械门禁 |
 | stable 频道来源、签名、审计、对象存储/CDN、安装引导与四客户端 | 仓库强制正式发布交付条件 | 生产stable仍disabled/object_storage_required。来源预检#67、preview运输计划器#68、本地签名输入与保管约定#69均已合并；Mac独立生产密钥已完成，public-only登记#70已合并，PR的400+3测试及真实TEST ONLY原生演练已绿，合并后400+3检查再次通过、部署跳过。安装引导准备#71也已合并，通过真实preview/stable共存及重复安装；仍是未签发准备包。离线stable组装/审计及独立验签实现#72已在TEST ONLY Linux通过并获批准合并；实际生产候选封存、OSS/CDN发布与精确版本四客户端公网验收未完成 |
 | 最终 tag 对应的性能 gate、精确 CHANGELOG、immutable 资产、三镜像源、文档及 stable 公网验收 | 仓库强制发布条件 | 仅在前置条件满足、目标版本确定后执行，候选诊断不能代替发布器对最终 tag 的门禁 |
 
@@ -265,6 +265,14 @@ stable [四客户端/A-B方案v2](v3-release-readiness-20261021/packages/stable-
 [压测关联分析](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-benchmark-analysis/README.md)校正实际CorrelationDeadline为10秒；第60.025秒周期快照首次计到loss，终态为61.212秒，均不是失效消息的ACK时间。ACK/RECV乱序和重复ACK已有明确处理，在线接收者有租约保护。RECV本地排队越过期限是待反证机制，没有该样本时钟证据。`worker-evidence.json`会承载有界脱敏例子，但终态collector没有覆盖该路径；离线archive probe如预期RED。后续修复采集和有界指标保留，维持零loss门禁；不把归档缺失误写为运行时写失败。
 
 [#76首次Linux检查快照](v3-release-readiness-20261021/packages/pr76-ci-root-observation/pr76.json)的四客户端job于17:52:48Z failure，其余三个验收job通过，Pages部署跳过。保持draft；正在封存原始失败断言与清理结果，未合并、未重跑、未修改生产渠道。
+
+## 18:15Z 离线修复与客户端复验
+
+[独立RECV队列探针](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe/README.md)使用实际Engine、SessionPool和Verifier，以可控时钟及逐次读取屏障复现：T+9入队、T+11才被处理时，T+10期限已产生loss；真正T+11到达可产生同样结果，T+9及时处理则不丢。最终8项普通和8项race通过，[独立复核](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-recv-probe-review/report.md)无阻断。首次工具链失败和probe自身race均保留；不修改产品、不延长期限，也不能据此把云端单条过期归为误报。
+
+[collector离线复现](v3-release-readiness-20261021/cloud/rc-new-cee5/offline-collector-analysis/README.md)证明终态路径未收集worker-evidence/status，单个metrics响应超限会整体缺档，采样时间还绑定收集时刻。新的七文件修复在42个定向场景通过后完成[双轴首审](v3-release-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-review-v1/combined-review.md)：Standards无发现，Spec两项P2要求修正Prometheus毫秒边界及非pass容量豁免。完整scripts首次integration另遇fixture的WK_环境变量被产品当配置读取，原始记录保留；修复和完整回归尚未完成。
+
+[#76首次失败完整封存](v3-release-readiness-20261021/packages/pr76-ci-generation-1/README.md)含全部日志、六个制品全量SHA/CRC、同tree和清零收据。Alma命令在600.218秒exit124；最后输出为AppStream元数据，未见事务或CLI验收。0/49完成、1失败、48未到达，不能把同一baseline内部其他系统子命令计作场景通过。同控制/产品字节不唯一证明环境原因。[唯一一次受限复验决定](v3-release-readiness-20261021/packages/pr76-ci-attempt-2-dispatch/decision.json)保持源码、镜像及阈值不变，只重新执行失败job；18:12:17Z状态success，终态制品待完整核验。原成功legacy job的API投影新ID不代表重跑。不会自动进行第三次重跑。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

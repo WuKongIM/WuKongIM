@@ -1,0 +1,19 @@
+{
+  "artifact_id": 12367537938,
+  "run_id": 39644526993,
+  "name": "native-stable-four-clients-test-only",
+  "zip_sha256": "89149bff0ac43ada196bce83b996f5588ae0fd7bc25c0ac72eeef47026b9fbdd",
+  "matches_GitHub_digest": true,
+  "files": [
+    {
+      "path": "artifacts/native-stable-four-clients-test-only/https-requests.jsonl",
+      "bytes": 14233,
+      "sha256": "71c2a5e14de01e0c43f425d97b68f2ec7f2993bd72a53b7282a3920de4750aa2"
+    },
+    {
+      "path": "artifacts/native-stable-four-clients-test-only/native-stable-clients.json",
+      "bytes": 248365,
+      "sha256": "486873aa8505d5e1cce4298bd0a0250ac2d38e62210c667cc2ce7514f4834b08"
+    }
+  ]
+}

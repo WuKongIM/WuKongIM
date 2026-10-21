@@ -1,0 +1,6 @@
+{
+  "error": "KeyError: outer_timed_out",
+  "scope": "Local archive parser initially assumed this field was present in attempt-1.",
+  "correction": "Attempt-1 has no timeout field; preserve it as absent. Attempts 2-5 explicitly false.",
+  "effect": "No archive/source mutation and no test rerun. Successful verification followed with per-attempt schema handling."
+}

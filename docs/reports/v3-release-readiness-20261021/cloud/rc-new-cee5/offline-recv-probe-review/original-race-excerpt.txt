@@ -1,0 +1,46 @@
+WARNING: DATA RACE
+Write at 0x00c00004c040 by goroutine 14:
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.TestOfflineRecvQueueExpiryProbe.func1.3()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/offline_recv_probe_test.go:171 +0xd8
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.(*Engine).loop()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/engine.go:2497 +0x16c
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.(*Engine).startGenerationLocked.gowrap1()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/engine.go:1082 +0x50
+
+Previous read at 0x00c00004c040 by goroutine 12:
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.TestOfflineRecvQueueExpiryProbe.func1()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/offline_recv_probe_test.go:175 +0xc28
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.(*SessionPool).Login()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/session.go:410 +0x6a4
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.TestOfflineRecvQueueExpiryProbe.func1()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/offline_recv_probe_test.go:146 +0x610
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.(*SessionPool).Login()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/session.go:410 +0x6a4
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.TestOfflineRecvQueueExpiryProbe.func1()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/offline_recv_probe_test.go:146 +0x610
+  testing.tRunner()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0x164
+  testing.(*T).Run.gowrap1()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x3c
+
+Goroutine 14 (running) created at:
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.(*Engine).startGenerationLocked()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/engine.go:1082 +0x12b0
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.(*Engine).Start()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/engine.go:971 +0xdc
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.TestOfflineRecvQueueExpiryProbe.func1()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/offline_recv_probe_test.go:139 +0x37c
+  testing.tRunner()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0x164
+  testing.(*T).Run.gowrap1()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x3c
+
+Goroutine 12 (running) created at:
+  testing.(*T).Run()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x6e0
+  github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.TestOfflineRecvQueueExpiryProbe()
+      /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-recv-probe/internal/bench/chatlifecycle/offline_recv_probe_test.go:123 +0x7c
+  testing.tRunner()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1934 +0x164
+  testing.(*T).Run.gowrap1()
+      /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/testing/testing.go:1997 +0x3c

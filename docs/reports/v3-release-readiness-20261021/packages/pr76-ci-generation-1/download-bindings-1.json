@@ -1,0 +1,89 @@
+[
+  {
+    "path": "pages-job.log",
+    "api_endpoint": "repos/WuKongIM/packages/actions/jobs/119376460783/logs",
+    "sha256": "7cf9f8e00697a22850c59446f1578bfc58701eb718173cc80982625a0a42040c",
+    "bytes": 19850
+  },
+  {
+    "path": "sdk-job.log",
+    "api_endpoint": "repos/WuKongIM/packages/actions/jobs/119376461851/logs",
+    "sha256": "a795489ff7948c9b258f891094abf211e9ee5e2de9cb014a95abf95aa5b0da94",
+    "bytes": 33290
+  },
+  {
+    "path": "object-storage-sdk-contract.zip",
+    "api_endpoint": "repos/WuKongIM/packages/actions/artifacts/12366183135/zip",
+    "sha256": "2778a4f5c02300df70d87ac3b6d9cb6041fadba052198039251ed7d5a39b3750",
+    "bytes": 1033,
+    "artifact_id": 12366183135,
+    "run_id": 39644526769,
+    "extracted": [
+      {
+        "path": "artifacts/object-storage-sdk-contract/provider-contract-receipt.json",
+        "sha256": "682a400ab067e45bc3e0104c95f0affc988ca5c4469799cc6697571d26fc8c48",
+        "bytes": 1845
+      }
+    ]
+  },
+  {
+    "path": "native-stable-candidate-test-only.zip",
+    "api_endpoint": "repos/WuKongIM/packages/actions/artifacts/12367171252/zip",
+    "sha256": "20eb9bf4a7516c54b4cf54715e413c1f5050c6b5aa732e80d80358695f5a9290",
+    "bytes": 4189,
+    "artifact_id": 12367171252,
+    "run_id": 39644526993,
+    "extracted": [
+      {
+        "path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+        "sha256": "89422195611d6316f18d2e9b8759b9afdb19c0fc050dfe4c0d9ca9677a25599c",
+        "bytes": 28830
+      }
+    ]
+  },
+  {
+    "path": "native-local-signing-test-only.zip",
+    "api_endpoint": "repos/WuKongIM/packages/actions/artifacts/12366981405/zip",
+    "sha256": "daa5e4c40bab76c6f968725601c9593b80431b573e8746a207afb22807e37222",
+    "bytes": 2800,
+    "artifact_id": 12366981405,
+    "run_id": 39644526993,
+    "extracted": [
+      {
+        "path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+        "sha256": "9c1848e2280743b306fe82e5a9d9f1192f9e92b890a8858fbe47308f6adc072b",
+        "bytes": 12973
+      }
+    ]
+  },
+  {
+    "path": "native-bootstrap-preparation-test-only.zip",
+    "api_endpoint": "repos/WuKongIM/packages/actions/artifacts/12366571661/zip",
+    "sha256": "642fd5920afb207abafe6360254d34d1e6907c87e0ea0c6d757b58ece6fc2498",
+    "bytes": 7153,
+    "artifact_id": 12366571661,
+    "run_id": 39644526993,
+    "extracted": [
+      {
+        "path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+        "sha256": "25473f51a5b91247dce8a866d9c25d74f2c89fb8d3fc624308f80c74152ae295",
+        "bytes": 44122
+      }
+    ]
+  },
+  {
+    "path": "native-source-metadata-test-only.zip",
+    "api_endpoint": "repos/WuKongIM/packages/actions/artifacts/12365923641/zip",
+    "sha256": "a4c7fa9d8201ceebce3b37b819795d0d19efc580c87026a83bd90f8d897cea0a",
+    "bytes": 1265,
+    "artifact_id": 12365923641,
+    "run_id": 39644526993,
+    "extracted": [
+      {
+        "path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+        "sha256": "56095019b1c2c448ebb41fb763d01a276b4fe68e5416a5e3173c8bb12f280f09",
+        "bytes": 4464
+      }
+    ]
+  }
+]

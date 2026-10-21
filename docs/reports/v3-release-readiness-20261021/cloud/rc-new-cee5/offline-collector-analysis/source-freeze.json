@@ -1,0 +1,114 @@
+{
+  "source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "working_tree_status": "",
+  "observed_at": "2026-10-21T17:50:55.830482+00:00",
+  "scope": "read-only offline collector audit; no source edits or cloud actions",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    {
+      "path": "internal/bench/chatlifecycle/live_diagnostics.go",
+      "sha256": "808d895a3735b7fa1509cdae64b43bf12f624b1bafd9bdecf4ae6fd34dca1fce",
+      "bytes": 14768
+    },
+    {
+      "path": "internal/bench/chatlifecycle/live_diagnostics_test.go",
+      "sha256": "01b9496cd255d06d904aff056b7d681d93eba57fb424a78f6e1a0dd56d5f2041",
+      "bytes": 10101
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "bytes": 27890
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "sha256": "dd9bf9127e2c5d7a7da06139498229543fab44c02702f43a6e4c2ea0586ccf98",
+      "bytes": 5572
+    },
+    {
+      "path": "scripts/chat-lifecycle/rehearsal-finalize.sh",
+      "sha256": "03f1360b640a919deb433ebed12c8a9158998b17e48f8987c244c5c35e5d5ca1",
+      "bytes": 12826
+    },
+    {
+      "path": "scripts/chat-lifecycle/formal-finalize.sh",
+      "sha256": "4d491b6586e5bea66959364820db98e548c36fbd25d6b412083c3456fa504014",
+      "bytes": 13502
+    },
+    {
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "sha256": "aa954c4920a2f5900524a00681fbf37d2c061ba24d5506d54b683bd036188957",
+      "bytes": 90203
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f",
+      "bytes": 34715
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05",
+      "bytes": 31210
+    },
+    {
+      "path": "docs/adr/0021-separate-workload-duration-from-analysis-grace.md",
+      "sha256": "9d6ee6117d25f66a062bdd337153dc3c1824d390263e84f69370d057e0dbe6e6",
+      "bytes": 1068
+    },
+    {
+      "path": "docs/adr/0041-use-four-postpaid-hosts-for-automated-chat-lifecycle.md",
+      "sha256": "e9d765f06bb624793e3bdcd5e7382ee2ac3ea6f64146bd0044e5b3374628c7f1",
+      "bytes": 900
+    },
+    {
+      "path": "docs/adr/0046-report-resource-saturation-as-a-capacity-warning.md",
+      "sha256": "9c9752d1bded2e6f63161494d169051d292b9b21dea295e1995970dc89d2f036",
+      "bytes": 654
+    },
+    {
+      "path": "docs/agents/issue-agent.md",
+      "sha256": "d7afd170799ff231f90293e6eae4b942b1f159c0db2c43266aef1bedb85a3818",
+      "bytes": 10939
+    },
+    {
+      "path": ".github/issue-agent/policy.json",
+      "sha256": "3e61ce856401063025b1a6f0b03e52c4959e1ed67ebaf576a46655260c8bee40",
+      "bytes": 2287
+    },
+    {
+      "path": "scripts/chat-lifecycle/collect-local-diagnosis.sh",
+      "sha256": "214b0b24c8e3593637fbb1301404fe6ca4449a0046e5bd717f933310d8b9185e",
+      "bytes": 4353
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "ee5dbad91b121b7e411251f2c368ae5abf6a38169343bbb42dfa1ce497963c95",
+      "bytes": 143006
+    }
+  ],
+  "skill": {
+    "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  },
+  "final_working_tree_status": "",
+  "source_digests_rechecked_after_validation": true
+}

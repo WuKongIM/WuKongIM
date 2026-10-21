@@ -1,0 +1,10 @@
+{
+  "started_at": "2026-10-21T17:33:42.688938+00:00",
+  "pr_url": "https://github.com/WuKongIM/packages/pull/76",
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "base": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "scope": "first Linux CI generation only; GET only",
+  "rerun_cancel_push_merge_authorized": false,
+  "original_standards_process_P2_remains": true
+}

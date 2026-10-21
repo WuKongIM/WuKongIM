@@ -1,0 +1,45 @@
+{
+  "observed_at": "2026-10-21T17:38:15.247031+00:00",
+  "status": "in_progress",
+  "conclusion": null,
+  "jobs": [
+    {
+      "id": 119376462664,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": []
+    },
+    {
+      "id": 119376463184,
+      "name": "TEST ONLY stable four clients and A/B",
+      "status": "in_progress",
+      "conclusion": null,
+      "active_steps": [
+        "Exercise signed TEST ONLY stable clients and exact installed CLI"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12367171252,
+      "name": "native-stable-candidate-test-only",
+      "bytes": 4189
+    },
+    {
+      "id": 12366981405,
+      "name": "native-local-signing-test-only",
+      "bytes": 2800
+    },
+    {
+      "id": 12366571661,
+      "name": "native-bootstrap-preparation-test-only",
+      "bytes": 7153
+    },
+    {
+      "id": 12365923641,
+      "name": "native-source-metadata-test-only",
+      "bytes": 1265
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "verified_at": "2026-10-21T17:58:49.908592+00:00",
+  "artifacts": [
+    {
+      "artifact_id": 12366183135,
+      "name": "object-storage-sdk-contract",
+      "bytes": 1033,
+      "sha256": "2778a4f5c02300df70d87ac3b6d9cb6041fadba052198039251ed7d5a39b3750",
+      "matches_GitHub_digest": true,
+      "extracted_bytes_match": true
+    },
+    {
+      "artifact_id": 12367537938,
+      "name": "native-stable-four-clients-test-only",
+      "bytes": 51141,
+      "sha256": "89149bff0ac43ada196bce83b996f5588ae0fd7bc25c0ac72eeef47026b9fbdd",
+      "matches_GitHub_digest": true,
+      "extracted_bytes_match": true
+    },
+    {
+      "artifact_id": 12367171252,
+      "name": "native-stable-candidate-test-only",
+      "bytes": 4189,
+      "sha256": "20eb9bf4a7516c54b4cf54715e413c1f5050c6b5aa732e80d80358695f5a9290",
+      "matches_GitHub_digest": true,
+      "extracted_bytes_match": true
+    },
+    {
+      "artifact_id": 12366981405,
+      "name": "native-local-signing-test-only",
+      "bytes": 2800,
+      "sha256": "daa5e4c40bab76c6f968725601c9593b80431b573e8746a207afb22807e37222",
+      "matches_GitHub_digest": true,
+      "extracted_bytes_match": true
+    },
+    {
+      "artifact_id": 12366571661,
+      "name": "native-bootstrap-preparation-test-only",
+      "bytes": 7153,
+      "sha256": "642fd5920afb207abafe6360254d34d1e6907c87e0ea0c6d757b58ece6fc2498",
+      "matches_GitHub_digest": true,
+      "extracted_bytes_match": true
+    },
+    {
+      "artifact_id": 12365923641,
+      "name": "native-source-metadata-test-only",
+      "bytes": 1265,
+      "sha256": "a4c7fa9d8201ceebce3b37b819795d0d19efc580c87026a83bd90f8d897cea0a",
+      "matches_GitHub_digest": true,
+      "extracted_bytes_match": true
+    }
+  ]
+}

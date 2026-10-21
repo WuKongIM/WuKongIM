@@ -1,0 +1,138 @@
+{
+  "recorded_at": "2026-10-21T17:57:55.413815+00:00",
+  "pr_url": "https://github.com/WuKongIM/packages/pull/76",
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "base": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "actual_checkout": {
+    "checkout_sha": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+    "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09"
+  },
+  "draft": true,
+  "merged": false,
+  "all_runs_terminal": true,
+  "overall_passed": false,
+  "run_attempt": 1,
+  "pages": {
+    "run": 39644526518,
+    "conclusion": "success",
+    "default_tests": 567,
+    "default_skips": 0,
+    "contract_tests": 4,
+    "deploy_job": "skipped: pull_request"
+  },
+  "sdk": {
+    "run": 39644526769,
+    "conclusion": "success",
+    "tests": 22,
+    "skips": 0,
+    "inputs_tests": 10,
+    "inputs_skips": 0,
+    "receipt": {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/pr76-ci-generation-1/artifacts/object-storage-sdk-contract/provider-contract-receipt.json",
+      "bytes": 1845,
+      "sha256": "682a400ab067e45bc3e0104c95f0affc988ca5c4469799cc6697571d26fc8c48"
+    },
+    "locked_install_succeeded": true
+  },
+  "native": {
+    "run": 39644526993,
+    "conclusion": "failure",
+    "jobs": [
+      {
+        "id": 119376462664,
+        "name": "TEST ONLY signed APT/RPM repository",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/WuKongIM/packages/actions/runs/39644526993/job/119376462664"
+      },
+      {
+        "id": 119376463184,
+        "name": "TEST ONLY stable four clients and A/B",
+        "status": "completed",
+        "conclusion": "failure",
+        "html_url": "https://github.com/WuKongIM/packages/actions/runs/39644526993/job/119376463184"
+      }
+    ],
+    "intermediate_receipts": [
+      {
+        "artifact": "native-bootstrap-preparation-test-only",
+        "receipt_path": "artifacts/native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+        "sha256": "25473f51a5b91247dce8a866d9c25d74f2c89fb8d3fc624308f80c74152ae295",
+        "tests": 6,
+        "passed": true,
+        "control_files_bound": [],
+        "receipt_source_sha": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+        "test_only": true
+      },
+      {
+        "artifact": "native-local-signing-test-only",
+        "receipt_path": "artifacts/native-local-signing-test-only/native-local-signing.json",
+        "sha256": "9c1848e2280743b306fe82e5a9d9f1192f9e92b890a8858fbe47308f6adc072b",
+        "tests": 10,
+        "passed": true,
+        "control_files_bound": [
+          "manifests/signing-toolchain.json",
+          "scripts/sign-package-family.py",
+          "scripts/validate-signing-material.py",
+          "tests/native_local_signing_drill.py",
+          "tests/native_source_metadata_drill.py",
+          "tests/test_validate_signing_material.py"
+        ],
+        "receipt_source_sha": null,
+        "test_only": true
+      },
+      {
+        "artifact": "native-source-metadata-test-only",
+        "receipt_path": "artifacts/native-source-metadata-test-only/native-source-metadata.json",
+        "sha256": "56095019b1c2c448ebb41fb763d01a276b4fe68e5416a5e3173c8bb12f280f09",
+        "tests": 7,
+        "passed": true,
+        "control_files_bound": [],
+        "receipt_source_sha": null,
+        "test_only": true
+      },
+      {
+        "artifact": "native-stable-candidate-test-only",
+        "receipt_path": "artifacts/native-stable-candidate-test-only/native-stable-candidate.json",
+        "sha256": "89422195611d6316f18d2e9b8759b9afdb19c0fc050dfe4c0d9ca9677a25599c",
+        "tests": 31,
+        "passed": true,
+        "control_files_bound": [
+          "keys/README.md",
+          "keys/apt-preview.asc",
+          "keys/apt-stable.asc",
+          "keys/rpm-preview.asc",
+          "keys/rpm-stable.asc",
+          "manifests/audit-access.json",
+          "manifests/bootstrap-packages.json",
+          "manifests/channels.json",
+          "manifests/preview-signing.json",
+          "manifests/signing-toolchain.json",
+          "manifests/source-read.json",
+          "manifests/stable-public-keys.json",
+          "manifests/trusted-toolchain.json"
+        ],
+        "receipt_source_sha": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+        "test_only": true
+      }
+    ],
+    "candidate_transport_tests": 8,
+    "stable": {
+      "expected": 49,
+      "recorded": 1,
+      "passed": 0,
+      "failed": 1,
+      "not_reached": 48
+    },
+    "cleanup_verified": true,
+    "reader_cleanup_verified": true
+  },
+  "original_standards_process_P2_remains": "Two original HTTP wiring unit tests were added after implementation. No claim that all implementation was tests-first.",
+  "limits": [
+    "No passing full 49-case PR76 result.",
+    "No live provider, production activation, publication, or full new D2 production-shaped native closure established.",
+    "Cause of Alma DNF deadline remains unknown.",
+    "Local green results were not substituted for Linux CI."
+  ],
+  "actions": "GitHub GET and local evidence writes only. No rerun/cancel/dispatch/push/merge/source edits/local tests. All local collection commands reached terminal state."
+}

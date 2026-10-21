@@ -1,0 +1,349 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 119376462664,
+      "run_id": 39644526993,
+      "workflow_name": "Safety Automation - Drill Native Package Repository",
+      "head_branch": "codex/stable-object-provider",
+      "run_url": "https://api.github.com/repos/WuKongIM/packages/actions/runs/39644526993",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUJ8YLs8AAAAby2RDSA",
+      "head_sha": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+      "url": "https://api.github.com/repos/WuKongIM/packages/actions/jobs/119376462664",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39644526993/job/119376462664",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-21T17:31:17Z",
+      "started_at": "2026-10-21T17:31:20Z",
+      "completed_at": null,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T17:31:21Z",
+          "completed_at": "2026-10-21T17:31:22Z"
+        },
+        {
+          "name": "Check out exact package-repository control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T17:31:22Z",
+          "completed_at": "2026-10-21T17:31:23Z"
+        },
+        {
+          "name": "Validate reviewed control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T17:31:23Z",
+          "completed_at": "2026-10-21T17:31:24Z"
+        },
+        {
+          "name": "Check out immutable trusted repository tools",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T17:31:24Z",
+          "completed_at": "2026-10-21T17:31:27Z"
+        },
+        {
+          "name": "Verify trusted repository tool bytes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T17:31:27Z",
+          "completed_at": "2026-10-21T17:31:27Z"
+        },
+        {
+          "name": "Check real native source metadata in isolated TEST ONLY fixtures",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T17:31:27Z",
+          "completed_at": "2026-10-21T17:31:37Z"
+        },
+        {
+          "name": "Preserve TEST ONLY native metadata evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-21T17:31:37Z",
+          "completed_at": "2026-10-21T17:31:38Z"
+        },
+        {
+          "name": "Sign and independently verify real TEST ONLY local file inputs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-21T17:31:38Z",
+          "completed_at": "2026-10-21T17:31:57Z"
+        },
+        {
+          "name": "Preserve TEST ONLY native local signing evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-21T17:31:57Z",
+          "completed_at": "2026-10-21T17:31:59Z"
+        },
+        {
+          "name": "Build and coinstall TEST ONLY preview and stable bootstrap preparations",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-21T17:31:59Z",
+          "completed_at": "2026-10-21T17:32:00Z"
+        },
+        {
+          "name": "Preserve TEST ONLY native bootstrap preparation evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-21T17:32:00Z",
+          "completed_at": "2026-10-21T17:32:02Z"
+        },
+        {
+          "name": "Compose and independently verify TEST ONLY stable offline candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-21T17:32:02Z",
+          "completed_at": "2026-10-21T17:32:28Z"
+        },
+        {
+          "name": "Preserve TEST ONLY native stable candidate evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-21T17:32:28Z",
+          "completed_at": "2026-10-21T17:32:29Z"
+        },
+        {
+          "name": "Set up fixed GoReleaser toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-21T17:32:29Z",
+          "completed_at": "2026-10-21T17:32:38Z"
+        },
+        {
+          "name": "Install fixed GoReleaser version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-21T17:32:38Z",
+          "completed_at": "2026-10-21T17:34:37Z"
+        },
+        {
+          "name": "Restore exact source Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-21T17:34:37Z",
+          "completed_at": "2026-10-21T17:34:46Z"
+        },
+        {
+          "name": "Build unsigned TEST ONLY packages",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 17,
+          "started_at": "2026-10-21T17:34:46Z",
+          "completed_at": null
+        },
+        {
+          "name": "Build, sign, verify, and install TEST ONLY repositories",
+          "status": "pending",
+          "conclusion": null,
+          "number": 18,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 19,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Restore exact source Go toolchain",
+          "status": "pending",
+          "conclusion": null,
+          "number": 35,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up fixed GoReleaser toolchain",
+          "status": "pending",
+          "conclusion": null,
+          "number": 36,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Check out immutable trusted repository tools",
+          "status": "pending",
+          "conclusion": null,
+          "number": 37,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Check out exact package-repository control",
+          "status": "pending",
+          "conclusion": null,
+          "number": 38,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/packages/check-runs/119376462664",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024459,
+      "runner_name": "GitHub Actions 1000024459",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 119376463184,
+      "run_id": 39644526993,
+      "workflow_name": "Safety Automation - Drill Native Package Repository",
+      "head_branch": "codex/stable-object-provider",
+      "run_url": "https://api.github.com/repos/WuKongIM/packages/actions/runs/39644526993",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUJ8YLs8AAAAby2RFUA",
+      "head_sha": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+      "url": "https://api.github.com/repos/WuKongIM/packages/actions/jobs/119376463184",
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39644526993/job/119376463184",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-21T17:31:17Z",
+      "started_at": "2026-10-21T17:31:20Z",
+      "completed_at": null,
+      "name": "TEST ONLY stable four clients and A/B",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-21T17:31:21Z",
+          "completed_at": "2026-10-21T17:31:22Z"
+        },
+        {
+          "name": "Check out exact package client control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-21T17:31:22Z",
+          "completed_at": "2026-10-21T17:31:23Z"
+        },
+        {
+          "name": "Check out immutable trusted repository tools",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-21T17:31:23Z",
+          "completed_at": "2026-10-21T17:31:27Z"
+        },
+        {
+          "name": "Check out exact TEST ONLY product build source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-21T17:31:27Z",
+          "completed_at": "2026-10-21T17:31:33Z"
+        },
+        {
+          "name": "Prepare fixed product Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-21T17:31:33Z",
+          "completed_at": "2026-10-21T17:31:43Z"
+        },
+        {
+          "name": "Prepare host verification tools and pinned images",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-21T17:31:43Z",
+          "completed_at": "2026-10-21T17:32:11Z"
+        },
+        {
+          "name": "Exercise signed TEST ONLY stable clients and exact installed CLI",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 7,
+          "started_at": "2026-10-21T17:32:11Z",
+          "completed_at": null
+        },
+        {
+          "name": "Preserve public stable client evidence",
+          "status": "pending",
+          "conclusion": null,
+          "number": 8,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked client-control mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Prepare fixed product Go toolchain",
+          "status": "pending",
+          "conclusion": null,
+          "number": 15,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Check out exact TEST ONLY product build source",
+          "status": "pending",
+          "conclusion": null,
+          "number": 16,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Check out immutable trusted repository tools",
+          "status": "pending",
+          "conclusion": null,
+          "number": 17,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Check out exact package client control",
+          "status": "pending",
+          "conclusion": null,
+          "number": 18,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/packages/check-runs/119376463184",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024460,
+      "runner_name": "GitHub Actions 1000024460",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

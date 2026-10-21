@@ -1,0 +1,23 @@
+{
+  "head": "dded26afa12188d5f1c036af4b9c06c3cbddb46d",
+  "base": "1829c3813d6b21dcfeb1238a640604a4691815bd",
+  "actual_checkout": "3e4b7945206faffc18d6023f2b50311d93bd4348",
+  "actual_checkout_kind": "pull_request merge preview",
+  "parents": [
+    "1829c3813d6b21dcfeb1238a640604a4691815bd",
+    "dded26afa12188d5f1c036af4b9c06c3cbddb46d"
+  ],
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "reviewed_source_tree_matches": true,
+  "sdk_receipt_matches": true,
+  "sdk_python": "3.12.3",
+  "sdk_lock_sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b",
+  "pages_contract_tests": 4,
+  "pages_default_tests": 567,
+  "pages_test_skips": 0,
+  "sdk_tests": 22,
+  "sdk_test_skips": 0,
+  "sdk_inputs_tests": 10,
+  "sdk_inputs_skips": 0,
+  "pages_deploy_job": "skipped as expected for pull_request; no production deployment"
+}
