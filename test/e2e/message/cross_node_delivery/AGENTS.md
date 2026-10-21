@@ -20,6 +20,8 @@ WK_E2E_REPLICA_LOAD_COMPARISON=1 GOWORK=off go test -tags=e2e ./test/e2e/message
 ## Rules
 
 - Keep assertions black-box through public WKProto entrypoints.
+- Register each business client's APP device Token through public `/user/token`
+  before CONNECT; retain production-default Token authentication.
 - Start all three nodes with `WK_DELIVERY_ENABLE=true`; delivery-off scenarios
   belong in separate coverage.
 - Enable read-only Manager HTTP and require every node to agree on the actual

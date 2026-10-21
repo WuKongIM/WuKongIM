@@ -94,7 +94,16 @@ func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 	return &quorumLog{cfg: cfg, commands: commands, channels: make(map[ch.ChannelKey]*quorumChannel, cfg.MaxChannels)}, nil
 }
 
-func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed, error) {
+// Install grants a recovered frontier only after a complete quorum proof.
+// Incomplete proofs retain their cause and public readiness identity so callers
+// can retry without treating storage failures or conflicting content as pending.
+func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed Installed, err error) {
+	defer func() {
+		if !errors.Is(err, ch.ErrNotReady) &&
+			(errors.Is(err, errRecoveryProbeIncomplete) || errors.Is(err, errRecoveryQuorumUnavailable)) {
+			err = errors.Join(ch.ErrNotReady, err)
+		}
+	}()
 	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 || (len(authority.Learners) > 0 && l.cfg.RepairAuthorities == nil) || authority.Leader != l.cfg.Local {
 		return Installed{}, ch.ErrInvalidConfig
 	}

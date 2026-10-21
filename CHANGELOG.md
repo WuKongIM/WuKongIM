@@ -14,6 +14,17 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Stop nested MQTT subscription cleanup when the original caller is canceled,
+  before further contention reads or source sealing; preserve owner fencing
+  and deadlines. / MQTT 订阅清理的嵌套操作及时检查原始调用方取消，停止后续争用
+  读取和源封口，保留 Owner 栅栏与原有期限。
+
+- Return a retryable history-read response while Channel quorum recovery is
+  incomplete after restart, including migrated clusters; preserve local storage
+  errors and reject reads/writes until recovery is proven. / 集群重启后（包括迁移
+  集群），频道 quorum 恢复未完成时，历史读取返回可重试响应；保留本地存储错误，
+  恢复证明完成前不放行读写。
+
 - Separate Channel lifecycle from Leader runtime activity in Manager; idle
   channels display as inactive, and listing channels no longer wakes cold
   runtimes. / 管理台分开显示频道生命周期与 Leader 运行时活跃状态，空闲卸载后显示

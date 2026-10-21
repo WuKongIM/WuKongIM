@@ -139,6 +139,11 @@ specification, runbook, report, or module documentation; link to them when neede
   nothing. Authority, corruption, and I/O failures must not become empty or
   successful partial history. A zero committed frontier is handled before a
   storage API whose zero maximum means unbounded.
+- An incomplete or unavailable Channel recovery proof is typed `ErrNotReady`
+  at `DurableQuorumLog.Install`; ordinary history reads return structured
+  HTTP 503 `code=unavailable` until recovery completes. Local probe storage
+  failures, invalid proofs and invalid authority keep their original error
+  classification. Clients must not infer retryability from error substrings.
 - Controller and Slot snapshot restore starts from snapshot data, then replays
   committed entries after the snapshot index. A later stored applied watermark
   must not skip replay. WAL recovery may repair only an incomplete physical tail
@@ -509,7 +514,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Preparing/Removing before projection and accepts only exact intent receipts.
   Resume preserves generation/operation; replacement preserves cursors. Counts
   use bounded pages plus parent revision CAS. Parent cancellation is checked
-  synchronously, not only through asynchronous propagation. Projection receipts
+  synchronously through nested subscription/projection/source scopes, including
+  the original caller; each ancestor retains its own Owner gate and deadline.
+  A private scope pointer carries cancellation ancestry without copying business
+  context values or granting authority. Projection receipts
   require a real distributed implementation; controlled test receipts are not proof.
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
@@ -1853,3 +1861,8 @@ specification, runbook, report, or module documentation; link to them when neede
   canonical unpadded base64url; HTTP payloads use ordinary Base64 of the same
   raw IM bytes. Pages retain default-off development-preview and incomplete
   Linux/fault/load qualification boundaries; configuration stays in one reference.
+- V3 candidate integration keeps the migration recovery repair separate from its
+  archived performance diagnostics. Existing candidate Linux floor evidence does
+  not certify final-tag publication, the agreed long-run plan, or the disabled
+  stable native-package channel; unresolved historical CPU attribution is not an
+  additional gate. See [candidate integration](../reports/2026-10-21-v3-release-recovery.md).

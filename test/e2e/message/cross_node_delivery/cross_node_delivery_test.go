@@ -509,12 +509,22 @@ func deliveryTopOverrides() map[string]string {
 	}
 }
 
+// newConnectedClient provisions one APP credential and retains default CONNECT authentication.
 func newConnectedClient(t *testing.T, node *suite.StartedNode, uid string) *suite.WKProtoClient {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	token := uid + "-e2e-token"
+	_, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/user/token", map[string]any{
+		"uid": uid, "token": token, "device_flag": int(frame.APP), "device_level": 0,
+	}, nil)
+	require.NoError(t, err, node.DumpDiagnostics())
+
 	client, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
-	require.NoError(t, client.Connect(node.GatewayAddr(), uid, uid+"-device"), node.DumpDiagnostics())
+	_, err = client.ConnectWithTokenContext(ctx, node.GatewayAddr(), uid, uid+"-device", token)
+	require.NoError(t, err, node.DumpDiagnostics())
 	return client
 }
 
