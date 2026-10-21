@@ -1211,6 +1211,17 @@ specification, runbook, report, or module documentation; link to them when neede
   processes, or allocating time-sensitive resources; queue time is not part of
   a process deadline. Output-retention fixtures must observe streamed evidence
   before injecting termination, independently of interpreter startup latency.
+- Direct-lab Start-order acceptance runs real Bash and SSH key generation, so
+  it belongs in the integration tier. Its controlled fixture injects all four
+  control-tool paths; unused gate/bundle tools fail if called and append to the
+  exact operation trace. This avoids unrelated helper builds without weakening
+  acquisition ordering or private artifact checks. Other legacy direct-lab
+  cases still need a separate process-boundary audit before reclassification.
+- Local threshold profiling defers HUP/INT/TERM between background request
+  launch and complete PID/file registration, then immediately joins its owned
+  requests and seals interrupted evidence. A successful helper exit alone does
+  not prove HTTP cancellation. Empty cleanup arrays must also work under Bash 3
+  nounset; signal regressions use real requests at fixed registration boundaries.
 - Local repair and the Deployment Action share `scripts/cloud-deployment/deploy.sh`
   for host activation, bounded readiness, and typed outcomes. Behavioral tests
   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts
@@ -1900,3 +1911,19 @@ specification, runbook, report, or module documentation; link to them when neede
   not certify final-tag publication, the agreed long-run plan, or the disabled
   stable native-package channel; unresolved historical CPU attribution is not an
   additional gate. See [candidate integration](../reports/2026-10-21-v3-release-recovery.md).
+
+- Cloud chat-lifecycle terminal collection retains the existing worker-evidence
+  and diagnostic-status documents only after binding their run, worker generations,
+  snapshot sequences and cut time to the final report. Aggregate loss counts alone
+  cannot reconstruct an expired sample after Lease release. Metric collection uses
+  the terminal report window rather than finalizer wall time: eight fixed queries
+  preserve the previous selector plus exact presence-endpoint and delivery-worker,
+  authority-resolution and push-RPC families, with a shared 24 MiB transfer budget
+  and 60-second deadline. Valid partitions survive sibling failures; empty families
+  have explicit zero coverage. Missing, malformed or oversized required evidence
+  stays incomplete and never replaces an earlier product failure. Query boundaries
+  use Prometheus millisecond precision while retaining the report's nanosecond cut;
+  only a legal terminal failure in formal soak with canonical not-attempted capacity
+  evidence can exempt absent capacity documents. Passing outcomes still require
+  capacity evidence. Fixture artifact paths use a non-`WK_` environment variable
+  so product child processes do not treat test metadata as runtime configuration.

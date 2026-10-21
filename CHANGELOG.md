@@ -14,6 +14,17 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Cancel and join local threshold profile requests even when a signal arrives
+  during request startup, preserving interruption metadata and removing partial
+  files. / 本地阈值性能采样在请求启动期间收到信号时也会完整取消并等待请求结束，
+  保留中断元数据并清理临时文件。
+
+- Retain bounded cloud chat-lifecycle worker failure examples and terminal status,
+  and collect presence/delivery metrics in fixed partitions anchored to the
+  terminal report. Partial collection stays explicit and preserves the original
+  workload verdict. / 云端聊天生命周期验收保留有界的工作节点失败样本与终态状态，
+  按终态报告时间分片收集在线路由和投递指标；采集不完整仍明确记录并保留原始负载结论。
+
 - Wait for protocol readiness in original-v2 migration acceptance after the
   first imported-history check, and retain connection-failure diagnostics.
   / 原 v2 迁移验收先核对导入历史，再等待协议就绪后验证原凭证，保留连接失败诊断。

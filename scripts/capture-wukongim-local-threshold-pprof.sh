@@ -274,6 +274,8 @@ OVERALL_STATUS=partial
 OVERALL_REASON=capture_in_progress
 VALID=false
 FINALIZED=0
+CAPTURE_REGISTERING=0
+SIGNAL_PENDING=0
 
 write_metadata() {
   local temporary="$METADATA_FILE.next.$$" node comma
@@ -306,6 +308,8 @@ write_metadata() {
 
 terminate_children() {
   local pid
+  # Bash 3 treats an empty array expansion as unset under nounset.
+  if (( ${#CAPTURE_PIDS[@]} == 0 )); then return 0; fi
   for pid in "${CAPTURE_PIDS[@]}"; do
     [[ -n "$pid" ]] || continue
     kill "$pid" 2>/dev/null || true
@@ -318,6 +322,7 @@ terminate_children() {
 
 remove_temporary_files() {
   local temporary
+  if (( ${#CAPTURE_TMP_FILES[@]} == 0 )); then return 0; fi
   for temporary in "${CAPTURE_TMP_FILES[@]}"; do
     [[ -n "$temporary" ]] || continue
     rm -f "$temporary"
@@ -325,6 +330,12 @@ remove_temporary_files() {
 }
 
 handle_signal() {
+  # A spawned child must acquire its complete cleanup record before a signal
+  # can terminate and join it. This branch must not disturb the pending $!.
+  if (( CAPTURE_REGISTERING == 1 )); then
+    SIGNAL_PENDING=1
+    return
+  fi
   trap - HUP INT TERM
   terminate_children
   remove_temporary_files
@@ -384,6 +395,7 @@ start_profile_request() {
   local temporary="$destination.next.$$" max_bytes=8388608
   case "$kind" in heap) max_bytes=16777216 ;; goroutine|context-*) max_bytes=4194304 ;; esac
   CAPTURE_STARTED+=("$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+  CAPTURE_REGISTERING=1
   curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" --max-filesize "$max_bytes" \
     --header @<(write_authorization_header) \
     -H 'X-WK-Bench-Evidence: local-threshold-pprof' "$url" >"$temporary" 2>/dev/null &
@@ -392,6 +404,8 @@ start_profile_request() {
   CAPTURE_FINAL_FILES+=("$destination")
   CAPTURE_NODE_INDEXES+=("$node_index")
   CAPTURE_KINDS+=("$kind")
+  CAPTURE_REGISTERING=0
+  if (( SIGNAL_PENDING == 1 )); then handle_signal; fi
 }
 
 # Context is opt-in, finite, and scoped separately from the profile/verdict metadata.
