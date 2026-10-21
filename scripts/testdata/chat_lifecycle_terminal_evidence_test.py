@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Process-level terminal collector tests. Every SSH invocation is a fixture."""
+import calendar
 import copy
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
@@ -8,9 +9,11 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -47,70 +50,111 @@ def status():
                 workers=[dict(worker_id=i, phase="final", snapshot_sequence=13, connections=connection, close_reasons=close, harness=harness) for i in range(3)], recent_events=None)
 
 
-SSH = r'''#!/usr/bin/env python3
-import json, os, re, shlex, sys
-from decimal import Decimal, ROUND_HALF_UP
-from pathlib import Path
-cfg=json.loads(Path(os.environ['WK_TEST_CONFIG']).read_text()); command=sys.argv[-1]
-kind='other'; mode='normal'
-if 'worker-evidence.json' in command or 'diagnostic-status.json' in command:
-    filename='worker-evidence.json' if 'worker-evidence.json' in command else 'diagnostic-status.json'
-    stage=re.search(r'/reports/(rehearsal|formal|capacity)/',command).group(1)
-    kind=stage+'/'+filename; mode=cfg.get('document_modes',{}).get(kind,'normal')
-    body=Path(cfg['files'][kind]).read_bytes()
-elif 'api/v1/query_range' in command:
-    words=shlex.split(command)
-    if words[:4]==['bash','-o','pipefail','-c']:words=shlex.split(words[4])
-    parameters=dict(words[i+1].split('=',1) for i,x in enumerate(words) if x=='--data-urlencode')
-    query=parameters['query']
-    if 'runtime_.*|channel_worker' in query: family='combined'
-    elif query=='up' or query=='{__name__="up"}': family='up'
-    elif 'presence_endpoint_lookup_' in query: family='presence'
-    elif 'delivery_' in query: family='delivery'
-    elif 'runtime_' in query: family='runtime'
-    elif 'channel_worker_' in query: family='channel_worker'
-    elif 'process_' in query: family='process'
-    elif 'metadata_create_total' in query: family='counters'
-    elif 'go_' in query: family='go'
-    else: sys.exit(99)
-    kind='range-'+family; mode=cfg.get('metric_modes',{}).get(family,'normal')
-    names={'presence':'wukongim_presence_endpoint_lookup_total','delivery':'wukongim_delivery_recipient_worker_process_total','up':'up','runtime':'wukongim_runtime_queue','channel_worker':'wukongim_channel_worker_busy','process':'wukongim_process_cpu','counters':'wukongim_metadata_create_total','go':'wukongim_go_heap','combined':'up'}
-    result={'metric':{'__name__':names[family]},'values':[[1792602410,'1']]}
-    data={'status':'success','data':{'resultType':'matrix','result':[result]}}
-    if mode in ('boundary-start','boundary-end','before-start','after-end','sub-millisecond'):
-        start=Decimal(parameters['start']).quantize(Decimal('.001'),rounding=ROUND_HALF_UP)
-        end=Decimal(parameters['end']).quantize(Decimal('.001'),rounding=ROUND_HALF_UP)
-        stamp={'boundary-start':start,'boundary-end':end,'before-start':start-Decimal('.001'),'after-end':end+Decimal('.001'),'sub-millisecond':start+Decimal('.0001')}[mode]
-        result['values']=[[float(stamp),'1']]
-    if mode=='wrong-type':data['data']['resultType']='vector'
-    if mode=='wrong-family':result['metric']['__name__']='private_metric'
-    if mode=='empty':data['data']['result']=[]
-    if mode=='error':data={'status':'error','error':'secret-canary-do-not-publish'}
-    if mode=='large':result['metric']['fixture_padding']='x'*900000
-    if mode=='oversized':result['metric']['fixture_padding']='x'*(4194304+10)
-    body=json.dumps(data).encode()
-    if family=='combined' and cfg.get('combined_oversized'):body=b'x'*4194305
-    bounds={key:parameters[key] for key in ['start','end','step']}
-    with open(cfg['calls'],'a') as f:f.write(json.dumps(dict(kind=kind,query=query,**bounds))+'\n')
-    kind=None
-elif 'api/v1/targets' in command:
-    kind='targets';body=b'{"status":"success","data":{"activeTargets":[]}}'
-else:body=b'fixture terminal capture\n'
-if kind is not None:
-    with open(cfg['calls'],'a') as f:f.write(json.dumps({'kind':kind})+'\n')
-if mode.startswith('boundary-') and kind and kind.endswith('.json'):body=body+b' '*max(0,int(mode.removeprefix('boundary-'))-len(body))
-if mode=='missing':sys.exit(3)
-if mode=='unavailable':sys.stderr.write('secret-canary-do-not-publish');sys.exit(255)
-if mode=='timeout':sys.exit(124)
-if mode=='malformed':body=b'not-json-secret-canary-do-not-publish'
-if mode=='oversized' and kind and kind.endswith('.json'):body=b'x'*1048577
-if mode=='empty' and kind:body=b''
-limit=re.search(r'head -c (\d+)',command)
-if limit:body=body[:int(limit.group(1))]
-sys.stdout.buffer.write(body)
-if mode=='partial':sys.exit(255)
-'''
+def metric_family(query):
+    if 'runtime_.*|channel_worker' in query:return 'combined'
+    if query in ('up','{__name__="up"}'):return 'up'
+    for fragment,family in [('presence_endpoint_lookup_','presence'),('delivery_','delivery'),('runtime_','runtime'),('channel_worker_','channel_worker'),('process_','process'),('metadata_create_total','counters'),('go_','go')]:
+        if fragment in query:return family
+    raise AssertionError('unknown fixture metric query')
 
+
+def ssh_calls(path):
+    """Decode commands actually received by SSH, never planned or expected calls."""
+    calls=[]
+    for raw in path.read_bytes().split(b'\0'):
+        if not raw:continue
+        command=raw.decode()
+        if 'worker-evidence.json' in command or 'diagnostic-status.json' in command:
+            filename='worker-evidence.json' if 'worker-evidence.json' in command else 'diagnostic-status.json'
+            stage=re.search(r'/reports/(rehearsal|formal|capacity)/',command).group(1)
+            calls.append(dict(kind=stage+'/'+filename))
+        elif 'api/v1/query_range' in command:
+            words=shlex.split(command)
+            if words[:4]==['bash','-o','pipefail','-c']:words=shlex.split(words[4])
+            parameters=dict(words[i+1].split('=',1) for i,x in enumerate(words) if x=='--data-urlencode')
+            calls.append(dict(kind='range-'+metric_family(parameters['query']),query=parameters['query'],**{key:parameters[key] for key in ['start','end','step']}))
+        else:calls.append(dict(kind='targets' if 'api/v1/targets' in command else 'other'))
+    return calls
+
+
+def prepare_ssh(directory, cfg, end):
+    """Prepare response bytes once; each real SSH process clips the requested bytes."""
+    responses=directory/'responses';responses.mkdir();routes=[];outcomes=[]
+    names={'presence':'wukongim_presence_endpoint_lookup_total','delivery':'wukongim_delivery_recipient_worker_process_total',**NAMES,'combined':'up'}
+    modes={**cfg['document_modes'],**{'range-'+key:value for key,value in cfg['metric_modes'].items()}}
+    bodies={key:Path(path).read_bytes() for key,path in cfg['files'].items()}
+    boundary_bounds={}
+    for family,name in names.items():
+        key='range-'+family;mode=modes.get(key,'normal')
+        result={'metric':{'__name__':name},'values':[[1792602410,'1']]}
+        data={'status':'success','data':{'resultType':'matrix','result':[result]}}
+        if mode in ('boundary-start','boundary-end','before-start','after-end','sub-millisecond'):
+            # Independent fixture time plus exact actual-command matching prevents
+            # a wrong query from receiving a conveniently prepared boundary value.
+            second,fraction=end.removesuffix('Z').split('.')
+            epoch=calendar.timegm(time.strptime(second,'%Y-%m-%dT%H:%M:%S'))
+            finish=(Decimal(epoch)+Decimal('0.'+fraction)).quantize(Decimal('.001'),rounding=ROUND_HALF_UP)
+            start=finish-900
+            stamp={'boundary-start':start,'boundary-end':finish,'before-start':start-Decimal('.001'),'after-end':finish+Decimal('.001'),'sub-millisecond':start+Decimal('.0001')}[mode]
+            result['values']=[[float(stamp),'1']]
+            boundary_bounds[key]=(str(start),str(finish))
+        if mode=='wrong-type':data['data']['resultType']='vector'
+        if mode=='wrong-family':result['metric']['__name__']='private_metric'
+        if mode=='empty':data['data']['result']=[]
+        if mode=='error':data={'status':'error','error':'secret-canary-do-not-publish'}
+        if mode=='large':result['metric']['fixture_padding']='x'*900000
+        if mode=='oversized':result['metric']['fixture_padding']='x'*(4194304+10)
+        bodies[key]=json.dumps(data).encode()
+        if family=='combined' and cfg['combined_oversized']:bodies[key]=b'x'*4194305
+    for key,body in bodies.items():
+        mode=modes.get(key,'normal');document=key.endswith('.json');name=key.replace('/','-')
+        if document:routes.append('*'+key+'*) kind='+name+' ;;')
+        if document and mode.startswith('boundary-'):body+=b' '*max(0,int(mode.removeprefix('boundary-'))-len(body))
+        if mode=='malformed':body=b'not-json-secret-canary-do-not-publish'
+        if document and mode=='oversized':body=b'x'*1048577
+        if document and mode=='empty':body=b''
+        (responses/name).write_bytes(body)
+        code={'missing':3,'unavailable':255,'partial':255,'timeout':124}.get(mode,0)
+        action='code='+str(code)
+        if mode=='unavailable':action="printf '%s' 'secret-canary-do-not-publish' >&2; exit 255"
+        elif mode in ('missing','timeout'):action='exit '+str(code)
+        if key in boundary_bounds:
+            start,finish=boundary_bounds[key]
+            expected=' --data-urlencode start='+start+' --data-urlencode end='+finish+' --data-urlencode step=15 '
+            action='case "$command" in *'+shlex.quote(expected)+'*) ;; *) exit 99 ;; esac; '+action
+        outcomes.append(name+') '+action+' ;;')
+    return r'''#!/bin/sh
+command=""
+for arg do command="$arg"; done
+printf '%s\0' "$command" >>"$TERMINAL_FIXTURE_COMMANDS"
+case "$command" in
+'''+ '\n'.join(routes)+r'''
+ *api/v1/query_range*)
+  case "$command" in
+   *'runtime_.*|channel_worker'*) kind=range-combined ;;
+   *presence_endpoint_lookup_*) kind=range-presence ;;
+   *delivery_*) kind=range-delivery ;;
+   *runtime_*) kind=range-runtime ;;
+   *channel_worker_*) kind=range-channel_worker ;;
+   *process_*) kind=range-process ;;
+   *metadata_create_total*) kind=range-counters ;;
+   *go_*) kind=range-go ;;
+   *query=up*|*'__name__="up"'*) kind=range-up ;;
+   *) exit 99 ;;
+  esac ;;
+ *api/v1/targets*) printf '%s' '{"status":"success","data":{"activeTargets":[]}}'; exit 0 ;;
+ *) printf 'fixture terminal capture\n'; exit 0 ;;
+esac
+case "$kind" in
+'''+ '\n'.join(outcomes)+r'''
+ *) exit 99 ;;
+esac
+rest=${command##*head -c }
+limit=${rest%%[!0-9]*}
+case "$limit" in ''|*[!0-9]*) exit 98 ;; esac
+head -c "$limit" "$TERMINAL_FIXTURE_RESPONSES/$kind"
+exit "$code"
+'''
 
 class CollectorTests(unittest.TestCase):
     def run_case(self, label, stage="rehearsal", mutation=None, report_mutation=None, document_modes=None, metric_modes=None, capacity=False, combined_oversized=False, end=END, capacity_end=END):
@@ -132,16 +176,15 @@ class CollectorTests(unittest.TestCase):
                     if mutation:mutation(name,value)
                     p=d/(current+'-'+name);p.write_text(json.dumps(value));files[current+'/'+name]=str(p)
             cfg=dict(files=files,calls=str(d/'calls'),document_modes=document_modes or {},metric_modes=metric_modes or {},combined_oversized=combined_oversized)
-            (d/'config').write_text(json.dumps(cfg))
-            for name,body in [('ssh',SSH),('timeout','#!/bin/sh\nshift\nexec "$@"\n')]:
+            for name,body in [('ssh',prepare_ssh(d,cfg,end)),('timeout','#!/bin/sh\nshift\nexec "$@"\n')]:
                 p=bin/name;p.write_text(body);p.chmod(0o700)
-            env=dict(os.environ,PATH=str(bin)+os.pathsep+os.environ['PATH'],WK_TEST_CONFIG=str(d/'config'),WK_CLOUD_SSH_CONFIG=str(d/'ssh-config'),WK_CLOUD_SERVICE1_IP='fixture-1',WK_CLOUD_SERVICE2_IP='fixture-2',WK_CLOUD_SERVICE3_IP='fixture-3')
+            env=dict(os.environ,PATH=str(bin)+os.pathsep+os.environ['PATH'],TERMINAL_FIXTURE_COMMANDS=str(d/'commands'),TERMINAL_FIXTURE_RESPONSES=str(d/'responses'),WK_CLOUD_SSH_CONFIG=str(d/'ssh-config'),WK_CLOUD_SERVICE1_IP='fixture-1',WK_CLOUD_SERVICE2_IP='fixture-2',WK_CLOUD_SERVICE3_IP='fixture-3')
             cmd=['bash',str(ROOT/'scripts/chat-lifecycle/collect-terminal-evidence.sh'),stage,str(output)]
             run=subprocess.run(cmd,env=env,cwd=ROOT,capture_output=True,timeout=35)
             self.assertNotIn(b'secret-canary',run.stdout+run.stderr)
             manifest=json.loads((output/'manifest.json').read_text())
             self.assertNotIn('secret-canary',json.dumps(manifest))
-            calls=[json.loads(x) for x in (d/'calls').read_text().splitlines()]
+            calls=ssh_calls(d/'commands')
             retained={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*') if p.is_file()}
             RESULTS.append(dict(case=label,exit_code=run.returncode,manifest=manifest,calls=calls,files=[dict(path=p,bytes=len(b),sha256=hashlib.sha256(b).hexdigest()) for p,b in sorted(retained.items())]))
             return run.returncode,manifest,calls,retained,files
